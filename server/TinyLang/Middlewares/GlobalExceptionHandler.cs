@@ -9,9 +9,6 @@ namespace TinyLang.Middlewares;
 public sealed class GlobalExceptionHandler(
     ILogger<GlobalExceptionHandler> logger, IProblemDetailsService problemDetailsService) : IExceptionHandler
 {
-    private readonly ILogger<GlobalExceptionHandler> _logger = logger;
-    private readonly IProblemDetailsService _problemDetailsService = problemDetailsService;
-
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
@@ -25,11 +22,11 @@ public sealed class GlobalExceptionHandler(
             title = appException.Title;
             message = appException.ErrorMessages;
 
-            _logger.LogWarning("Business rule violation: {Message}", appException.Message);
+            logger.LogWarning("Business rule violation: {Message}", appException.Message);
         }
         else
         {
-            _logger.LogError(exception, "Unhandled system exception: {Message}", exception.Message);
+            logger.LogError(exception, "Unhandled system exception: {Message}", exception.Message);
         }
 
         httpContext.Response.StatusCode = statusCode;
@@ -42,7 +39,7 @@ public sealed class GlobalExceptionHandler(
             Instance = httpContext.Request.Path
         };
 
-        return await _problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+        return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
             Exception = exception,

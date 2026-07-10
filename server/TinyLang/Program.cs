@@ -1,16 +1,41 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Serilog;
 
-var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddOpenApi();
+Log.Logger = new LoggerConfiguration()
+   .WriteTo.Console()
+   .CreateBootstrapLogger();
 
-var app = builder.Build();
-if (app.Environment.IsDevelopment())
+try
 {
-    app.MapOpenApi();
+    Log.Information("Server starting...");
+
+    var builder = WebApplication.CreateBuilder(args);
+    builder.Host.UseSerilog((context, services, configuration) =>
+        configuration
+            .ReadFrom.Configuration(context.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext());
+    builder.Services.AddOpenApi();
+
+    var app = builder.Build();
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapOpenApi();
+    }
+
+    app.UseHttpsRedirection();
+
+    app.Run();
 }
-
-app.UseHttpsRedirection();
-
-app.Run();
+catch (Exception ex) when (ex is not HostAbortedException)
+{
+    // HostAbortedException usually used in design time.
+    // For example, EntityFramework Core migrations.
+    Log.Fatal(ex, "Server terminated unexpectedly!");
+}
+finally
+{
+    Log.CloseAndFlush();
+}

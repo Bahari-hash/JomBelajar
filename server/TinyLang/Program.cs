@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
+using TinyLang.Endpoints;
 
 Log.Logger = new LoggerConfiguration()
    .WriteTo.Console()
@@ -26,6 +27,10 @@ try
     }
 
     app.UseHttpsRedirection();
+    app.UseRouting();
+
+    app.MapGroup("/api")
+        .MapBonusScenesApi();
 
     app.Run();
 }

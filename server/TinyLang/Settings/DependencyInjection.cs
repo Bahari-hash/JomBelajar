@@ -14,6 +14,12 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        var emailSettings = configuration.GetSection(EmailSettings.SectionName);
+        services.AddOptions<EmailSettings>()
+            .Bind(emailSettings)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         return services;
     }
 }

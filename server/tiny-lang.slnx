@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="TinyLang.IntegrationTests/TinyLang.IntegrationTests.csproj" />
+  <Project Path="TinyLang.UnitTests/TinyLang.UnitTests.csproj" />
+  <Project Path="TinyLang/TinyLang.csproj" />
+</Solution>

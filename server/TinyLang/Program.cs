@@ -5,6 +5,7 @@ using Serilog;
 using TinyLang.Database;
 using TinyLang.Endpoints;
 using TinyLang.Infrastructure;
+using TinyLang.Middlewares;
 using TinyLang.Settings;
 
 Log.Logger = new LoggerConfiguration()
@@ -31,6 +32,9 @@ try
     builder.Services.AddDatabaseService(builder.Configuration);
     builder.Services.AddCacheService(builder.Configuration);
 
+    builder.Services.AddProblemDetails();
+    builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
     var app = builder.Build();
     if (app.Environment.IsDevelopment())
     {
@@ -38,6 +42,7 @@ try
     }
 
     app.UseHttpsRedirection();
+    app.UseExceptionHandler();
     app.UseRouting();
 
     app.UseAuthentication();

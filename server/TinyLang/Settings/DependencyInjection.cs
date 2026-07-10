@@ -20,6 +20,12 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        var mqSettings = configuration.GetSection(RabbitMqSettings.SectionName);
+        services.AddOptions<RabbitMqSettings>()
+            .Bind(mqSettings)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         return services;
     }
 }

@@ -2,7 +2,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
+using TinyLang.Database;
 using TinyLang.Endpoints;
+using TinyLang.Infrastructure;
+using TinyLang.Settings;
 
 Log.Logger = new LoggerConfiguration()
    .WriteTo.Console()
@@ -20,6 +23,14 @@ try
             .Enrich.FromLogContext());
     builder.Services.AddOpenApi();
 
+    builder.Services.AddAppSettings(builder.Configuration);
+
+    builder.Services.AddJwtAuthentication(builder.Configuration);
+    builder.Services.AddAuthorizationPolicy();
+
+    builder.Services.AddDatabaseService(builder.Configuration);
+    builder.Services.AddCacheService(builder.Configuration);
+
     var app = builder.Build();
     if (app.Environment.IsDevelopment())
     {
@@ -28,6 +39,9 @@ try
 
     app.UseHttpsRedirection();
     app.UseRouting();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     app.MapGroup("/api")
         .MapBonusScenesApi();

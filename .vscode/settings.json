@@ -1,0 +1,44 @@
+{
+  "editor.fontSize": 16,
+  "editor.fontFamily": "Cascadia Mono",
+  "editor.formatOnPaste": true,
+  "editor.stickyScroll.enabled": true,
+  "editor.stickyScroll.defaultModel": "indentationModel",
+  "editor.stickyScroll.maxLineCount": 5,
+  "editor.stickyScroll.scrollWithEditor": true,
+  "editor.stickyTabStops": false,
+  "editor.detectIndentation": false,
+  "editor.tabCompletion": "on",
+  "editor.suggestSelection": "first",
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": false
+  },
+  "editor.snippetSuggestions": "inline",
+  "editor.acceptSuggestionOnEnter": "on",
+  "editor.formatOnSave": true,
+
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 300,
+
+  "explorer.fileNesting.enabled": false,
+  "explorer.fileNesting.expand": false,
+  "explorer.autoReveal": false,
+
+  "files.exclude": {
+    "**/.vs": true,
+    "**/.idea": true,
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true,
+    "**/bin": true,
+    "**/obj": true,
+    "**/*.user": true
+  },
+  "[csharp]": {
+    "editor.tabSize": 4,
+    "editor.defaultFormatter": "ms-dotnettools.csharp"
+  },
+  "cSpell.words": ["serilog"]
+}

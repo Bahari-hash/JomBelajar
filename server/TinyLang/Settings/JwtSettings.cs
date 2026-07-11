@@ -17,8 +17,10 @@ public sealed record JwtSettings
     public required string Audience { get; init; }
 
     [Required(ErrorMessage = "Jwt access token expiration time cannot be empty.")]
+    [Range(5, 6 * 60, ErrorMessage = "Jwt access token expiration must between {1} and {2} minutes.")]
     public required int AccessTokenExpMinutes { get; init; }
 
     [Required(ErrorMessage = "Jwt refresh token expiration time cannot be empty.")]
+    [Range(24 * 60, 30 * 24 * 60, ErrorMessage = "Jwt refresh token expiration must between {1} and {2} minutes.")]
     public required int RefreshTokenExpMinutes { get; init; }
 }

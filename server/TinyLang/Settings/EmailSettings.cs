@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TinyLang.Enums;
 
 namespace TinyLang.Settings;
 
@@ -13,8 +14,9 @@ public sealed record EmailSettings
     [Range(1, 65535, ErrorMessage = "SMTP server port must between {1} and {2}.")]
     public required int SmtpPort { get; init; }
 
-    [Required(ErrorMessage = "Field 'UseSsl' cannot be empty.")]
-    public required bool UseSsl { get; init; }
+    [Required(ErrorMessage = "SMTP secure mode cannot be empty.")]
+    [EnumDataType(typeof(SmtpSecureMode), ErrorMessage = "Invalid SMTP secure mode.")]
+    public required SmtpSecureMode SecureMode { get; init; }
 
     [Required(ErrorMessage = "Email sender's name cannot be empty.")]
     [MaxLength(64, ErrorMessage = "Email sender name cannot exceed {1} characters.")]

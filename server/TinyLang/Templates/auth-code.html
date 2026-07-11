@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div style="padding: 20px">
+      <p>{{user_email}}，您好，</p>
+      <p>我们已收到您要求获取一次性身份验证码的申请。</p>
+      <p>
+        您的验证码是：<span
+          style="color: #007bff; font-size: 24px; font-weight: bold"
+          >{{code}}</span
+        >
+      </p>
+      <p>
+        该验证码在 {{expiry_minutes}}
+        分钟内有效。为了您的账号安全，请勿将此码告知他人。
+      </p>
+      <p>此操作若非您本人所为，请忽略此邮件。</p>
+      <hr />
+      <p style="font-size: 12px; color: #999">
+        这是一封系统自动发送的邮件，请勿直接回复。
+      </p>
+    </div>
+  </body>
+</html>

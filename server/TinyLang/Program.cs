@@ -24,6 +24,9 @@ try
             .Enrich.FromLogContext());
     builder.Services.AddOpenApi();
 
+    builder.Services.AddProblemDetails();
+    builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
     builder.Services.AddAppSettings(builder.Configuration);
 
     builder.Services.AddJwtAuthentication(builder.Configuration);
@@ -31,9 +34,8 @@ try
 
     builder.Services.AddDatabaseService(builder.Configuration);
     builder.Services.AddCacheService(builder.Configuration);
-
-    builder.Services.AddProblemDetails();
-    builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+    
+    builder.Services.AddTemplatesRenderingService();
 
     var app = builder.Build();
     if (app.Environment.IsDevelopment())

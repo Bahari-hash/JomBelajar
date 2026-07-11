@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using TinyLang.Constants;
 using TinyLang.Entities.Enums;
+using TinyLang.Interfaces;
 using TinyLang.Settings;
 
 namespace TinyLang.Infrastructure;
@@ -76,6 +77,14 @@ public static class DependencyInjection
             options.Configuration = redisConnection;
             options.InstanceName = "tiny-lang";
         });
+
+        return services;
+    }
+
+    public static IServiceCollection AddTemplatesRenderingService(this IServiceCollection services)
+    {
+        services.AddSingleton<ITemplateContentProvider, FSTemplateContentProvider>();
+        services.AddSingleton<ITemplateRenderer, ScribanTemplateRenderer>();
 
         return services;
     }

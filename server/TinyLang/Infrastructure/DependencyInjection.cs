@@ -1,4 +1,5 @@
 using System.Text;
+using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +8,7 @@ using TinyLang.Constants;
 using TinyLang.Entities.Enums;
 using TinyLang.Interfaces;
 using TinyLang.Settings;
+using TinyLang.Workers;
 
 namespace TinyLang.Infrastructure;
 
@@ -81,10 +83,53 @@ public static class DependencyInjection
         return services;
     }
 
+    public static IServiceCollection AddMessageQueueService(
+        this IServiceCollection services, IConfiguration configuration)
+    {
+        var rabbitMqSettings = configuration.GetSection(RabbitMqSettings.SectionName).Get<RabbitMqSettings>() ??
+            throw new InvalidOperationException("Cannot get rabbitmq settings from configuration");
+
+        services.AddMassTransit(options =>
+        {
+            // Register background worker here
+            options.AddConsumer<EmailSendingWorker>();
+
+            options.AddConfigureEndpointsCallback((_, config) =>
+                config.UseMessageRetry(retry => retry.Incremental(
+                    retryLimit: 5,
+                    initialInterval: TimeSpan.FromSeconds(2),
+                    intervalIncrement: TimeSpan.FromSeconds(5))));
+
+            options.UsingRabbitMq((context, config) =>
+            {
+                config.Host(
+                    rabbitMqSettings.Host,
+                    (ushort)rabbitMqSettings.Port,
+                    rabbitMqSettings.VirtualHost, h =>
+                {
+                    h.Username(rabbitMqSettings.Username);
+                    h.Password(rabbitMqSettings.Password);
+                });
+
+                config.ConfigureEndpoints(context);
+            });
+        });
+
+        return services;
+    }
+
     public static IServiceCollection AddTemplatesRenderingService(this IServiceCollection services)
     {
         services.AddSingleton<ITemplateContentProvider, FSTemplateContentProvider>();
         services.AddSingleton<ITemplateRenderer, ScribanTemplateRenderer>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddEmailSendingService(this IServiceCollection services)
+    {
+        services.AddScoped<IEmailSender, EmailSender>();
+        services.AddScoped<IEmailProvider, MailKitProvider>();
 
         return services;
     }

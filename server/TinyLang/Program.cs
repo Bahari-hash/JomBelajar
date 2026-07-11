@@ -34,8 +34,10 @@ try
 
     builder.Services.AddDatabaseService(builder.Configuration);
     builder.Services.AddCacheService(builder.Configuration);
-    
+    builder.Services.AddMessageQueueService(builder.Configuration);
+
     builder.Services.AddTemplatesRenderingService();
+    builder.Services.AddEmailSendingService();
 
     var app = builder.Build();
     if (app.Environment.IsDevelopment())

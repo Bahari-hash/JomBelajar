@@ -22,11 +22,11 @@ public sealed class GlobalExceptionHandler(
             title = appException.Title;
             message = appException.ErrorMessages;
 
-            logger.LogWarning("Business rule violation: {Message}", appException.Message);
+            logger.LogWarning("Business rule violation: {Message}.", appException.Message);
         }
         else
         {
-            logger.LogError(exception, "Unhandled system exception: {Message}", exception.Message);
+            logger.LogError(exception, "Unhandled system exception: {Message}.", exception.Message);
         }
 
         httpContext.Response.StatusCode = statusCode;

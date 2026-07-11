@@ -40,5 +40,6 @@
     "editor.tabSize": 4,
     "editor.defaultFormatter": "ms-dotnettools.csharp"
   },
-  "cSpell.words": ["serilog"]
+  
+  "cSpell.words": ["serilog", "scriban", "xunit", "npgsql"]
 }

@@ -133,4 +133,11 @@ public static class DependencyInjection
 
         return services;
     }
+
+    public static IServiceCollection AddSecureService(this IServiceCollection services)
+    {
+        services.AddSingleton<ISecretHasher, SecretHasher>();
+
+        return services;
+    }
 }

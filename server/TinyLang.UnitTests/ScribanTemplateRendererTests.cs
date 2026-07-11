@@ -20,7 +20,7 @@ public sealed class ScribanTemplateRendererTests
     [Fact]
     public async Task ShouldRenderAuthCodeModel()
     {
-        var model = new AuthCodeRenderModel
+        var model = new VerificationCodeRenderModel
         {
             UserEmail = "noreply@tinylang.com",
             Code = "556677",

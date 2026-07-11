@@ -34,7 +34,8 @@
     "**/node_modules": true,
     "**/bin": true,
     "**/obj": true,
-    "**/*.user": true
+    "**/*.user": true,
+    "**/TestResults": true
   },
   "[csharp]": {
     "editor.tabSize": 4,

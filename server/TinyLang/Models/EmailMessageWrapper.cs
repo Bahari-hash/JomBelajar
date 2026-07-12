@@ -1,6 +1,6 @@
 namespace TinyLang.Models;
 
-public sealed record SendEmailMessage
+public sealed record EmailMessageWrapper
 {
     public required Guid Id { get; init; }
     public required EmailMessage Message { get; init; }

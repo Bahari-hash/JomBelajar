@@ -14,7 +14,7 @@ public sealed class MailKitProvider(IOptions<EmailSettings> options, ILogger<Mai
 {
     private readonly EmailSettings _settings = options.Value;
 
-    public async Task DeliverEmailAsync(SendEmailMessage messageWrapper, CancellationToken cancellationToken = default)
+    public async Task DeliverEmailAsync(EmailMessageWrapper messageWrapper, CancellationToken cancellationToken = default)
     {
         var message = messageWrapper.Message;
         if (message.To.Count == 0)
@@ -41,7 +41,7 @@ public sealed class MailKitProvider(IOptions<EmailSettings> options, ILogger<Mai
         }
     }
 
-    private MimeMessage BuildMimeMessage(SendEmailMessage messageWrapper)
+    private MimeMessage BuildMimeMessage(EmailMessageWrapper messageWrapper)
     {
         var mime = new MimeMessage
         {

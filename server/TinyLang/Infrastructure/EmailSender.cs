@@ -8,7 +8,7 @@ public sealed class EmailSender(IEmailProvider emailProvider, IPublishEndpoint p
 {
     public Task EnqueueEmailAsync(EmailMessage message, CancellationToken cancellationToken = default)
     {
-        var messageWrapper = new SendEmailMessage
+        var messageWrapper = new EmailMessageWrapper
         {
             Id = Guid.NewGuid(),
             Message = message,
@@ -19,7 +19,7 @@ public sealed class EmailSender(IEmailProvider emailProvider, IPublishEndpoint p
 
     public Task SendEmailAsync(EmailMessage message, CancellationToken cancellationToken = default)
     {
-        var messageWrapper = new SendEmailMessage
+        var messageWrapper = new EmailMessageWrapper
         {
             Id = Guid.NewGuid(),
             Message = message,

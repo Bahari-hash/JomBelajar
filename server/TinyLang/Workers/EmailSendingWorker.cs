@@ -7,9 +7,9 @@ namespace TinyLang.Workers;
 
 public sealed class EmailSendingWorker(
     IEmailProvider emailProvider, ILogger<EmailSendingWorker> logger)
-    : IConsumer<SendEmailMessage>
+    : IConsumer<EmailMessageWrapper>
 {
-    public async Task Consume(ConsumeContext<SendEmailMessage> context)
+    public async Task Consume(ConsumeContext<EmailMessageWrapper> context)
     {
         var messageWrapper = context.Message;
         logger.LogInformation("MQ has received the message. Sending....");

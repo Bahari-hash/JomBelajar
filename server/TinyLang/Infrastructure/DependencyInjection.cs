@@ -140,4 +140,11 @@ public static class DependencyInjection
 
         return services;
     }
+
+    public static IServiceCollection AddVerificationCodeService(this IServiceCollection services)
+    {
+        services.AddSingleton<IVerificationCodeGenerator, VerificationCodeGenerator>();
+
+        return services;
+    }
 }

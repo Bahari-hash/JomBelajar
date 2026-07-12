@@ -39,6 +39,8 @@ try
     builder.Services.AddTemplatesRenderingService();
     builder.Services.AddEmailSendingService();
 
+    builder.Services.AddVerificationCodeService();
+
     builder.Services.AddSecureService();
 
     var app = builder.Build();

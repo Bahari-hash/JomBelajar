@@ -26,6 +26,12 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        var vcodeSettings = configuration.GetSection(VerificationCodeSettings.SectionName);
+        services.AddOptions<VerificationCodeSettings>()
+            .Bind(vcodeSettings)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         return services;
     }
 }

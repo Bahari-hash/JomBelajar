@@ -34,9 +34,9 @@ public sealed class ScribanTemplateRendererTests
                 <p>It will expire in {{ expiry_minutes }} minutes.</p>
             </div>";
         var contentProvider = new FakeContentProvider(templateContent);
-        var fakeLogger = NullLogger<ScribanTemplateRenderer>.Instance;
+        var fakeLogger = NullLogger<TemplateRenderer>.Instance;
 
-        var render = new ScribanTemplateRenderer(contentProvider, fakeLogger);
+        var render = new TemplateRenderer(contentProvider, fakeLogger);
         var ct = TestContext.Current.CancellationToken;
         var result = await render.RenderTemplateAsync(model.TemplateName, model, ct);
 

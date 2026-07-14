@@ -120,8 +120,8 @@ public static class DependencyInjection
 
     public static IServiceCollection AddTemplatesRenderingService(this IServiceCollection services)
     {
-        services.AddSingleton<ITemplateContentProvider, FSTemplateContentProvider>();
-        services.AddSingleton<ITemplateRenderer, ScribanTemplateRenderer>();
+        services.AddSingleton<ITemplateContentProvider, TemplateContentProvider>();
+        services.AddSingleton<ITemplateRenderer, TemplateRenderer>();
 
         return services;
     }

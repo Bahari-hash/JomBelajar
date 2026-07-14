@@ -5,8 +5,8 @@ using TinyLang.Interfaces;
 
 namespace TinyLang.Infrastructure;
 
-public sealed class FSTemplateContentProvider(
-    IHostEnvironment env, ILogger<FSTemplateContentProvider> logger) : ITemplateContentProvider
+public sealed class TemplateContentProvider(
+    IHostEnvironment env, ILogger<TemplateContentProvider> logger) : ITemplateContentProvider
 {
     private readonly string _templateRoot =
         Path.Combine(env.ContentRootPath, "Templates") + Path.DirectorySeparatorChar;

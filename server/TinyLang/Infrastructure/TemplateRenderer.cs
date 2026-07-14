@@ -6,8 +6,8 @@ using TinyLang.Templates;
 
 namespace TinyLang.Infrastructure;
 
-public sealed class ScribanTemplateRenderer(
-    ITemplateContentProvider templateProvider, ILogger<ScribanTemplateRenderer> logger) : ITemplateRenderer
+public sealed class TemplateRenderer(
+    ITemplateContentProvider templateProvider, ILogger<TemplateRenderer> logger) : ITemplateRenderer
 {
     private readonly ITemplateContentProvider _templateProvider = templateProvider;
     private readonly ConcurrentDictionary<string, Lazy<Task<Template>>> _templateCache = new();

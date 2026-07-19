@@ -22,8 +22,12 @@
   "files.autoSave": "afterDelay",
   "files.autoSaveDelay": 300,
 
-  "explorer.fileNesting.enabled": false,
+  "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "*.jsx": "${capture}.module.scss, ${capture}.module.css",
+    "*.tsx": "${capture}.module.scss, ${capture}.module.css"
+  },
   "explorer.autoReveal": false,
 
   "files.exclude": {
@@ -41,6 +45,30 @@
     "editor.tabSize": 4,
     "editor.defaultFormatter": "ms-dotnettools.csharp"
   },
-  
+  "[javascript]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescript]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[html]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[css]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
   "cSpell.words": ["serilog", "scriban", "xunit", "npgsql"]
 }

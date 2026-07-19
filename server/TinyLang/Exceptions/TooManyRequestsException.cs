@@ -9,7 +9,7 @@ public sealed class TooManyRequestsException : BaseAppException
     {
     }
 
-    public TooManyRequestsException Create(ErrorCodes errorCode, string? message = null)
+    public static TooManyRequestsException Create(ErrorCodes errorCode, string? message = null)
     {
         return new TooManyRequestsException(message ?? errorCode.GetMessage());
     }

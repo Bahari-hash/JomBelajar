@@ -9,7 +9,7 @@ public sealed class UnauthorizedException : BaseAppException
     {
     }
 
-    public UnauthorizedException Create(ErrorCodes errorCode, string? message = null)
+    public static UnauthorizedException Create(ErrorCodes errorCode, string? message = null)
     {
         return new UnauthorizedException(message ?? errorCode.GetMessage());
     }

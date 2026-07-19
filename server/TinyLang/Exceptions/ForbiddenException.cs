@@ -9,7 +9,7 @@ public sealed class ForbiddenException : BaseAppException
     {
     }
 
-    public ForbiddenException Cretae(ErrorCodes errorCode, string? message = null)
+    public static ForbiddenException Create(ErrorCodes errorCode, string? message = null)
     {
         return new ForbiddenException(message ?? errorCode.GetMessage());
     }

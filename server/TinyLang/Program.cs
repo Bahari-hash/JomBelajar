@@ -1,9 +1,12 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 using TinyLang.Database;
 using TinyLang.Endpoints;
+using TinyLang.Filters;
 using TinyLang.Infrastructure;
 using TinyLang.Middlewares;
 using TinyLang.Settings;
@@ -43,6 +46,8 @@ try
 
     builder.Services.AddSecureService();
 
+    builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
     var app = builder.Build();
     if (app.Environment.IsDevelopment())
     {
@@ -57,7 +62,8 @@ try
     app.UseAuthorization();
 
     app.MapGroup("/api")
-        .MapBonusScenesApi();
+        .MapBonusScenesApi()
+        .AddEndpointFilter<ValidationEndpointFilter>();
 
     app.Run();
 }

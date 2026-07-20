@@ -2,7 +2,7 @@ namespace TinyLang.Entities.Enums;
 
 public enum UserRole
 {
-    Viewer,
+    User,
     Editor,
     Admin,
 }

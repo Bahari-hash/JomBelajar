@@ -62,6 +62,7 @@ try
     app.UseAuthorization();
 
     app.MapGroup("/api")
+        .MapAuthApi()
         .MapBonusScenesApi()
         .AddEndpointFilter<ValidationEndpointFilter>();
 

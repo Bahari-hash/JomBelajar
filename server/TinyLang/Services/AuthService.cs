@@ -1,0 +1,145 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using TinyLang.Dtos;
+using TinyLang.Entities;
+using TinyLang.Entities.Enums;
+using TinyLang.Enums;
+using TinyLang.Exceptions;
+using TinyLang.Interfaces;
+using TinyLang.Settings;
+
+namespace TinyLang.Services;
+
+public sealed class AuthService(
+    IApplicationDbContext db,
+    ISecretHasher secretHasher,
+    IVerificationCodeSender verificationCodeSender,
+    IJwtTokenService jwtTokenService,
+    ITokenBlacklist tokenBlacklist,
+    IOptions<JwtSettings> jwtOptions) : IAuthService
+{
+    private readonly JwtSettings _jwtSettings = jwtOptions.Value;
+
+    public async Task SendRegisterTokenAsync(string email, CancellationToken cancellationToken = default)
+    {
+        email = NormalizeEmail(email);
+        if (await db.Users.AnyAsync(x => x.Email == email && !x.IsDeleted, cancellationToken))
+        {
+            throw ConflictException.Create(ErrorCodes.EmailAlreadyExists);
+        }
+
+        await verificationCodeSender.SendCodeAsync(email, VerificationCodePurpose.Register, cancellationToken);
+    }
+
+    public async Task<UserResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
+    {
+        var email = NormalizeEmail(request.Email);
+        if (!await verificationCodeSender.VerifyCodeAsync(email, VerificationCodePurpose.Register, request.VerificationCode, cancellationToken))
+        {
+            throw UnauthorizedException.Create(ErrorCodes.VerificationCodeInvalid);
+        }
+        if (await db.Users.AnyAsync(x => x.Email == email && !x.IsDeleted, cancellationToken))
+        {
+            throw ConflictException.Create(ErrorCodes.EmailAlreadyExists);
+        }
+
+        var user = new User
+        {
+            Username = email,
+            Email = email,
+            PasswordHash = secretHasher.Hash(request.Password),
+            Role = UserRole.User
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync(cancellationToken);
+        return ToResponse(user);
+    }
+
+    public async Task<AuthTokenResponse> LoginAsync(LoginRequest request, string? clientIp, string? deviceInfo, CancellationToken cancellationToken = default)
+    {
+        var email = NormalizeEmail(request.Email);
+        var user = await db.Users.SingleOrDefaultAsync(x => x.Email == email && !x.IsDeleted, cancellationToken);
+        if (user is null || user.IsBanned || !secretHasher.Verify(request.Password, user.PasswordHash))
+        {
+            throw UnauthorizedException.Create(ErrorCodes.InvalidCredentials);
+        }
+
+        return await IssueTokensAsync(user, clientIp, deviceInfo, cancellationToken);
+    }
+
+    public async Task<AuthTokenResponse> RefreshAsync(RefreshTokenRequest request, string? clientIp, string? deviceInfo, CancellationToken cancellationToken = default)
+    {
+        var hash = jwtTokenService.HashRefreshToken(request.RefreshToken);
+        var stored = await db.RefreshTokens.Include(x => x.User)
+            .SingleOrDefaultAsync(x => x.TokenHash == hash, cancellationToken);
+        if (stored is null || stored.IsRevoked || stored.ExpiresAt <= DateTimeOffset.UtcNow || stored.User.IsDeleted || stored.User.IsBanned)
+        {
+            throw UnauthorizedException.Create(ErrorCodes.RefreshTokenInvalid);
+        }
+
+        stored.IsRevoked = true;
+        stored.RevokedAt = DateTimeOffset.UtcNow;
+        stored.LastUsedAt = DateTimeOffset.UtcNow;
+        stored.UsageCount++;
+        await tokenBlacklist.AddAsync(request.RefreshToken, stored.ExpiresAt, cancellationToken);
+        return await IssueTokensAsync(stored.User, clientIp, deviceInfo, cancellationToken);
+    }
+
+    public async Task LogoutAsync(Guid userId, string? accessToken, string? refreshToken, CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (refreshToken is null)
+        {
+            throw UnauthorizedException.Create(ErrorCodes.RefreshTokenInvalid);
+        }
+
+        var hash = jwtTokenService.HashRefreshToken(refreshToken);
+        var stored = await db.RefreshTokens.SingleOrDefaultAsync(
+            x => x.TokenHash == hash && x.UserId == userId && !x.IsRevoked,
+            cancellationToken) ?? throw UnauthorizedException.Create(ErrorCodes.RefreshTokenInvalid);
+        stored.IsRevoked = true;
+        stored.RevokedAt = now;
+        await db.SaveChangesAsync(cancellationToken);
+        if (accessToken is not null)
+        {
+            await tokenBlacklist.AddAsync(accessToken, now.AddMinutes(_jwtSettings.AccessTokenExpMinutes), cancellationToken);
+        }
+        await tokenBlacklist.AddAsync(refreshToken, stored.ExpiresAt, cancellationToken);
+    }
+
+    public async Task RevokeUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await db.Users.SingleOrDefaultAsync(x => x.Id == userId, cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
+        user.TokenVersion++;
+        var now = DateTimeOffset.UtcNow;
+        var tokens = await db.RefreshTokens.Where(x => x.UserId == userId && !x.IsRevoked).ToListAsync(cancellationToken);
+        foreach (var token in tokens)
+        {
+            token.IsRevoked = true;
+            token.RevokedAt = now;
+        }
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<AuthTokenResponse> IssueTokensAsync(User user, string? clientIp, string? deviceInfo, CancellationToken cancellationToken)
+    {
+        var (token, expiresAt) = jwtTokenService.CreateAccessToken(user);
+        var refresh = jwtTokenService.CreateRefreshToken();
+        var refreshExp = DateTimeOffset.UtcNow.AddMinutes(_jwtSettings.RefreshTokenExpMinutes);
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = user.Id,
+            TokenHash = jwtTokenService.HashRefreshToken(refresh),
+            ClientIp = clientIp,
+            DeviceInfo = deviceInfo,
+            ExpiresAt = refreshExp,
+            LoginAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync(cancellationToken);
+        return new AuthTokenResponse(token, refresh, (long)(expiresAt - DateTimeOffset.UtcNow).TotalSeconds, ToResponse(user));
+    }
+
+    private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+    private static UserResponse ToResponse(User user) => new(user.Id, user.Email, user.Role);
+}

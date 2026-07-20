@@ -1,12 +1,15 @@
 using System.Text;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using TinyLang.Constants;
 using TinyLang.Entities.Enums;
 using TinyLang.Interfaces;
+using TinyLang.Services;
 using TinyLang.Settings;
 using TinyLang.Workers;
 
@@ -47,6 +50,40 @@ public static class DependencyInjection
                 NameClaimType = JwtClaimNamesExtension.Name,
                 RoleClaimType = JwtClaimNamesExtension.Role,
             };
+            options.Events = new JwtBearerEvents
+            {
+                OnTokenValidated = async context =>
+                {
+                    var token = context.Request.Headers.Authorization.ToString().Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
+                    if (string.IsNullOrWhiteSpace(token))
+                    {
+                        context.Fail("Missing bearer token");
+                        return;
+                    }
+
+                    var blacklist = context.HttpContext.RequestServices.GetRequiredService<ITokenBlacklist>();
+                    if (await blacklist.ContainsAsync(token, context.HttpContext.RequestAborted))
+                    {
+                        context.Fail("Token has been revoked");
+                        return;
+                    }
+
+                    var userIdValue = context.Principal?.FindFirst(JwtClaimNamesExtension.UserId)?.Value;
+                    var versionValue = context.Principal?.FindFirst(JwtClaimNamesExtension.TokenVersion)?.Value;
+                    if (!Guid.TryParse(userIdValue, out var userId) || !int.TryParse(versionValue, out var tokenVersion))
+                    {
+                        context.Fail("Invalid token claims");
+                        return;
+                    }
+
+                    var db = context.HttpContext.RequestServices.GetRequiredService<IApplicationDbContext>();
+                    var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId, context.HttpContext.RequestAborted);
+                    if (user is null || user.IsDeleted || user.IsBanned || user.TokenVersion != tokenVersion)
+                    {
+                        context.Fail("User is no longer authorized");
+                    }
+                }
+            };
         });
 
         return services;
@@ -54,7 +91,14 @@ public static class DependencyInjection
 
     public static IServiceCollection AddAuthorizationPolicy(this IServiceCollection services)
     {
+        services.AddSingleton<IAuthorizationHandler, MinimumRoleHandler>();
         services.AddAuthorizationBuilder()
+            .AddPolicy(AuthorizationPolicies.RequireUser, policy =>
+            {
+                policy.RequireAssertion(context =>
+                    context.User.IsInRole(UserRole.User.ToString()) ||
+                    context.User.IsInRole(UserRole.Admin.ToString()));
+            })
             .AddPolicy(AuthorizationPolicies.RequireAdmin, policy =>
             {
                 var minimumAdmin = new MinimumRoleRequirement(UserRole.Admin);
@@ -79,6 +123,7 @@ public static class DependencyInjection
             options.Configuration = redisConnection;
             options.InstanceName = "tiny-lang";
         });
+        services.AddSingleton<ITokenBlacklist, TokenBlacklist>();
 
         return services;
     }
@@ -137,6 +182,8 @@ public static class DependencyInjection
     public static IServiceCollection AddSecureService(this IServiceCollection services)
     {
         services.AddSingleton<ISecretHasher, SecretHasher>();
+        services.AddSingleton<IJwtTokenService, JwtTokenService>();
+        services.AddScoped<IAuthService, AuthService>();
 
         return services;
     }

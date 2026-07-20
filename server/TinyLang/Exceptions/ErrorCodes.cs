@@ -38,6 +38,9 @@ public enum ErrorCodes
     [Description("密码长度最大不超过50个字符.")]
     PasswordLengthLimit,
 
+    [Description("密码长度最少为8个字符.")]
+    PasswordLengthMinimum,
+
     [Description("密码只能由字母, 数字, 下划线, @#$等符号组成.")]
     PasswordFormatInvalid,
 
@@ -64,6 +67,12 @@ public enum ErrorCodes
 
     [Description("用户名或密码错误.")]
     UsernameOrPasswordWrong,
+
+    [Description("邮箱或密码错误.")]
+    InvalidCredentials,
+
+    [Description("刷新令牌无效或已过期.")]
+    RefreshTokenInvalid,
 
     [Description("用户权鉴无效.")]
     TokenInvalid,

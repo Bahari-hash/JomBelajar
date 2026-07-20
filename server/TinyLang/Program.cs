@@ -9,6 +9,7 @@ using TinyLang.Endpoints;
 using TinyLang.Filters;
 using TinyLang.Infrastructure;
 using TinyLang.Middlewares;
+using TinyLang.Services;
 using TinyLang.Settings;
 
 Log.Logger = new LoggerConfiguration()
@@ -43,10 +44,10 @@ try
     builder.Services.AddEmailSendingService();
 
     builder.Services.AddVerificationCodeService();
-
     builder.Services.AddSecureService();
 
     builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+    builder.Services.AddBusinessServices();
 
     var app = builder.Build();
     if (app.Environment.IsDevelopment())
@@ -63,6 +64,8 @@ try
 
     app.MapGroup("/api")
         .MapAuthApi()
+        .MapUsersApi()
+        .MapSecurityApi()
         .MapBonusScenesApi()
         .AddEndpointFilter<ValidationEndpointFilter>();
 

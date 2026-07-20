@@ -122,6 +122,41 @@ public sealed class AuthService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task SendChangeEmailTokenAsync(Guid userId, string newEmail, CancellationToken cancellationToken = default)
+    {
+        var user = await FindActiveUserAsync(userId, cancellationToken);
+        newEmail = NormalizeEmail(newEmail);
+        if (newEmail == user.Email)
+        {
+            throw new RequestValidationException(ErrorCodes.EmailUnchanged);
+        }
+        if (await db.Users.AnyAsync(x => x.Email == newEmail && !x.IsDeleted, cancellationToken))
+        {
+            throw ConflictException.Create(ErrorCodes.EmailAlreadyExists);
+        }
+
+        await verificationCodeSender.SendCodeAsync(newEmail, VerificationCodePurpose.ChangeEmail, cancellationToken);
+    }
+
+    public async Task SendResetPasswordTokenAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await FindActiveUserAsync(userId, cancellationToken);
+        await verificationCodeSender.SendCodeAsync(user.Email, VerificationCodePurpose.ResetPassword, cancellationToken);
+    }
+
+    public async Task SendDeleteAccountTokenAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await FindActiveUserAsync(userId, cancellationToken);
+        await verificationCodeSender.SendCodeAsync(user.Email, VerificationCodePurpose.DeleteAccount, cancellationToken);
+    }
+
+    public Task<bool> VerifyCodeAsync(
+        string email,
+        VerificationCodePurpose purpose,
+        string code,
+        CancellationToken cancellationToken = default)
+        => verificationCodeSender.VerifyCodeAsync(NormalizeEmail(email), purpose, code, cancellationToken);
+
     private async Task<AuthTokenResponse> IssueTokensAsync(User user, string? clientIp, string? deviceInfo, CancellationToken cancellationToken)
     {
         var (token, expiresAt) = jwtTokenService.CreateAccessToken(user);
@@ -141,5 +176,10 @@ public sealed class AuthService(
     }
 
     private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+
+    private async Task<User> FindActiveUserAsync(Guid userId, CancellationToken cancellationToken)
+        => await db.Users.SingleOrDefaultAsync(x => x.Id == userId && !x.IsDeleted, cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
+
     private static UserResponse ToResponse(User user) => new(user.Id, user.Email, user.Role);
 }

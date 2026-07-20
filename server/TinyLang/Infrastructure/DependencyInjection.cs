@@ -9,7 +9,6 @@ using Microsoft.IdentityModel.Tokens;
 using TinyLang.Constants;
 using TinyLang.Entities.Enums;
 using TinyLang.Interfaces;
-using TinyLang.Services;
 using TinyLang.Settings;
 using TinyLang.Workers;
 
@@ -183,7 +182,6 @@ public static class DependencyInjection
     {
         services.AddSingleton<ISecretHasher, SecretHasher>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
-        services.AddScoped<IAuthService, AuthService>();
 
         return services;
     }

@@ -59,6 +59,9 @@ public enum ErrorCodes
     [Description("邮箱已经被占用.")]
     EmailAlreadyExists,
 
+    [Description("新邮箱不能与当前邮箱相同.")]
+    EmailUnchanged,
+
     [Description("用户名已经被占用.")]
     UsernameAlreadyExists,
 
@@ -91,4 +94,19 @@ public enum ErrorCodes
 
     [Description("用户简介最大长度不超过500个字符.")]
     BioLengthLimit,
+
+    [Description("头像链接最大长度不能超过500个字符.")]
+    AvatarUrlLengthLimit,
+
+    [Description("头像链接必须是有效的 HTTP 或 HTTPS 地址.")]
+    AvatarUrlFormatInvalid,
+
+    [Description("角色不能为空.")]
+    RoleRequired,
+
+    [Description("用户角色无效.")]
+    RoleInvalid,
+
+    [Description("管理员不能封禁自己.")]
+    CannotBanSelf,
 }

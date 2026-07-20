@@ -14,7 +14,7 @@ public static class AuthEndpoints
     {
         var group = endpoints.MapGroup("/auth");
 
-        group.MapPost("/register-token", async (
+        group.MapPost("/register/token", async (
             RegisterTokenRequest request,
             IAuthService authService,
             CancellationToken cancellationToken) =>
@@ -22,6 +22,37 @@ public static class AuthEndpoints
             await authService.SendRegisterTokenAsync(request.Email, cancellationToken);
             return Results.Ok();
         });
+
+        group.MapPost("/change-email/token", async (
+            SendChangeEmailTokenRequest request,
+            ClaimsPrincipal principal,
+            IAuthService authService,
+            CancellationToken cancellationToken) =>
+        {
+            await authService.SendChangeEmailTokenAsync(
+                EndpointIdentity.GetUserId(principal), request.NewEmail, cancellationToken);
+            return Results.Ok();
+        }).RequireAuthorization(AuthorizationPolicies.RequireUser);
+
+        group.MapPost("/reset-password/token", async (
+            ClaimsPrincipal principal,
+            IAuthService authService,
+            CancellationToken cancellationToken) =>
+        {
+            await authService.SendResetPasswordTokenAsync(
+                EndpointIdentity.GetUserId(principal), cancellationToken);
+            return Results.Ok();
+        }).RequireAuthorization(AuthorizationPolicies.RequireUser);
+
+        group.MapPost("/delete-me/token", async (
+            ClaimsPrincipal principal,
+            IAuthService authService,
+            CancellationToken cancellationToken) =>
+        {
+            await authService.SendDeleteAccountTokenAsync(
+                EndpointIdentity.GetUserId(principal), cancellationToken);
+            return Results.Ok();
+        }).RequireAuthorization(AuthorizationPolicies.RequireUser);
 
         group.MapPost("/register", async (
             RegisterRequest request,
@@ -67,13 +98,15 @@ public static class AuthEndpoints
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
-            var userId = Guid.Parse(principal.FindFirstValue(JwtClaimNamesExtension.UserId)!);
-            var accessToken = httpContext.Request.Headers.Authorization.ToString().Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
+            var userId = EndpointIdentity.GetUserId(principal);
+            var accessToken = httpContext.Request.Headers.Authorization
+                .ToString()
+                .Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
             await authService.LogoutAsync(userId, accessToken, request.RefreshToken, cancellationToken);
             return Results.NoContent();
         }).RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        group.MapPost("/admin/users/{userId:guid}/revoke", async (
+        group.MapPost("/users/{userId:guid}/revoke", async (
             Guid userId,
             IAuthService authService,
             CancellationToken cancellationToken) =>

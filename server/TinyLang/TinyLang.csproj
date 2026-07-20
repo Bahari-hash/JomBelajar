@@ -36,8 +36,4 @@
     <PackageReference Include="Serilog.Sinks.File" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Services\" />
-  </ItemGroup>
-
 </Project>

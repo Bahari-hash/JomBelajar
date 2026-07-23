@@ -34,7 +34,8 @@ public static class UploadEndpoints
                 response.ResourceId,
                 response.PresignedUrl,
                 response.ObjectName));
-        }).RequireAuthorization(AuthorizationPolicies.RequireUser);
+        }).RequireAuthorization(AuthorizationPolicies.RequireUser)
+            .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
 
         group.MapPost("/editor/media/presign", async (
             EditorMediaPresignRequest request,
@@ -54,7 +55,8 @@ public static class UploadEndpoints
                 response.ResourceId,
                 response.PresignedUrl,
                 response.ObjectName));
-        }).RequireAuthorization(AuthorizationPolicies.RequireEditor);
+        }).RequireAuthorization(AuthorizationPolicies.RequireEditor)
+            .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
 
         group.MapPut("/resources/{id:guid}/confirm", async (
             Guid id,

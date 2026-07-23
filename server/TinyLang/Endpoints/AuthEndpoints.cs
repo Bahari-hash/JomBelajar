@@ -21,7 +21,7 @@ public static class AuthEndpoints
         {
             await authService.SendRegisterTokenAsync(request.Email, cancellationToken);
             return Results.Ok();
-        });
+        }).RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
 
         group.MapPost("/change-email/token", async (
             SendChangeEmailTokenRequest request,
@@ -32,7 +32,8 @@ public static class AuthEndpoints
             await authService.SendChangeEmailTokenAsync(
                 EndpointIdentity.GetUserId(principal), request.NewEmail, cancellationToken);
             return Results.Ok();
-        }).RequireAuthorization(AuthorizationPolicies.RequireUser);
+        }).RequireAuthorization(AuthorizationPolicies.RequireUser)
+            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
 
         group.MapPost("/reset-password/token", async (
             ClaimsPrincipal principal,
@@ -42,7 +43,8 @@ public static class AuthEndpoints
             await authService.SendResetPasswordTokenAsync(
                 EndpointIdentity.GetUserId(principal), cancellationToken);
             return Results.Ok();
-        }).RequireAuthorization(AuthorizationPolicies.RequireUser);
+        }).RequireAuthorization(AuthorizationPolicies.RequireUser)
+            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
 
         group.MapPost("/delete-me/token", async (
             ClaimsPrincipal principal,
@@ -52,7 +54,8 @@ public static class AuthEndpoints
             await authService.SendDeleteAccountTokenAsync(
                 EndpointIdentity.GetUserId(principal), cancellationToken);
             return Results.Ok();
-        }).RequireAuthorization(AuthorizationPolicies.RequireUser);
+        }).RequireAuthorization(AuthorizationPolicies.RequireUser)
+            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
 
         group.MapPost("/register", async (
             RegisterRequest request,

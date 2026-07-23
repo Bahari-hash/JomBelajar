@@ -38,6 +38,12 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        var rateLimitSettings = configuration.GetSection(RateLimitSettings.SectionName);
+        services.AddOptions<RateLimitSettings>()
+            .Bind(rateLimitSettings)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         var objectStorageSettings = configuration.GetSection(ObjectStorageSettings.SectionName);
         services.AddOptions<ObjectStorageSettings>()
             .Bind(objectStorageSettings)

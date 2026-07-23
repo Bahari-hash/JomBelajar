@@ -35,6 +35,7 @@ try
 
     builder.Services.AddJwtAuthentication(builder.Configuration);
     builder.Services.AddAuthorizationPolicy();
+    builder.Services.AddCustomRateLimiter(builder.Configuration);
 
     builder.Services.AddDatabaseService(builder.Configuration);
     builder.Services.AddCacheService(builder.Configuration);
@@ -61,6 +62,7 @@ try
     app.UseRouting();
 
     app.UseAuthentication();
+    app.UseRateLimiter();
     app.UseAuthorization();
 
     app.MapGroup("/api")

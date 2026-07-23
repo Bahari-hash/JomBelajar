@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using TinyLang.Dtos;
 using TinyLang.Entities;
@@ -18,21 +19,18 @@ public sealed class ArticleService(
         CancellationToken cancellationToken = default)
     {
         var sanitized = await ValidateDraftInputAsync(
-            editorId,
-            request,
-            existingArticle: null,
-            cancellationToken);
+            editorId, request, existingArticle: null, cancellationToken);
         var article = new Article
         {
             Title = NormalizeRequired(request.Title),
             Summary = NormalizeOptional(request.Summary),
             ContentHtml = sanitized.Html,
-            CategoryId = request.CategoryId,
             AuthorId = editorId,
             LastEditorId = editorId,
             CoverMediaResourceId = request.CoverMediaResourceId
         };
         await SynchronizeMediaAsync(article, editorId, request, sanitized, cancellationToken);
+        SynchronizeCategories(article, request.CategoryIds);
 
         db.Articles.Add(article);
         await db.SaveChangesAsync(cancellationToken);
@@ -51,14 +49,15 @@ public sealed class ArticleService(
             throw ConflictException.Create(ErrorCodes.ArticleStatusConflict);
         }
 
-        var sanitized = await ValidateDraftInputAsync(editorId, request, article, cancellationToken);
+        var sanitized = await ValidateDraftInputAsync(
+            editorId, request, article, cancellationToken);
         article.Title = NormalizeRequired(request.Title);
         article.Summary = NormalizeOptional(request.Summary);
         article.ContentHtml = sanitized.Html;
-        article.CategoryId = request.CategoryId;
         article.CoverMediaResourceId = request.CoverMediaResourceId;
         article.LastEditorId = editorId;
         await SynchronizeMediaAsync(article, editorId, request, sanitized, cancellationToken);
+        SynchronizeCategories(article, request.CategoryIds);
 
         await db.SaveChangesAsync(cancellationToken);
         return await GetEditorByIdAsync(article.Id, cancellationToken);
@@ -75,7 +74,9 @@ public sealed class ArticleService(
             throw ConflictException.Create(ErrorCodes.ArticleStatusConflict);
         }
 
-        await EnsureCategoryUsableAsync(article.CategoryId, required: true, cancellationToken);
+        await EnsureCategoriesUsableAsync(
+            article.CategoryAssignments.Select(x => x.ArticleCategoryId).ToArray(),
+            cancellationToken);
         var sanitized = htmlSanitizer.Sanitize(article.ContentHtml);
         EnsureContentIsPublishable(sanitized);
         article.ContentHtml = sanitized.Html;
@@ -145,19 +146,7 @@ public sealed class ArticleService(
             .ThenByDescending(x => x.Id)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(x => new ArticleListItemResponse(
-                x.Id,
-                x.Title,
-                x.Summary,
-                x.Status,
-                x.Category == null ? null : new ArticleCategorySummaryResponse(
-                    x.Category.Id,
-                    x.Category.Name,
-                    x.Category.Slug),
-                x.CoverMediaResource == null ? null : x.CoverMediaResource.Url,
-                new ArticleUserSummaryResponse(x.Author.Id, x.Author.Nickname, x.Author.AvatarUrl),
-                x.PublishedAt,
-                x.UpdatedAt))
+            .Select(ToListItemProjection())
             .ToListAsync(cancellationToken);
         return ToPagedResponse(items, request.Page, request.PageSize, totalCount);
     }
@@ -187,19 +176,7 @@ public sealed class ArticleService(
             .ThenByDescending(x => x.Id)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(x => new ArticleListItemResponse(
-                x.Id,
-                x.Title,
-                x.Summary,
-                ArticleStatus.Published,
-                x.Category == null ? null : new ArticleCategorySummaryResponse(
-                    x.Category.Id,
-                    x.Category.Name,
-                    x.Category.Slug),
-                x.CoverMediaResource == null ? null : x.CoverMediaResource.Url,
-                new ArticleUserSummaryResponse(x.Author.Id, x.Author.Nickname, x.Author.AvatarUrl),
-                x.PublishedAt,
-                x.UpdatedAt))
+            .Select(ToListItemProjection())
             .ToListAsync(cancellationToken);
         return ToPagedResponse(items, request.Page, request.PageSize, totalCount);
     }
@@ -210,32 +187,39 @@ public sealed class ArticleService(
         Article? existingArticle,
         CancellationToken cancellationToken)
     {
-        await EnsureCategoryUsableAsync(request.CategoryId, required: false, cancellationToken);
+        await EnsureCategoriesUsableAsync(request.CategoryIds, cancellationToken);
         var sanitized = htmlSanitizer.Sanitize(request.ContentHtml);
         EnsureContentIsPublishable(sanitized);
         await ValidateRequestedMediaAsync(editorId, existingArticle, request, sanitized, cancellationToken);
         return sanitized;
     }
 
-    private async Task EnsureCategoryUsableAsync(
-        Guid? categoryId,
-        bool required,
+    private async Task EnsureCategoriesUsableAsync(
+        IReadOnlyCollection<Guid>? categoryIds,
         CancellationToken cancellationToken)
     {
-        if (categoryId is null)
+        var ids = categoryIds ?? [];
+        if (ids.Count > ArticleConstraints.MaxCategoryCount || ids.Any(x => x == Guid.Empty))
         {
-            if (required)
-            {
-                throw new RequestValidationException(ErrorCodes.ArticleCategoryRequired);
-            }
-
+            throw new RequestValidationException(ErrorCodes.ArticleCategoryInvalid);
+        }
+        if (ids.Count != ids.Distinct().Count())
+        {
+            throw new RequestValidationException(ErrorCodes.ArticleCategoryDuplicate);
+        }
+        if (ids.Count == 0)
+        {
             return;
         }
 
-        var category = await db.ArticleCategories.AsNoTracking()
-            .SingleOrDefaultAsync(x => x.Id == categoryId, cancellationToken)
-            ?? throw NotFoundException.Create(ErrorCodes.ArticleCategoryNotFound);
-        if (!category.IsActive)
+        var categories = await db.ArticleCategories.AsNoTracking()
+            .Where(x => ids.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        if (categories.Count != ids.Count)
+        {
+            throw NotFoundException.Create(ErrorCodes.ArticleCategoryNotFound);
+        }
+        if (categories.Any(x => !x.IsActive))
         {
             throw ConflictException.Create(ErrorCodes.ArticleCategoryInactive);
         }
@@ -307,11 +291,34 @@ public sealed class ArticleService(
         var existingMediaIds = article.MediaResources.Select(x => x.MediaResourceId).ToHashSet();
         foreach (var mediaResourceId in desiredMediaIds.Where(id => !existingMediaIds.Contains(id)))
         {
-            article.MediaResources.Add(new ArticleMediaResource
+            article.MediaResources.Add(new ArticleMediaResource { MediaResourceId = mediaResourceId });
+        }
+    }
+
+    private void SynchronizeCategories(
+        Article article,
+        IReadOnlyCollection<Guid>? requestedCategoryIds)
+    {
+        var desiredCategoryIds = (requestedCategoryIds ?? []).ToHashSet();
+        foreach (var assignment in article.CategoryAssignments
+                     .Where(x => !desiredCategoryIds.Contains(x.ArticleCategoryId))
+                     .ToArray())
+        {
+            db.ArticleCategoryAssignments.Remove(assignment);
+            article.CategoryAssignments.Remove(assignment);
+        }
+
+        var existingCategoryIds = article.CategoryAssignments
+            .Select(x => x.ArticleCategoryId)
+            .ToHashSet();
+        foreach (var categoryId in desiredCategoryIds.Where(id => !existingCategoryIds.Contains(id)))
+        {
+            article.CategoryAssignments.Add(new ArticleCategoryAssignment
             {
-                MediaResourceId = mediaResourceId
+                ArticleCategoryId = categoryId
             });
         }
+
     }
 
     private async Task ValidateStoredMediaAsync(
@@ -383,15 +390,19 @@ public sealed class ArticleService(
         => Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
             (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 
-    private async Task<Article> FindArticleForEditAsync(Guid articleId, CancellationToken cancellationToken)
+    private async Task<Article> FindArticleForEditAsync(
+        Guid articleId,
+        CancellationToken cancellationToken)
         => await db.Articles
             .Include(x => x.MediaResources)
+            .Include(x => x.CategoryAssignments)
             .SingleOrDefaultAsync(x => x.Id == articleId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.ArticleNotFound);
 
     private IQueryable<Article> DetailsQuery()
         => db.Articles.AsNoTracking()
-            .Include(x => x.Category)
+            .Include(x => x.CategoryAssignments)
+                .ThenInclude(x => x.ArticleCategory)
             .Include(x => x.Author)
             .Include(x => x.LastEditor)
             .Include(x => x.CoverMediaResource)
@@ -403,7 +414,8 @@ public sealed class ArticleService(
     {
         if (request.CategoryId is { } categoryId)
         {
-            query = query.Where(x => x.CategoryId == categoryId);
+            query = query.Where(x => x.CategoryAssignments
+                .Any(assignment => assignment.ArticleCategoryId == categoryId));
         }
         if (request.Status is { } status)
         {
@@ -420,6 +432,24 @@ public sealed class ArticleService(
         return query;
     }
 
+    private static Expression<Func<Article, ArticleListItemResponse>> ToListItemProjection()
+        => article => new ArticleListItemResponse(
+            article.Id,
+            article.Title,
+            article.Summary,
+            article.Status,
+            article.CategoryAssignments
+                .OrderBy(assignment => assignment.ArticleCategory.Name)
+                .Select(assignment => new ArticleCategorySummaryResponse(
+                    assignment.ArticleCategory.Id,
+                    assignment.ArticleCategory.Name,
+                    assignment.ArticleCategory.Slug))
+                .ToList(),
+            article.CoverMediaResource == null ? null : article.CoverMediaResource.Url,
+            new ArticleUserSummaryResponse(article.Author.Id, article.Author.Nickname, article.Author.AvatarUrl),
+            article.PublishedAt,
+            article.UpdatedAt);
+
     private static ArticleResponse ToResponse(Article article, bool includeLastEditor)
         => new(
             article.Id,
@@ -427,10 +457,13 @@ public sealed class ArticleService(
             article.Summary,
             article.ContentHtml,
             article.Status,
-            article.Category is null ? null : new ArticleCategorySummaryResponse(
-                article.Category.Id,
-                article.Category.Name,
-                article.Category.Slug),
+            article.CategoryAssignments
+                .OrderBy(assignment => assignment.ArticleCategory.Name)
+                .Select(assignment => new ArticleCategorySummaryResponse(
+                    assignment.ArticleCategory.Id,
+                    assignment.ArticleCategory.Name,
+                    assignment.ArticleCategory.Slug))
+                .ToArray(),
             new ArticleUserSummaryResponse(
                 article.Author.Id,
                 article.Author.Nickname,

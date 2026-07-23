@@ -22,8 +22,15 @@ internal sealed class ArticleUpsertRequestValidator<T> : AbstractValidator<T>
             .NotEmpty().WithErrKey(ErrorCodes.ArticleContentRequired)
             .MaximumLength(1_000_000).WithErrKey(ErrorCodes.ArticleContentLengthLimit);
 
-        RuleFor(x => x.CategoryId)
-            .Must(BeNullOrNonEmptyGuid).WithErrKey(ErrorCodes.ArticleCategoryInvalid);
+        RuleFor(x => x.CategoryIds)
+            .Cascade(CascadeMode.Stop)
+            .NotNull().WithErrKey(ErrorCodes.ArticleCategoryInvalid)
+            .Must(ids => ids.Count <= ArticleConstraints.MaxCategoryCount)
+            .WithErrKey(ErrorCodes.ArticleCategoryCountLimit)
+            .Must(ids => ids.All(id => id != Guid.Empty))
+            .WithErrKey(ErrorCodes.ArticleCategoryInvalid)
+            .Must(ids => ids.Count == ids.Distinct().Count())
+            .WithErrKey(ErrorCodes.ArticleCategoryDuplicate);
 
         RuleFor(x => x.CoverMediaResourceId)
             .Must(BeNullOrNonEmptyGuid).WithErrKey(ErrorCodes.ArticleMediaInvalid);
@@ -38,6 +45,7 @@ internal sealed class ArticleUpsertRequestValidator<T> : AbstractValidator<T>
 
     private static bool BeNullOrNonEmptyGuid(Guid? value)
         => value is null || value != Guid.Empty;
+
 }
 
 public sealed class CreateArticleRequestValidator : AbstractValidator<CreateArticleRequest>

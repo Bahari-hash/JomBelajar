@@ -44,19 +44,19 @@ public sealed class ArticleCategoryService(
         return await GetByIdAsync(category.Id, includeInactive: true, cancellationToken);
     }
 
-    public async Task DeactivateAsync(
+    public async Task DeleteAsync(
         Guid categoryId,
         CancellationToken cancellationToken = default)
     {
         var category = await db.ArticleCategories
             .SingleOrDefaultAsync(x => x.Id == categoryId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.ArticleCategoryNotFound);
-        if (!category.IsActive)
-        {
-            return;
-        }
 
-        category.IsActive = false;
+        var assignments = await db.ArticleCategoryAssignments
+            .Where(x => x.ArticleCategoryId == categoryId)
+            .ToListAsync(cancellationToken);
+        db.ArticleCategoryAssignments.RemoveRange(assignments);
+        db.ArticleCategories.Remove(category);
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -102,8 +102,8 @@ public sealed class ArticleCategoryService(
                 x.Description,
                 x.IsActive,
                 publishedOnly
-                    ? x.Articles.Count(article => article.Status == ArticleStatus.Published)
-                    : x.Articles.Count(article => article.Status != ArticleStatus.Archived)))
+                    ? x.ArticleAssignments.Count(assignment => assignment.Article.Status == ArticleStatus.Published)
+                    : x.ArticleAssignments.Count(assignment => assignment.Article.Status != ArticleStatus.Archived)))
             .ToListAsync(cancellationToken);
 
         return new PagedResponse<ArticleCategoryResponse>(
@@ -133,7 +133,7 @@ public sealed class ArticleCategoryService(
                 x.Slug,
                 x.Description,
                 x.IsActive,
-                x.Articles.Count(article => article.Status != ArticleStatus.Archived)))
+                x.ArticleAssignments.Count(assignment => assignment.Article.Status != ArticleStatus.Archived)))
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.ArticleCategoryNotFound);
     }

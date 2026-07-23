@@ -44,6 +44,24 @@ public sealed class ArticleValidatorsTests
         result.IsValid.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task CreateArticleShouldRejectDuplicateCategories()
+    {
+        var categoryId = Guid.NewGuid();
+        var validator = new CreateArticleRequestValidator();
+        var result = await validator.ValidateAsync(
+            new CreateArticleRequest
+            {
+                Title = "Article",
+                ContentHtml = "<p>Content</p>",
+                CategoryIds = [categoryId, categoryId]
+            },
+            TestContext.Current.CancellationToken);
+
+        result.Errors.Should().Contain(error =>
+            error.PropertyName == nameof(CreateArticleRequest.CategoryIds));
+    }
+
     [Theory]
     [InlineData(0, 20)]
     [InlineData(1, 0)]

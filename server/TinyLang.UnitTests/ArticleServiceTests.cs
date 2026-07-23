@@ -1,4 +1,5 @@
 using FluentAssertions;
+using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using TinyLang.Database;
 using TinyLang.Dtos;
@@ -12,6 +13,93 @@ namespace TinyLang.UnitTests;
 
 public sealed class ArticleServiceTests
 {
+    [Fact]
+    public async Task CreateDraftShouldSupportMultipleOrNoCategories()
+    {
+        await using var db = CreateDbContext();
+        var editor = CreateUser("editor@example.com");
+        var grammar = new ArticleCategory { Name = "Grammar", Slug = "grammar" };
+        var listening = new ArticleCategory { Name = "Listening", Slug = "listening" };
+        db.AddRange(editor, grammar, listening);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = new ArticleService(db, new HtmlContentSanitizer());
+
+        var categorized = await service.CreateDraftAsync(
+            editor.Id,
+            new CreateArticleRequest
+            {
+                Title = "Categorized",
+                ContentHtml = "<p>Body</p>",
+                CategoryIds = [grammar.Id, listening.Id]
+            },
+            TestContext.Current.CancellationToken);
+        var uncategorized = await service.CreateDraftAsync(
+            editor.Id,
+            new CreateArticleRequest
+            {
+                Title = "Uncategorized",
+                ContentHtml = "<p>Body</p>"
+            },
+            TestContext.Current.CancellationToken);
+
+        categorized.Categories.Should().HaveCount(2);
+        categorized.Categories.Select(x => x.Id)
+            .Should().BeEquivalentTo([grammar.Id, listening.Id]);
+        uncategorized.Categories.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task PublishShouldAllowAnUncategorizedArticle()
+    {
+        await using var db = CreateDbContext();
+        var editor = CreateUser("editor@example.com");
+        db.Users.Add(editor);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var article = CreateArticle(editor, category: null);
+        db.Articles.Add(article);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = new ArticleService(db, new HtmlContentSanitizer());
+
+        var response = await service.PublishAsync(
+            article.Id,
+            editor.Id,
+            TestContext.Current.CancellationToken);
+
+        response.Status.Should().Be(ArticleStatus.Published);
+        response.Categories.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task UpdateShouldReplaceTheArticleCategorySet()
+    {
+        await using var db = CreateDbContext();
+        var editor = CreateUser("editor@example.com");
+        var first = new ArticleCategory { Name = "Grammar", Slug = "grammar" };
+        var second = new ArticleCategory { Name = "Listening", Slug = "listening" };
+        db.AddRange(editor, first, second);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var article = CreateArticle(editor, first);
+        db.Articles.Add(article);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = new ArticleService(db, new HtmlContentSanitizer());
+
+        var response = await service.UpdateAsync(
+            article.Id,
+            editor.Id,
+            new UpdateArticleRequest
+            {
+                Title = "Updated",
+                ContentHtml = "<p>Body</p>",
+                CategoryIds = [second.Id]
+            },
+            TestContext.Current.CancellationToken);
+
+        response.Categories.Should().ContainSingle().Which.Id.Should().Be(second.Id);
+        (await db.ArticleCategoryAssignments.CountAsync(
+            x => x.ArticleId == article.Id,
+            TestContext.Current.CancellationToken)).Should().Be(1);
+    }
+
     [Fact]
     public async Task CreateDraftShouldSanitizeContentAndAssociateOwnedMedia()
     {
@@ -293,13 +381,12 @@ public sealed class ArticleServiceTests
         User editor,
         ArticleCategory? category,
         ArticleStatus status = ArticleStatus.Draft)
-        => new()
+    {
+        var article = new Article
         {
             Title = $"Article {Guid.NewGuid():N}",
             ContentHtml = "<p>Body</p>",
             Status = status,
-            Category = category,
-            CategoryId = category?.Id,
             Author = editor,
             AuthorId = editor.Id,
             LastEditor = editor,
@@ -308,4 +395,15 @@ public sealed class ArticleServiceTests
             PublishedById = status == ArticleStatus.Published ? editor.Id : null,
             PublishedAt = status == ArticleStatus.Published ? DateTimeOffset.UtcNow : null
         };
+        if (category is not null)
+        {
+            article.CategoryAssignments.Add(new ArticleCategoryAssignment
+            {
+                ArticleCategoryId = category.Id,
+                ArticleCategory = category
+            });
+        }
+
+        return article;
+    }
 }

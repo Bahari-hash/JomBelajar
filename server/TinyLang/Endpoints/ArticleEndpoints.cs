@@ -106,7 +106,7 @@ public static class ArticleEndpoints
             =>
         {
             var response = await categoryService.CreateAsync(request, cancellationToken);
-            return Results.Created($"/api/admin/article-categories/{response.Id}", response);
+            return Results.Created($"/api/editor/article-categories/{response.Id}", response);
         });
 
         editorGroup.MapPut("/article-categories/{id:guid}", async (
@@ -122,7 +122,7 @@ public static class ArticleEndpoints
             CancellationToken cancellationToken)
             =>
         {
-            await categoryService.DeactivateAsync(id, cancellationToken);
+            await categoryService.DeleteAsync(id, cancellationToken);
             return Results.NoContent();
         });
 

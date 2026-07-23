@@ -13,7 +13,7 @@ public interface IArticleCategoryService
         UpdateArticleCategoryRequest request,
         CancellationToken cancellationToken = default);
 
-    Task DeactivateAsync(Guid categoryId, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid categoryId, CancellationToken cancellationToken = default);
 
     Task<PagedResponse<ArticleCategoryResponse>> GetPublicListAsync(
         ArticleCategoryListRequest request,

@@ -26,14 +26,8 @@ public sealed class ArticleConfiguration : IEntityTypeConfiguration<Article>
             .IsRequired();
 
         builder.HasIndex(x => new { x.Status, x.PublishedAt });
-        builder.HasIndex(x => new { x.CategoryId, x.Status, x.PublishedAt });
         builder.HasIndex(x => new { x.AuthorId, x.CreatedAt });
         builder.HasIndex(x => new { x.LastEditorId, x.UpdatedAt });
-
-        builder.HasOne(x => x.Category)
-            .WithMany(x => x.Articles)
-            .HasForeignKey(x => x.CategoryId)
-            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Author)
             .WithMany(x => x.AuthoredArticles)

@@ -12,6 +12,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.MediaResource> MediaResources => Set<Entities.MediaResource>();
     public DbSet<Entities.Article> Articles => Set<Entities.Article>();
     public DbSet<Entities.ArticleCategory> ArticleCategories => Set<Entities.ArticleCategory>();
+    public DbSet<Entities.ArticleCategoryAssignment> ArticleCategoryAssignments => Set<Entities.ArticleCategoryAssignment>();
     public DbSet<Entities.ArticleMediaResource> ArticleMediaResources => Set<Entities.ArticleMediaResource>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

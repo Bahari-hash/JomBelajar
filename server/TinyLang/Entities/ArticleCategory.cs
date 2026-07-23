@@ -9,5 +9,5 @@ public sealed class ArticleCategory : BaseAuditableEntity
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
 
-    public ICollection<Article> Articles { get; set; } = [];
+    public ICollection<ArticleCategoryAssignment> ArticleAssignments { get; set; } = [];
 }

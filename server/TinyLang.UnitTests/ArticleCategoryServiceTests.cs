@@ -4,6 +4,7 @@ using Moq;
 using TinyLang.Database;
 using TinyLang.Dtos;
 using TinyLang.Entities;
+using TinyLang.Entities.Enums;
 using TinyLang.Interfaces;
 using TinyLang.Services;
 
@@ -43,25 +44,48 @@ public sealed class ArticleCategoryServiceTests
         var service = CreateService(db);
 
         var response = await service.GetPublicListAsync(
-            new ArticleCategoryListRequest { IncludeInactive = true },
+            new ArticleCategoryListRequest(),
             TestContext.Current.CancellationToken);
 
         response.Items.Should().ContainSingle().Which.Name.Should().Be("Active");
     }
 
     [Fact]
-    public async Task DeactivateShouldBeIdempotent()
+    public async Task DeleteShouldClearAssignmentsAndKeepArticle()
     {
         await using var db = CreateDbContext();
+        var user = new ArticleServiceTestsUserFactory().Create();
         var category = new ArticleCategory { Name = "Grammar", Slug = "grammar" };
-        db.ArticleCategories.Add(category);
+        var article = new Article
+        {
+            Title = "Article",
+            ContentHtml = "<p>Body</p>",
+            Author = user,
+            AuthorId = user.Id,
+            LastEditor = user,
+            LastEditorId = user.Id,
+            CategoryAssignments =
+            {
+                new ArticleCategoryAssignment
+                {
+                    ArticleCategory = category,
+                    ArticleCategoryId = category.Id
+                }
+            }
+        };
+        db.AddRange(user, category, article);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
-        await service.DeactivateAsync(category.Id, TestContext.Current.CancellationToken);
-        await service.DeactivateAsync(category.Id, TestContext.Current.CancellationToken);
+        await service.DeleteAsync(category.Id, TestContext.Current.CancellationToken);
 
-        category.IsActive.Should().BeFalse();
+        (await db.ArticleCategories.AnyAsync(x => x.Id == category.Id, TestContext.Current.CancellationToken))
+            .Should().BeFalse();
+        (await db.ArticleCategoryAssignments.AnyAsync(
+            x => x.ArticleId == article.Id,
+            TestContext.Current.CancellationToken)).Should().BeFalse();
+        (await db.Articles.AnyAsync(x => x.Id == article.Id, TestContext.Current.CancellationToken))
+            .Should().BeTrue();
     }
 
     private static ArticleCategoryService CreateService(ApplicationDbContext db)
@@ -73,5 +97,16 @@ public sealed class ArticleCategoryServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new ApplicationDbContext(options);
+    }
+
+    private sealed class ArticleServiceTestsUserFactory
+    {
+        public User Create() => new()
+        {
+            Username = "editor@example.com",
+            Email = "editor@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Editor
+        };
     }
 }

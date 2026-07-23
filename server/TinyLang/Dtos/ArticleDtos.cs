@@ -8,7 +8,7 @@ public abstract record ArticleUpsertRequest
     public required string Title { get; init; }
     public string? Summary { get; init; }
     public required string ContentHtml { get; init; }
-    public Guid? CategoryId { get; init; }
+    public IReadOnlyCollection<Guid> CategoryIds { get; init; } = [];
     public Guid? CoverMediaResourceId { get; init; }
     public IReadOnlyCollection<Guid> MediaResourceIds { get; init; } = [];
 }
@@ -69,7 +69,7 @@ public sealed record ArticleResponse(
     string? Summary,
     string ContentHtml,
     ArticleStatus Status,
-    ArticleCategorySummaryResponse? Category,
+    IReadOnlyCollection<ArticleCategorySummaryResponse> Categories,
     ArticleUserSummaryResponse Author,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     ArticleUserSummaryResponse? LastEditor,
@@ -84,7 +84,7 @@ public sealed record ArticleListItemResponse(
     string Title,
     string? Summary,
     ArticleStatus Status,
-    ArticleCategorySummaryResponse? Category,
+    IReadOnlyCollection<ArticleCategorySummaryResponse> Categories,
     string? CoverUrl,
     ArticleUserSummaryResponse Author,
     DateTimeOffset? PublishedAt,
@@ -104,3 +104,8 @@ public sealed record PagedResponse<T>(
     int PageSize,
     int TotalCount,
     int TotalPages);
+
+public static class ArticleConstraints
+{
+    public const int MaxCategoryCount = 10;
+}

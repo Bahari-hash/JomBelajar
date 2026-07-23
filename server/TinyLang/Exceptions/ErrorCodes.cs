@@ -207,6 +207,12 @@ public enum ErrorCodes
     [Description("文章分类已停用.")]
     ArticleCategoryInactive,
 
+    [Description("单篇文章最多只能关联10个分类.")]
+    ArticleCategoryCountLimit,
+
+    [Description("文章分类不能重复.")]
+    ArticleCategoryDuplicate,
+
     [Description("文章媒体资源无效.")]
     ArticleMediaInvalid,
 

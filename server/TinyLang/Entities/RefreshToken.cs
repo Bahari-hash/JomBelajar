@@ -8,6 +8,7 @@ public sealed class RefreshToken : BaseAuditableEntity
 
     public Guid UserId { get; set; }
     public User User { get; set; } = null!;
+    public int TokenVersion { get; set; }
 
     public string? ClientIp { get; set; }
     public string? DeviceInfo { get; set; }

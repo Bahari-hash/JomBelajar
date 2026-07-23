@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
+using TinyLang.Constants;
 using TinyLang.Enums;
 using TinyLang.Interfaces;
 using TinyLang.Settings;
@@ -7,19 +9,38 @@ using TinyLang.Settings;
 namespace TinyLang.Infrastructure;
 
 public sealed class VerificationCodeStore(
-    IDistributedCache cacheService, IOptions<VerificationCodeSettings> options) : IVerificationCodeStore
+    IDistributedCache cacheService,
+    IConnectionMultiplexer redisConnection,
+    IOptions<VerificationCodeSettings> options) : IVerificationCodeStore
 {
+    private const string ConsumeScript = """
+        local current = redis.call('GET', KEYS[1])
+        if current == ARGV[1] then
+            return redis.call('DEL', KEYS[1])
+        end
+        return 0
+        """;
+
     private readonly VerificationCodeSettings _settings = options.Value;
 
     private static string BuildKey(string email, VerificationCodePurpose purpose)
         => $"verification_code:{email.Trim()}:{purpose}";
 
-    public async Task RemoveAsync(
+    public async Task<bool> TryConsumeAsync(
         string email,
         VerificationCodePurpose purpose,
+        string expectedValue,
         CancellationToken cancellationToken = default)
     {
-        await cacheService.RemoveAsync(BuildKey(email, purpose), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var database = redisConnection.GetDatabase();
+        var physicalKey = CacheKeys.RedisInstanceName + BuildKey(email, purpose);
+        var result = await database.ScriptEvaluateAsync(
+                ConsumeScript,
+                [new RedisKey(physicalKey)],
+                [new RedisValue(expectedValue)])
+            .WaitAsync(cancellationToken);
+        return (long)result == 1;
     }
 
     public async Task SaveAsync(

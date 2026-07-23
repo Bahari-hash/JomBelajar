@@ -16,6 +16,8 @@ public sealed class AuthService(
     IVerificationCodeSender verificationCodeSender,
     IJwtTokenService jwtTokenService,
     ITokenBlacklist tokenBlacklist,
+    IDatabaseExceptionClassifier databaseExceptionClassifier,
+    IUserSessionService userSessionService,
     IOptions<JwtSettings> jwtOptions) : IAuthService
 {
     private readonly JwtSettings _jwtSettings = jwtOptions.Value;
@@ -51,7 +53,17 @@ public sealed class AuthService(
             Role = UserRole.User
         };
         db.Users.Add(user);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (databaseExceptionClassifier.IsUniqueConstraintViolation(
+            exception,
+            "IX_users_Email",
+            "IX_users_Username"))
+        {
+            throw ConflictException.Create(ErrorCodes.EmailAlreadyExists);
+        }
         return ToResponse(user);
     }
 
@@ -70,17 +82,33 @@ public sealed class AuthService(
     public async Task<AuthTokenResponse> RefreshAsync(RefreshTokenRequest request, string? clientIp, string? deviceInfo, CancellationToken cancellationToken = default)
     {
         var hash = jwtTokenService.HashRefreshToken(request.RefreshToken);
-        var stored = await db.RefreshTokens.Include(x => x.User)
+        var stored = await db.RefreshTokens.AsNoTracking().Include(x => x.User)
             .SingleOrDefaultAsync(x => x.TokenHash == hash, cancellationToken);
-        if (stored is null || stored.IsRevoked || stored.ExpiresAt <= DateTimeOffset.UtcNow || stored.User.IsDeleted || stored.User.IsBanned)
+        var now = DateTimeOffset.UtcNow;
+        if (stored is null || stored.IsRevoked || stored.ExpiresAt <= now ||
+            stored.User.IsDeleted || stored.User.IsBanned ||
+            stored.TokenVersion != stored.User.TokenVersion)
         {
             throw UnauthorizedException.Create(ErrorCodes.RefreshTokenInvalid);
         }
 
-        stored.IsRevoked = true;
-        stored.RevokedAt = DateTimeOffset.UtcNow;
-        stored.LastUsedAt = DateTimeOffset.UtcNow;
-        stored.UsageCount++;
+        var affectedRows = await db.RefreshTokens
+            .Where(x => x.Id == stored.Id &&
+                !x.IsRevoked &&
+                x.ExpiresAt > now &&
+                x.TokenVersion == x.User.TokenVersion &&
+                !x.User.IsDeleted &&
+                !x.User.IsBanned)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.IsRevoked, true)
+                .SetProperty(x => x.RevokedAt, now)
+                .SetProperty(x => x.LastUsedAt, now)
+                .SetProperty(x => x.UsageCount, x => x.UsageCount + 1), cancellationToken);
+        if (affectedRows != 1)
+        {
+            throw UnauthorizedException.Create(ErrorCodes.RefreshTokenInvalid);
+        }
+
         await tokenBlacklist.AddAsync(request.RefreshToken, stored.ExpiresAt, cancellationToken);
         return await IssueTokensAsync(stored.User, clientIp, deviceInfo, cancellationToken);
     }
@@ -111,15 +139,7 @@ public sealed class AuthService(
     {
         var user = await db.Users.SingleOrDefaultAsync(x => x.Id == userId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
-        user.TokenVersion++;
-        var now = DateTimeOffset.UtcNow;
-        var tokens = await db.RefreshTokens.Where(x => x.UserId == userId && !x.IsRevoked).ToListAsync(cancellationToken);
-        foreach (var token in tokens)
-        {
-            token.IsRevoked = true;
-            token.RevokedAt = now;
-        }
-        await db.SaveChangesAsync(cancellationToken);
+        await userSessionService.InvalidateAllAsync(user, cancellationToken);
     }
 
     public async Task SendChangeEmailTokenAsync(Guid userId, string newEmail, CancellationToken cancellationToken = default)
@@ -165,6 +185,7 @@ public sealed class AuthService(
         db.RefreshTokens.Add(new RefreshToken
         {
             UserId = user.Id,
+            TokenVersion = user.TokenVersion,
             TokenHash = jwtTokenService.HashRefreshToken(refresh),
             ClientIp = clientIp,
             DeviceInfo = deviceInfo,

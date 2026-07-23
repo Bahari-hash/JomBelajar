@@ -20,8 +20,9 @@ public interface IVerificationCodeStore
         VerificationCodePurpose purpose,
         CancellationToken cancellationToken = default);
 
-    Task RemoveAsync(
+    Task<bool> TryConsumeAsync(
         string email,
         VerificationCodePurpose purpose,
+        string expectedValue,
         CancellationToken cancellationToken = default);
 }

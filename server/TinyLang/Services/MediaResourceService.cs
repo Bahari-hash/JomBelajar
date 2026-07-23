@@ -70,27 +70,75 @@ public sealed class MediaResourceService(
         {
             throw ForbiddenException.Create(ErrorCodes.MediaResourceOwnershipMismatch);
         }
+        if (resource.Status == ResourceStatus.Active)
+        {
+            return resource;
+        }
         if (resource.Status != ResourceStatus.Pending ||
             !resource.ObjectName.StartsWith("temp/", StringComparison.Ordinal))
         {
             throw ConflictException.Create(ErrorCodes.MediaResourceStatusConflict);
         }
 
-        ObjectStorageMetadata? objectMetadata;
+        var finalObjectName = CreateFinalObjectName(resource);
+        var objectMetadata = await GetObjectMetadataAsync(resource.ObjectName, cancellationToken);
+        if (objectMetadata is not null)
+        {
+            ValidateObjectMetadata(resource, objectMetadata);
+            try
+            {
+                await objectStorage.MoveObjectAsync(
+                    resource.ObjectName,
+                    finalObjectName,
+                    cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                var recoveredMetadata = await GetObjectMetadataAsync(
+                    finalObjectName,
+                    cancellationToken);
+                if (recoveredMetadata is null)
+                {
+                    throw UnexpectedException.Create(ErrorCodes.ObjectStorageUnavailable);
+                }
+                ValidateObjectMetadata(resource, recoveredMetadata);
+            }
+        }
+        else
+        {
+            var recoveredMetadata = await GetObjectMetadataAsync(finalObjectName, cancellationToken);
+            if (recoveredMetadata is null)
+            {
+                throw ConflictException.Create(ErrorCodes.MediaResourceUploadIncomplete);
+            }
+            ValidateObjectMetadata(resource, recoveredMetadata);
+        }
+
+        resource.ObjectName = finalObjectName;
+        resource.Url = objectStorage.GetPublicUrl(finalObjectName);
+        resource.Status = ResourceStatus.Active;
+        await db.SaveChangesAsync(cancellationToken);
+        return resource;
+    }
+
+    private async Task<ObjectStorageMetadata?> GetObjectMetadataAsync(
+        string objectName,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            objectMetadata = await objectStorage.GetObjectMetadataAsync(
-                resource.ObjectName,
-                cancellationToken);
+            return await objectStorage.GetObjectMetadataAsync(objectName, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             throw UnexpectedException.Create(ErrorCodes.ObjectStorageUnavailable);
         }
-        if (objectMetadata is null)
-        {
-            throw ConflictException.Create(ErrorCodes.MediaResourceUploadIncomplete);
-        }
+    }
+
+    private static void ValidateObjectMetadata(
+        MediaResource resource,
+        ObjectStorageMetadata objectMetadata)
+    {
         if (objectMetadata.Size != resource.Size)
         {
             throw ConflictException.Create(ErrorCodes.MediaResourceSizeMismatch);
@@ -102,25 +150,6 @@ public sealed class MediaResourceService(
         {
             throw ConflictException.Create(ErrorCodes.MediaResourceContentTypeMismatch);
         }
-
-        var finalObjectName = CreateFinalObjectName(resource);
-        try
-        {
-            await objectStorage.MoveObjectAsync(
-                resource.ObjectName,
-                finalObjectName,
-                cancellationToken);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            throw UnexpectedException.Create(ErrorCodes.ObjectStorageUnavailable);
-        }
-
-        resource.ObjectName = finalObjectName;
-        resource.Url = objectStorage.GetPublicUrl(finalObjectName);
-        resource.Status = ResourceStatus.Active;
-        await db.SaveChangesAsync(cancellationToken);
-        return resource;
     }
 
     private void ValidateUploadInput(

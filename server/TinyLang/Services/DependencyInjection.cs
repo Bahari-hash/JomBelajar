@@ -9,6 +9,7 @@ public static class DependencyInjection
     {
         services.AddSingleton<MediaUploadPolicy>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IUserSessionService, UserSessionService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IAccountSecurityService, AccountSecurityService>();
         services.AddScoped<IMediaResourceService, MediaResourceService>();

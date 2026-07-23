@@ -10,7 +10,9 @@ namespace TinyLang.Services;
 public sealed class AccountSecurityService(
     IApplicationDbContext db,
     ISecretHasher secretHasher,
-    IAuthService authService) : IAccountSecurityService
+    IAuthService authService,
+    IUserSessionService userSessionService,
+    IDatabaseExceptionClassifier databaseExceptionClassifier) : IAccountSecurityService
 {
     public async Task ResetPasswordAsync(
         Guid userId,
@@ -28,7 +30,7 @@ public sealed class AccountSecurityService(
         }
 
         user.PasswordHash = secretHasher.Hash(request.NewPassword);
-        await InvalidateSessionsAsync(user, cancellationToken);
+        await userSessionService.InvalidateAllAsync(user, cancellationToken);
     }
 
     public async Task<ChangeEmailResponse> ChangeEmailAsync(
@@ -56,7 +58,16 @@ public sealed class AccountSecurityService(
         }
 
         user.Email = newEmail;
-        await InvalidateSessionsAsync(user, cancellationToken);
+        try
+        {
+            await userSessionService.InvalidateAllAsync(user, cancellationToken);
+        }
+        catch (DbUpdateException exception) when (databaseExceptionClassifier.IsUniqueConstraintViolation(
+            exception,
+            "IX_users_Email"))
+        {
+            throw ConflictException.Create(ErrorCodes.EmailAlreadyExists);
+        }
         return new ChangeEmailResponse(user.Id, user.Email);
     }
 
@@ -81,28 +92,12 @@ public sealed class AccountSecurityService(
         user.DeletedAt = deletedAt;
         user.Username = $"deleted-{identifier}";
         user.Email = $"deleted-{identifier}@deleted.invalid";
-        await InvalidateSessionsAsync(user, cancellationToken);
+        await userSessionService.InvalidateAllAsync(user, cancellationToken);
     }
 
     private async Task<User> FindActiveUserAsync(Guid userId, CancellationToken cancellationToken)
         => await db.Users.SingleOrDefaultAsync(x => x.Id == userId && !x.IsDeleted, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
-
-    private async Task InvalidateSessionsAsync(User user, CancellationToken cancellationToken)
-    {
-        user.TokenVersion++;
-        var now = DateTimeOffset.UtcNow;
-        var refreshTokens = await db.RefreshTokens
-            .Where(x => x.UserId == user.Id && !x.IsRevoked)
-            .ToListAsync(cancellationToken);
-        foreach (var refreshToken in refreshTokens)
-        {
-            refreshToken.IsRevoked = true;
-            refreshToken.RevokedAt = now;
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
-    }
 
     private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 }

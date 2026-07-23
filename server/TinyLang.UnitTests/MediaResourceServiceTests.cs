@@ -237,6 +237,60 @@ public sealed class MediaResourceServiceTests
         db.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task ShouldRecoverWhenFinalObjectExistsButTemporaryObjectIsMissing()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var uploaderId = Guid.NewGuid();
+        var resource = CreatePendingResource(uploaderId);
+        var resources = CreateResourceSet(resource, cancellationToken);
+        var db = CreateDb(resources, cancellationToken);
+        var storage = new Mock<IObjectStorageService>();
+        var finalObjectName = $"avatars/2026/07/{resource.Id:N}.png";
+        storage.Setup(x => x.GetObjectMetadataAsync(resource.ObjectName, cancellationToken))
+            .ReturnsAsync((ObjectStorageMetadata?)null);
+        storage.Setup(x => x.GetObjectMetadataAsync(finalObjectName, cancellationToken))
+            .ReturnsAsync(new ObjectStorageMetadata(resource.Size, resource.ContentType));
+        storage.Setup(x => x.GetPublicUrl(finalObjectName))
+            .Returns($"https://cdn.example.com/{finalObjectName}");
+        var service = CreateService(db.Object, storage.Object);
+
+        var confirmed = await service.ConfirmAsync(
+            resource.Id,
+            uploaderId,
+            cancellationToken);
+
+        confirmed.Status.Should().Be(ResourceStatus.Active);
+        confirmed.ObjectName.Should().Be(finalObjectName);
+        storage.Verify(x => x.MoveObjectAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        db.Verify(x => x.SaveChangesAsync(cancellationToken), Times.Once);
+    }
+
+    [Fact]
+    public async Task ShouldReturnAlreadyActiveResourceIdempotently()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var uploaderId = Guid.NewGuid();
+        var resource = CreatePendingResource(uploaderId);
+        resource.Status = ResourceStatus.Active;
+        resource.ObjectName = $"avatars/2026/07/{resource.Id:N}.png";
+        resource.Url = $"https://cdn.example.com/{resource.ObjectName}";
+        var resources = CreateResourceSet(resource, cancellationToken);
+        var db = CreateDb(resources, cancellationToken);
+        var storage = new Mock<IObjectStorageService>();
+        var service = CreateService(db.Object, storage.Object);
+
+        var confirmed = await service.ConfirmAsync(
+            resource.Id,
+            uploaderId,
+            cancellationToken);
+
+        confirmed.Should().BeSameAs(resource);
+        storage.VerifyNoOtherCalls();
+        db.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static MediaResourceService CreateService(
         IApplicationDbContext db,
         IObjectStorageService storage)

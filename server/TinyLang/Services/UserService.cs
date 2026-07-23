@@ -7,7 +7,9 @@ using TinyLang.Interfaces;
 
 namespace TinyLang.Services;
 
-public sealed class UserService(IApplicationDbContext db) : IUserService
+public sealed class UserService(
+    IApplicationDbContext db,
+    IUserSessionService userSessionService) : IUserService
 {
     public async Task<UserProfileResponse> UpdateProfileAsync(
         Guid userId,
@@ -38,8 +40,7 @@ public sealed class UserService(IApplicationDbContext db) : IUserService
         {
             user.IsBanned = true;
             user.BannedAt = DateTimeOffset.UtcNow;
-            user.TokenVersion++;
-            await db.SaveChangesAsync(cancellationToken);
+            await userSessionService.InvalidateAllAsync(user, cancellationToken);
         }
     }
 

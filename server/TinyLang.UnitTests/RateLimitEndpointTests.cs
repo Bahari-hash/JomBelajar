@@ -14,7 +14,7 @@ namespace TinyLang.UnitTests;
 public sealed class RateLimitEndpointTests
 {
     [Theory]
-    [InlineData("/api/auth/register/token")]
+    [InlineData("/api/auth/register-token")]
     [InlineData("/api/auth/change-email/token")]
     [InlineData("/api/auth/reset-password/token")]
     [InlineData("/api/auth/delete-me/token")]

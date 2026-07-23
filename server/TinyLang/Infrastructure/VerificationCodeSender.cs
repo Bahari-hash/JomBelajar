@@ -52,7 +52,10 @@ public sealed class VerificationCodeSender(
             return false;
         }
 
-        await codeStore.RemoveAsync(email, purpose, cancellationToken);
-        return true;
+        return await codeStore.TryConsumeAsync(
+            email,
+            purpose,
+            value,
+            cancellationToken);
     }
 }

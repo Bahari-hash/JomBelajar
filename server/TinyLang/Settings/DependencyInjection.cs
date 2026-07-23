@@ -1,5 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.HttpOverrides;
+using System.Net;
 
 namespace TinyLang.Settings;
 
@@ -53,6 +56,38 @@ public static class DependencyInjection
                     string.IsNullOrWhiteSpace(settings.SecretKey),
                 "Object storage AccessKey and SecretKey must be configured together.")
             .ValidateOnStart();
+
+        var forwardedHeadersSettings = configuration
+            .GetSection(ForwardedHeadersSettings.SectionName)
+            .Get<ForwardedHeadersSettings>() ?? new ForwardedHeadersSettings();
+        if (forwardedHeadersSettings.Enabled && (forwardedHeadersSettings.KnownProxies?.Length ?? 0) == 0)
+        {
+            throw new InvalidOperationException(
+                "Forwarded headers require at least one configured known proxy.");
+        }
+        services.AddSingleton(forwardedHeadersSettings);
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            if (!forwardedHeadersSettings.Enabled)
+            {
+                return;
+            }
+
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
+                ForwardedHeaders.XForwardedProto;
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
+            foreach (var proxy in forwardedHeadersSettings.KnownProxies ?? [])
+            {
+                if (!IPAddress.TryParse(proxy, out var address))
+                {
+                    throw new InvalidOperationException(
+                        $"Invalid forwarded headers proxy address: {proxy}");
+                }
+
+                options.KnownProxies.Add(address);
+            }
+        });
 
         return services;
     }

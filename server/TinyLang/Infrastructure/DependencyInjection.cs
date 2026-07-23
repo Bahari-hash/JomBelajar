@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using StackExchange.Redis;
 using TinyLang.Constants;
 using TinyLang.Entities.Enums;
 using TinyLang.Interfaces;
@@ -120,10 +121,12 @@ public static class DependencyInjection
     {
         var redisConnection = configuration.GetConnectionString("RedisConnection") ??
             throw new InvalidOperationException("Cannot get redis connection string");
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
+            ConnectionMultiplexer.Connect(redisConnection));
         services.AddStackExchangeRedisCache(options =>
         {
             options.Configuration = redisConnection;
-            options.InstanceName = "tiny-lang";
+            options.InstanceName = CacheKeys.RedisInstanceName;
         });
         services.AddSingleton<ITokenBlacklist, TokenBlacklist>();
 
@@ -185,6 +188,7 @@ public static class DependencyInjection
     {
         services.AddSingleton<ISecretHasher, SecretHasher>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
+        services.AddSingleton<IDatabaseExceptionClassifier, PostgresDatabaseExceptionClassifier>();
 
         return services;
     }

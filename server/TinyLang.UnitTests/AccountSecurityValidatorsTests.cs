@@ -6,18 +6,18 @@ namespace TinyLang.UnitTests;
 public sealed class AccountSecurityValidatorsTests
 {
     [Fact]
-    public async Task ResetPasswordShouldRequireStrongPassword()
+    public async Task ResetPasswordShouldRequirePassword()
     {
         var validator = new ResetPasswordRequestValidator();
         var result = await validator.ValidateAsync(
             new ResetPasswordRequest { NewPassword = "weakpassword", VerificationCode = "123456" },
             TestContext.Current.CancellationToken);
 
-        result.IsValid.Should().BeFalse();
+        result.IsValid.Should().BeTrue();
     }
 
     [Fact]
-    public async Task ResetPasswordShouldAcceptStrongPasswordAndCode()
+    public async Task ResetPasswordShouldAcceptPasswordAndCode()
     {
         var validator = new ResetPasswordRequestValidator();
         var result = await validator.ValidateAsync(

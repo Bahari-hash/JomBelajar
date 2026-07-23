@@ -14,7 +14,7 @@ public static class AuthEndpoints
     {
         var group = endpoints.MapGroup("/auth");
 
-        group.MapPost("/register/token", async (
+        group.MapPost("/register-token", async (
             RegisterTokenRequest request,
             IAuthService authService,
             CancellationToken cancellationToken) =>
@@ -109,7 +109,7 @@ public static class AuthEndpoints
             return Results.NoContent();
         }).RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        group.MapPost("/users/{userId:guid}/revoke", async (
+        group.MapPost("/admin/users/{userId:guid}/revoke", async (
             Guid userId,
             IAuthService authService,
             CancellationToken cancellationToken) =>

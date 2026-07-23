@@ -24,4 +24,7 @@ public sealed class User : BaseAuditableEntity
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
     public ICollection<MediaResource> MediaResources { get; set; } = [];
+    public ICollection<Article> AuthoredArticles { get; set; } = [];
+    public ICollection<Article> EditedArticles { get; set; } = [];
+    public ICollection<Article> PublishedArticles { get; set; } = [];
 }

@@ -21,4 +21,7 @@ public sealed class MediaResource : BaseAuditableEntity
     public required string Extension { get; set; }
     public required string ContentType { get; set; }
     public string? Url { get; set; }
+
+    public ICollection<Article> CoveredArticles { get; set; } = [];
+    public ICollection<ArticleMediaResource> ArticleMediaResources { get; set; } = [];
 }

@@ -189,6 +189,7 @@ public static class DependencyInjection
         services.AddSingleton<ISecretHasher, SecretHasher>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<IDatabaseExceptionClassifier, PostgresDatabaseExceptionClassifier>();
+        services.AddSingleton<IHtmlContentSanitizer, HtmlContentSanitizer>();
 
         return services;
     }

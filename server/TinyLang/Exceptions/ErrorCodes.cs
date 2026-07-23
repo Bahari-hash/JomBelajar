@@ -165,4 +165,103 @@ public enum ErrorCodes
 
     [Description("对象存储服务暂时不可用.")]
     ObjectStorageUnavailable,
+
+    // --** Article Errors **--
+
+    [Description("文章不存在.")]
+    ArticleNotFound,
+
+    [Description("文章标题不能为空.")]
+    ArticleTitleRequired,
+
+    [Description("文章标题长度最大不能超过200个字符.")]
+    ArticleTitleLengthLimit,
+
+    [Description("文章摘要长度最大不能超过500个字符.")]
+    ArticleSummaryLengthLimit,
+
+    [Description("文章正文不能为空.")]
+    ArticleContentRequired,
+
+    [Description("文章正文长度超过限制.")]
+    ArticleContentLengthLimit,
+
+    [Description("文章正文包含不安全或无效的 HTML 内容.")]
+    ArticleContentInvalid,
+
+    [Description("文章当前状态不允许执行该操作.")]
+    ArticleStatusConflict,
+
+    [Description("文章状态无效.")]
+    ArticleStatusInvalid,
+
+    [Description("发布文章前必须选择分类.")]
+    ArticleCategoryRequired,
+
+    [Description("文章分类标识无效.")]
+    ArticleCategoryInvalid,
+
+    [Description("文章分类不存在.")]
+    ArticleCategoryNotFound,
+
+    [Description("文章分类已停用.")]
+    ArticleCategoryInactive,
+
+    [Description("文章媒体资源无效.")]
+    ArticleMediaInvalid,
+
+    [Description("文章媒体资源尚未确认上传.")]
+    ArticleMediaNotConfirmed,
+
+    [Description("无权使用该文章媒体资源.")]
+    ArticleMediaOwnershipMismatch,
+
+    [Description("文章媒体声明与正文图片引用不一致.")]
+    ArticleMediaNotReferenced,
+
+    [Description("单篇文章最多只能关联100个媒体资源.")]
+    ArticleMediaCountLimit,
+
+    [Description("文章媒体资源不能重复.")]
+    ArticleMediaDuplicate,
+
+    // --** Article Category Errors **--
+
+    [Description("文章分类名称不能为空.")]
+    ArticleCategoryNameRequired,
+
+    [Description("文章分类名称长度最大不能超过100个字符.")]
+    ArticleCategoryNameLengthLimit,
+
+    [Description("文章分类 Slug 不能为空.")]
+    ArticleCategorySlugRequired,
+
+    [Description("文章分类 Slug 长度最大不能超过120个字符.")]
+    ArticleCategorySlugLengthLimit,
+
+    [Description("文章分类 Slug 只能包含字母、数字和单个连字符.")]
+    ArticleCategorySlugFormatInvalid,
+
+    [Description("文章分类描述长度最大不能超过500个字符.")]
+    ArticleCategoryDescriptionLengthLimit,
+
+    [Description("文章分类名称已存在.")]
+    ArticleCategoryNameConflict,
+
+    [Description("文章分类 Slug 已存在.")]
+    ArticleCategorySlugConflict,
+
+    // --** Pagination Errors **--
+
+    [Description("页码必须大于或等于1.")]
+    PageInvalid,
+
+    [Description("每页数量必须在1到100之间.")]
+    PageSizeInvalid,
+
+    [Description("查询关键词长度最大不能超过200个字符.")]
+    KeywordLengthLimit,
+
+    [Description("查询关键词包含无效字符.")]
+    KeywordInvalid,
 }

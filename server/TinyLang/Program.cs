@@ -71,6 +71,7 @@ try
         .MapUsersApi()
         .MapSecurityApi()
         .MapUploadsApi()
+        .MapArticlesApi()
         .MapBonusScenesApi()
         .AddEndpointFilter<ValidationEndpointFilter>();
 

@@ -42,6 +42,7 @@ try
 
     builder.Services.AddTemplatesRenderingService();
     builder.Services.AddEmailSendingService();
+    builder.Services.AddObjectStorageService();
 
     builder.Services.AddVerificationCodeService();
     builder.Services.AddSecureService();
@@ -66,6 +67,7 @@ try
         .MapAuthApi()
         .MapUsersApi()
         .MapSecurityApi()
+        .MapUploadsApi()
         .MapBonusScenesApi()
         .AddEndpointFilter<ValidationEndpointFilter>();
 

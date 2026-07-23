@@ -23,4 +23,5 @@ public sealed class User : BaseAuditableEntity
     public int TokenVersion { get; set; }
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
+    public ICollection<MediaResource> MediaResources { get; set; } = [];
 }

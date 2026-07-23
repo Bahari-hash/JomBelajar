@@ -32,6 +32,22 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        var uploadSettings = configuration.GetSection(UploadSettings.SectionName);
+        services.AddOptions<UploadSettings>()
+            .Bind(uploadSettings)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        var objectStorageSettings = configuration.GetSection(ObjectStorageSettings.SectionName);
+        services.AddOptions<ObjectStorageSettings>()
+            .Bind(objectStorageSettings)
+            .ValidateDataAnnotations()
+            .Validate(
+                settings => string.IsNullOrWhiteSpace(settings.AccessKey) ==
+                    string.IsNullOrWhiteSpace(settings.SecretKey),
+                "Object storage AccessKey and SecretKey must be configured together.")
+            .ValidateOnStart();
+
         return services;
     }
 }

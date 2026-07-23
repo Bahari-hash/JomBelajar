@@ -1,10 +1,14 @@
 using System.Text;
+using Amazon;
+using Amazon.Runtime;
+using Amazon.S3;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using TinyLang.Constants;
 using TinyLang.Entities.Enums;
@@ -94,9 +98,8 @@ public static class DependencyInjection
         services.AddAuthorizationBuilder()
             .AddPolicy(AuthorizationPolicies.RequireUser, policy =>
             {
-                policy.RequireAssertion(context =>
-                    context.User.IsInRole(UserRole.User.ToString()) ||
-                    context.User.IsInRole(UserRole.Admin.ToString()));
+                var minimumUser = new MinimumRoleRequirement(UserRole.User);
+                policy.Requirements.Add(minimumUser);
             })
             .AddPolicy(AuthorizationPolicies.RequireAdmin, policy =>
             {
@@ -191,6 +194,40 @@ public static class DependencyInjection
         services.AddSingleton<IVerificationCodeGenerator, VerificationCodeGenerator>();
         services.AddSingleton<IVerificationCodeStore, VerificationCodeStore>();
         services.AddScoped<IVerificationCodeSender, VerificationCodeSender>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddObjectStorageService(this IServiceCollection services)
+    {
+        services.AddSingleton<IAmazonS3>(serviceProvider =>
+        {
+            var settings = serviceProvider
+                .GetRequiredService<IOptions<ObjectStorageSettings>>()
+                .Value;
+            var config = new AmazonS3Config
+            {
+                ForcePathStyle = settings.ForcePathStyle
+            };
+            if (string.IsNullOrWhiteSpace(settings.ServiceUrl))
+            {
+                config.RegionEndpoint = RegionEndpoint.GetBySystemName(settings.Region);
+            }
+            else
+            {
+                config.ServiceURL = settings.ServiceUrl;
+                config.AuthenticationRegion = settings.Region;
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.AccessKey))
+            {
+                return new AmazonS3Client(config);
+            }
+
+            var credentials = new BasicAWSCredentials(settings.AccessKey, settings.SecretKey);
+            return new AmazonS3Client(credentials, config);
+        });
+        services.AddSingleton<IObjectStorageService, S3ObjectStorageService>();
 
         return services;
     }

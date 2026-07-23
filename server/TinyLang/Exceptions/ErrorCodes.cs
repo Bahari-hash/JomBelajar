@@ -109,4 +109,60 @@ public enum ErrorCodes
 
     [Description("管理员不能封禁自己.")]
     CannotBanSelf,
+
+    // --** Media Resource Errors **--
+
+    [Description("媒体文件名不能为空.")]
+    MediaOriginalNameRequired,
+
+    [Description("媒体文件名长度最大不能超过255个字符.")]
+    MediaOriginalNameLengthLimit,
+
+    [Description("媒体文件名不能包含路径信息.")]
+    MediaOriginalNameInvalid,
+
+    [Description("媒体文件扩展名不能为空.")]
+    MediaExtensionRequired,
+
+    [Description("媒体文件扩展名不受支持.")]
+    MediaExtensionInvalid,
+
+    [Description("媒体文件扩展名与原始文件名不一致.")]
+    MediaExtensionMismatch,
+
+    [Description("媒体文件 Content-Type 不能为空.")]
+    MediaContentTypeRequired,
+
+    [Description("媒体文件 Content-Type 与扩展名或资源模块不匹配.")]
+    MediaContentTypeInvalid,
+
+    [Description("媒体文件大小必须大于0.")]
+    MediaSizeInvalid,
+
+    [Description("媒体文件大小超过当前类型的上传限制.")]
+    MediaSizeLimitExceeded,
+
+    [Description("媒体资源所属模块无效.")]
+    ResourceModuleInvalid,
+
+    [Description("媒体资源不存在.")]
+    MediaResourceNotFound,
+
+    [Description("无权操作其他用户上传的媒体资源.")]
+    MediaResourceOwnershipMismatch,
+
+    [Description("媒体资源当前状态不允许执行该操作.")]
+    MediaResourceStatusConflict,
+
+    [Description("媒体文件尚未上传完成.")]
+    MediaResourceUploadIncomplete,
+
+    [Description("媒体文件实际大小与申报大小不一致.")]
+    MediaResourceSizeMismatch,
+
+    [Description("媒体文件实际 Content-Type 与申报类型不一致.")]
+    MediaResourceContentTypeMismatch,
+
+    [Description("对象存储服务暂时不可用.")]
+    ObjectStorageUnavailable,
 }

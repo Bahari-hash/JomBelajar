@@ -7,8 +7,9 @@ namespace TinyLang.Database;
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
     : DbContext(options), IApplicationDbContext
 {
-    public DbSet<TinyLang.Entities.User> Users => Set<TinyLang.Entities.User>();
-    public DbSet<TinyLang.Entities.RefreshToken> RefreshTokens => Set<TinyLang.Entities.RefreshToken>();
+    public DbSet<Entities.User> Users => Set<Entities.User>();
+    public DbSet<Entities.RefreshToken> RefreshTokens => Set<Entities.RefreshToken>();
+    public DbSet<Entities.MediaResource> MediaResources => Set<Entities.MediaResource>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

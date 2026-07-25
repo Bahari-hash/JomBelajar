@@ -114,13 +114,18 @@ public sealed class AccountSecurityService(
     /// <returns>已跟踪的有效用户。</returns>
     /// <exception cref="NotFoundException">用户不存在或已软删除。</exception>
     private async Task<User> FindActiveUserAsync(Guid userId, CancellationToken cancellationToken)
-        => await db.Users.SingleOrDefaultAsync(x => x.Id == userId && !x.IsDeleted, cancellationToken)
+    {
+        return await db.Users.SingleOrDefaultAsync(x => x.Id == userId && !x.IsDeleted, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
+    }
 
     /// <summary>
     /// 去除邮箱两端空白并转换为小写形式。
     /// </summary>
     /// <param name="email">待规范化邮箱。</param>
     /// <returns>规范化后的邮箱。</returns>
-    private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+    private static string NormalizeEmail(string email)
+    {
+        return email.Trim().ToLowerInvariant();
+    }
 }

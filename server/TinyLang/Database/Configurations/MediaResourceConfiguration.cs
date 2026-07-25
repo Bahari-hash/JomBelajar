@@ -19,6 +19,8 @@ public sealed class MediaResourceConfiguration : IEntityTypeConfiguration<MediaR
         builder.Property(x => x.ObjectName)
             .HasMaxLength(512)
             .IsRequired();
+        builder.Property(x => x.StagingObjectName)
+            .HasMaxLength(512);
         builder.Property(x => x.OriginalName)
             .HasMaxLength(255)
             .IsRequired();
@@ -38,10 +40,15 @@ public sealed class MediaResourceConfiguration : IEntityTypeConfiguration<MediaR
             .IsRequired();
         builder.Property(x => x.Url)
             .HasMaxLength(2048);
+        builder.Property(x => x.ConcurrencyStamp)
+            .IsConcurrencyToken();
 
         builder.HasIndex(x => x.ObjectName)
             .IsUnique();
+        builder.HasIndex(x => x.StagingObjectName)
+            .IsUnique();
         builder.HasIndex(x => new { x.UploaderId, x.Status });
+        builder.HasIndex(x => new { x.Status, x.UploadExpiresAt, x.Id });
 
         builder.HasOne(x => x.Uploader)
             .WithMany(x => x.MediaResources)

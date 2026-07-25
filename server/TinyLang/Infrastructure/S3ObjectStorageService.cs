@@ -1,7 +1,7 @@
+using System.Net;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
-using System.Net;
 using TinyLang.Interfaces;
 using TinyLang.Models;
 using TinyLang.Settings;
@@ -9,7 +9,7 @@ using TinyLang.Settings;
 namespace TinyLang.Infrastructure;
 
 /// <summary>
-/// 使用 AWS S3 client 实现对象预签名、元数据查询、移动和公开寻址。
+/// 使用 AWS S3 client 实现对象预签名、Multipart Upload、归档和公开寻址。
 /// </summary>
 /// <param name="s3Client">S3-compatible 客户端。</param>
 /// <param name="options">对象存储桶和 URL 配置。</param>
@@ -70,7 +70,147 @@ public sealed class S3ObjectStorageService(
     }
 
     /// <inheritdoc />
-    public async Task MoveObjectAsync(
+    public async Task<string> CreateMultipartUploadAsync(
+        string objectName,
+        string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await s3Client.InitiateMultipartUploadAsync(
+            new InitiateMultipartUploadRequest
+            {
+                BucketName = _settings.Bucket,
+                Key = objectName,
+                ContentType = contentType
+            },
+            cancellationToken);
+        return response.UploadId;
+    }
+
+    /// <inheritdoc />
+    public async Task<string> PresignUploadPartAsync(
+        string objectName,
+        string providerUploadId,
+        int partNumber,
+        long contentLength,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var configuredExpiry = DateTimeOffset.UtcNow.AddSeconds(
+            _settings.PresignedUrlExpirySeconds);
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = _settings.Bucket,
+            Key = objectName,
+            Verb = HttpVerb.PUT,
+            UploadId = providerUploadId,
+            PartNumber = partNumber,
+            Expires = (configuredExpiry < expiresAt ? configuredExpiry : expiresAt).UtcDateTime
+        };
+        request.Headers.ContentLength = contentLength;
+        return await s3Client.GetPreSignedURLAsync(request);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<ObjectStorageUploadedPart>> ListUploadedPartsAsync(
+        string objectName,
+        string providerUploadId,
+        int maxParts,
+        CancellationToken cancellationToken = default)
+    {
+        var parts = new List<ObjectStorageUploadedPart>();
+        int? marker = null;
+        do
+        {
+            ListPartsResponse response;
+            try
+            {
+                response = await s3Client.ListPartsAsync(new ListPartsRequest
+                {
+                    BucketName = _settings.Bucket,
+                    Key = objectName,
+                    UploadId = providerUploadId,
+                    PartNumberMarker = marker?.ToString(),
+                    MaxParts = Math.Min(1000, maxParts - parts.Count)
+                }, cancellationToken);
+            }
+            catch (AmazonS3Exception exception) when (IsUploadNotFound(exception))
+            {
+                throw new ObjectStorageProtocolException(
+                    ObjectStorageProtocolError.UploadNotFound);
+            }
+            parts.AddRange(response.Parts.Select(part => new ObjectStorageUploadedPart(
+                part.PartNumber.GetValueOrDefault(),
+                part.ETag,
+                part.Size)));
+            marker = response.IsTruncated == true
+                ? response.NextPartNumberMarker
+                : null;
+        }
+        while (marker is not null && parts.Count < maxParts);
+
+        return parts.OrderBy(part => part.PartNumber).ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task CompleteMultipartUploadAsync(
+        string objectName,
+        string providerUploadId,
+        IReadOnlyList<ObjectStorageUploadedPart> parts,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await s3Client.CompleteMultipartUploadAsync(
+                new CompleteMultipartUploadRequest
+                {
+                    BucketName = _settings.Bucket,
+                    Key = objectName,
+                    UploadId = providerUploadId,
+                    PartETags = parts.Select(part => new PartETag(
+                        part.PartNumber,
+                        part.ETag)).ToList()
+                },
+                cancellationToken);
+        }
+        catch (AmazonS3Exception exception) when (IsUploadNotFound(exception))
+        {
+            throw new ObjectStorageProtocolException(
+                ObjectStorageProtocolError.UploadNotFound);
+        }
+        catch (AmazonS3Exception exception) when (exception.ErrorCode is
+            "InvalidPart" or "InvalidPartOrder" or "EntityTooSmall")
+        {
+            throw new ObjectStorageProtocolException(
+                ObjectStorageProtocolError.InvalidParts);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task AbortMultipartUploadAsync(
+        string objectName,
+        string providerUploadId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await s3Client.AbortMultipartUploadAsync(
+                new AbortMultipartUploadRequest
+                {
+                    BucketName = _settings.Bucket,
+                    Key = objectName,
+                    UploadId = providerUploadId
+                },
+                cancellationToken);
+        }
+        catch (AmazonS3Exception exception) when (exception.StatusCode == HttpStatusCode.NotFound)
+        {
+            // A missing upload already satisfies abort semantics.
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task CopyObjectAsync(
         string sourceObjectName,
         string destinationObjectName,
         CancellationToken cancellationToken = default)
@@ -83,9 +223,20 @@ public sealed class S3ObjectStorageService(
             DestinationKey = destinationObjectName
         }, cancellationToken);
 
-        await s3Client.DeleteObjectAsync(
-            _settings.Bucket,
-            sourceObjectName,
-            cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task DeleteObjectAsync(
+        string objectName,
+        CancellationToken cancellationToken = default)
+    {
+        await s3Client.DeleteObjectAsync(_settings.Bucket, objectName, cancellationToken);
+    }
+
+    /// <summary>
+    /// 判断 provider 异常是否表示 Multipart Upload 会话不存在。
+    /// </summary>
+    private static bool IsUploadNotFound(AmazonS3Exception exception)
+        => exception.StatusCode == HttpStatusCode.NotFound ||
+            string.Equals(exception.ErrorCode, "NoSuchUpload", StringComparison.Ordinal);
 }

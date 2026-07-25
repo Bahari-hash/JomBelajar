@@ -25,6 +25,15 @@ public sealed record RateLimitSettings
     public int UploadPresignReplenishmentPeriodSeconds { get; init; }
 
     [Range(1, int.MaxValue)]
+    public int UploadCommandTokenLimit { get; init; }
+
+    [Range(1, int.MaxValue)]
+    public int UploadCommandTokensPerPeriod { get; init; }
+
+    [Range(1, int.MaxValue)]
+    public int UploadCommandReplenishmentPeriodSeconds { get; init; }
+
+    [Range(1, int.MaxValue)]
     public int GlobalFallbackPermitLimit { get; init; }
 
     [Range(0, int.MaxValue)]

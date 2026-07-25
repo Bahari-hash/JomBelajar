@@ -28,6 +28,8 @@ public sealed class RateLimitEndpointTests
     [Theory]
     [InlineData("/api/uploads/users/avatar/presign")]
     [InlineData("/api/uploads/editor/media/presign")]
+    [InlineData("/api/uploads/editor/media/multipart")]
+    [InlineData("/api/uploads/multipart/{sessionId:guid}/parts/presign")]
     public async Task PresignEndpointsShouldUseUploadPresignLimit(string routePattern)
     {
         await using var app = CreateApp();
@@ -41,6 +43,24 @@ public sealed class RateLimitEndpointTests
         await using var app = CreateApp();
 
         GetRateLimitPolicy(app, "/api/uploads/resources/{id:guid}/confirm").Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("/api/uploads/multipart/{sessionId:guid}/complete")]
+    [InlineData("/api/uploads/multipart/{sessionId:guid}")]
+    public async Task MultipartCommandsShouldUseUploadCommandLimit(string routePattern)
+    {
+        await using var app = CreateApp();
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(value =>
+                value.RoutePattern.RawText == routePattern &&
+                value.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods
+                    .Any(method => method is "POST" or "DELETE"));
+        endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+            .Should().Be(RateLimitPolicies.UploadCommandLimit);
     }
 
     private static WebApplication CreateApp()

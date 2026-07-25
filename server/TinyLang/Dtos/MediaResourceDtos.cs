@@ -26,6 +26,41 @@ public sealed record EditorMediaPresignRequest
 }
 
 /// <summary>
+/// 描述编辑者创建 Multipart Upload 会话时提交的媒体元数据。
+/// </summary>
+public sealed record MultipartUploadRequest
+{
+    public required string OriginalName { get; init; }
+    public required string Extension { get; init; }
+    public required string ContentType { get; init; }
+    public long Size { get; init; }
+    public ResourceModule Module { get; init; }
+}
+
+/// <summary>
+/// 描述一次批量 part 预签名请求。
+/// </summary>
+public sealed record MultipartPartPresignRequest
+{
+    public required IReadOnlyList<int> PartNumbers { get; init; }
+}
+
+/// <summary>
+/// 描述客户端完成一个 part 后取得的 ETag。
+/// </summary>
+/// <param name="PartNumber">从 1 开始的 part 编号。</param>
+/// <param name="ETag">provider 在上传响应中返回的 ETag。</param>
+public sealed record CompletedMultipartPartRequest(int PartNumber, string ETag);
+
+/// <summary>
+/// 描述提交给 Multipart complete 操作的完整 part 列表。
+/// </summary>
+public sealed record CompleteMultipartUploadRequest
+{
+    public required IReadOnlyList<CompletedMultipartPartRequest> Parts { get; init; }
+}
+
+/// <summary>
 /// 返回待上传资源及其对象存储预签名地址。
 /// </summary>
 /// <param name="ResourceId">待确认媒体资源的标识。</param>
@@ -35,6 +70,45 @@ public sealed record PresignResponse(
     Guid ResourceId,
     string PresignedUrl,
     string ObjectName);
+
+/// <summary>
+/// 返回新建 Multipart Upload 会话的应用级布局。
+/// </summary>
+public sealed record MultipartUploadCreateResponse(
+    Guid ResourceId,
+    Guid SessionId,
+    long PartSize,
+    int PartCount,
+    DateTimeOffset ExpiresAt);
+
+/// <summary>
+/// 返回一个 part 的预签名地址及客户端必须发送的长度。
+/// </summary>
+public sealed record MultipartPartPresignResponse(
+    int PartNumber,
+    string PresignedUrl,
+    long ContentLength,
+    DateTimeOffset ExpiresAt);
+
+/// <summary>
+/// 返回 provider 已接收的 part 摘要。
+/// </summary>
+public sealed record UploadedMultipartPartResponse(
+    int PartNumber,
+    string ETag,
+    long? Size);
+
+/// <summary>
+/// 返回 Multipart Upload 会话状态，不暴露 provider upload ID。
+/// </summary>
+public sealed record MultipartUploadStatusResponse(
+    Guid ResourceId,
+    Guid SessionId,
+    MultipartUploadStatus Status,
+    long PartSize,
+    int PartCount,
+    DateTimeOffset ExpiresAt,
+    IReadOnlyList<UploadedMultipartPartResponse> UploadedParts);
 
 /// <summary>
 /// 返回媒体资源的持久化状态和公开访问信息。

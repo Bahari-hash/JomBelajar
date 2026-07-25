@@ -169,6 +169,30 @@ public enum ErrorCodes
     [Description("对象存储服务暂时不可用.")]
     ObjectStorageUnavailable,
 
+    [Description("该媒体文件必须使用分片上传.")]
+    MultipartUploadRequired,
+
+    [Description("该媒体文件未达到分片上传阈值.")]
+    MultipartUploadNotRequired,
+
+    [Description("分片上传会话不存在.")]
+    MultipartUploadNotFound,
+
+    [Description("无权操作其他用户的分片上传会话.")]
+    MultipartUploadOwnershipMismatch,
+
+    [Description("分片上传会话已经过期.")]
+    MultipartUploadExpired,
+
+    [Description("分片上传的 part 列表无效.")]
+    MultipartUploadPartsInvalid,
+
+    [Description("媒体资源正在后台归档，请稍后重试.")]
+    MediaResourceFinalizing,
+
+    [Description("当前用户的未完成上传数量或容量已达到上限.")]
+    MultipartUploadQuotaExceeded,
+
     // --** Article Errors **--
 
     [Description("文章不存在.")]

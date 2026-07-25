@@ -1,10 +1,12 @@
+using System.Linq;
+using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
-using Amazon.Runtime;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using Moq;
 using TinyLang.Infrastructure;
+using TinyLang.Models;
 using TinyLang.Settings;
 
 namespace TinyLang.UnitTests;
@@ -84,29 +86,20 @@ public sealed class S3ObjectStorageServiceTests
     }
 
     [Fact]
-    public async Task ShouldCopyBeforeDeletingTemporaryObject()
+    public async Task ShouldMapCopyObjectRequestWithoutDeletingSource()
     {
-        var operations = new List<string>();
         var s3Client = new Mock<IAmazonS3>();
         s3Client.Setup(x => x.CopyObjectAsync(
                 It.IsAny<CopyObjectRequest>(),
                 TestContext.Current.CancellationToken))
-            .Callback(() => operations.Add("copy"))
             .ReturnsAsync(new CopyObjectResponse());
-        s3Client.Setup(x => x.DeleteObjectAsync(
-                "tiny-lang-media",
-                "temp/image.png",
-                TestContext.Current.CancellationToken))
-            .Callback(() => operations.Add("delete"))
-            .ReturnsAsync(new DeleteObjectResponse());
         var service = CreateService(s3Client.Object);
 
-        await service.MoveObjectAsync(
+        await service.CopyObjectAsync(
             "temp/image.png",
             "avatars/2026/07/image.png",
             TestContext.Current.CancellationToken);
 
-        operations.Should().Equal("copy", "delete");
         s3Client.Verify(x => x.CopyObjectAsync(
             It.Is<CopyObjectRequest>(request =>
                 request.SourceBucket == "tiny-lang-media" &&
@@ -114,6 +107,130 @@ public sealed class S3ObjectStorageServiceTests
                 request.DestinationBucket == "tiny-lang-media" &&
                 request.DestinationKey == "avatars/2026/07/image.png"),
             TestContext.Current.CancellationToken), Times.Once);
+        s3Client.Verify(x => x.DeleteObjectAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ShouldDeleteObjectFromConfiguredBucket()
+    {
+        var s3Client = new Mock<IAmazonS3>();
+        s3Client.Setup(x => x.DeleteObjectAsync(
+                "tiny-lang-media",
+                "staging/image.png",
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(new DeleteObjectResponse());
+        var service = CreateService(s3Client.Object);
+
+        await service.DeleteObjectAsync(
+            "staging/image.png",
+            TestContext.Current.CancellationToken);
+
+        s3Client.VerifyAll();
+    }
+
+    [Fact]
+    public async Task ShouldInitiateMultipartUploadWithLockedContentType()
+    {
+        InitiateMultipartUploadRequest? capturedRequest = null;
+        var s3Client = new Mock<IAmazonS3>();
+        s3Client.Setup(x => x.InitiateMultipartUploadAsync(
+                It.IsAny<InitiateMultipartUploadRequest>(),
+                TestContext.Current.CancellationToken))
+            .Callback<InitiateMultipartUploadRequest, CancellationToken>(
+                (request, _) => capturedRequest = request)
+            .ReturnsAsync(new InitiateMultipartUploadResponse
+            {
+                UploadId = "provider-upload-id"
+            });
+        var service = CreateService(s3Client.Object);
+
+        var uploadId = await service.CreateMultipartUploadAsync(
+            "staging/video.mp4",
+            "video/mp4",
+            TestContext.Current.CancellationToken);
+
+        uploadId.Should().Be("provider-upload-id");
+        capturedRequest!.BucketName.Should().Be("tiny-lang-media");
+        capturedRequest.Key.Should().Be("staging/video.mp4");
+        capturedRequest.ContentType.Should().Be("video/mp4");
+    }
+
+    [Fact]
+    public async Task ShouldPresignMultipartPartWithProviderCoordinatesAndLength()
+    {
+        GetPreSignedUrlRequest? capturedRequest = null;
+        var s3Client = new Mock<IAmazonS3>();
+        s3Client.Setup(x => x.GetPreSignedURLAsync(It.IsAny<GetPreSignedUrlRequest>()))
+            .Callback<GetPreSignedUrlRequest>(request => capturedRequest = request)
+            .ReturnsAsync("https://s3.example.com/part");
+        var service = CreateService(s3Client.Object);
+
+        await service.PresignUploadPartAsync(
+            "staging/video.mp4",
+            "provider-upload-id",
+            3,
+            16 * 1024 * 1024,
+            DateTimeOffset.UtcNow.AddHours(1),
+            TestContext.Current.CancellationToken);
+
+        capturedRequest!.BucketName.Should().Be("tiny-lang-media");
+        capturedRequest.Key.Should().Be("staging/video.mp4");
+        capturedRequest.UploadId.Should().Be("provider-upload-id");
+        capturedRequest.PartNumber.Should().Be(3);
+        capturedRequest.Headers.ContentLength.Should().Be(16 * 1024 * 1024);
+    }
+
+    [Fact]
+    public async Task ShouldCompleteMultipartUploadWithOrderedProviderParts()
+    {
+        CompleteMultipartUploadRequest? capturedRequest = null;
+        var s3Client = new Mock<IAmazonS3>();
+        s3Client.Setup(x => x.CompleteMultipartUploadAsync(
+                It.IsAny<CompleteMultipartUploadRequest>(),
+                TestContext.Current.CancellationToken))
+            .Callback<CompleteMultipartUploadRequest, CancellationToken>(
+                (request, _) => capturedRequest = request)
+            .ReturnsAsync(new CompleteMultipartUploadResponse());
+        var service = CreateService(s3Client.Object);
+
+        await service.CompleteMultipartUploadAsync(
+            "staging/video.mp4",
+            "provider-upload-id",
+            [new ObjectStorageUploadedPart(1, "etag-1"), new ObjectStorageUploadedPart(2, "etag-2")],
+            TestContext.Current.CancellationToken);
+
+        capturedRequest!.BucketName.Should().Be("tiny-lang-media");
+        capturedRequest.Key.Should().Be("staging/video.mp4");
+        capturedRequest.UploadId.Should().Be("provider-upload-id");
+        capturedRequest.PartETags.Select(part => part.PartNumber).Should().Equal(1, 2);
+        capturedRequest.PartETags.Select(part => part.ETag).Should().Equal("etag-1", "etag-2");
+    }
+
+    [Fact]
+    public async Task ShouldMapProviderInvalidPartWithoutExposingProviderMessage()
+    {
+        var providerException = new AmazonS3Exception("sensitive provider response")
+        {
+            ErrorCode = "InvalidPart"
+        };
+        var s3Client = new Mock<IAmazonS3>();
+        s3Client.Setup(x => x.CompleteMultipartUploadAsync(
+                It.IsAny<CompleteMultipartUploadRequest>(),
+                TestContext.Current.CancellationToken))
+            .ThrowsAsync(providerException);
+        var service = CreateService(s3Client.Object);
+
+        var action = () => service.CompleteMultipartUploadAsync(
+            "staging/video.mp4",
+            "provider-upload-id",
+            [new ObjectStorageUploadedPart(1, "etag-1")],
+            TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<ObjectStorageProtocolException>()
+            .Where(exception =>
+                exception.Reason == ObjectStorageProtocolError.InvalidParts &&
+                !exception.Message.Contains("sensitive", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -75,6 +75,19 @@ public static class RateLimitingDependencyInjection
                         QueueLimit = 0
                     }));
 
+            options.AddPolicy(RateLimitPolicies.UploadCommandLimit, context =>
+                RateLimitPartition.GetTokenBucketLimiter(
+                    GetUploadPresignPartitionKey(context),
+                    _ => new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = settings.UploadCommandTokenLimit,
+                        TokensPerPeriod = settings.UploadCommandTokensPerPeriod,
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            settings.UploadCommandReplenishmentPeriodSeconds),
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 0
+                    }));
+
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
                 context => context.GetEndpoint()?.Metadata
                     .GetMetadata<EnableRateLimitingAttribute>() is not null

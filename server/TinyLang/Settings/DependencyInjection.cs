@@ -1,8 +1,8 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.HttpOverrides;
-using System.Net;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace TinyLang.Settings;
 
@@ -49,6 +49,33 @@ public static class DependencyInjection
         services.AddOptions<UploadSettings>()
             .Bind(uploadSettings)
             .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        var multipartUploadSettings = configuration.GetSection(
+            MultipartUploadSettings.SectionName);
+        var configuredVideoMaxMb = configuration.GetValue<int?>(
+            $"{UploadSettings.SectionName}:VideoMaxMB");
+        var configuredPresignExpirySeconds = configuration.GetValue<int?>(
+            $"{ObjectStorageSettings.SectionName}:PresignedUrlExpirySeconds");
+        services.AddOptions<MultipartUploadSettings>()
+            .Bind(multipartUploadSettings)
+            .ValidateDataAnnotations()
+            .Validate(
+                settings => settings.ThresholdMB >= settings.PartSizeMB,
+                "Multipart upload threshold must be greater than or equal to the part size.")
+            .Validate(
+                settings => configuredVideoMaxMb is null ||
+                    ((long)settings.PartSizeMB * settings.MaxPartCount >= configuredVideoMaxMb &&
+                        settings.ThresholdMB <= configuredVideoMaxMb &&
+                        settings.MaxIncompleteUploadMBPerUser >= configuredVideoMaxMb),
+                "Multipart settings must support the configured maximum course video size.")
+            .Validate(
+                settings => configuredPresignExpirySeconds is null ||
+                    configuredPresignExpirySeconds <= (long)settings.SessionTtlMinutes * 60,
+                "Presigned URL expiry must not exceed the multipart session TTL.")
+            .Validate(
+                settings => settings.FinalizationLeaseSeconds > settings.CleanupIntervalSeconds,
+                "Finalization lease must be longer than the cleanup interval.")
             .ValidateOnStart();
 
         var rateLimitSettings = configuration.GetSection(RateLimitSettings.SectionName);

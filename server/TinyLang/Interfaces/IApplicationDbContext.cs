@@ -11,6 +11,7 @@ public interface IApplicationDbContext
     DbSet<User> Users { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<MediaResource> MediaResources { get; }
+    DbSet<MultipartUploadSession> MultipartUploadSessions { get; }
     DbSet<Article> Articles { get; }
     DbSet<ArticleCategory> ArticleCategories { get; }
     DbSet<ArticleCategoryAssignment> ArticleCategoryAssignments { get; }

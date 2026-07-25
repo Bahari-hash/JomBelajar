@@ -7,17 +7,18 @@ using TinyLang.Constants;
 using TinyLang.Dtos;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
+using TinyLang.Models;
 using TinyLang.Services;
 
 namespace TinyLang.Endpoints;
 
 /// <summary>
-/// 定义媒体上传预签名和上传确认的 HTTP endpoints。
+/// 定义简单 PUT、Multipart Upload、上传确认和终止的 HTTP endpoints。
 /// </summary>
 public static class UploadEndpoints
 {
     /// <summary>
-    /// 注册头像、编辑者媒体预签名及资源确认路由。
+    /// 注册简单上传、Multipart Upload 和资源确认路由。
     /// </summary>
     /// <param name="endpoints">应用顶层 API 路由组。</param>
     /// <returns>完成注册后的同一路由组。</returns>
@@ -35,6 +36,25 @@ public static class UploadEndpoints
 
         group.MapPut("/resources/{id:guid}/confirm", ConfirmUploadAsync)
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
+
+        group.MapPost("/editor/media/multipart", CreateMultipartUploadAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireEditor)
+            .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
+
+        group.MapPost("/multipart/{sessionId:guid}/parts/presign", PresignMultipartPartsAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireUser)
+            .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
+
+        group.MapGet("/multipart/{sessionId:guid}", GetMultipartUploadAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
+
+        group.MapPost("/multipart/{sessionId:guid}/complete", CompleteMultipartUploadAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireUser)
+            .RequireRateLimiting(RateLimitPolicies.UploadCommandLimit);
+
+        group.MapDelete("/multipart/{sessionId:guid}", AbortMultipartUploadAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireUser)
+            .RequireRateLimiting(RateLimitPolicies.UploadCommandLimit);
 
         return endpoints;
     }
@@ -117,6 +137,112 @@ public static class UploadEndpoints
     }
 
     /// <summary>
+    /// 为当前编辑者创建大文件 Multipart Upload 会话。
+    /// </summary>
+    public static async Task<Created<MultipartUploadCreateResponse>> CreateMultipartUploadAsync(
+        MultipartUploadRequest request,
+        ClaimsPrincipal principal,
+        IMediaResourceService mediaResourceService,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediaResourceService.CreateMultipartUploadAsync(
+            EndpointIdentity.GetUserId(principal),
+            request.OriginalName,
+            request.Extension,
+            request.Size,
+            request.ContentType,
+            request.Module,
+            cancellationToken);
+        var response = new MultipartUploadCreateResponse(
+            result.ResourceId,
+            result.SessionId,
+            result.PartSize,
+            result.PartCount,
+            result.ExpiresAt);
+        return TypedResults.Created(
+            $"/api/uploads/multipart/{result.SessionId}",
+            response);
+    }
+
+    /// <summary>
+    /// 为当前用户会话批量签发受限的 part 上传地址。
+    /// </summary>
+    public static async Task<Ok<IReadOnlyList<MultipartPartPresignResponse>>>
+        PresignMultipartPartsAsync(
+            Guid sessionId,
+            MultipartPartPresignRequest request,
+            ClaimsPrincipal principal,
+            IMediaResourceService mediaResourceService,
+            CancellationToken cancellationToken)
+    {
+        var results = await mediaResourceService.PresignMultipartPartsAsync(
+            sessionId,
+            EndpointIdentity.GetUserId(principal),
+            request.PartNumbers,
+            cancellationToken);
+        return TypedResults.Ok<IReadOnlyList<MultipartPartPresignResponse>>(
+            results.Select(result => new MultipartPartPresignResponse(
+                result.PartNumber,
+                result.PresignedUrl,
+                result.ContentLength,
+                result.ExpiresAt)).ToArray());
+    }
+
+    /// <summary>
+    /// 返回当前用户 Multipart Upload 的恢复状态和已上传 parts。
+    /// </summary>
+    public static async Task<Ok<MultipartUploadStatusResponse>> GetMultipartUploadAsync(
+        Guid sessionId,
+        ClaimsPrincipal principal,
+        IMediaResourceService mediaResourceService,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediaResourceService.GetMultipartUploadAsync(
+            sessionId,
+            EndpointIdentity.GetUserId(principal),
+            cancellationToken);
+        return TypedResults.Ok(ToResponse(result));
+    }
+
+    /// <summary>
+    /// 完成 provider Multipart Upload，并返回后台归档进度地址。
+    /// </summary>
+    public static async Task<Accepted<MultipartUploadStatusResponse>> CompleteMultipartUploadAsync(
+        Guid sessionId,
+        CompleteMultipartUploadRequest request,
+        ClaimsPrincipal principal,
+        IMediaResourceService mediaResourceService,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediaResourceService.CompleteMultipartUploadAsync(
+            sessionId,
+            EndpointIdentity.GetUserId(principal),
+            request.Parts.Select(part => new ObjectStorageUploadedPart(
+                part.PartNumber,
+                part.ETag)).ToArray(),
+            cancellationToken);
+        return TypedResults.Accepted(
+            $"/api/uploads/multipart/{sessionId}",
+            ToResponse(result));
+    }
+
+    /// <summary>
+    /// 幂等终止当前用户尚未完成的 Multipart Upload。
+    /// </summary>
+    public static async Task<NoContent> AbortMultipartUploadAsync(
+        Guid sessionId,
+        ClaimsPrincipal principal,
+        IMediaResourceService mediaResourceService,
+        CancellationToken cancellationToken)
+    {
+        await mediaResourceService.AbortMultipartUploadAsync(
+            sessionId,
+            EndpointIdentity.GetUserId(principal),
+            cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
     /// 将媒体资源实体投影为 HTTP 响应模型。
     /// </summary>
     /// <param name="resource">媒体资源实体。</param>
@@ -134,4 +260,21 @@ public static class UploadEndpoints
             resource.ContentType,
             resource.Url,
             resource.CreatedAt);
+
+    /// <summary>
+    /// 将应用会话结果投影为不含 provider 内部标识的 HTTP 响应。
+    /// </summary>
+    private static MultipartUploadStatusResponse ToResponse(
+        MultipartUploadStatusResult result)
+        => new(
+            result.ResourceId,
+            result.SessionId,
+            result.Status,
+            result.PartSize,
+            result.PartCount,
+            result.ExpiresAt,
+            result.UploadedParts.Select(part => new UploadedMultipartPartResponse(
+                part.PartNumber,
+                part.ETag,
+                part.Size)).ToArray());
 }

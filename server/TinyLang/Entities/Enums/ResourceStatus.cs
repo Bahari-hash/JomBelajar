@@ -6,5 +6,9 @@ namespace TinyLang.Entities.Enums;
 public enum ResourceStatus
 {
     Pending,
-    Active
+    Finalizing,
+    Active,
+    Aborted,
+    Expired,
+    Failed
 }

@@ -43,7 +43,9 @@ public sealed class ArticleMediaFlowTests
         var mediaService = new MediaResourceService(
             db,
             storage.Object,
-            new MediaUploadPolicy(Options.Create(TestUploadSettings.Create())));
+            new MediaUploadPolicy(Options.Create(TestUploadSettings.Create())),
+            Options.Create(TestMultipartUploadSettings.Create()),
+            TimeProvider.System);
         var presign = await mediaService.CreatePendingResourceAndPresignAsync(
             editor.Id,
             "lesson.png",

@@ -141,6 +141,66 @@ public sealed class MediaResourceValidatorsTests
         => new(Options.Create(TestUploadSettings.Create()));
 
     private static long Megabytes(int value) => (long)value * 1024 * 1024;
+
+    [Theory]
+    [InlineData(63, false)]
+    [InlineData(64, true)]
+    public async Task MultipartRequestShouldEnforceConfiguredThreshold(
+        int sizeMb,
+        bool expectedValid)
+    {
+        var validator = new MultipartUploadRequestValidator(
+            CreatePolicy(),
+            Options.Create(TestMultipartUploadSettings.Create()));
+        var request = new MultipartUploadRequest
+        {
+            Module = ResourceModule.CourseVideo,
+            OriginalName = "course.mp4",
+            Extension = ".mp4",
+            ContentType = "video/mp4",
+            Size = Megabytes(sizeMb)
+        };
+
+        var result = await validator.ValidateAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().Be(expectedValid);
+    }
+
+    [Fact]
+    public async Task PartPresignShouldRejectDuplicateNumbers()
+    {
+        var validator = new MultipartPartPresignRequestValidator(
+            Options.Create(TestMultipartUploadSettings.Create()));
+
+        var result = await validator.ValidateAsync(
+            new MultipartPartPresignRequest { PartNumbers = [1, 1] },
+            TestContext.Current.CancellationToken);
+
+        result.ShouldContain(ErrorCodes.MultipartUploadPartsInvalid);
+    }
+
+    [Fact]
+    public async Task CompleteShouldRejectDuplicatePartsAndControlCharacters()
+    {
+        var validator = new CompleteMultipartUploadRequestValidator(
+            Options.Create(TestMultipartUploadSettings.Create()));
+        var request = new CompleteMultipartUploadRequest
+        {
+            Parts =
+            [
+                new CompletedMultipartPartRequest(1, "etag-1"),
+                new CompletedMultipartPartRequest(1, "etag\n")
+            ]
+        };
+
+        var result = await validator.ValidateAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        result.ShouldContain(ErrorCodes.MultipartUploadPartsInvalid);
+    }
 }
 
 internal static class ValidationResultAssertions

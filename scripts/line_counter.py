@@ -18,9 +18,8 @@
 """
 
 
-import pathlib
 import argparse
-from typing import List
+import pathlib
 
 
 def count_lines_in_file(file_name: pathlib.Path) -> int:
@@ -34,7 +33,7 @@ def count_lines_in_file(file_name: pathlib.Path) -> int:
         return count
 
 
-def count_lines_in_dir(dir_name: pathlib.Path, file_ext: str, excluded_dir: List[str]) -> int:
+def count_lines_in_dir(dir_name: pathlib.Path, file_ext: str, excluded_dir: list[str]) -> int:
     total_lines = 0
     if not file_ext.startswith("."):
         file_ext = f".{file_ext}"

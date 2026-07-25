@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using TinyLang.Policies;
+using TinyLang.Workers;
 
 namespace TinyLang.Services;
 
@@ -15,12 +16,15 @@ public static class DependencyInjection
     /// <returns>完成注册后的同一服务集合。</returns>
     public static IServiceCollection AddBusinessServices(this IServiceCollection services)
     {
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<MediaUploadPolicy>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserSessionService, UserSessionService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IAccountSecurityService, AccountSecurityService>();
         services.AddScoped<IMediaResourceService, MediaResourceService>();
+        services.AddScoped<IMediaUploadMaintenanceService, MediaUploadMaintenanceService>();
+        services.AddHostedService<MediaUploadMaintenanceWorker>();
         services.AddScoped<IArticleService, ArticleService>();
         services.AddScoped<IArticleCategoryService, ArticleCategoryService>();
 

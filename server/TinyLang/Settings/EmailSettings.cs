@@ -3,6 +3,9 @@ using TinyLang.Enums;
 
 namespace TinyLang.Settings;
 
+/// <summary>
+/// 描述 SMTP 连接、认证及默认发件人配置。
+/// </summary>
 public sealed record EmailSettings
 {
     public const string SectionName = "EmailSettings";

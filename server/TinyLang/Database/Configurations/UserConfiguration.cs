@@ -4,8 +4,12 @@ using TinyLang.Entities;
 
 namespace TinyLang.Database.Configurations;
 
+/// <summary>
+/// 配置用户账户、资料字段和唯一身份索引。
+/// </summary>
 public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 {
+    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<User> builder)
     {
         builder.ToTable("users");

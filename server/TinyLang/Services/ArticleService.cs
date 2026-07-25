@@ -9,10 +9,16 @@ using TinyLang.Models;
 
 namespace TinyLang.Services;
 
+/// <summary>
+/// 实现文章状态转换、内容清理以及分类和媒体关联的一致性规则。
+/// </summary>
+/// <param name="db">应用数据库上下文。</param>
+/// <param name="htmlSanitizer">文章 HTML 清理和媒体源提取服务。</param>
 public sealed class ArticleService(
     IApplicationDbContext db,
     IHtmlContentSanitizer htmlSanitizer) : IArticleService
 {
+    /// <inheritdoc />
     public async Task<ArticleResponse> CreateDraftAsync(
         Guid editorId,
         CreateArticleRequest request,
@@ -37,6 +43,7 @@ public sealed class ArticleService(
         return await GetEditorByIdAsync(article.Id, cancellationToken);
     }
 
+    /// <inheritdoc />
     public async Task<ArticleResponse> UpdateAsync(
         Guid articleId,
         Guid editorId,
@@ -63,6 +70,7 @@ public sealed class ArticleService(
         return await GetEditorByIdAsync(article.Id, cancellationToken);
     }
 
+    /// <inheritdoc />
     public async Task<ArticleResponse> PublishAsync(
         Guid articleId,
         Guid editorId,
@@ -90,6 +98,7 @@ public sealed class ArticleService(
         return await GetEditorByIdAsync(article.Id, cancellationToken);
     }
 
+    /// <inheritdoc />
     public async Task<ArticleResponse> UnpublishAsync(
         Guid articleId,
         Guid editorId,
@@ -109,6 +118,7 @@ public sealed class ArticleService(
         return await GetEditorByIdAsync(article.Id, cancellationToken);
     }
 
+    /// <inheritdoc />
     public async Task ArchiveAsync(
         Guid articleId,
         Guid editorId,
@@ -125,6 +135,7 @@ public sealed class ArticleService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
     public async Task<ArticleResponse> GetEditorByIdAsync(
         Guid articleId,
         CancellationToken cancellationToken = default)
@@ -135,6 +146,7 @@ public sealed class ArticleService(
         return ToResponse(article, includeLastEditor: true);
     }
 
+    /// <inheritdoc />
     public async Task<PagedResponse<ArticleListItemResponse>> GetEditorListAsync(
         ArticleListRequest request,
         CancellationToken cancellationToken = default)
@@ -151,6 +163,7 @@ public sealed class ArticleService(
         return ToPagedResponse(items, request.Page, request.PageSize, totalCount);
     }
 
+    /// <inheritdoc />
     public async Task<ArticleResponse> GetPublicByIdAsync(
         Guid articleId,
         CancellationToken cancellationToken = default)
@@ -163,6 +176,7 @@ public sealed class ArticleService(
         return ToResponse(article, includeLastEditor: false);
     }
 
+    /// <inheritdoc />
     public async Task<PagedResponse<ArticleListItemResponse>> GetPublicListAsync(
         ArticleListRequest request,
         CancellationToken cancellationToken = default)
@@ -181,6 +195,14 @@ public sealed class ArticleService(
         return ToPagedResponse(items, request.Page, request.PageSize, totalCount);
     }
 
+    /// <summary>
+    /// 校验分类、清理正文并验证请求中的媒体声明和所有权。
+    /// </summary>
+    /// <param name="editorId">执行写入的编辑者标识。</param>
+    /// <param name="request">文章写入请求。</param>
+    /// <param name="existingArticle">正在更新的文章；创建草稿时为 <see langword="null"/>。</param>
+    /// <param name="cancellationToken">用于取消查询的令牌。</param>
+    /// <returns>清理后的 HTML 检查结果。</returns>
     private async Task<HtmlSanitizationResult> ValidateDraftInputAsync(
         Guid editorId,
         ArticleUpsertRequest request,
@@ -194,6 +216,12 @@ public sealed class ArticleService(
         return sanitized;
     }
 
+    /// <summary>
+    /// 确保分类标识集合合法，且所有分类存在并处于启用状态。
+    /// </summary>
+    /// <param name="categoryIds">请求关联的分类标识。</param>
+    /// <param name="cancellationToken">用于取消查询的令牌。</param>
+    /// <returns>表示异步校验操作的任务。</returns>
     private async Task EnsureCategoriesUsableAsync(
         IReadOnlyCollection<Guid>? categoryIds,
         CancellationToken cancellationToken)
@@ -225,6 +253,15 @@ public sealed class ArticleService(
         }
     }
 
+    /// <summary>
+    /// 校验请求媒体集合、正文图片引用、资源状态及编辑者所有权。
+    /// </summary>
+    /// <param name="editorId">执行写入的编辑者标识。</param>
+    /// <param name="existingArticle">正在更新的文章；创建草稿时为 <see langword="null"/>。</param>
+    /// <param name="request">文章写入请求。</param>
+    /// <param name="sanitized">正文清理结果。</param>
+    /// <param name="cancellationToken">用于取消查询的令牌。</param>
+    /// <returns>表示异步校验操作的任务。</returns>
     private async Task ValidateRequestedMediaAsync(
         Guid editorId,
         Article? existingArticle,
@@ -266,6 +303,15 @@ public sealed class ArticleService(
         }
     }
 
+    /// <summary>
+    /// 校验并同步文章当前的封面和正文媒体关联集合。
+    /// </summary>
+    /// <param name="article">待同步的已跟踪文章。</param>
+    /// <param name="editorId">执行写入的编辑者标识。</param>
+    /// <param name="request">文章写入请求。</param>
+    /// <param name="sanitized">正文清理结果。</param>
+    /// <param name="cancellationToken">用于取消查询的令牌。</param>
+    /// <returns>表示异步同步操作的任务。</returns>
     private async Task SynchronizeMediaAsync(
         Article article,
         Guid editorId,
@@ -295,6 +341,11 @@ public sealed class ArticleService(
         }
     }
 
+    /// <summary>
+    /// 将文章分类关联同步为请求中的目标集合。
+    /// </summary>
+    /// <param name="article">待同步的已跟踪文章。</param>
+    /// <param name="requestedCategoryIds">目标分类标识集合。</param>
     private void SynchronizeCategories(
         Article article,
         IReadOnlyCollection<Guid>? requestedCategoryIds)
@@ -321,6 +372,13 @@ public sealed class ArticleService(
 
     }
 
+    /// <summary>
+    /// 发布前验证已存储媒体关联与清理后正文引用完全一致。
+    /// </summary>
+    /// <param name="article">待发布文章。</param>
+    /// <param name="sanitized">正文清理结果。</param>
+    /// <param name="cancellationToken">用于取消查询的令牌。</param>
+    /// <returns>表示异步校验操作的任务。</returns>
     private async Task ValidateStoredMediaAsync(
         Article article,
         HtmlSanitizationResult sanitized,
@@ -353,6 +411,12 @@ public sealed class ArticleService(
         }
     }
 
+    /// <summary>
+    /// 加载文章图片资源并验证其存在性、模块、URL 和激活状态。
+    /// </summary>
+    /// <param name="mediaResourceIds">待加载的媒体资源标识。</param>
+    /// <param name="cancellationToken">用于取消查询的令牌。</param>
+    /// <returns>验证通过的媒体资源列表。</returns>
     private async Task<List<MediaResource>> LoadAndValidateMediaAsync(
         IReadOnlyCollection<Guid> mediaResourceIds,
         CancellationToken cancellationToken)
@@ -386,10 +450,22 @@ public sealed class ArticleService(
         return mediaResources;
     }
 
+    /// <summary>
+    /// 判断媒体地址是否为绝对 HTTP 或 HTTPS URL。
+    /// </summary>
+    /// <param name="value">待检查地址。</param>
+    /// <returns>地址协议受支持时返回 <see langword="true"/>。</returns>
     private static bool IsAllowedMediaUrl(string? value)
         => Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
             (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 
+    /// <summary>
+    /// 加载文章及编辑所需的媒体和分类关联。
+    /// </summary>
+    /// <param name="articleId">文章标识。</param>
+    /// <param name="cancellationToken">用于取消查询的令牌。</param>
+    /// <returns>已跟踪的文章实体。</returns>
+    /// <exception cref="NotFoundException">文章不存在。</exception>
     private async Task<Article> FindArticleForEditAsync(
         Guid articleId,
         CancellationToken cancellationToken)
@@ -399,6 +475,10 @@ public sealed class ArticleService(
             .SingleOrDefaultAsync(x => x.Id == articleId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.ArticleNotFound);
 
+    /// <summary>
+    /// 创建包含文章详情投影所需关联的只读查询。
+    /// </summary>
+    /// <returns>尚未执行的文章详情查询。</returns>
     private IQueryable<Article> DetailsQuery()
         => db.Articles.AsNoTracking()
             .Include(x => x.CategoryAssignments)
@@ -408,6 +488,12 @@ public sealed class ArticleService(
             .Include(x => x.CoverMediaResource)
             .Include(x => x.MediaResources);
 
+    /// <summary>
+    /// 将分类、状态和关键词条件应用到文章查询。
+    /// </summary>
+    /// <param name="query">基础文章查询。</param>
+    /// <param name="request">文章列表筛选条件。</param>
+    /// <returns>应用筛选后的查询。</returns>
     private static IQueryable<Article> ApplyListFilters(
         IQueryable<Article> query,
         ArticleListRequest request)
@@ -432,6 +518,10 @@ public sealed class ArticleService(
         return query;
     }
 
+    /// <summary>
+    /// 创建可由 EF Core 翻译的文章列表项投影表达式。
+    /// </summary>
+    /// <returns>文章实体到列表响应的投影表达式。</returns>
     private static Expression<Func<Article, ArticleListItemResponse>> ToListItemProjection()
         => article => new ArticleListItemResponse(
             article.Id,
@@ -450,6 +540,12 @@ public sealed class ArticleService(
             article.PublishedAt,
             article.UpdatedAt);
 
+    /// <summary>
+    /// 将已加载的文章实体映射为详情响应。
+    /// </summary>
+    /// <param name="article">包含详情关联的文章实体。</param>
+    /// <param name="includeLastEditor">是否包含内部最后编辑者信息。</param>
+    /// <returns>文章详情响应。</returns>
     private static ArticleResponse ToResponse(Article article, bool includeLastEditor)
         => new(
             article.Id,
@@ -478,6 +574,15 @@ public sealed class ArticleService(
             article.CreatedAt,
             article.UpdatedAt);
 
+    /// <summary>
+    /// 根据结果集和总数构建分页响应。
+    /// </summary>
+    /// <typeparam name="T">分页元素类型。</typeparam>
+    /// <param name="items">当前页元素。</param>
+    /// <param name="page">当前页码。</param>
+    /// <param name="pageSize">每页元素数。</param>
+    /// <param name="totalCount">符合条件的总数。</param>
+    /// <returns>包含总页数的分页响应。</returns>
     private static PagedResponse<T> ToPagedResponse<T>(
         IReadOnlyList<T> items,
         int page,
@@ -485,6 +590,10 @@ public sealed class ArticleService(
         int totalCount)
         => new(items, page, pageSize, totalCount, (totalCount + pageSize - 1) / pageSize);
 
+    /// <summary>
+    /// 确保清理后的正文包含有效文本且未发现非法 URL。
+    /// </summary>
+    /// <param name="sanitized">HTML 清理结果。</param>
     private static void EnsureContentIsPublishable(HtmlSanitizationResult sanitized)
     {
         if (sanitized.HasInvalidUrls ||
@@ -494,8 +603,18 @@ public sealed class ArticleService(
         }
     }
 
+    /// <summary>
+    /// 去除必填文本两端空白。
+    /// </summary>
+    /// <param name="value">必填文本。</param>
+    /// <returns>规范化文本。</returns>
     private static string NormalizeRequired(string value) => value.Trim();
 
+    /// <summary>
+    /// 将空白可选文本转换为 <see langword="null"/>，否则去除两端空白。
+    /// </summary>
+    /// <param name="value">可选文本。</param>
+    /// <returns>规范化后的可选文本。</returns>
     private static string? NormalizeOptional(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

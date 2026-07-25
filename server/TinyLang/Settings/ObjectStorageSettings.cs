@@ -2,6 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TinyLang.Settings;
 
+/// <summary>
+/// 描述 S3-compatible 对象存储的连接、桶和公开访问配置。
+/// </summary>
 public sealed record ObjectStorageSettings
 {
     public const string SectionName = "ObjectStorageSettings";

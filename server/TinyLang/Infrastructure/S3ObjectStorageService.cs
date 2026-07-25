@@ -8,12 +8,18 @@ using TinyLang.Settings;
 
 namespace TinyLang.Infrastructure;
 
+/// <summary>
+/// 使用 AWS S3 client 实现对象预签名、元数据查询、移动和公开寻址。
+/// </summary>
+/// <param name="s3Client">S3-compatible 客户端。</param>
+/// <param name="options">对象存储桶和 URL 配置。</param>
 public sealed class S3ObjectStorageService(
     IAmazonS3 s3Client,
     IOptions<ObjectStorageSettings> options) : IObjectStorageService
 {
     private readonly ObjectStorageSettings _settings = options.Value;
 
+    /// <inheritdoc />
     public async Task<string> PresignPutObjectAsync(
         string objectName,
         string contentType,
@@ -33,6 +39,7 @@ public sealed class S3ObjectStorageService(
         return await s3Client.GetPreSignedURLAsync(request);
     }
 
+    /// <inheritdoc />
     public string GetPublicUrl(string objectName)
     {
         var encodedObjectName = string.Join(
@@ -41,6 +48,7 @@ public sealed class S3ObjectStorageService(
         return $"{_settings.PublicBaseUrl.TrimEnd('/')}/{encodedObjectName}";
     }
 
+    /// <inheritdoc />
     public async Task<ObjectStorageMetadata?> GetObjectMetadataAsync(
         string objectName,
         CancellationToken cancellationToken = default)
@@ -61,6 +69,7 @@ public sealed class S3ObjectStorageService(
         }
     }
 
+    /// <inheritdoc />
     public async Task MoveObjectAsync(
         string sourceObjectName,
         string destinationObjectName,

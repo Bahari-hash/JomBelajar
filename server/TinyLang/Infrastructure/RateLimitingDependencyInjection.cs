@@ -9,8 +9,18 @@ using TinyLang.Settings;
 
 namespace TinyLang.Infrastructure;
 
+/// <summary>
+/// 提供 endpoint policy 和全局 fallback limiter 的注册与分区规则。
+/// </summary>
 public static class RateLimitingDependencyInjection
 {
+    /// <summary>
+    /// 注册验证码、上传预签名和全局并发限流策略。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <param name="configuration">限流配置源。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
+    /// <exception cref="InvalidOperationException">无法读取限流配置。</exception>
     public static IServiceCollection AddCustomRateLimiter(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -82,21 +92,43 @@ public static class RateLimitingDependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// 优先按用户标识、否则按远端 IP 构建验证码限流分区键。
+    /// </summary>
+    /// <param name="context">当前 HTTP 上下文。</param>
+    /// <returns>验证码限流分区键。</returns>
     private static string GetStrictCodePartitionKey(HttpContext context)
         => TryGetUserId(context, out var userId)
             ? $"user:{userId:N}"
             : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
 
+    /// <summary>
+    /// 优先按用户标识、否则按未认证远端 IP 构建上传限流分区键。
+    /// </summary>
+    /// <param name="context">当前 HTTP 上下文。</param>
+    /// <returns>上传预签名限流分区键。</returns>
     private static string GetUploadPresignPartitionKey(HttpContext context)
         => TryGetUserId(context, out var userId)
             ? $"user:{userId:N}"
             : $"unauthenticated:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
 
+    /// <summary>
+    /// 尝试从当前 principal 的 user ID claim 解析用户标识。
+    /// </summary>
+    /// <param name="context">当前 HTTP 上下文。</param>
+    /// <param name="userId">成功时接收解析后的用户标识。</param>
+    /// <returns>claim 存在且为有效 GUID 时返回 <see langword="true"/>。</returns>
     private static bool TryGetUserId(HttpContext context, out Guid userId)
         => Guid.TryParse(
             context.User.FindFirst(JwtClaimNamesExtension.UserId)?.Value,
             out userId);
 
+    /// <summary>
+    /// 从拒绝 lease 读取 Retry-After，并在元数据缺失时使用配置回退值。
+    /// </summary>
+    /// <param name="lease">被拒绝的限流 lease。</param>
+    /// <param name="fallbackSeconds">缺少元数据时使用的秒数。</param>
+    /// <returns>至少为一秒的重试等待时间。</returns>
     private static int GetRetryAfterSeconds(RateLimitLease lease, int fallbackSeconds)
         => lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter)
             ? Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds))

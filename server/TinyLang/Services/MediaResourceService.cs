@@ -7,11 +7,18 @@ using TinyLang.Policies;
 
 namespace TinyLang.Services;
 
+/// <summary>
+/// 编排媒体资源记录、对象存储预签名和上传确认流程。
+/// </summary>
+/// <param name="db">应用数据库上下文。</param>
+/// <param name="objectStorage">对象存储服务。</param>
+/// <param name="uploadPolicy">媒体上传限制策略。</param>
 public sealed class MediaResourceService(
     IApplicationDbContext db,
     IObjectStorageService objectStorage,
     MediaUploadPolicy uploadPolicy) : IMediaResourceService
 {
+    /// <inheritdoc />
     public async Task<MediaResourcePresignResult> CreatePendingResourceAndPresignAsync(
         Guid uploaderId,
         string originalName,
@@ -59,6 +66,7 @@ public sealed class MediaResourceService(
         return new MediaResourcePresignResult(resource.Id, presignedUrl, objectName);
     }
 
+    /// <inheritdoc />
     public async Task<MediaResource> ConfirmAsync(
         Guid resourceId,
         Guid uploaderId,
@@ -121,6 +129,12 @@ public sealed class MediaResourceService(
         return resource;
     }
 
+    /// <summary>
+    /// 读取对象元数据，并将非取消类存储异常映射为稳定业务错误。
+    /// </summary>
+    /// <param name="objectName">对象名称。</param>
+    /// <param name="cancellationToken">用于取消存储请求的令牌。</param>
+    /// <returns>对象元数据；对象不存在时为 <see langword="null"/>。</returns>
     private async Task<ObjectStorageMetadata?> GetObjectMetadataAsync(
         string objectName,
         CancellationToken cancellationToken)
@@ -135,6 +149,11 @@ public sealed class MediaResourceService(
         }
     }
 
+    /// <summary>
+    /// 校验实际对象大小和媒体类型是否与资源申报值一致。
+    /// </summary>
+    /// <param name="resource">待确认资源记录。</param>
+    /// <param name="objectMetadata">对象存储返回的元数据。</param>
     private static void ValidateObjectMetadata(
         MediaResource resource,
         ObjectStorageMetadata objectMetadata)
@@ -152,6 +171,14 @@ public sealed class MediaResourceService(
         }
     }
 
+    /// <summary>
+    /// 按上传策略校验模块、文件名、扩展名、大小和媒体类型。
+    /// </summary>
+    /// <param name="originalName">客户端原始文件名。</param>
+    /// <param name="extension">文件扩展名。</param>
+    /// <param name="size">文件大小，单位为字节。</param>
+    /// <param name="contentType">文件媒体类型。</param>
+    /// <param name="module">资源所属业务模块。</param>
     private void ValidateUploadInput(
         string originalName,
         string extension,
@@ -206,6 +233,12 @@ public sealed class MediaResourceService(
         }
     }
 
+    /// <summary>
+    /// 根据资源模块、创建月份和资源标识构建最终对象名称。
+    /// </summary>
+    /// <param name="resource">待激活媒体资源。</param>
+    /// <returns>模块目录下的最终对象名称。</returns>
+    /// <exception cref="ArgumentOutOfRangeException">资源模块不受支持。</exception>
     private static string CreateFinalObjectName(MediaResource resource)
     {
         var modulePath = resource.Module switch

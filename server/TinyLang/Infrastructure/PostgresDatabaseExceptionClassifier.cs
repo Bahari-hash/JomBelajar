@@ -4,8 +4,12 @@ using TinyLang.Interfaces;
 
 namespace TinyLang.Infrastructure;
 
+/// <summary>
+/// 通过 PostgreSQL SQLSTATE 和约束名称识别唯一约束冲突。
+/// </summary>
 public sealed class PostgresDatabaseExceptionClassifier : IDatabaseExceptionClassifier
 {
+    /// <inheritdoc />
     public bool IsUniqueConstraintViolation(
         DbUpdateException exception,
         params string[] constraintNames)

@@ -6,6 +6,9 @@ using TinyLang.Models;
 
 namespace TinyLang.Infrastructure;
 
+/// <summary>
+/// 使用允许列表清理文章 HTML，并提取正文文本和图片源。
+/// </summary>
 public sealed class HtmlContentSanitizer : IHtmlContentSanitizer
 {
     private static readonly string[] AllowedTags =
@@ -20,6 +23,7 @@ public sealed class HtmlContentSanitizer : IHtmlContentSanitizer
         "href", "src", "alt", "title"
     ];
 
+    /// <inheritdoc />
     public HtmlSanitizationResult Sanitize(string html)
     {
         if (string.IsNullOrWhiteSpace(html))
@@ -83,6 +87,10 @@ public sealed class HtmlContentSanitizer : IHtmlContentSanitizer
             hasInvalidUrls);
     }
 
+    /// <summary>
+    /// 创建仅允许项目支持标签、属性和 HTTP/HTTPS scheme 的 sanitizer。
+    /// </summary>
+    /// <returns>按文章策略配置的 sanitizer。</returns>
     private static HtmlSanitizer CreateSanitizer()
     {
         var sanitizer = new HtmlSanitizer();
@@ -97,6 +105,11 @@ public sealed class HtmlContentSanitizer : IHtmlContentSanitizer
         return sanitizer;
     }
 
+    /// <summary>
+    /// 在清理前检测链接和图片是否包含缺失或不允许的 URL。
+    /// </summary>
+    /// <param name="document">待检查的已解析 HTML 文档。</param>
+    /// <returns>发现无效 URL 时返回 <see langword="true"/>。</returns>
     private static bool ContainsInvalidUrls(IParentNode document)
     {
         foreach (var element in document.QuerySelectorAll("a[href], img"))
@@ -111,10 +124,21 @@ public sealed class HtmlContentSanitizer : IHtmlContentSanitizer
         return false;
     }
 
+    /// <summary>
+    /// 判断地址是否为绝对 HTTP 或 HTTPS URL。
+    /// </summary>
+    /// <param name="value">待检查地址。</param>
+    /// <returns>地址协议受支持时返回 <see langword="true"/>。</returns>
     private static bool IsAllowedAbsoluteUrl(string? value)
         => Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
             (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 
+    /// <summary>
+    /// 判断指定标签是否允许保留给定属性。
+    /// </summary>
+    /// <param name="tagName">小写 HTML 标签名。</param>
+    /// <param name="attributeName">小写 HTML 属性名。</param>
+    /// <returns>属性在标签允许列表中时返回 <see langword="true"/>。</returns>
     private static bool IsAllowedAttribute(string tagName, string attributeName)
         => tagName switch
         {

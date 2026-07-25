@@ -2,6 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TinyLang.Settings;
 
+/// <summary>
+/// 描述验证码、上传预签名和全局请求的限流参数。
+/// </summary>
 public sealed record RateLimitSettings
 {
     public const string SectionName = "RateLimitSettings";

@@ -1,5 +1,8 @@
 namespace TinyLang.Constants;
 
+/// <summary>
+/// 定义 TinyLang 访问令牌中使用的 JWT claim 名称。
+/// </summary>
 public static class JwtClaimNamesExtension
 {
     public const string UserId = "uid";

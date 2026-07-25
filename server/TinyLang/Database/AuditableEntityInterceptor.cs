@@ -4,8 +4,12 @@ using TinyLang.Entities.Common;
 
 namespace TinyLang.Database;
 
+/// <summary>
+/// 在保存变更前为可审计实体维护 UTC 创建和更新时间。
+/// </summary>
 public sealed class AuditableEntityInterceptor : SaveChangesInterceptor
 {
+    /// <inheritdoc />
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData, InterceptionResult<int> result,
         CancellationToken cancellationToken = default)

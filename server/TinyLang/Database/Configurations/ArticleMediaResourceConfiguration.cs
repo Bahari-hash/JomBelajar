@@ -4,8 +4,12 @@ using TinyLang.Entities;
 
 namespace TinyLang.Database.Configurations;
 
+/// <summary>
+/// 配置文章与媒体资源关联的复合键和删除行为。
+/// </summary>
 public sealed class ArticleMediaResourceConfiguration : IEntityTypeConfiguration<ArticleMediaResource>
 {
+    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<ArticleMediaResource> builder)
     {
         builder.ToTable("article_media_resources");

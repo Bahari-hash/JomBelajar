@@ -4,8 +4,12 @@ using TinyLang.Entities;
 
 namespace TinyLang.Database.Configurations;
 
+/// <summary>
+/// 配置 refresh token 字段、唯一摘要索引和用户关系。
+/// </summary>
 public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
 {
+    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<RefreshToken> builder)
     {
         builder.ToTable("refresh_tokens");

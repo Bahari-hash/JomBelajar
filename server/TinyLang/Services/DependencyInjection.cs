@@ -3,8 +3,16 @@ using TinyLang.Policies;
 
 namespace TinyLang.Services;
 
+/// <summary>
+/// 提供业务服务和媒体上传策略的依赖注入注册入口。
+/// </summary>
 public static class DependencyInjection
 {
+    /// <summary>
+    /// 注册 TinyLang 业务服务及其生命周期。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
     public static IServiceCollection AddBusinessServices(this IServiceCollection services)
     {
         services.AddSingleton<MediaUploadPolicy>();

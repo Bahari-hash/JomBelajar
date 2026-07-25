@@ -3,8 +3,14 @@ using TinyLang.Entities.Enums;
 
 namespace TinyLang.Entities;
 
+/// <summary>
+/// 表示由用户上传并存储在对象存储中的媒体资源。
+/// </summary>
 public sealed class MediaResource : BaseAuditableEntity
 {
+    /// <summary>
+    /// 创建一个处于待确认状态且已分配标识的媒体资源。
+    /// </summary>
     public MediaResource()
     {
         Id = Guid.NewGuid();

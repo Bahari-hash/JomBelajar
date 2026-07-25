@@ -2,6 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TinyLang.Settings;
 
+/// <summary>
+/// 描述 RabbitMQ broker 的连接和认证配置。
+/// </summary>
 public sealed record RabbitMqSettings
 {
     public const string SectionName = "RabbitMqSettings";

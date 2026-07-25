@@ -5,8 +5,12 @@ using TinyLang.Entities.Enums;
 
 namespace TinyLang.Infrastructure;
 
+/// <summary>
+/// 根据 JWT role claim 和角色枚举顺序评估最低角色要求。
+/// </summary>
 public sealed class MinimumRoleHandler : AuthorizationHandler<MinimumRoleRequirement>
 {
+    /// <inheritdoc />
     protected override Task HandleRequirementAsync(
         AuthorizationHandlerContext context, MinimumRoleRequirement requirement)
     {

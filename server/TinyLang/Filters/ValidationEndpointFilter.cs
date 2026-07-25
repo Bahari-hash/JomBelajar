@@ -5,10 +5,14 @@ using TinyLang.Exceptions;
 
 namespace TinyLang.Filters;
 
+/// <summary>
+/// 对 endpoint 的复杂参数运行已注册 FluentValidation validator，并统一抛出字段错误。
+/// </summary>
 public sealed class ValidationEndpointFilter : IEndpointFilter
 {
     private static readonly ConcurrentDictionary<Type, Type> ValidatorTypeCache = new();
 
+    /// <inheritdoc />
     public async ValueTask<object?> InvokeAsync(
         EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {

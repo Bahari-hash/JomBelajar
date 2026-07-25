@@ -4,6 +4,10 @@ using TinyLang.Interfaces;
 
 namespace TinyLang.Database;
 
+/// <summary>
+/// EF Core 数据库上下文，公开 TinyLang 聚合及关联实体集合。
+/// </summary>
+/// <param name="options">数据库上下文配置。</param>
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
     : DbContext(options), IApplicationDbContext
 {
@@ -15,6 +19,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.ArticleCategoryAssignment> ArticleCategoryAssignments => Set<Entities.ArticleCategoryAssignment>();
     public DbSet<Entities.ArticleMediaResource> ArticleMediaResources => Set<Entities.ArticleMediaResource>();
 
+    /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

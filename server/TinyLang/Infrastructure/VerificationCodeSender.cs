@@ -7,6 +7,15 @@ using TinyLang.Templates;
 
 namespace TinyLang.Infrastructure;
 
+/// <summary>
+/// 编排验证码生成、散列存储、模板渲染和邮件排队发送。
+/// </summary>
+/// <param name="codeGenerator">密码学安全验证码生成器。</param>
+/// <param name="codeStore">验证码临时存储。</param>
+/// <param name="options">验证码长度和有效期配置。</param>
+/// <param name="secretHasher">验证码散列和验证服务。</param>
+/// <param name="templateRenderer">邮件模板渲染器。</param>
+/// <param name="emailSender">邮件发送调度服务。</param>
 public sealed class VerificationCodeSender(
     IVerificationCodeGenerator codeGenerator,
     IVerificationCodeStore codeStore,
@@ -17,6 +26,7 @@ public sealed class VerificationCodeSender(
 {
     private readonly VerificationCodeSettings _settings = options.Value;
 
+    /// <inheritdoc />
     public async Task SendCodeAsync(
         string email, VerificationCodePurpose purpose, CancellationToken cancellationToken = default)
     {
@@ -43,6 +53,7 @@ public sealed class VerificationCodeSender(
         await emailSender.EnqueueEmailAsync(emailMessage, cancellationToken);
     }
 
+    /// <inheritdoc />
     public async Task<bool> VerifyCodeAsync(
         string email, VerificationCodePurpose purpose, string code, CancellationToken cancellationToken = default)
     {

@@ -4,9 +4,13 @@ using TinyLang.Entities;
 
 namespace TinyLang.Database.Configurations;
 
+/// <summary>
+/// 配置文章与分类关联的复合键、索引和级联关系。
+/// </summary>
 public sealed class ArticleCategoryAssignmentConfiguration
     : IEntityTypeConfiguration<ArticleCategoryAssignment>
 {
+    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<ArticleCategoryAssignment> builder)
     {
         builder.ToTable("article_category_assignments");

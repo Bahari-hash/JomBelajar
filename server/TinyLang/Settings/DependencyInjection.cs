@@ -6,8 +6,18 @@ using System.Net;
 
 namespace TinyLang.Settings;
 
+/// <summary>
+/// 提供强类型应用配置的依赖注入注册入口。
+/// </summary>
 public static class DependencyInjection
 {
+    /// <summary>
+    /// 绑定并校验应用配置，并配置可信代理的 forwarded headers 选项。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <param name="configuration">应用配置源。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
+    /// <exception cref="InvalidOperationException">启用转发头但可信代理配置缺失或无效。</exception>
     public static IServiceCollection AddAppSettings(
         this IServiceCollection services, IConfiguration configuration)
     {

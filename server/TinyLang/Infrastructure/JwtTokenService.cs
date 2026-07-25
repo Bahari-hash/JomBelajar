@@ -11,10 +11,15 @@ using TinyLang.Settings;
 
 namespace TinyLang.Infrastructure;
 
+/// <summary>
+/// 使用配置的对称密钥创建 JWT，并生成和散列 refresh token。
+/// </summary>
+/// <param name="options">JWT 签名和有效期配置。</param>
 public sealed class JwtTokenService(IOptions<JwtSettings> options) : IJwtTokenService
 {
     private readonly JwtSettings _settings = options.Value;
 
+    /// <inheritdoc />
     public (string Token, DateTimeOffset ExpiresAt) CreateAccessToken(User user)
     {
         var expiresAt = DateTimeOffset.FromUnixTimeSeconds(
@@ -41,9 +46,11 @@ public sealed class JwtTokenService(IOptions<JwtSettings> options) : IJwtTokenSe
         return (handler.WriteToken(handler.CreateToken(descriptor)), expiresAt);
     }
 
+    /// <inheritdoc />
     public string CreateRefreshToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))
         .Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
+    /// <inheritdoc />
     public string HashRefreshToken(string token)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }

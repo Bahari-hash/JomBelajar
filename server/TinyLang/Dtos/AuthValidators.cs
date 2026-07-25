@@ -4,8 +4,14 @@ using TinyLang.Extensions;
 
 namespace TinyLang.Dtos;
 
+/// <summary>
+/// 校验注册验证码申请中的邮箱。
+/// </summary>
 public sealed class RegisterTokenRequestValidator : AbstractValidator<RegisterTokenRequest>
 {
+    /// <summary>
+    /// 初始化注册验证码申请的校验规则。
+    /// </summary>
     public RegisterTokenRequestValidator()
     {
         RuleFor(x => x.Email)
@@ -15,8 +21,14 @@ public sealed class RegisterTokenRequestValidator : AbstractValidator<RegisterTo
     }
 }
 
+/// <summary>
+/// 校验账户注册请求中的邮箱、密码和验证码。
+/// </summary>
 public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest>
 {
+    /// <summary>
+    /// 初始化账户注册请求的校验规则。
+    /// </summary>
     public RegisterRequestValidator()
     {
         RuleFor(x => x.Email)
@@ -36,8 +48,14 @@ public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest
     }
 }
 
+/// <summary>
+/// 校验邮箱密码登录请求。
+/// </summary>
 public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
 {
+    /// <summary>
+    /// 初始化登录请求的校验规则。
+    /// </summary>
     public LoginRequestValidator()
     {
         RuleFor(x => x.Email)
@@ -51,8 +69,14 @@ public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
     }
 }
 
+/// <summary>
+/// 校验令牌续期请求中的 refresh token。
+/// </summary>
 public sealed class RefreshTokenRequestValidator : AbstractValidator<RefreshTokenRequest>
 {
+    /// <summary>
+    /// 初始化令牌续期请求的校验规则。
+    /// </summary>
     public RefreshTokenRequestValidator()
     {
         RuleFor(x => x.RefreshToken)
@@ -60,8 +84,14 @@ public sealed class RefreshTokenRequestValidator : AbstractValidator<RefreshToke
     }
 }
 
+/// <summary>
+/// 校验退出登录请求中的 refresh token。
+/// </summary>
 public sealed class LogoutRequestValidator : AbstractValidator<LogoutRequest>
 {
+    /// <summary>
+    /// 初始化退出登录请求的校验规则。
+    /// </summary>
     public LogoutRequestValidator()
     {
         RuleFor(x => x.RefreshToken)

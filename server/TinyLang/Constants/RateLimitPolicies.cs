@@ -1,5 +1,8 @@
 namespace TinyLang.Constants;
 
+/// <summary>
+/// 定义可附加到 endpoint 的限流策略名称。
+/// </summary>
 public static class RateLimitPolicies
 {
     public const string StrictCodeLimit = "StrictCodeLimit";

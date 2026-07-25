@@ -4,8 +4,12 @@ using TinyLang.Entities;
 
 namespace TinyLang.Database.Configurations;
 
+/// <summary>
+/// 配置文章字段、查询索引和用户/封面关系。
+/// </summary>
 public sealed class ArticleConfiguration : IEntityTypeConfiguration<Article>
 {
+    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<Article> builder)
     {
         builder.ToTable("articles");

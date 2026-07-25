@@ -19,8 +19,17 @@ using TinyLang.Workers;
 
 namespace TinyLang.Infrastructure;
 
+/// <summary>
+/// 提供认证、缓存、消息、邮件、安全和对象存储基础设施的注册入口。
+/// </summary>
 public static class DependencyInjection
 {
+    /// <summary>
+    /// 注册 JWT bearer authentication、令牌签发服务和令牌撤销检查。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <param name="configuration">JWT 配置源。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
     public static IServiceCollection AddJwtAuthentication(
         this IServiceCollection services, IConfiguration configuration)
     {
@@ -96,6 +105,11 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// 注册基于最低用户角色的授权 handler 和策略。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
     public static IServiceCollection AddAuthorizationPolicy(this IServiceCollection services)
     {
         services.AddSingleton<IAuthorizationHandler, MinimumRoleHandler>();
@@ -119,6 +133,12 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// 创建并注册共享 Redis 连接复用器。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <param name="configuration">Redis 连接配置源。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
     public static IServiceCollection AddCacheService(
         this IServiceCollection services, IConfiguration configuration)
     {
@@ -130,6 +150,12 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// 配置 MassTransit、RabbitMQ、邮件 consumer 和消息重试策略。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <param name="configuration">RabbitMQ 配置源。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
     public static IServiceCollection AddMessageQueueService(
         this IServiceCollection services, IConfiguration configuration)
     {
@@ -165,6 +191,11 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// 注册模板内容 provider 和 Scriban 渲染器。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
     public static IServiceCollection AddTemplatesRenderingService(this IServiceCollection services)
     {
         services.AddSingleton<ITemplateContentProvider, TemplateContentProvider>();
@@ -173,6 +204,11 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// 注册邮件发送调度器和 SMTP provider。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
     public static IServiceCollection AddEmailSendingService(this IServiceCollection services)
     {
         services.AddScoped<IEmailSender, EmailSender>();
@@ -181,6 +217,11 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// 注册 secret hashing、数据库异常分类和 HTML 清理服务。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
     public static IServiceCollection AddSecureService(this IServiceCollection services)
     {
         services.AddSingleton<ISecretHasher, SecretHasher>();
@@ -190,6 +231,11 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// 注册验证码生成、Redis 存储和发送编排服务。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
     public static IServiceCollection AddVerificationCodeService(this IServiceCollection services)
     {
         services.AddSingleton<IVerificationCodeGenerator, VerificationCodeGenerator>();
@@ -199,6 +245,11 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// 根据配置创建 S3-compatible client 并注册对象存储服务。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
     public static IServiceCollection AddObjectStorageService(this IServiceCollection services)
     {
         services.AddSingleton<IAmazonS3>(serviceProvider =>

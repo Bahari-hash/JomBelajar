@@ -3,6 +3,9 @@ using TinyLang.Entities.Enums;
 
 namespace TinyLang.Entities;
 
+/// <summary>
+/// 表示由编辑者维护并可发布给学习者阅读的文章。
+/// </summary>
 public sealed class Article : BaseAuditableEntity
 {
     public required string Title { get; set; }

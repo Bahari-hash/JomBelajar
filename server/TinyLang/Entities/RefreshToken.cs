@@ -2,6 +2,9 @@ using TinyLang.Entities.Common;
 
 namespace TinyLang.Entities;
 
+/// <summary>
+/// 表示用户的一次可撤销 refresh token 会话。
+/// </summary>
 public sealed class RefreshToken : BaseAuditableEntity
 {
     public required string TokenHash { get; set; }

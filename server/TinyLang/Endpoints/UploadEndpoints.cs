@@ -11,8 +11,16 @@ using TinyLang.Services;
 
 namespace TinyLang.Endpoints;
 
+/// <summary>
+/// 定义媒体上传预签名和上传确认的 HTTP endpoints。
+/// </summary>
 public static class UploadEndpoints
 {
+    /// <summary>
+    /// 注册头像、编辑者媒体预签名及资源确认路由。
+    /// </summary>
+    /// <param name="endpoints">应用顶层 API 路由组。</param>
+    /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapUploadsApi(this RouteGroupBuilder endpoints)
     {
         var group = endpoints.MapGroup("/uploads");
@@ -31,6 +39,14 @@ public static class UploadEndpoints
         return endpoints;
     }
 
+    /// <summary>
+    /// 为当前用户创建头像上传资源和预签名地址。
+    /// </summary>
+    /// <param name="request">头像文件元数据。</param>
+    /// <param name="principal">当前已认证用户。</param>
+    /// <param name="mediaResourceService">媒体资源业务服务。</param>
+    /// <param name="cancellationToken">请求取消令牌。</param>
+    /// <returns>资源标识、对象名称和预签名地址。</returns>
     public static async Task<Ok<PresignResponse>> CreateAvatarPresignAsync(
         AvatarPresignRequest request,
         ClaimsPrincipal principal,
@@ -51,6 +67,14 @@ public static class UploadEndpoints
             response.ObjectName));
     }
 
+    /// <summary>
+    /// 为当前编辑者创建指定模块的媒体上传资源和预签名地址。
+    /// </summary>
+    /// <param name="request">媒体模块和文件元数据。</param>
+    /// <param name="principal">当前已认证编辑者。</param>
+    /// <param name="mediaResourceService">媒体资源业务服务。</param>
+    /// <param name="cancellationToken">请求取消令牌。</param>
+    /// <returns>资源标识、对象名称和预签名地址。</returns>
     public static async Task<Ok<PresignResponse>> CreateEditorMediaPresignAsync(
         EditorMediaPresignRequest request,
         ClaimsPrincipal principal,
@@ -71,6 +95,14 @@ public static class UploadEndpoints
             response.ObjectName));
     }
 
+    /// <summary>
+    /// 确认当前用户已完成指定媒体资源的对象上传。
+    /// </summary>
+    /// <param name="id">待确认媒体资源标识。</param>
+    /// <param name="principal">当前已认证用户。</param>
+    /// <param name="mediaResourceService">媒体资源业务服务。</param>
+    /// <param name="cancellationToken">请求取消令牌。</param>
+    /// <returns>激活后的媒体资源响应。</returns>
     public static async Task<Ok<MediaResourceResponse>> ConfirmUploadAsync(
         Guid id,
         ClaimsPrincipal principal,
@@ -84,6 +116,11 @@ public static class UploadEndpoints
         return TypedResults.Ok(ToResponse(resource));
     }
 
+    /// <summary>
+    /// 将媒体资源实体投影为 HTTP 响应模型。
+    /// </summary>
+    /// <param name="resource">媒体资源实体。</param>
+    /// <returns>媒体资源响应。</returns>
     private static MediaResourceResponse ToResponse(MediaResource resource)
         => new(
             resource.Id,

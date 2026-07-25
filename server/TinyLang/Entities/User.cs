@@ -3,6 +3,9 @@ using TinyLang.Entities.Enums;
 
 namespace TinyLang.Entities;
 
+/// <summary>
+/// 表示 TinyLang 用户及其账户、资料和权限状态。
+/// </summary>
 public sealed class User : BaseAuditableEntity
 {
     public required string Username { get; set; }

@@ -10,10 +10,16 @@ using TinyLang.Settings;
 
 namespace TinyLang.Infrastructure;
 
+/// <summary>
+/// 使用 MailKit 将应用邮件转换为 MIME 消息并通过 SMTP 投递。
+/// </summary>
+/// <param name="options">SMTP 和默认发件人配置。</param>
+/// <param name="logger">邮件投递日志记录器。</param>
 public sealed class MailKitProvider(IOptions<EmailSettings> options, ILogger<MailKitProvider> logger) : IEmailProvider
 {
     private readonly EmailSettings _settings = options.Value;
 
+    /// <inheritdoc />
     public async Task DeliverEmailAsync(EmailMessageWrapper messageWrapper, CancellationToken cancellationToken = default)
     {
         var message = messageWrapper.Message;
@@ -41,6 +47,11 @@ public sealed class MailKitProvider(IOptions<EmailSettings> options, ILogger<Mai
         }
     }
 
+    /// <summary>
+    /// 将应用邮件、地址和附件转换为 MimeKit 消息。
+    /// </summary>
+    /// <param name="messageWrapper">包含稳定消息标识的应用邮件。</param>
+    /// <returns>可交给 SMTP client 的 MIME 消息。</returns>
     private MimeMessage BuildMimeMessage(EmailMessageWrapper messageWrapper)
     {
         var mime = new MimeMessage
@@ -87,6 +98,10 @@ public sealed class MailKitProvider(IOptions<EmailSettings> options, ILogger<Mai
         }
     }
 
+    /// <summary>
+    /// 将应用安全模式映射为 MailKit socket 选项，并为 Auto 模式按端口选择默认值。
+    /// </summary>
+    /// <returns>SMTP 连接使用的安全选项。</returns>
     private SecureSocketOptions ResolveSmtpSecureMode()
     {
         return _settings.SecureMode switch

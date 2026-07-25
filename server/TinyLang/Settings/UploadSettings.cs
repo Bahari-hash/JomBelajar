@@ -2,6 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TinyLang.Settings;
 
+/// <summary>
+/// 描述各类媒体上传的大小、扩展名和媒体类型限制。
+/// </summary>
 public sealed record UploadSettings
 {
     public const string SectionName = "UploadSettings";

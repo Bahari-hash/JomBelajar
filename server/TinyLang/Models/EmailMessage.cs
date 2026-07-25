@@ -1,5 +1,8 @@
 namespace TinyLang.Models;
 
+/// <summary>
+/// 描述等待发送的邮件内容、收件人和附件。
+/// </summary>
 public sealed record EmailMessage
 {
     public required List<EmailAddress> To { get; init; }

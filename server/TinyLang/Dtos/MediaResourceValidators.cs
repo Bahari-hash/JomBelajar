@@ -6,8 +6,15 @@ using TinyLang.Policies;
 
 namespace TinyLang.Dtos;
 
+/// <summary>
+/// 根据头像上传策略校验文件元数据。
+/// </summary>
 public sealed class AvatarPresignRequestValidator : AbstractValidator<AvatarPresignRequest>
 {
+    /// <summary>
+    /// 使用指定上传策略初始化头像预签名请求的校验规则。
+    /// </summary>
+    /// <param name="policy">媒体上传限制策略。</param>
     public AvatarPresignRequestValidator(MediaUploadPolicy policy)
     {
         AddFileMetadataRules();
@@ -30,6 +37,9 @@ public sealed class AvatarPresignRequestValidator : AbstractValidator<AvatarPres
             .WithErrKey(ErrorCodes.MediaSizeLimitExceeded);
     }
 
+    /// <summary>
+    /// 添加头像文件名、扩展名和媒体类型的通用元数据规则。
+    /// </summary>
     private void AddFileMetadataRules()
     {
         RuleFor(x => x.OriginalName)
@@ -57,8 +67,15 @@ public sealed class AvatarPresignRequestValidator : AbstractValidator<AvatarPres
     }
 }
 
+/// <summary>
+/// 根据编辑者媒体模块及上传策略校验文件元数据。
+/// </summary>
 public sealed class EditorMediaPresignRequestValidator : AbstractValidator<EditorMediaPresignRequest>
 {
+    /// <summary>
+    /// 使用指定上传策略初始化编辑者媒体预签名请求的校验规则。
+    /// </summary>
+    /// <param name="policy">媒体上传限制策略。</param>
     public EditorMediaPresignRequestValidator(MediaUploadPolicy policy)
     {
         RuleFor(x => x.OriginalName)

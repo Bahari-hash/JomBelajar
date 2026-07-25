@@ -7,10 +7,16 @@ using TinyLang.Interfaces;
 
 namespace TinyLang.Services;
 
+/// <summary>
+/// 实现文章分类维护、唯一约束映射和公开/管理列表查询。
+/// </summary>
+/// <param name="db">应用数据库上下文。</param>
+/// <param name="databaseExceptionClassifier">数据库约束异常分类器。</param>
 public sealed class ArticleCategoryService(
     IApplicationDbContext db,
     IDatabaseExceptionClassifier databaseExceptionClassifier) : IArticleCategoryService
 {
+    /// <inheritdoc />
     public async Task<ArticleCategoryResponse> CreateAsync(
         CreateArticleCategoryRequest request,
         CancellationToken cancellationToken = default)
@@ -27,6 +33,7 @@ public sealed class ArticleCategoryService(
         return await GetByIdAsync(category.Id, includeInactive: true, cancellationToken);
     }
 
+    /// <inheritdoc />
     public async Task<ArticleCategoryResponse> UpdateAsync(
         Guid categoryId,
         UpdateArticleCategoryRequest request,
@@ -44,6 +51,7 @@ public sealed class ArticleCategoryService(
         return await GetByIdAsync(category.Id, includeInactive: true, cancellationToken);
     }
 
+    /// <inheritdoc />
     public async Task DeleteAsync(
         Guid categoryId,
         CancellationToken cancellationToken = default)
@@ -60,16 +68,26 @@ public sealed class ArticleCategoryService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
     public Task<PagedResponse<ArticleCategoryResponse>> GetPublicListAsync(
         ArticleCategoryListRequest request,
         CancellationToken cancellationToken = default)
         => GetListAsync(request, includeInactive: false, publishedOnly: true, cancellationToken);
 
+    /// <inheritdoc />
     public Task<PagedResponse<ArticleCategoryResponse>> GetAdminListAsync(
         AdminArticleCategoryListRequest request,
         CancellationToken cancellationToken = default)
         => GetListAsync(request, includeInactive: request.IncludeInactive, publishedOnly: false, cancellationToken);
 
+    /// <summary>
+    /// 根据可见性和文章状态口径查询分类分页结果。
+    /// </summary>
+    /// <param name="request">分页和关键词条件。</param>
+    /// <param name="includeInactive">是否包含停用分类。</param>
+    /// <param name="publishedOnly">分类计数是否仅统计已发布文章。</param>
+    /// <param name="cancellationToken">用于取消查询的令牌。</param>
+    /// <returns>分类分页结果。</returns>
     private async Task<PagedResponse<ArticleCategoryResponse>> GetListAsync(
         ArticleCategoryListRequest request,
         bool includeInactive,
@@ -114,6 +132,14 @@ public sealed class ArticleCategoryService(
             (totalCount + request.PageSize - 1) / request.PageSize);
     }
 
+    /// <summary>
+    /// 按标识查询分类，并投影其非归档文章数量。
+    /// </summary>
+    /// <param name="categoryId">分类标识。</param>
+    /// <param name="includeInactive">是否允许返回停用分类。</param>
+    /// <param name="cancellationToken">用于取消查询的令牌。</param>
+    /// <returns>分类响应。</returns>
+    /// <exception cref="NotFoundException">分类不存在或不满足可见性要求。</exception>
     private async Task<ArticleCategoryResponse> GetByIdAsync(
         Guid categoryId,
         bool includeInactive,
@@ -138,6 +164,12 @@ public sealed class ArticleCategoryService(
             ?? throw NotFoundException.Create(ErrorCodes.ArticleCategoryNotFound);
     }
 
+    /// <summary>
+    /// 保存分类变更，并将名称或 slug 唯一约束映射为业务冲突。
+    /// </summary>
+    /// <param name="category">正在保存的分类。</param>
+    /// <param name="cancellationToken">用于取消保存的令牌。</param>
+    /// <returns>表示异步保存操作的任务。</returns>
     private async Task SaveWithUniqueConflictMappingAsync(
         ArticleCategory category,
         CancellationToken cancellationToken)
@@ -160,10 +192,25 @@ public sealed class ArticleCategoryService(
         }
     }
 
+    /// <summary>
+    /// 去除分类名称两端空白。
+    /// </summary>
+    /// <param name="value">分类名称。</param>
+    /// <returns>规范化名称。</returns>
     private static string NormalizeName(string value) => value.Trim();
 
+    /// <summary>
+    /// 去除 slug 两端空白并转换为小写。
+    /// </summary>
+    /// <param name="value">分类 slug。</param>
+    /// <returns>规范化 slug。</returns>
     private static string NormalizeSlug(string value) => value.Trim().ToLowerInvariant();
 
+    /// <summary>
+    /// 将空白描述转换为 <see langword="null"/>，否则去除两端空白。
+    /// </summary>
+    /// <param name="value">分类描述。</param>
+    /// <returns>规范化描述。</returns>
     private static string? NormalizeDescription(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

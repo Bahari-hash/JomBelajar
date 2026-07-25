@@ -4,8 +4,12 @@ using TinyLang.Entities;
 
 namespace TinyLang.Database.Configurations;
 
+/// <summary>
+/// 配置媒体资源字段约束、索引和上传者关系。
+/// </summary>
 public sealed class MediaResourceConfiguration : IEntityTypeConfiguration<MediaResource>
 {
+    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<MediaResource> builder)
     {
         builder.ToTable("media_resources");

@@ -2,6 +2,9 @@ using System.ComponentModel;
 
 namespace TinyLang.Exceptions;
 
+/// <summary>
+/// 定义验证和业务失败使用的稳定错误标识及本地化消息。
+/// </summary>
 public enum ErrorCodes
 {
     // --** System Errors **--

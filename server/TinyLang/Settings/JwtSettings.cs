@@ -2,6 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TinyLang.Settings;
 
+/// <summary>
+/// 描述 JWT 签名、签发方、受众和有效期配置。
+/// </summary>
 public sealed record JwtSettings
 {
     public const string SectionName = nameof(JwtSettings);

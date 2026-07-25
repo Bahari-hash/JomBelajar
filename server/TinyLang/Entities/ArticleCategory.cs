@@ -2,6 +2,9 @@ using TinyLang.Entities.Common;
 
 namespace TinyLang.Entities;
 
+/// <summary>
+/// 表示用于组织和筛选文章的可管理分类。
+/// </summary>
 public sealed class ArticleCategory : BaseAuditableEntity
 {
     public required string Name { get; set; }

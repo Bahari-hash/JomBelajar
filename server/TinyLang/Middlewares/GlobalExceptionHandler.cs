@@ -6,9 +6,15 @@ using TinyLang.Exceptions;
 
 namespace TinyLang.Middlewares;
 
+/// <summary>
+/// 将业务异常和未处理异常转换为统一 Problem Details 响应并记录日志。
+/// </summary>
+/// <param name="logger">异常日志记录器。</param>
+/// <param name="problemDetailsService">Problem Details 响应写入服务。</param>
 public sealed class GlobalExceptionHandler(
     ILogger<GlobalExceptionHandler> logger, IProblemDetailsService problemDetailsService) : IExceptionHandler
 {
+    /// <inheritdoc />
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {

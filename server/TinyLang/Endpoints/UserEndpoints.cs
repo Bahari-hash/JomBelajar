@@ -1,10 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using TinyLang.Constants;
 using TinyLang.Dtos;
-using TinyLang.Exceptions;
 using TinyLang.Services;
 
 namespace TinyLang.Endpoints;
@@ -13,57 +13,61 @@ public static class UserEndpoints
 {
     public static RouteGroupBuilder MapUsersApi(this RouteGroupBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/users");
+        var group = endpoints.MapGroup("/users")
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        group.MapPut("/me/profile", async (
-            UpdateProfileRequest request,
-            ClaimsPrincipal principal,
-            IUserService userService,
-            CancellationToken cancellationToken) =>
-        {
-            var userId = GetUserId(principal);
-            var response = await userService.UpdateProfileAsync(userId, request, cancellationToken);
-            return Results.Ok(response);
-        }).RequireAuthorization(AuthorizationPolicies.RequireUser);
+        group.MapPut("/me/profile", UpdateProfileAsync);
 
-        group.MapPost("/{id:guid}/ban", async (
-            Guid id,
-            ClaimsPrincipal principal,
-            IUserService userService,
-            CancellationToken cancellationToken) =>
-        {
-            var operatorId = GetUserId(principal);
-            await userService.BanAsync(operatorId, id, cancellationToken);
-            return Results.NoContent();
-        }).RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+        var adminGroup = endpoints.MapGroup("/admin/users")
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
-        group.MapPost("/{id:guid}/unban", async (
-            Guid id,
-            IUserService userService,
-            CancellationToken cancellationToken) =>
-        {
-            await userService.UnbanAsync(id, cancellationToken);
-            return Results.NoContent();
-        }).RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+        adminGroup.MapPost("/{id:guid}/ban", BanUserAsync);
 
-        group.MapPost("/{id:guid}/role", async (
-            Guid id,
-            UpdateRoleRequest request,
-            IUserService userService,
-            CancellationToken cancellationToken) =>
-        {
-            var response = await userService.UpdateRoleAsync(id, request, cancellationToken);
-            return Results.Ok(response);
-        }).RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+        adminGroup.MapPost("/{id:guid}/unban", UnbanUserAsync);
+
+        adminGroup.MapPost("/{id:guid}/role", UpdateUserRoleAsync);
 
         return endpoints;
     }
 
-    private static Guid GetUserId(ClaimsPrincipal principal)
+    public static async Task<Ok<UserProfileResponse>> UpdateProfileAsync(
+        UpdateProfileRequest request,
+        ClaimsPrincipal principal,
+        IUserService userService,
+        CancellationToken cancellationToken)
     {
-        var value = principal.FindFirstValue(JwtClaimNamesExtension.UserId);
-        return Guid.TryParse(value, out var userId)
-            ? userId
-            : throw UnauthorizedException.Create(ErrorCodes.TokenInvalid);
+        var response = await userService.UpdateProfileAsync(
+            EndpointIdentity.GetUserId(principal), request, cancellationToken);
+        return TypedResults.Ok(response);
+    }
+
+    public static async Task<NoContent> BanUserAsync(
+        Guid id,
+        ClaimsPrincipal principal,
+        IUserService userService,
+        CancellationToken cancellationToken)
+    {
+        await userService.BanAsync(
+            EndpointIdentity.GetUserId(principal), id, cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    public static async Task<NoContent> UnbanUserAsync(
+        Guid id,
+        IUserService userService,
+        CancellationToken cancellationToken)
+    {
+        await userService.UnbanAsync(id, cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    public static async Task<Ok<UserRoleResponse>> UpdateUserRoleAsync(
+        Guid id,
+        UpdateRoleRequest request,
+        IUserService userService,
+        CancellationToken cancellationToken)
+    {
+        var response = await userService.UpdateRoleAsync(id, request, cancellationToken);
+        return TypedResults.Ok(response);
     }
 }

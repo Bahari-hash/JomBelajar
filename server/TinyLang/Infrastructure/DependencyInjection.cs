@@ -58,15 +58,15 @@ public static class DependencyInjection
             {
                 OnTokenValidated = async context =>
                 {
-                    var token = context.Request.Headers.Authorization.ToString().Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
-                    if (string.IsNullOrWhiteSpace(token))
+                    var tokenId = context.Principal?.FindFirst(JwtClaimNamesExtension.TokenId)?.Value;
+                    if (string.IsNullOrWhiteSpace(tokenId))
                     {
-                        context.Fail("Missing bearer token");
+                        context.Fail("Missing token id");
                         return;
                     }
 
                     var blacklist = context.HttpContext.RequestServices.GetRequiredService<ITokenBlacklist>();
-                    if (await blacklist.ContainsAsync(token, context.HttpContext.RequestAborted))
+                    if (await blacklist.ContainsAccessTokenAsync(tokenId, context.HttpContext.RequestAborted))
                     {
                         context.Fail("Token has been revoked");
                         return;

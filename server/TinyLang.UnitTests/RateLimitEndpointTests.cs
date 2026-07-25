@@ -15,9 +15,9 @@ public sealed class RateLimitEndpointTests
 {
     [Theory]
     [InlineData("/api/auth/register-token")]
-    [InlineData("/api/auth/change-email/token")]
-    [InlineData("/api/auth/reset-password/token")]
-    [InlineData("/api/auth/delete-me/token")]
+    [InlineData("/api/auth/change-email-token")]
+    [InlineData("/api/auth/reset-password-token")]
+    [InlineData("/api/auth/delete-account-token")]
     public async Task VerificationTokenEndpointsShouldUseStrictCodeLimit(string routePattern)
     {
         await using var app = CreateApp();

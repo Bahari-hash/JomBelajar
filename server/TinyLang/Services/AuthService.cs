@@ -109,11 +109,16 @@ public sealed class AuthService(
             throw UnauthorizedException.Create(ErrorCodes.RefreshTokenInvalid);
         }
 
-        await tokenBlacklist.AddAsync(request.RefreshToken, stored.ExpiresAt, cancellationToken);
+        await tokenBlacklist.AddRefreshTokenAsync(request.RefreshToken, stored.ExpiresAt, cancellationToken);
         return await IssueTokensAsync(stored.User, clientIp, deviceInfo, cancellationToken);
     }
 
-    public async Task LogoutAsync(Guid userId, string? accessToken, string? refreshToken, CancellationToken cancellationToken = default)
+    public async Task LogoutAsync(
+        Guid userId,
+        string accessTokenId,
+        DateTimeOffset accessTokenExpiresAt,
+        string? refreshToken,
+        CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
         if (refreshToken is null)
@@ -128,11 +133,8 @@ public sealed class AuthService(
         stored.IsRevoked = true;
         stored.RevokedAt = now;
         await db.SaveChangesAsync(cancellationToken);
-        if (accessToken is not null)
-        {
-            await tokenBlacklist.AddAsync(accessToken, now.AddMinutes(_jwtSettings.AccessTokenExpMinutes), cancellationToken);
-        }
-        await tokenBlacklist.AddAsync(refreshToken, stored.ExpiresAt, cancellationToken);
+        await tokenBlacklist.AddAccessTokenAsync(accessTokenId, accessTokenExpiresAt, cancellationToken);
+        await tokenBlacklist.AddRefreshTokenAsync(refreshToken, stored.ExpiresAt, cancellationToken);
     }
 
     public async Task RevokeUserAsync(Guid userId, CancellationToken cancellationToken = default)

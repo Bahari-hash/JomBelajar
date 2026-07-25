@@ -17,7 +17,8 @@ public sealed class JwtTokenService(IOptions<JwtSettings> options) : IJwtTokenSe
 
     public (string Token, DateTimeOffset ExpiresAt) CreateAccessToken(User user)
     {
-        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(_settings.AccessTokenExpMinutes);
+        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(
+            DateTimeOffset.UtcNow.AddMinutes(_settings.AccessTokenExpMinutes).ToUnixTimeSeconds());
         var credentials = new SigningCredentials(
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.JwtSecret)),
             SecurityAlgorithms.HmacSha256);
@@ -25,6 +26,7 @@ public sealed class JwtTokenService(IOptions<JwtSettings> options) : IJwtTokenSe
         {
             Subject = new ClaimsIdentity([
                 new Claim(JwtClaimNamesExtension.UserId, user.Id.ToString()),
+                new Claim(JwtClaimNamesExtension.TokenId, Guid.NewGuid().ToString("N")),
                 new Claim(JwtClaimNamesExtension.Name, user.Username),
                 new Claim(JwtClaimNamesExtension.Role, user.Role.ToString()),
                 new Claim(JwtClaimNamesExtension.TokenVersion, user.TokenVersion.ToString())

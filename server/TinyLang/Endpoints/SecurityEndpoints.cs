@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using TinyLang.Constants;
@@ -13,41 +14,48 @@ public static class SecurityEndpoints
 {
     public static RouteGroupBuilder MapSecurityApi(this RouteGroupBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/users");
+        var group = endpoints.MapGroup("/users")
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        group.MapPut("/me/password", async (
-            ResetPasswordRequest request,
-            ClaimsPrincipal principal,
-            IAccountSecurityService securityService,
-            CancellationToken cancellationToken) =>
-        {
-            await securityService.ResetPasswordAsync(
-                EndpointIdentity.GetUserId(principal), request, cancellationToken);
-            return Results.NoContent();
-        }).RequireAuthorization(AuthorizationPolicies.RequireUser);
+        group.MapPut("/me/reset-password", ResetPasswordAsync);
 
-        group.MapPut("/me/email", async (
-            ChangeEmailRequest request,
-            ClaimsPrincipal principal,
-            IAccountSecurityService securityService,
-            CancellationToken cancellationToken) =>
-        {
-            var response = await securityService.ChangeEmailAsync(
-                EndpointIdentity.GetUserId(principal), request, cancellationToken);
-            return Results.Ok(response);
-        }).RequireAuthorization(AuthorizationPolicies.RequireUser);
+        group.MapPut("/me/change-email", ChangeEmailAsync);
 
-        group.MapDelete("/delete-me", async (
-            [FromBody] DeleteAccountRequest request,
-            ClaimsPrincipal principal,
-            IAccountSecurityService securityService,
-            CancellationToken cancellationToken) =>
-        {
-            await securityService.DeleteAccountAsync(
-                EndpointIdentity.GetUserId(principal), request, cancellationToken);
-            return Results.NoContent();
-        }).RequireAuthorization(AuthorizationPolicies.RequireUser);
+        group.MapDelete("/me/delete-account", DeleteAccountAsync);
 
         return endpoints;
+    }
+
+    public static async Task<NoContent> ResetPasswordAsync(
+        ResetPasswordRequest request,
+        ClaimsPrincipal principal,
+        IAccountSecurityService securityService,
+        CancellationToken cancellationToken)
+    {
+        await securityService.ResetPasswordAsync(
+            EndpointIdentity.GetUserId(principal), request, cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    public static async Task<Ok<ChangeEmailResponse>> ChangeEmailAsync(
+        ChangeEmailRequest request,
+        ClaimsPrincipal principal,
+        IAccountSecurityService securityService,
+        CancellationToken cancellationToken)
+    {
+        var response = await securityService.ChangeEmailAsync(
+            EndpointIdentity.GetUserId(principal), request, cancellationToken);
+        return TypedResults.Ok(response);
+    }
+
+    public static async Task<NoContent> DeleteAccountAsync(
+        [FromBody] DeleteAccountRequest request,
+        ClaimsPrincipal principal,
+        IAccountSecurityService securityService,
+        CancellationToken cancellationToken)
+    {
+        await securityService.DeleteAccountAsync(
+            EndpointIdentity.GetUserId(principal), request, cancellationToken);
+        return TypedResults.NoContent();
     }
 }

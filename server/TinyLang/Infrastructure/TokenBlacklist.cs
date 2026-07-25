@@ -7,13 +7,38 @@ namespace TinyLang.Infrastructure;
 
 public sealed class TokenBlacklist(IDistributedCache cache) : ITokenBlacklist
 {
-    private static string Key(string token)
+    private static string AccessTokenKey(string tokenId)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-        return $"auth:blacklist:{Convert.ToHexString(hash)}";
+        return $"auth:blacklist:access:{Hash(tokenId)}";
     }
 
-    public Task AddAsync(string token, DateTimeOffset expiresAt, CancellationToken cancellationToken = default)
+    private static string RefreshTokenKey(string token)
+        => $"auth:blacklist:refresh:{Hash(token)}";
+
+    private static string Hash(string value)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+
+    public Task AddAccessTokenAsync(
+        string tokenId,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+        => AddAsync(AccessTokenKey(tokenId), expiresAt, cancellationToken);
+
+    public Task AddRefreshTokenAsync(
+        string token,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+        => AddAsync(RefreshTokenKey(token), expiresAt, cancellationToken);
+
+    public async Task<bool> ContainsAccessTokenAsync(
+        string tokenId,
+        CancellationToken cancellationToken = default)
+        => await cache.GetStringAsync(AccessTokenKey(tokenId), cancellationToken) is not null;
+
+    private Task AddAsync(
+        string key,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken)
     {
         var lifetime = expiresAt - DateTimeOffset.UtcNow;
         if (lifetime <= TimeSpan.Zero)
@@ -21,12 +46,9 @@ public sealed class TokenBlacklist(IDistributedCache cache) : ITokenBlacklist
             return Task.CompletedTask;
         }
 
-        return cache.SetStringAsync(Key(token), "1", new DistributedCacheEntryOptions
+        return cache.SetStringAsync(key, "1", new DistributedCacheEntryOptions
         {
             AbsoluteExpirationRelativeToNow = lifetime
         }, cancellationToken);
     }
-
-    public async Task<bool> ContainsAsync(string token, CancellationToken cancellationToken = default)
-        => await cache.GetStringAsync(Key(token), cancellationToken) is not null;
 }

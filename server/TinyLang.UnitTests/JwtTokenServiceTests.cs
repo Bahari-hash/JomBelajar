@@ -37,9 +37,32 @@ public sealed class JwtTokenServiceTests
         var token = new JwtSecurityTokenHandler().ReadJwtToken(result.Token);
 
         token.Claims.Single(x => x.Type == JwtClaimNamesExtension.UserId).Value.Should().Be(user.Id.ToString());
+        token.Claims.Single(x => x.Type == JwtClaimNamesExtension.TokenId).Value.Should().NotBeNullOrWhiteSpace();
         token.Claims.Single(x => x.Type == JwtClaimNamesExtension.Role).Value.Should().Be(UserRole.User.ToString());
         token.Claims.Single(x => x.Type == JwtClaimNamesExtension.TokenVersion).Value.Should().Be("3");
+        DateTimeOffset.FromUnixTimeSeconds(long.Parse(
+                token.Claims.Single(x => x.Type == JwtClaimNamesExtension.Expiration).Value))
+            .Should().Be(result.ExpiresAt);
         result.ExpiresAt.Should().BeAfter(DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
+    public void ShouldCreateUniqueAccessTokenIds()
+    {
+        var user = new User
+        {
+            Username = "learner@example.com",
+            Email = "learner@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.User
+        };
+        var service = CreateService();
+
+        var first = new JwtSecurityTokenHandler().ReadJwtToken(service.CreateAccessToken(user).Token);
+        var second = new JwtSecurityTokenHandler().ReadJwtToken(service.CreateAccessToken(user).Token);
+
+        first.Claims.Single(x => x.Type == JwtClaimNamesExtension.TokenId).Value.Should().NotBe(
+            second.Claims.Single(x => x.Type == JwtClaimNamesExtension.TokenId).Value);
     }
 
     [Fact]

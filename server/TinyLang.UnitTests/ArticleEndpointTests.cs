@@ -33,8 +33,12 @@ public sealed class ArticleEndpointTests
         "/api/editor/articles/{id:guid}",
         "/api/editor/articles/{id:guid}/publish",
         "/api/editor/articles/{id:guid}/unpublish",
-        "/api/editor/article-categories",
-        "/api/editor/article-categories/{id:guid}"
+    ];
+
+    private static readonly string[] AdminRoutes =
+    [
+        "/api/admin/article-categories",
+        "/api/admin/article-categories/{id:guid}"
     ];
 
     [Fact]
@@ -56,6 +60,14 @@ public sealed class ArticleEndpointTests
             matching.Should().OnlyContain(endpoint => endpoint.Metadata
                     .GetOrderedMetadata<IAuthorizeData>()
                     .Any(data => data.Policy == AuthorizationPolicies.RequireEditor));
+        }
+        foreach (var pattern in AdminRoutes)
+        {
+            var matching = routes.Where(x => x.RoutePattern.RawText == pattern).ToArray();
+            matching.Should().NotBeEmpty("available routes: {0}", string.Join(", ", routes.Select(x => x.RoutePattern.RawText)));
+            matching.Should().OnlyContain(endpoint => endpoint.Metadata
+                    .GetOrderedMetadata<IAuthorizeData>()
+                    .Any(data => data.Policy == AuthorizationPolicies.RequireAdmin));
         }
     }
 
@@ -145,12 +157,12 @@ public sealed class ArticleEndpointTests
             Mock.Of<IArticleService>(), categoryService.Object);
 
         var response = await app.GetTestClient().PostAsJsonAsync(
-            "/api/editor/article-categories",
+            "/api/admin/article-categories",
             new CreateArticleCategoryRequest { Name = "Grammar", Slug = "grammar" },
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
-        response.Headers.Location.Should().Be($"/api/editor/article-categories/{categoryId}");
+        response.Headers.Location.Should().Be($"/api/admin/article-categories/{categoryId}");
     }
 
     private static WebApplication CreateMetadataApp()

@@ -24,6 +24,9 @@ public static class DependencyInjection
     public static IServiceCollection AddJwtAuthentication(
         this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton<IJwtTokenService, JwtTokenService>();
+        services.AddSingleton<ITokenBlacklist, TokenBlacklist>();
+
         services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -123,12 +126,6 @@ public static class DependencyInjection
             throw new InvalidOperationException("Cannot get redis connection string");
         services.AddSingleton<IConnectionMultiplexer>(_ =>
             ConnectionMultiplexer.Connect(redisConnection));
-        services.AddStackExchangeRedisCache(options =>
-        {
-            options.Configuration = redisConnection;
-            options.InstanceName = CacheKeys.RedisInstanceName;
-        });
-        services.AddSingleton<ITokenBlacklist, TokenBlacklist>();
 
         return services;
     }
@@ -187,7 +184,6 @@ public static class DependencyInjection
     public static IServiceCollection AddSecureService(this IServiceCollection services)
     {
         services.AddSingleton<ISecretHasher, SecretHasher>();
-        services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<IDatabaseExceptionClassifier, PostgresDatabaseExceptionClassifier>();
         services.AddSingleton<IHtmlContentSanitizer, HtmlContentSanitizer>();
 

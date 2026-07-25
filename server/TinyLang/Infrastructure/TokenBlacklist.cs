@@ -1,19 +1,20 @@
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Extensions.Caching.Distributed;
+using StackExchange.Redis;
+using TinyLang.Constants;
 using TinyLang.Interfaces;
 
 namespace TinyLang.Infrastructure;
 
-public sealed class TokenBlacklist(IDistributedCache cache) : ITokenBlacklist
+public sealed class TokenBlacklist(IConnectionMultiplexer redisConnection) : ITokenBlacklist
 {
     private static string AccessTokenKey(string tokenId)
     {
-        return $"auth:blacklist:access:{Hash(tokenId)}";
+        return CacheKeys.BuildRedisKey($"auth:blacklist:access:{Hash(tokenId)}");
     }
 
     private static string RefreshTokenKey(string token)
-        => $"auth:blacklist:refresh:{Hash(token)}";
+        => CacheKeys.BuildRedisKey($"auth:blacklist:refresh:{Hash(token)}");
 
     private static string Hash(string value)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
@@ -33,9 +34,14 @@ public sealed class TokenBlacklist(IDistributedCache cache) : ITokenBlacklist
     public async Task<bool> ContainsAccessTokenAsync(
         string tokenId,
         CancellationToken cancellationToken = default)
-        => await cache.GetStringAsync(AccessTokenKey(tokenId), cancellationToken) is not null;
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var database = redisConnection.GetDatabase();
+        return await database.KeyExistsAsync(AccessTokenKey(tokenId))
+            .WaitAsync(cancellationToken);
+    }
 
-    private Task AddAsync(
+    private async Task AddAsync(
         string key,
         DateTimeOffset expiresAt,
         CancellationToken cancellationToken)
@@ -43,12 +49,12 @@ public sealed class TokenBlacklist(IDistributedCache cache) : ITokenBlacklist
         var lifetime = expiresAt - DateTimeOffset.UtcNow;
         if (lifetime <= TimeSpan.Zero)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        return cache.SetStringAsync(key, "1", new DistributedCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = lifetime
-        }, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var database = redisConnection.GetDatabase();
+        await database.StringSetAsync(key, "1", lifetime)
+            .WaitAsync(cancellationToken);
     }
 }

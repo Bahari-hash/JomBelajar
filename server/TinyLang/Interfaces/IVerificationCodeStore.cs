@@ -10,11 +10,6 @@ public interface IVerificationCodeStore
         string code,
         CancellationToken cancellationToken = default);
 
-    Task<bool> ExistsAsync(
-        string email,
-        VerificationCodePurpose purpose,
-        CancellationToken cancellationToken = default);
-
     Task<string?> GetAsync(
         string email,
         VerificationCodePurpose purpose,

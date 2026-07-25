@@ -43,10 +43,6 @@ public sealed class VerificationCodeSenderTests
             CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<bool> ExistsAsync(string email, VerificationCodePurpose purpose,
-            CancellationToken cancellationToken = default)
-            => Task.FromResult(_value is not null);
-
         public Task<string?> GetAsync(string email, VerificationCodePurpose purpose,
             CancellationToken cancellationToken = default)
             => Task.FromResult(_value);

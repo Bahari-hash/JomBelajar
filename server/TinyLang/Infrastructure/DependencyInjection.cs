@@ -151,7 +151,7 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// 配置 MassTransit、RabbitMQ、邮件 consumer 和消息重试策略。
+    /// 配置 MassTransit、RabbitMQ、邮件与视频 consumer 和消息重试策略。
     /// </summary>
     /// <param name="services">应用服务集合。</param>
     /// <param name="configuration">RabbitMQ 配置源。</param>
@@ -166,6 +166,7 @@ public static class DependencyInjection
         {
             // Register background worker here
             options.AddConsumer<EmailSendingWorker>();
+            options.AddConsumer<VideoProcessingWorker, VideoProcessingWorkerDefinition>();
 
             options.AddConfigureEndpointsCallback((_, config) =>
                 config.UseMessageRetry(retry => retry.Incremental(
@@ -281,6 +282,36 @@ public static class DependencyInjection
         });
         services.AddSingleton<IObjectStorageService, S3ObjectStorageService>();
 
+        return services;
+    }
+
+    /// <summary>
+    /// 注册 Web API 使用的视频 delivery 和 PostgreSQL 原子进度实现。
+    /// </summary>
+    /// <param name="services">应用服务集合。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
+    public static IServiceCollection AddVideoApplicationInfrastructure(
+        this IServiceCollection services)
+    {
+        services.AddScoped<IVideoDeliveryUrlService, VideoDeliveryUrlService>();
+        services.AddScoped<IUserVideoProgressStore, PostgresUserVideoProgressStore>();
+        return services;
+    }
+
+    /// <summary>
+    /// 注册 Web API 视频 consumer 使用的消息发布、进程、探测、转码和启动检查实现。
+    /// </summary>
+    /// <param name="services">worker 服务集合。</param>
+    /// <returns>完成注册后的同一服务集合。</returns>
+    public static IServiceCollection AddVideoProcessingInfrastructure(
+        this IServiceCollection services)
+    {
+        services.AddScoped<IVideoProcessingQueue, MassTransitVideoProcessingQueue>();
+        services.AddSingleton<IMediaProcessRunner, MediaProcessRunner>();
+        services.AddSingleton<IMediaProbe, FfprobeMediaProbe>();
+        services.AddSingleton<IVideoTranscoder, FfmpegVideoTranscoder>();
+        services.AddSingleton<IVideoToolPreflight, VideoToolPreflight>();
+        services.AddHostedService<VideoToolPreflightWorker>();
         return services;
     }
 }

@@ -18,6 +18,9 @@ public sealed record UploadSettings
     [Range(1, int.MaxValue)]
     public int VideoMaxMB { get; init; }
 
+    [Range(1, 20)]
+    public int SubtitleMaxMB { get; init; } = 2;
+
     [Required, MinLength(1)]
     public required Dictionary<string, string[]> PictureAllowedTypes { get; init; }
 
@@ -26,4 +29,10 @@ public sealed record UploadSettings
 
     [Required, MinLength(1)]
     public required Dictionary<string, string[]> VideoAllowedTypes { get; init; }
+
+    [Required, MinLength(1)]
+    public Dictionary<string, string[]> SubtitleAllowedTypes { get; init; } = new()
+    {
+        [".vtt"] = ["text/vtt"]
+    };
 }

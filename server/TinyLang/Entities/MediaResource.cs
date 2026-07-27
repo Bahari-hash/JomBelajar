@@ -34,4 +34,6 @@ public sealed class MediaResource : BaseAuditableEntity
     public ICollection<Article> CoveredArticles { get; set; } = [];
     public ICollection<ArticleMediaResource> ArticleMediaResources { get; set; } = [];
     public MultipartUploadSession? MultipartUploadSession { get; set; }
+    public Video? SourceVideo { get; set; }
+    public VideoSubtitle? VideoSubtitle { get; set; }
 }

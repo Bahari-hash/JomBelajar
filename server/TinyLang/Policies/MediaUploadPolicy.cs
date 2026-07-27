@@ -22,7 +22,8 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
         => module is ResourceModule.Avatar or
             ResourceModule.ArticlePicture or
             ResourceModule.Audio or
-            ResourceModule.CourseVideo;
+            ResourceModule.CourseVideo or
+            ResourceModule.VideoSubtitle;
 
     /// <summary>
     /// 判断资源模块是否仅供编辑者媒体上传使用。
@@ -32,7 +33,8 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
     public bool IsEditorModule(ResourceModule module)
         => module is ResourceModule.ArticlePicture or
             ResourceModule.Audio or
-            ResourceModule.CourseVideo;
+            ResourceModule.CourseVideo or
+            ResourceModule.VideoSubtitle;
 
     /// <summary>
     /// 判断规范化扩展名是否在指定模块允许列表中。
@@ -99,6 +101,7 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
             ResourceModule.Avatar or ResourceModule.ArticlePicture => _settings.PictureMaxMB,
             ResourceModule.Audio => _settings.AudioMaxMB,
             ResourceModule.CourseVideo => _settings.VideoMaxMB,
+            ResourceModule.VideoSubtitle => _settings.SubtitleMaxMB,
             _ => 0
         };
         return (long)megabytes * 1024 * 1024;
@@ -179,6 +182,7 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
                 => _settings.PictureAllowedTypes,
             ResourceModule.Audio => _settings.AudioAllowedTypes,
             ResourceModule.CourseVideo => _settings.VideoAllowedTypes,
+            ResourceModule.VideoSubtitle => _settings.SubtitleAllowedTypes,
             _ => new Dictionary<string, string[]>()
         };
 }

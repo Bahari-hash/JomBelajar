@@ -327,6 +327,7 @@ public sealed class MediaResourceServiceTests
         IApplicationDbContext db,
         IObjectStorageService storage)
         => new(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<MediaResourceService>.Instance,
             db,
             storage,
             new MediaUploadPolicy(Options.Create(TestUploadSettings.Create())),

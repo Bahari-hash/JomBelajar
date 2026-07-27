@@ -15,7 +15,7 @@ namespace TinyLang.Infrastructure;
 public static class RateLimitingDependencyInjection
 {
     /// <summary>
-    /// 注册验证码、上传预签名和全局并发限流策略。
+    /// 注册验证码、上传、视频播放/进度和全局并发限流策略。
     /// </summary>
     /// <param name="services">应用服务集合。</param>
     /// <param name="configuration">限流配置源。</param>
@@ -84,6 +84,32 @@ public static class RateLimitingDependencyInjection
                         TokensPerPeriod = settings.UploadCommandTokensPerPeriod,
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             settings.UploadCommandReplenishmentPeriodSeconds),
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 0
+                    }));
+
+            options.AddPolicy(RateLimitPolicies.VideoPlaybackLimit, context =>
+                RateLimitPartition.GetTokenBucketLimiter(
+                    GetUploadPresignPartitionKey(context),
+                    _ => new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = settings.VideoPlaybackTokenLimit,
+                        TokensPerPeriod = settings.VideoPlaybackTokensPerPeriod,
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            settings.VideoPlaybackReplenishmentPeriodSeconds),
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 0
+                    }));
+
+            options.AddPolicy(RateLimitPolicies.VideoProgressLimit, context =>
+                RateLimitPartition.GetTokenBucketLimiter(
+                    GetUploadPresignPartitionKey(context),
+                    _ => new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = settings.VideoProgressTokenLimit,
+                        TokensPerPeriod = settings.VideoProgressTokensPerPeriod,
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            settings.VideoProgressReplenishmentPeriodSeconds),
                         QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                         QueueLimit = 0
                     }));

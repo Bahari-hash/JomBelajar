@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -231,6 +232,86 @@ public sealed class S3ObjectStorageService(
         CancellationToken cancellationToken = default)
     {
         await s3Client.DeleteObjectAsync(_settings.Bucket, objectName, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task DownloadObjectAsync(
+        string objectName,
+        Stream destination,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await s3Client.GetObjectAsync(
+            _settings.Bucket,
+            objectName,
+            cancellationToken);
+        await response.ResponseStream.CopyToAsync(destination, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task UploadObjectAsync(
+        string objectName,
+        Stream source,
+        long length,
+        ObjectStorageUploadOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        var request = new PutObjectRequest
+        {
+            BucketName = _settings.Bucket,
+            Key = objectName,
+            InputStream = source,
+            AutoCloseStream = false,
+            ContentType = options.ContentType,
+            Headers =
+            {
+                ContentLength = length,
+                CacheControl = options.CacheControl
+            }
+        };
+        foreach (var (name, value) in options.Metadata ??
+            new Dictionary<string, string>())
+        {
+            request.Metadata[name] = value;
+        }
+        await s3Client.PutObjectAsync(request, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> ListObjectNamesAsync(
+        string prefix,
+        int maxCount,
+        CancellationToken cancellationToken = default)
+    {
+        var objectNames = new List<string>();
+        string? continuationToken = null;
+        do
+        {
+            var response = await s3Client.ListObjectsV2Async(new ListObjectsV2Request
+            {
+                BucketName = _settings.Bucket,
+                Prefix = prefix,
+                ContinuationToken = continuationToken,
+                MaxKeys = Math.Min(1000, maxCount - objectNames.Count)
+            }, cancellationToken);
+            objectNames.AddRange(response.S3Objects.Select(value => value.Key));
+            continuationToken = response.IsTruncated == true
+                ? response.NextContinuationToken
+                : null;
+        }
+        while (continuationToken is not null && objectNames.Count < maxCount);
+
+        return objectNames.Order(StringComparer.Ordinal).ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteObjectsAsync(
+        IReadOnlyCollection<string> objectNames,
+        CancellationToken cancellationToken = default)
+    {
+        foreach (var objectName in objectNames)
+        {
+            await DeleteObjectAsync(objectName, cancellationToken);
+        }
     }
 
     /// <summary>

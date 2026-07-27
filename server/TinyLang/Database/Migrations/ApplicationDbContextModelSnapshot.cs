@@ -441,6 +441,302 @@ namespace TinyLang.Database.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("TinyLang.Entities.UserVideoProgress", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("LastPlayedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double>("PositionSeconds")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("VideoId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VideoId");
+
+                    b.HasIndex("UserId", "LastPlayedAt");
+
+                    b.HasIndex("UserId", "VideoId")
+                        .IsUnique();
+
+                    b.ToTable("user_video_progress", (string)null);
+                });
+
+            modelBuilder.Entity("TinyLang.Entities.Video", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AudioCodec")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContainerFormat")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CurrentOutputVersion")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int?>("DisplayHeight")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DisplayWidth")
+                        .HasColumnType("integer");
+
+                    b.Property<double?>("DurationSeconds")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("LastFailureCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("MasterPlaylistObjectName")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("OriginalLanguage")
+                        .IsRequired()
+                        .HasMaxLength(35)
+                        .HasColumnType("character varying(35)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PosterObjectName")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("ProcessingStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("PublicationStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SourceMediaResourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VideoCodec")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceMediaResourceId")
+                        .IsUnique();
+
+                    b.HasIndex("ProcessingStatus", "PublicationStatus", "PublishedAt", "Id");
+
+                    b.HasIndex("OwnerId", "ProcessingStatus", "PublicationStatus", "UpdatedAt", "Id");
+
+                    b.ToTable("videos", (string)null);
+                });
+
+            modelBuilder.Entity("TinyLang.Entities.VideoProcessingJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("LastDispatchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("LeaseOwner")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OutputVersion")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VideoId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VideoId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" IN ('Queued', 'Processing')");
+
+                    b.HasIndex("VideoId", "OutputVersion")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "NextAttemptAt", "LeaseExpiresAt", "LastDispatchedAt", "CreatedAt", "Id");
+
+                    b.ToTable("video_processing_jobs", (string)null);
+                });
+
+            modelBuilder.Entity("TinyLang.Entities.VideoRendition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AudioBitrateKbps")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Codecs")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("OutputVersion")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PlaylistObjectName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<int>("TargetHeight")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VideoBitrateKbps")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("VideoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VideoId", "OutputVersion", "TargetHeight")
+                        .IsUnique();
+
+                    b.ToTable("video_renditions", (string)null);
+                });
+
+            modelBuilder.Entity("TinyLang.Entities.VideoSubtitle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LanguageTag")
+                        .IsRequired()
+                        .HasMaxLength(35)
+                        .HasColumnType("character varying(35)");
+
+                    b.Property<Guid>("MediaResourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VideoId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MediaResourceId")
+                        .IsUnique();
+
+                    b.HasIndex("VideoId")
+                        .IsUnique()
+                        .HasFilter("\"IsDefault\" = TRUE");
+
+                    b.HasIndex("VideoId", "LanguageTag")
+                        .IsUnique();
+
+                    b.ToTable("video_subtitles", (string)null);
+                });
+
             modelBuilder.Entity("TinyLang.Entities.Article", b =>
                 {
                     b.HasOne("TinyLang.Entities.User", "Author")
@@ -553,6 +849,85 @@ namespace TinyLang.Database.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TinyLang.Entities.UserVideoProgress", b =>
+                {
+                    b.HasOne("TinyLang.Entities.User", "User")
+                        .WithMany("VideoProgress")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TinyLang.Entities.Video", "Video")
+                        .WithMany("UserProgress")
+                        .HasForeignKey("VideoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("Video");
+                });
+
+            modelBuilder.Entity("TinyLang.Entities.Video", b =>
+                {
+                    b.HasOne("TinyLang.Entities.User", "Owner")
+                        .WithMany("OwnedVideos")
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TinyLang.Entities.MediaResource", "SourceMediaResource")
+                        .WithOne("SourceVideo")
+                        .HasForeignKey("TinyLang.Entities.Video", "SourceMediaResourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Owner");
+
+                    b.Navigation("SourceMediaResource");
+                });
+
+            modelBuilder.Entity("TinyLang.Entities.VideoProcessingJob", b =>
+                {
+                    b.HasOne("TinyLang.Entities.Video", "Video")
+                        .WithMany("ProcessingJobs")
+                        .HasForeignKey("VideoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Video");
+                });
+
+            modelBuilder.Entity("TinyLang.Entities.VideoRendition", b =>
+                {
+                    b.HasOne("TinyLang.Entities.Video", "Video")
+                        .WithMany("Renditions")
+                        .HasForeignKey("VideoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Video");
+                });
+
+            modelBuilder.Entity("TinyLang.Entities.VideoSubtitle", b =>
+                {
+                    b.HasOne("TinyLang.Entities.MediaResource", "MediaResource")
+                        .WithOne("VideoSubtitle")
+                        .HasForeignKey("TinyLang.Entities.VideoSubtitle", "MediaResourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TinyLang.Entities.Video", "Video")
+                        .WithMany("Subtitles")
+                        .HasForeignKey("VideoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaResource");
+
+                    b.Navigation("Video");
+                });
+
             modelBuilder.Entity("TinyLang.Entities.Article", b =>
                 {
                     b.Navigation("CategoryAssignments");
@@ -572,6 +947,10 @@ namespace TinyLang.Database.Migrations
                     b.Navigation("CoveredArticles");
 
                     b.Navigation("MultipartUploadSession");
+
+                    b.Navigation("SourceVideo");
+
+                    b.Navigation("VideoSubtitle");
                 });
 
             modelBuilder.Entity("TinyLang.Entities.User", b =>
@@ -582,9 +961,24 @@ namespace TinyLang.Database.Migrations
 
                     b.Navigation("MediaResources");
 
+                    b.Navigation("OwnedVideos");
+
                     b.Navigation("PublishedArticles");
 
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("VideoProgress");
+                });
+
+            modelBuilder.Entity("TinyLang.Entities.Video", b =>
+                {
+                    b.Navigation("ProcessingJobs");
+
+                    b.Navigation("Renditions");
+
+                    b.Navigation("Subtitles");
+
+                    b.Navigation("UserProgress");
                 });
 #pragma warning restore 612, 618
         }

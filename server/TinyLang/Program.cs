@@ -31,7 +31,7 @@ try
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-    builder.Services.AddAppSettings(builder.Configuration);
+    builder.Services.AddAppSettings(builder.Configuration, builder.Environment);
 
     builder.Services.AddJwtAuthentication(builder.Configuration);
     builder.Services.AddAuthorizationPolicy();
@@ -39,11 +39,14 @@ try
 
     builder.Services.AddDatabaseService(builder.Configuration);
     builder.Services.AddCacheService(builder.Configuration);
-    builder.Services.AddMessageQueueService(builder.Configuration);
 
     builder.Services.AddTemplatesRenderingService();
     builder.Services.AddEmailSendingService();
     builder.Services.AddObjectStorageService();
+    builder.Services.AddVideoApplicationInfrastructure();
+    builder.Services.AddVideoProcessingInfrastructure();
+
+    builder.Services.AddMessageQueueService(builder.Configuration);
 
     builder.Services.AddVerificationCodeService();
     builder.Services.AddSecureService();
@@ -72,6 +75,7 @@ try
         .MapSecurityApi()
         .MapUploadsApi()
         .MapArticlesApi()
+        .MapVideosApi()
         .MapBonusScenesApi()
         .AddEndpointFilter<ValidationEndpointFilter>();
 

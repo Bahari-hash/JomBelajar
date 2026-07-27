@@ -193,6 +193,47 @@ public enum ErrorCodes
     [Description("当前用户的未完成上传数量或容量已达到上限.")]
     MultipartUploadQuotaExceeded,
 
+    // --** Video Errors **--
+
+    [Description("视频不存在.")]
+    VideoNotFound,
+
+    [Description("视频标题不能为空.")]
+    VideoTitleRequired,
+
+    [Description("视频标题长度最大不能超过200个字符.")]
+    VideoTitleLengthLimit,
+
+    [Description("视频简介长度最大不能超过2000个字符.")]
+    VideoDescriptionLengthLimit,
+
+    [Description("视频原始语言不能为空或格式无效.")]
+    VideoLanguageInvalid,
+
+    [Description("视频源媒体资源无效.")]
+    VideoSourceInvalid,
+
+    [Description("视频源媒体资源尚未完成上传归档.")]
+    VideoSourceNotActive,
+
+    [Description("视频源媒体资源已被其他视频占用.")]
+    VideoSourceAlreadyUsed,
+
+    [Description("视频当前状态不允许执行该操作.")]
+    VideoStatusConflict,
+
+    [Description("视频处理任务当前状态不允许重试.")]
+    VideoRetryConflict,
+
+    [Description("视频字幕资源无效或内容不是受支持的 WebVTT.")]
+    VideoSubtitleInvalid,
+
+    [Description("视频字幕语言已经存在.")]
+    VideoSubtitleLanguageConflict,
+
+    [Description("播放位置无效.")]
+    VideoProgressInvalid,
+
     // --** Article Errors **--
 
     [Description("文章不存在.")]

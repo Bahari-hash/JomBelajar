@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace TinyLang.Settings;
 
@@ -19,7 +20,9 @@ public static class DependencyInjection
     /// <returns>完成注册后的同一服务集合。</returns>
     /// <exception cref="InvalidOperationException">启用转发头但可信代理配置缺失或无效。</exception>
     public static IServiceCollection AddAppSettings(
-        this IServiceCollection services, IConfiguration configuration)
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment? environment = null)
     {
         var jwtSettings = configuration.GetSection(JwtSettings.SectionName);
         services.AddOptions<JwtSettings>()
@@ -49,6 +52,11 @@ public static class DependencyInjection
         services.AddOptions<UploadSettings>()
             .Bind(uploadSettings)
             .ValidateDataAnnotations()
+            .Validate(
+                settings => settings.SubtitleAllowedTypes.Any(pair =>
+                    string.Equals(pair.Key, ".vtt", StringComparison.OrdinalIgnoreCase) &&
+                    pair.Value.Contains("text/vtt", StringComparer.OrdinalIgnoreCase)),
+                "Subtitle uploads must allow .vtt with text/vtt.")
             .ValidateOnStart();
 
         var multipartUploadSettings = configuration.GetSection(
@@ -76,6 +84,48 @@ public static class DependencyInjection
             .Validate(
                 settings => settings.FinalizationLeaseSeconds > settings.CleanupIntervalSeconds,
                 "Finalization lease must be longer than the cleanup interval.")
+            .ValidateOnStart();
+
+        services.AddOptions<VideoProcessingSettings>()
+            .Bind(configuration.GetSection(VideoProcessingSettings.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                settings => settings.MaxSourceWidth == 1980 &&
+                    settings.MaxSourceHeight == 1080,
+                "Video source dimensions must use the product limit 1980x1080.")
+            .Validate(
+                settings => settings.VideoBitrate480Kbps < settings.VideoBitrate720Kbps &&
+                    settings.VideoBitrate720Kbps < settings.VideoBitrate1080Kbps,
+                "Video rendition bitrates must increase from 480p through 1080p.")
+            .Validate(
+                settings => settings.LeaseSeconds > settings.TranscodeTimeoutSeconds &&
+                    settings.BatchSize >= settings.MaxConcurrency &&
+                    settings.DispatchThrottleSeconds >= settings.PollingIntervalSeconds,
+                "Video worker lease and batch settings are inconsistent.")
+            .ValidateOnStart();
+
+        services.AddOptions<VideoDeliverySettings>()
+            .Bind(configuration.GetSection(VideoDeliverySettings.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                settings => settings.Mode is "SignedCdn" or "DirectDevelopment",
+                "Video delivery mode must be SignedCdn or DirectDevelopment.")
+            .Validate(
+                settings => settings.Mode != "SignedCdn" ||
+                    (Uri.TryCreate(settings.CdnBaseUrl, UriKind.Absolute, out var baseUri) &&
+                        baseUri.Scheme == Uri.UriSchemeHttps &&
+                        !string.IsNullOrWhiteSpace(settings.KeyId) &&
+                        settings.SigningSecret?.Length >= 32),
+                "SignedCdn requires an HTTPS base URL, key identifier, and 32-character secret.")
+            .Validate(
+                settings => settings.Mode != "DirectDevelopment" ||
+                    environment is null || environment.IsDevelopment(),
+                "DirectDevelopment video delivery is only allowed in Development.")
+            .ValidateOnStart();
+
+        services.AddOptions<VideoProgressSettings>()
+            .Bind(configuration.GetSection(VideoProgressSettings.SectionName))
+            .ValidateDataAnnotations()
             .ValidateOnStart();
 
         var rateLimitSettings = configuration.GetSection(RateLimitSettings.SectionName);

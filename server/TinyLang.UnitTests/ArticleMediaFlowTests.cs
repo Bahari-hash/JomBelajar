@@ -41,6 +41,7 @@ public sealed class ArticleMediaFlowTests
             .Returns<string>(objectName => $"https://cdn.example.com/{objectName}");
 
         var mediaService = new MediaResourceService(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<MediaResourceService>.Instance,
             db,
             storage.Object,
             new MediaUploadPolicy(Options.Create(TestUploadSettings.Create())),

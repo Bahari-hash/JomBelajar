@@ -8,5 +8,6 @@ public enum ResourceModule
     Avatar,
     ArticlePicture,
     Audio,
-    CourseVideo
+    CourseVideo,
+    VideoSubtitle
 }

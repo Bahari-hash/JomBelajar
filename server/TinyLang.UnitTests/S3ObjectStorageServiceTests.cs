@@ -1,3 +1,4 @@
+using System.IO;
 using System.Linq;
 using Amazon.Runtime;
 using Amazon.S3;
@@ -11,8 +12,70 @@ using TinyLang.Settings;
 
 namespace TinyLang.UnitTests;
 
+/// <summary>
+/// 验证 S3-compatible 对象存储请求映射和稳定错误分类。
+/// </summary>
 public sealed class S3ObjectStorageServiceTests
 {
+    [Fact]
+    public async Task DerivedUploadShouldMapLengthContentTypeAndCacheControl()
+    {
+        PutObjectRequest? captured = null;
+        var s3Client = new Mock<IAmazonS3>();
+        s3Client.Setup(value => value.PutObjectAsync(
+                It.IsAny<PutObjectRequest>(),
+                TestContext.Current.CancellationToken))
+            .Callback<PutObjectRequest, CancellationToken>((request, _) => captured = request)
+            .ReturnsAsync(new PutObjectResponse());
+        var service = CreateService(s3Client.Object);
+        await using var content = new MemoryStream(new byte[128]);
+
+        await service.UploadObjectAsync(
+            "videos/id/outputs/version/master.m3u8",
+            content,
+            content.Length,
+            new ObjectStorageUploadOptions(
+                "application/vnd.apple.mpegurl",
+                "public,max-age=31536000,immutable"),
+            TestContext.Current.CancellationToken);
+
+        captured.Should().NotBeNull();
+        captured!.Key.Should().Be("videos/id/outputs/version/master.m3u8");
+        captured.ContentType.Should().Be("application/vnd.apple.mpegurl");
+        captured.Headers.ContentLength.Should().Be(128);
+        captured.Headers.CacheControl.Should().Be("public,max-age=31536000,immutable");
+        captured.InputStream.Should().BeSameAs(content);
+        captured.AutoCloseStream.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task PrefixListingShouldReturnSortedObjectNames()
+    {
+        var s3Client = new Mock<IAmazonS3>();
+        s3Client.Setup(value => value.ListObjectsV2Async(
+                It.IsAny<ListObjectsV2Request>(),
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(new ListObjectsV2Response
+            {
+                S3Objects =
+                [
+                    new S3Object { Key = "videos/id/version/z.ts" },
+                    new S3Object { Key = "videos/id/version/a.ts" }
+                ],
+                IsTruncated = false
+            });
+        var service = CreateService(s3Client.Object);
+
+        var result = await service.ListObjectNamesAsync(
+            "videos/id/version/",
+            10,
+            TestContext.Current.CancellationToken);
+
+        result.Should().Equal(
+            "videos/id/version/a.ts",
+            "videos/id/version/z.ts");
+    }
+
     [Fact]
     public async Task PresignedUrlShouldSignContentLengthAndContentTypeHeaders()
     {

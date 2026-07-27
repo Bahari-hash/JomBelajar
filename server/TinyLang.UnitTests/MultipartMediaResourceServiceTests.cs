@@ -252,6 +252,7 @@ public sealed class MultipartMediaResourceServiceTests
         IObjectStorageService storage,
         TimeProvider? timeProvider = null)
         => new(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<MediaResourceService>.Instance,
             db,
             storage,
             new MediaUploadPolicy(Options.Create(TestUploadSettings.Create())),

@@ -16,6 +16,11 @@ public interface IApplicationDbContext
     DbSet<ArticleCategory> ArticleCategories { get; }
     DbSet<ArticleCategoryAssignment> ArticleCategoryAssignments { get; }
     DbSet<ArticleMediaResource> ArticleMediaResources { get; }
+    DbSet<Video> Videos { get; }
+    DbSet<VideoProcessingJob> VideoProcessingJobs { get; }
+    DbSet<VideoRendition> VideoRenditions { get; }
+    DbSet<VideoSubtitle> VideoSubtitles { get; }
+    DbSet<UserVideoProgress> UserVideoProgress { get; }
     /// <summary>
     /// 将当前上下文中跟踪的变更持久化到底层数据库。
     /// </summary>

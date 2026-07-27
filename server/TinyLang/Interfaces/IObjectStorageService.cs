@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace TinyLang.Interfaces;
 
 using TinyLang.Models;
@@ -121,6 +123,56 @@ public interface IObjectStorageService
     /// <returns>表示删除操作的任务。</returns>
     Task DeleteObjectAsync(
         string objectName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 将指定对象流式复制到调用方提供的可写流。
+    /// </summary>
+    /// <param name="objectName">待读取的对象名称。</param>
+    /// <param name="destination">接收对象内容的可写流。</param>
+    /// <param name="cancellationToken">用于取消传输的令牌。</param>
+    /// <returns>表示流式下载操作的任务。</returns>
+    Task DownloadObjectAsync(
+        string objectName,
+        Stream destination,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 从可读流上传具有准确长度和通用 HTTP metadata 的衍生对象。
+    /// </summary>
+    /// <param name="objectName">目标对象名称。</param>
+    /// <param name="source">对象内容的可读流。</param>
+    /// <param name="length">对象准确字节长度。</param>
+    /// <param name="options">媒体类型、缓存策略和可选 metadata。</param>
+    /// <param name="cancellationToken">用于取消传输的令牌。</param>
+    /// <returns>表示流式上传操作的任务。</returns>
+    Task UploadObjectAsync(
+        string objectName,
+        Stream source,
+        long length,
+        ObjectStorageUploadOptions options,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 在受控前缀下按对象名排序列出不超过指定上限的对象。
+    /// </summary>
+    /// <param name="prefix">由服务端生成且以斜杠结尾的对象前缀。</param>
+    /// <param name="maxCount">允许返回的最大对象数量。</param>
+    /// <param name="cancellationToken">用于取消列举的令牌。</param>
+    /// <returns>按名称排序的对象名称。</returns>
+    Task<IReadOnlyList<string>> ListObjectNamesAsync(
+        string prefix,
+        int maxCount,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 幂等删除一组由服务端验证过的对象名称。
+    /// </summary>
+    /// <param name="objectNames">待删除对象名称。</param>
+    /// <param name="cancellationToken">用于取消删除的令牌。</param>
+    /// <returns>表示批量删除操作的任务。</returns>
+    Task DeleteObjectsAsync(
+        IReadOnlyCollection<string> objectNames,
         CancellationToken cancellationToken = default);
 
     /// <summary>

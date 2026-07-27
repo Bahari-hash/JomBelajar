@@ -831,6 +831,10 @@ public sealed class MediaResourceService : IMediaResourceService
         string extension,
         DateTimeOffset createdAt)
     {
+        if (module == ResourceModule.VideoSubtitle)
+        {
+            return $"video_subtitles/{resourceId:N}/{resourceId:N}{extension}";
+        }
         var modulePath = module switch
         {
             ResourceModule.Avatar => "avatars",

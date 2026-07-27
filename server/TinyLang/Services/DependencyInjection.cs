@@ -27,7 +27,11 @@ public static class DependencyInjection
         services.AddHostedService<MediaUploadMaintenanceWorker>();
         services.AddScoped<IArticleService, ArticleService>();
         services.AddScoped<IArticleCategoryService, ArticleCategoryService>();
-
+        services.AddScoped<IVideoService, VideoService>();
+        services.AddSingleton<VideoRenditionPlanner>();
+        services.AddScoped<IVideoProcessingService, VideoProcessingService>();
+        services.AddScoped<IVideoProcessingDispatcher, VideoProcessingDispatcher>();
+        services.AddHostedService<VideoProcessingDispatchWorker>();
         return services;
     }
 }

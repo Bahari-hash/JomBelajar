@@ -24,11 +24,13 @@ public static class DependencyInjection
 
         var databaseConnection = configuration.GetConnectionString("DatabaseConnection") ??
             throw new InvalidOperationException("Cannot get database connection string");
-        services.AddDbContext<IApplicationDbContext, ApplicationDbContext>((sp, options) =>
+        services.AddDbContext<ApplicationDbContext>((sp, options) =>
         {
             var auditableEntityInterceptor = sp.GetRequiredService<AuditableEntityInterceptor>();
             options.UseNpgsql(databaseConnection).AddInterceptors(auditableEntityInterceptor);
         });
+        services.AddScoped<IApplicationDbContext>(serviceProvider =>
+            serviceProvider.GetRequiredService<ApplicationDbContext>());
 
         return services;
     }

@@ -19,6 +19,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.ArticleCategory> ArticleCategories => Set<Entities.ArticleCategory>();
     public DbSet<Entities.ArticleCategoryAssignment> ArticleCategoryAssignments => Set<Entities.ArticleCategoryAssignment>();
     public DbSet<Entities.ArticleMediaResource> ArticleMediaResources => Set<Entities.ArticleMediaResource>();
+    public DbSet<Entities.Video> Videos => Set<Entities.Video>();
+    public DbSet<Entities.VideoProcessingJob> VideoProcessingJobs => Set<Entities.VideoProcessingJob>();
+    public DbSet<Entities.VideoRendition> VideoRenditions => Set<Entities.VideoRendition>();
+    public DbSet<Entities.VideoSubtitle> VideoSubtitles => Set<Entities.VideoSubtitle>();
+    public DbSet<Entities.UserVideoProgress> UserVideoProgress => Set<Entities.UserVideoProgress>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)

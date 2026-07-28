@@ -50,10 +50,9 @@ public sealed class FfmpegVideoTranscoder : IVideoTranscoder
             Directory.CreateDirectory(renditionDirectory);
             var playlistPath = Path.Combine(renditionDirectory, "index.m3u8");
             var segmentPath = Path.Combine(renditionDirectory, "segment_%06d.ts");
-            var result = await _processRunner.RunAsync(
+            var result = await RunProcessAsync(
                 _settings.FfmpegPath,
                 BuildRenditionArguments(inputPath, playlistPath, segmentPath, plan),
-                TimeSpan.FromSeconds(_settings.TranscodeTimeoutSeconds),
                 cancellationToken);
             EnsureSuccessful(result);
             if (!File.Exists(playlistPath))
@@ -67,10 +66,9 @@ public sealed class FfmpegVideoTranscoder : IVideoTranscoder
         }
 
         var posterPath = Path.Combine(outputDirectory, "poster.jpg");
-        var posterResult = await _processRunner.RunAsync(
+        var posterResult = await RunProcessAsync(
             _settings.FfmpegPath,
             BuildPosterArguments(inputPath, posterPath, probeResult.DurationSeconds),
-            TimeSpan.FromSeconds(_settings.TranscodeTimeoutSeconds),
             cancellationToken);
         EnsureSuccessful(posterResult);
         if (!File.Exists(posterPath))
@@ -87,6 +85,32 @@ public sealed class FfmpegVideoTranscoder : IVideoTranscoder
             new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
             cancellationToken);
         return new VideoTranscodeResult(masterPath, posterPath, generated);
+    }
+
+    /// <summary>
+    /// 执行 FFmpeg 并将通用进程失败映射为视频稳定失败码。
+    /// </summary>
+    private async Task<MediaProcessResult> RunProcessAsync(
+        string executable,
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _processRunner.RunAsync(
+                executable,
+                arguments,
+                TimeSpan.FromSeconds(_settings.TranscodeTimeoutSeconds),
+                cancellationToken);
+        }
+        catch (MediaProcessException exception)
+        {
+            throw new VideoProcessingException(
+                exception.FailureKind == MediaProcessFailureKind.TimedOut
+                    ? VideoProcessingFailureCode.ProcessTimedOut
+                    : VideoProcessingFailureCode.ProcessStartFailed,
+                isTransient: true);
+        }
     }
 
     /// <summary>

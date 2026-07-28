@@ -13,6 +13,32 @@ namespace TinyLang.UnitTests;
 /// </summary>
 public sealed class FfprobeMediaProbeTests
 {
+    /// <summary>
+    /// 验证通用进程超时仍映射为既有视频稳定失败码。
+    /// </summary>
+    [Fact]
+    public async Task MediaProcessTimeoutShouldMapToVideoFailure()
+    {
+        var runner = new Mock<IMediaProcessRunner>();
+        runner.Setup(value => value.RunAsync(
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new MediaProcessException(MediaProcessFailureKind.TimedOut));
+        var probe = new FfprobeMediaProbe(
+            runner.Object,
+            Options.Create(new VideoProcessingSettings()));
+
+        var action = () => probe.ProbeAsync(
+            "source.media",
+            TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<VideoProcessingException>();
+        exception.Which.FailureCode.Should().Be(VideoProcessingFailureCode.ProcessTimedOut);
+        exception.Which.IsTransient.Should().BeTrue();
+    }
+
     [Fact]
     public async Task RotationShouldBeAppliedBeforeDimensionValidation()
     {

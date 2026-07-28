@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -104,6 +105,32 @@ public static class DependencyInjection
                 "Video worker lease and batch settings are inconsistent.")
             .ValidateOnStart();
 
+        services.AddOptions<AudioProcessingSettings>()
+            .Bind(configuration.GetSection(AudioProcessingSettings.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                settings => settings.OutputSampleRate == 44100 &&
+                    settings.OutputChannels == 1 &&
+                    settings.OutputBitrateKbps == 96 &&
+                    settings.LoudnessTargetLufs == -16 &&
+                    settings.TruePeakDb == -1.5 &&
+                    settings.LoudnessRange == 11,
+                "Audio output must use the product MP3, loudness, sample-rate, channel and bitrate profile.")
+            .Validate(
+                settings => settings.MaxSourceSampleRate >= settings.OutputSampleRate &&
+                    settings.MaxSourceChannels >= settings.OutputChannels,
+                "Audio source limits must permit the configured output profile.")
+            .Validate(
+                settings => settings.LeaseSeconds >
+                        settings.ProbeTimeoutSeconds + settings.TranscodeTimeoutSeconds + 60 &&
+                    settings.BatchSize >= settings.MaxConcurrency &&
+                    settings.DispatchThrottleSeconds >= settings.PollingIntervalSeconds,
+                "Audio worker lease and batch settings are inconsistent.")
+            .Validate(
+                settings => IsSafeTemporaryDirectory(settings.TemporaryDirectory),
+                "Audio temporary directory must not resolve to a filesystem root.")
+            .ValidateOnStart();
+
         services.AddOptions<VideoDeliverySettings>()
             .Bind(configuration.GetSection(VideoDeliverySettings.SectionName))
             .ValidateDataAnnotations()
@@ -177,5 +204,25 @@ public static class DependencyInjection
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// 判断配置目录是否可解析且不会直接指向文件系统根目录。
+    /// </summary>
+    private static bool IsSafeTemporaryDirectory(string directory)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(directory);
+            return !string.Equals(
+                fullPath.TrimEnd(Path.DirectorySeparatorChar),
+                Path.GetPathRoot(fullPath)?.TrimEnd(Path.DirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
     }
 }

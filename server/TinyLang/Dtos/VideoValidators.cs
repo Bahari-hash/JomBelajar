@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using FluentValidation;
 using TinyLang.Exceptions;
 using TinyLang.Extensions;
@@ -35,7 +34,7 @@ public sealed class CreateVideoRequestValidator : AbstractValidator<CreateVideoR
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithErrKey(ErrorCodes.VideoLanguageInvalid)
             .MaximumLength(35).WithErrKey(ErrorCodes.VideoLanguageInvalid)
-            .Matches(VideoValidationPatterns.LanguageTag())
+            .Matches(MediaValidationPatterns.LanguageTag())
             .WithErrKey(ErrorCodes.VideoLanguageInvalid);
         validator.RuleFor(x => x.CategoryIds)
             .Cascade(CascadeMode.Stop)
@@ -69,7 +68,7 @@ public sealed class UpdateVideoRequestValidator : AbstractValidator<UpdateVideoR
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithErrKey(ErrorCodes.VideoLanguageInvalid)
             .MaximumLength(35).WithErrKey(ErrorCodes.VideoLanguageInvalid)
-            .Matches(VideoValidationPatterns.LanguageTag())
+            .Matches(MediaValidationPatterns.LanguageTag())
             .WithErrKey(ErrorCodes.VideoLanguageInvalid);
         RuleFor(x => x.CategoryIds)
             .Cascade(CascadeMode.Stop)
@@ -139,7 +138,7 @@ public sealed class AddVideoSubtitleRequestValidator
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithErrKey(ErrorCodes.VideoLanguageInvalid)
             .MaximumLength(35).WithErrKey(ErrorCodes.VideoLanguageInvalid)
-            .Matches(VideoValidationPatterns.LanguageTag())
+            .Matches(MediaValidationPatterns.LanguageTag())
             .WithErrKey(ErrorCodes.VideoLanguageInvalid);
         RuleFor(x => x.DisplayName)
             .NotEmpty().WithErrKey(ErrorCodes.VideoSubtitleInvalid)
@@ -164,18 +163,6 @@ public sealed class UpdateVideoProgressRequestValidator
             .Must(value => double.IsFinite(value) && value >= 0)
             .WithErrKey(ErrorCodes.VideoProgressInvalid);
     }
-}
-
-/// <summary>
-/// 提供视频 DTO 共享的源生成正则表达式。
-/// </summary>
-internal static partial class VideoValidationPatterns
-{
-    /// <summary>
-    /// 匹配适用于本模块基础验证的 BCP 47 风格语言标签。
-    /// </summary>
-    [GeneratedRegex("^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$", RegexOptions.CultureInvariant)]
-    public static partial Regex LanguageTag();
 }
 
 /// <summary>

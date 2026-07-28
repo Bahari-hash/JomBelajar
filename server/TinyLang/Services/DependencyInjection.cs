@@ -29,10 +29,14 @@ public static class DependencyInjection
         services.AddScoped<IArticleCategoryService, ArticleCategoryService>();
         services.AddScoped<IVideoCategoryService, VideoCategoryService>();
         services.AddScoped<IVideoService, VideoService>();
+        services.AddScoped<IAudioClipService, AudioClipService>();
         services.AddSingleton<VideoRenditionPlanner>();
         services.AddScoped<IVideoProcessingService, VideoProcessingService>();
         services.AddScoped<IVideoProcessingDispatcher, VideoProcessingDispatcher>();
         services.AddHostedService<VideoProcessingDispatchWorker>();
+        services.AddScoped<IAudioProcessingService, AudioProcessingService>();
+        services.AddScoped<IAudioProcessingDispatcher, AudioProcessingDispatcher>();
+        services.AddHostedService<AudioProcessingDispatchWorker>();
         return services;
     }
 }

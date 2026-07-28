@@ -167,6 +167,7 @@ public static class DependencyInjection
             // Register background worker here
             options.AddConsumer<EmailSendingWorker>();
             options.AddConsumer<VideoProcessingWorker, VideoProcessingWorkerDefinition>();
+            options.AddConsumer<AudioProcessingWorker, AudioProcessingWorkerDefinition>();
 
             options.AddConfigureEndpointsCallback((_, config) =>
                 config.UseMessageRetry(retry => retry.Incremental(
@@ -312,6 +313,20 @@ public static class DependencyInjection
         services.AddSingleton<IVideoTranscoder, FfmpegVideoTranscoder>();
         services.AddSingleton<IVideoToolPreflight, VideoToolPreflight>();
         services.AddHostedService<VideoToolPreflightWorker>();
+        return services;
+    }
+
+    /// <summary>
+    /// 注册音频 consumer 使用的消息发布、探测、转码和启动检查实现。
+    /// </summary>
+    public static IServiceCollection AddAudioProcessingInfrastructure(
+        this IServiceCollection services)
+    {
+        services.AddScoped<IAudioProcessingQueue, MassTransitAudioProcessingQueue>();
+        services.AddSingleton<IAudioProbe, FfprobeAudioProbe>();
+        services.AddSingleton<IAudioTranscoder, FfmpegAudioTranscoder>();
+        services.AddSingleton<IAudioToolPreflight, AudioToolPreflight>();
+        services.AddHostedService<AudioToolPreflightWorker>();
         return services;
     }
 }

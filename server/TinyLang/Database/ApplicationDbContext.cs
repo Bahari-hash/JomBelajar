@@ -26,6 +26,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.VideoCategory> VideoCategories => Set<Entities.VideoCategory>();
     public DbSet<Entities.VideoCategoryAssignment> VideoCategoryAssignments => Set<Entities.VideoCategoryAssignment>();
     public DbSet<Entities.UserVideoProgress> UserVideoProgress => Set<Entities.UserVideoProgress>();
+    public DbSet<Entities.AudioClip> AudioClips => Set<Entities.AudioClip>();
+    public DbSet<Entities.AudioProcessingJob> AudioProcessingJobs => Set<Entities.AudioProcessingJob>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)

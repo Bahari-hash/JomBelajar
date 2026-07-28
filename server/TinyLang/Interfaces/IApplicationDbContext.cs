@@ -23,6 +23,8 @@ public interface IApplicationDbContext
     DbSet<VideoCategory> VideoCategories { get; }
     DbSet<VideoCategoryAssignment> VideoCategoryAssignments { get; }
     DbSet<UserVideoProgress> UserVideoProgress { get; }
+    DbSet<AudioClip> AudioClips { get; }
+    DbSet<AudioProcessingJob> AudioProcessingJobs { get; }
     /// <summary>
     /// 将当前上下文中跟踪的变更持久化到底层数据库。
     /// </summary>

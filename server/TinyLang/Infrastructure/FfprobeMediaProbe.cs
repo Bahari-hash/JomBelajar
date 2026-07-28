@@ -37,17 +37,29 @@ public sealed class FfprobeMediaProbe : IMediaProbe
         string inputPath,
         CancellationToken cancellationToken = default)
     {
-        var result = await _processRunner.RunAsync(
-            _settings.FfprobePath,
-            [
-                "-v", "error",
-                "-print_format", "json",
-                "-show_format",
-                "-show_streams",
-                inputPath
-            ],
-            TimeSpan.FromSeconds(_settings.ProbeTimeoutSeconds),
-            cancellationToken);
+        MediaProcessResult result;
+        try
+        {
+            result = await _processRunner.RunAsync(
+                _settings.FfprobePath,
+                [
+                    "-v", "error",
+                    "-print_format", "json",
+                    "-show_format",
+                    "-show_streams",
+                    inputPath
+                ],
+                TimeSpan.FromSeconds(_settings.ProbeTimeoutSeconds),
+                cancellationToken);
+        }
+        catch (MediaProcessException exception)
+        {
+            throw new VideoProcessingException(
+                exception.FailureKind == MediaProcessFailureKind.TimedOut
+                    ? VideoProcessingFailureCode.ProcessTimedOut
+                    : VideoProcessingFailureCode.ProcessStartFailed,
+                isTransient: true);
+        }
         if (result.ExitCode != 0)
         {
             throw new VideoProcessingException(

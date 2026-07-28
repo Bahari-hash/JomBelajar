@@ -9,5 +9,6 @@ public static class RateLimitPolicies
     public const string UploadPresignLimit = "UploadPresignLimit";
     public const string UploadCommandLimit = "UploadCommandLimit";
     public const string VideoPlaybackLimit = "VideoPlaybackLimit";
+    public const string AudioPlaybackLimit = "AudioPlaybackLimit";
     public const string VideoProgressLimit = "VideoProgressLimit";
 }

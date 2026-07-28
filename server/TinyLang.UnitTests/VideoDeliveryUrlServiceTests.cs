@@ -73,4 +73,30 @@ public sealed class VideoDeliveryUrlServiceTests
 
         result.Url.Should().Be("https://localhost/media/videos/id/poster.jpg");
     }
+
+    /// <summary>
+    /// 验证同一 delivery 实现可以签发不依赖 HLS 的音频对象前缀。
+    /// </summary>
+    [Fact]
+    public void AudioObjectPrefixShouldUseTheSameGenericSigningContract()
+    {
+        var service = new VideoDeliveryUrlService(
+            Mock.Of<IObjectStorageService>(),
+            Options.Create(new VideoDeliverySettings
+            {
+                Mode = "SignedCdn",
+                CdnBaseUrl = "https://media.example.com",
+                KeyId = "audio-key",
+                SigningSecret = "0123456789abcdef0123456789abcdef",
+                TokenTtlSeconds = 300
+            }),
+            new TestTimeProvider(Now));
+        const string prefix =
+            "audios/11111111111111111111111111111111/outputs/22222222222222222222222222222222/";
+
+        var result = service.CreateUrl($"{prefix}audio.mp3", prefix);
+
+        result.Url.Should().StartWith("https://media.example.com/auth/audio-key/");
+        result.Url.Should().EndWith($"/{prefix}audio.mp3");
+    }
 }

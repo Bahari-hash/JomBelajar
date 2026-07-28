@@ -51,20 +51,16 @@ public sealed class MediaProcessRunner : IMediaProcessRunner
         {
             if (!process.Start())
             {
-                throw new VideoProcessingException(
-                    VideoProcessingFailureCode.ProcessStartFailed,
-                    isTransient: true);
+                throw new MediaProcessException(MediaProcessFailureKind.StartFailed);
             }
         }
-        catch (VideoProcessingException)
+        catch (MediaProcessException)
         {
             throw;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            throw new VideoProcessingException(
-                VideoProcessingFailureCode.ProcessStartFailed,
-                isTransient: true);
+            throw new MediaProcessException(MediaProcessFailureKind.StartFailed);
         }
 
         using var timeoutSource = new CancellationTokenSource(timeout);
@@ -88,9 +84,7 @@ public sealed class MediaProcessRunner : IMediaProcessRunner
         {
             KillProcessTree(process);
             await Task.WhenAll(stdoutTask, stderrTask);
-            throw new VideoProcessingException(
-                VideoProcessingFailureCode.ProcessTimedOut,
-                isTransient: true);
+            throw new MediaProcessException(MediaProcessFailureKind.TimedOut);
         }
         catch (OperationCanceledException)
         {

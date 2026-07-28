@@ -15,7 +15,7 @@ namespace TinyLang.Infrastructure;
 public static class RateLimitingDependencyInjection
 {
     /// <summary>
-    /// 注册验证码、上传、视频播放/进度和全局并发限流策略。
+    /// 注册验证码、上传、音视频播放/进度和全局并发限流策略。
     /// </summary>
     /// <param name="services">应用服务集合。</param>
     /// <param name="configuration">限流配置源。</param>
@@ -110,6 +110,19 @@ public static class RateLimitingDependencyInjection
                         TokensPerPeriod = settings.VideoProgressTokensPerPeriod,
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             settings.VideoProgressReplenishmentPeriodSeconds),
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 0
+                    }));
+
+            options.AddPolicy(RateLimitPolicies.AudioPlaybackLimit, context =>
+                RateLimitPartition.GetTokenBucketLimiter(
+                    GetUploadPresignPartitionKey(context),
+                    _ => new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = settings.AudioPlaybackTokenLimit,
+                        TokensPerPeriod = settings.AudioPlaybackTokensPerPeriod,
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            settings.AudioPlaybackReplenishmentPeriodSeconds),
                         QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                         QueueLimit = 0
                     }));

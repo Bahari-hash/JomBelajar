@@ -45,6 +45,7 @@ try
     builder.Services.AddObjectStorageService();
     builder.Services.AddVideoApplicationInfrastructure();
     builder.Services.AddVideoProcessingInfrastructure();
+    builder.Services.AddAudioProcessingInfrastructure();
 
     builder.Services.AddMessageQueueService(builder.Configuration);
 
@@ -77,6 +78,7 @@ try
         .MapArticlesApi()
         .MapVideoCategoriesApi()
         .MapVideosApi()
+        .MapAudioApi()
         .MapBonusScenesApi()
         .AddEndpointFilter<ValidationEndpointFilter>();
 

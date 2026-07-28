@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace TinyLang.Settings;
 
 /// <summary>
-/// 描述验证码、上传、视频播放/进度和全局请求的限流参数。
+/// 描述验证码、上传、音视频播放/进度和全局请求的限流参数。
 /// </summary>
 public sealed record RateLimitSettings
 {
@@ -41,6 +41,15 @@ public sealed record RateLimitSettings
 
     [Range(1, int.MaxValue)]
     public int VideoPlaybackReplenishmentPeriodSeconds { get; init; } = 60;
+
+    [Range(1, int.MaxValue)]
+    public int AudioPlaybackTokenLimit { get; init; } = 60;
+
+    [Range(1, int.MaxValue)]
+    public int AudioPlaybackTokensPerPeriod { get; init; } = 60;
+
+    [Range(1, int.MaxValue)]
+    public int AudioPlaybackReplenishmentPeriodSeconds { get; init; } = 60;
 
     [Range(1, int.MaxValue)]
     public int VideoProgressTokenLimit { get; init; } = 120;

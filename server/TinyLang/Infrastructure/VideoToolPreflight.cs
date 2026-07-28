@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using TinyLang.Interfaces;
+using TinyLang.Models;
 using TinyLang.Settings;
 
 namespace TinyLang.Infrastructure;
@@ -37,11 +38,21 @@ public sealed class VideoToolPreflight : IVideoToolPreflight
         string executable,
         CancellationToken cancellationToken)
     {
-        var result = await _processRunner.RunAsync(
-            executable,
-            ["-version"],
-            TimeSpan.FromSeconds(15),
-            cancellationToken);
+        MediaProcessResult result;
+        try
+        {
+            result = await _processRunner.RunAsync(
+                executable,
+                ["-version"],
+                TimeSpan.FromSeconds(15),
+                cancellationToken);
+        }
+        catch (MediaProcessException exception)
+        {
+            throw new InvalidOperationException(
+                "A configured video processing tool could not be started.",
+                exception);
+        }
         if (result.ExitCode != 0)
         {
             throw new InvalidOperationException(

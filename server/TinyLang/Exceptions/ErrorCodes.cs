@@ -234,6 +234,45 @@ public enum ErrorCodes
     [Description("播放位置无效.")]
     VideoProgressInvalid,
 
+    [Description("视频分类标识集合无效.")]
+    VideoCategoryIdsInvalid,
+
+    [Description("单个视频最多只能关联10个分类.")]
+    VideoCategoryCountLimit,
+
+    [Description("视频分类不能重复.")]
+    VideoCategoryDuplicate,
+
+    [Description("视频分类不存在.")]
+    VideoCategoryNotFound,
+
+    [Description("视频分类已停用.")]
+    VideoCategoryInactive,
+
+    [Description("视频分类名称不能为空.")]
+    VideoCategoryNameRequired,
+
+    [Description("视频分类名称长度最大不能超过100个字符.")]
+    VideoCategoryNameLengthLimit,
+
+    [Description("视频分类 Slug 不能为空.")]
+    VideoCategorySlugRequired,
+
+    [Description("视频分类 Slug 长度最大不能超过120个字符.")]
+    VideoCategorySlugLengthLimit,
+
+    [Description("视频分类 Slug 只能包含字母、数字和单个连字符.")]
+    VideoCategorySlugFormatInvalid,
+
+    [Description("视频分类描述长度最大不能超过500个字符.")]
+    VideoCategoryDescriptionLengthLimit,
+
+    [Description("视频分类名称已存在.")]
+    VideoCategoryNameConflict,
+
+    [Description("视频分类 Slug 已存在.")]
+    VideoCategorySlugConflict,
+
     // --** Article Errors **--
 
     [Description("文章不存在.")]

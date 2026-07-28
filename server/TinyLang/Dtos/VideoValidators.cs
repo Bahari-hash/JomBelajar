@@ -37,6 +37,15 @@ public sealed class CreateVideoRequestValidator : AbstractValidator<CreateVideoR
             .MaximumLength(35).WithErrKey(ErrorCodes.VideoLanguageInvalid)
             .Matches(VideoValidationPatterns.LanguageTag())
             .WithErrKey(ErrorCodes.VideoLanguageInvalid);
+        validator.RuleFor(x => x.CategoryIds)
+            .Cascade(CascadeMode.Stop)
+            .NotNull().WithErrKey(ErrorCodes.VideoCategoryIdsInvalid)
+            .Must(ids => ids.Count <= VideoConstraints.MaxCategoryCount)
+            .WithErrKey(ErrorCodes.VideoCategoryCountLimit)
+            .Must(ids => ids.All(id => id != Guid.Empty))
+            .WithErrKey(ErrorCodes.VideoCategoryIdsInvalid)
+            .Must(ids => ids.Count == ids.Distinct().Count())
+            .WithErrKey(ErrorCodes.VideoCategoryDuplicate);
     }
 }
 
@@ -62,6 +71,15 @@ public sealed class UpdateVideoRequestValidator : AbstractValidator<UpdateVideoR
             .MaximumLength(35).WithErrKey(ErrorCodes.VideoLanguageInvalid)
             .Matches(VideoValidationPatterns.LanguageTag())
             .WithErrKey(ErrorCodes.VideoLanguageInvalid);
+        RuleFor(x => x.CategoryIds)
+            .Cascade(CascadeMode.Stop)
+            .NotNull().WithErrKey(ErrorCodes.VideoCategoryIdsInvalid)
+            .Must(ids => ids.Count <= VideoConstraints.MaxCategoryCount)
+            .WithErrKey(ErrorCodes.VideoCategoryCountLimit)
+            .Must(ids => ids.All(id => id != Guid.Empty))
+            .WithErrKey(ErrorCodes.VideoCategoryIdsInvalid)
+            .Must(ids => ids.Count == ids.Distinct().Count())
+            .WithErrKey(ErrorCodes.VideoCategoryDuplicate);
     }
 }
 
@@ -79,6 +97,9 @@ public sealed class EditorVideoListRequestValidator
         RuleFor(x => x.Page).GreaterThanOrEqualTo(1).WithErrKey(ErrorCodes.PageInvalid);
         RuleFor(x => x.PageSize).InclusiveBetween(1, 100).WithErrKey(ErrorCodes.PageSizeInvalid);
         RuleFor(x => x.Keyword).MaximumLength(200).WithErrKey(ErrorCodes.KeywordLengthLimit);
+        RuleFor(x => x.CategoryId)
+            .Must(value => value is null || value != Guid.Empty)
+            .WithErrKey(ErrorCodes.VideoCategoryIdsInvalid);
     }
 }
 
@@ -95,6 +116,9 @@ public sealed class VideoCatalogRequestValidator : AbstractValidator<VideoCatalo
         RuleFor(x => x.Page).GreaterThanOrEqualTo(1).WithErrKey(ErrorCodes.PageInvalid);
         RuleFor(x => x.PageSize).InclusiveBetween(1, 100).WithErrKey(ErrorCodes.PageSizeInvalid);
         RuleFor(x => x.Keyword).MaximumLength(200).WithErrKey(ErrorCodes.KeywordLengthLimit);
+        RuleFor(x => x.CategoryId)
+            .Must(value => value is null || value != Guid.Empty)
+            .WithErrKey(ErrorCodes.VideoCategoryIdsInvalid);
     }
 }
 
@@ -152,4 +176,114 @@ internal static partial class VideoValidationPatterns
     /// </summary>
     [GeneratedRegex("^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$", RegexOptions.CultureInvariant)]
     public static partial Regex LanguageTag();
+}
+
+/// <summary>
+/// 校验视频分类创建请求的名称、slug 和描述边界。
+/// </summary>
+public sealed class CreateVideoCategoryRequestValidator
+    : AbstractValidator<CreateVideoCategoryRequest>
+{
+    /// <summary>
+    /// 初始化视频分类创建请求校验规则。
+    /// </summary>
+    public CreateVideoCategoryRequestValidator()
+    {
+        AddCategoryRules();
+    }
+
+    /// <summary>
+    /// 添加分类名称、slug 和描述规则。
+    /// </summary>
+    private void AddCategoryRules()
+    {
+        RuleFor(x => x.Name)
+            .Cascade(CascadeMode.Stop)
+            .NotEmpty().WithErrKey(ErrorCodes.VideoCategoryNameRequired)
+            .MaximumLength(100).WithErrKey(ErrorCodes.VideoCategoryNameLengthLimit);
+        RuleFor(x => x.Slug)
+            .Cascade(CascadeMode.Stop)
+            .NotEmpty().WithErrKey(ErrorCodes.VideoCategorySlugRequired)
+            .MaximumLength(120).WithErrKey(ErrorCodes.VideoCategorySlugLengthLimit)
+            .Matches("^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
+            .WithErrKey(ErrorCodes.VideoCategorySlugFormatInvalid);
+        RuleFor(x => x.Description)
+            .MaximumLength(500)
+            .WithErrKey(ErrorCodes.VideoCategoryDescriptionLengthLimit);
+    }
+}
+
+/// <summary>
+/// 校验视频分类更新请求的名称、slug 和描述边界。
+/// </summary>
+public sealed class UpdateVideoCategoryRequestValidator
+    : AbstractValidator<UpdateVideoCategoryRequest>
+{
+    /// <summary>
+    /// 初始化视频分类更新请求校验规则。
+    /// </summary>
+    public UpdateVideoCategoryRequestValidator()
+    {
+        RuleFor(x => x.Name)
+            .Cascade(CascadeMode.Stop)
+            .NotEmpty().WithErrKey(ErrorCodes.VideoCategoryNameRequired)
+            .MaximumLength(100).WithErrKey(ErrorCodes.VideoCategoryNameLengthLimit);
+        RuleFor(x => x.Slug)
+            .Cascade(CascadeMode.Stop)
+            .NotEmpty().WithErrKey(ErrorCodes.VideoCategorySlugRequired)
+            .MaximumLength(120).WithErrKey(ErrorCodes.VideoCategorySlugLengthLimit)
+            .Matches("^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
+            .WithErrKey(ErrorCodes.VideoCategorySlugFormatInvalid);
+        RuleFor(x => x.Description)
+            .MaximumLength(500)
+            .WithErrKey(ErrorCodes.VideoCategoryDescriptionLengthLimit);
+    }
+}
+
+/// <summary>
+/// 校验视频分类用户列表分页和关键词条件。
+/// </summary>
+public sealed class VideoCategoryListRequestValidator
+    : AbstractValidator<VideoCategoryListRequest>
+{
+    /// <summary>
+    /// 初始化视频分类列表分页和关键词规则。
+    /// </summary>
+    public VideoCategoryListRequestValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1).WithErrKey(ErrorCodes.PageInvalid);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100).WithErrKey(ErrorCodes.PageSizeInvalid);
+        RuleFor(x => x.Keyword)
+            .MaximumLength(200).WithErrKey(ErrorCodes.KeywordLengthLimit)
+            .Must(value => string.IsNullOrEmpty(value) || !value.Any(char.IsControl))
+            .WithErrKey(ErrorCodes.KeywordInvalid);
+    }
+}
+
+/// <summary>
+/// 校验管理员视频分类列表的分页和关键词条件。
+/// </summary>
+public sealed class AdminVideoCategoryListRequestValidator
+    : AbstractValidator<AdminVideoCategoryListRequest>
+{
+    /// <summary>
+    /// 初始化管理员分类列表分页和关键词规则。
+    /// </summary>
+    public AdminVideoCategoryListRequestValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1).WithErrKey(ErrorCodes.PageInvalid);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100).WithErrKey(ErrorCodes.PageSizeInvalid);
+        RuleFor(x => x.Keyword)
+            .MaximumLength(200).WithErrKey(ErrorCodes.KeywordLengthLimit)
+            .Must(value => string.IsNullOrEmpty(value) || !value.Any(char.IsControl))
+            .WithErrKey(ErrorCodes.KeywordInvalid);
+    }
+}
+
+/// <summary>
+/// 提供视频请求共享的分类数量限制。
+/// </summary>
+public static class VideoConstraints
+{
+    public const int MaxCategoryCount = 10;
 }

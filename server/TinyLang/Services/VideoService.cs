@@ -76,6 +76,9 @@ public sealed class VideoService : IVideoService
         {
             throw ConflictException.Create(ErrorCodes.VideoSourceAlreadyUsed);
         }
+        var categories = await LoadUsableCategoriesAsync(
+            request.CategoryIds,
+            cancellationToken);
 
         var video = new Video
         {
@@ -92,6 +95,16 @@ public sealed class VideoService : IVideoService
             VideoId = video.Id,
             OutputVersion = Guid.NewGuid()
         });
+        foreach (var category in categories)
+        {
+            video.CategoryAssignments.Add(new VideoCategoryAssignment
+            {
+                Video = video,
+                VideoId = video.Id,
+                VideoCategory = category,
+                VideoCategoryId = category.Id
+            });
+        }
         _db.Videos.Add(video);
         try
         {
@@ -127,6 +140,11 @@ public sealed class VideoService : IVideoService
             var keyword = request.Keyword.Trim().ToUpperInvariant();
             query = query.Where(value => value.Title.ToUpper().Contains(keyword));
         }
+        if (request.CategoryId is { } categoryId)
+        {
+            query = query.Where(value => value.CategoryAssignments
+                .Any(assignment => assignment.VideoCategoryId == categoryId));
+        }
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
@@ -142,7 +160,16 @@ public sealed class VideoService : IVideoService
                 value.PublicationStatus,
                 value.DurationSeconds,
                 value.LastFailureCode,
-                value.UpdatedAt))
+                value.UpdatedAt,
+                value.CategoryAssignments
+                    .OrderBy(assignment => assignment.VideoCategory.Name)
+                    .ThenBy(assignment => assignment.VideoCategoryId)
+                    .Select(assignment => new EditorVideoCategorySummaryResponse(
+                        assignment.VideoCategory.Id,
+                        assignment.VideoCategory.Name,
+                        assignment.VideoCategory.Slug,
+                        assignment.VideoCategory.IsActive))
+                    .ToList()))
             .ToListAsync(cancellationToken);
         return CreatePage(items, request.Page, request.PageSize, totalCount);
     }
@@ -169,6 +196,13 @@ public sealed class VideoService : IVideoService
         CancellationToken cancellationToken = default)
     {
         var video = await FindOwnedVideoAsync(videoId, editorId, cancellationToken);
+        var categories = await LoadUsableCategoriesAsync(
+            request.CategoryIds,
+            cancellationToken);
+        var existingAssignments = await _db.VideoCategoryAssignments
+            .Where(value => value.VideoId == videoId)
+            .ToListAsync(cancellationToken);
+        SynchronizeCategories(videoId, existingAssignments, categories);
         video.Title = request.Title.Trim();
         video.Description = NormalizeOptional(request.Description);
         video.OriginalLanguage = NormalizeLanguageTag(request.OriginalLanguage);
@@ -369,6 +403,12 @@ public sealed class VideoService : IVideoService
             var keyword = request.Keyword.Trim().ToUpperInvariant();
             query = query.Where(value => value.Title.ToUpper().Contains(keyword));
         }
+        if (request.CategoryId is { } categoryId)
+        {
+            query = query.Where(value => value.CategoryAssignments.Any(assignment =>
+                assignment.VideoCategoryId == categoryId &&
+                assignment.VideoCategory.IsActive));
+        }
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
             .OrderByDescending(value => value.PublishedAt)
@@ -381,7 +421,16 @@ public sealed class VideoService : IVideoService
                 value.Description,
                 value.OriginalLanguage,
                 value.DurationSeconds!.Value,
-                value.PublishedAt!.Value))
+                value.PublishedAt!.Value,
+                value.CategoryAssignments
+                    .Where(assignment => assignment.VideoCategory.IsActive)
+                    .OrderBy(assignment => assignment.VideoCategory.Name)
+                    .ThenBy(assignment => assignment.VideoCategoryId)
+                    .Select(assignment => new VideoCategorySummaryResponse(
+                        assignment.VideoCategory.Id,
+                        assignment.VideoCategory.Name,
+                        assignment.VideoCategory.Slug))
+                    .ToList()))
             .ToListAsync(cancellationToken);
         return CreatePage(items, request.Page, request.PageSize, totalCount);
     }
@@ -401,7 +450,16 @@ public sealed class VideoService : IVideoService
                 value.DurationSeconds!.Value,
                 value.DisplayWidth!.Value,
                 value.DisplayHeight!.Value,
-                value.PublishedAt!.Value))
+                value.PublishedAt!.Value,
+                value.CategoryAssignments
+                    .Where(assignment => assignment.VideoCategory.IsActive)
+                    .OrderBy(assignment => assignment.VideoCategory.Name)
+                    .ThenBy(assignment => assignment.VideoCategoryId)
+                    .Select(assignment => new VideoCategorySummaryResponse(
+                        assignment.VideoCategory.Id,
+                        assignment.VideoCategory.Name,
+                        assignment.VideoCategory.Slug))
+                    .ToList()))
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.VideoNotFound);
     }
@@ -489,7 +547,9 @@ public sealed class VideoService : IVideoService
     private IQueryable<Video> EditorDetailsQuery()
         => _db.Videos.AsNoTracking()
             .Include(value => value.Renditions)
-            .Include(value => value.Subtitles);
+            .Include(value => value.Subtitles)
+            .Include(value => value.CategoryAssignments)
+                .ThenInclude(value => value.VideoCategory);
 
     /// <summary>
     /// 创建只包含可播放视频且媒体属性完整的登录用户查询。
@@ -609,6 +669,15 @@ public sealed class VideoService : IVideoService
             video.Subtitles.OrderBy(value => value.SortOrder)
                 .Select(ToSubtitleResponse)
                 .ToArray(),
+            video.CategoryAssignments
+                .OrderBy(value => value.VideoCategory.Name)
+                .ThenBy(value => value.VideoCategoryId)
+                .Select(value => new EditorVideoCategorySummaryResponse(
+                    value.VideoCategory.Id,
+                    value.VideoCategory.Name,
+                    value.VideoCategory.Slug,
+                    value.VideoCategory.IsActive))
+                .ToArray(),
             video.CreatedAt,
             video.UpdatedAt);
 
@@ -644,6 +713,66 @@ public sealed class VideoService : IVideoService
     /// </summary>
     private static string? NormalizeOptional(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>
+    /// 一次加载并验证视频请求中的所有启用分类。
+    /// </summary>
+    private async Task<List<VideoCategory>> LoadUsableCategoriesAsync(
+        IReadOnlyCollection<Guid> categoryIds,
+        CancellationToken cancellationToken)
+    {
+        if (categoryIds is null ||
+            categoryIds.Count > VideoConstraints.MaxCategoryCount ||
+            categoryIds.Any(value => value == Guid.Empty))
+        {
+            throw new RequestValidationException(ErrorCodes.VideoCategoryIdsInvalid);
+        }
+        if (categoryIds.Count != categoryIds.Distinct().Count())
+        {
+            throw new RequestValidationException(ErrorCodes.VideoCategoryDuplicate);
+        }
+        if (categoryIds.Count == 0)
+        {
+            return [];
+        }
+
+        var categories = await _db.VideoCategories
+            .Where(value => categoryIds.Contains(value.Id))
+            .ToListAsync(cancellationToken);
+        if (categories.Count != categoryIds.Count)
+        {
+            throw NotFoundException.Create(ErrorCodes.VideoCategoryNotFound);
+        }
+        if (categories.Any(value => !value.IsActive))
+        {
+            throw ConflictException.Create(ErrorCodes.VideoCategoryInactive);
+        }
+        return categories;
+    }
+
+    /// <summary>
+    /// 按请求目标集合增删视频分类关联，不改变视频其他状态。
+    /// </summary>
+    private void SynchronizeCategories(
+        Guid videoId,
+        IReadOnlyCollection<VideoCategoryAssignment> existingAssignments,
+        IReadOnlyCollection<VideoCategory> targetCategories)
+    {
+        var targetIds = targetCategories.Select(value => value.Id).ToHashSet();
+        var existingIds = existingAssignments
+            .Select(value => value.VideoCategoryId)
+            .ToHashSet();
+        _db.VideoCategoryAssignments.RemoveRange(existingAssignments
+            .Where(value => !targetIds.Contains(value.VideoCategoryId)));
+        foreach (var category in targetCategories.Where(value => !existingIds.Contains(value.Id)))
+        {
+            _db.VideoCategoryAssignments.Add(new VideoCategoryAssignment
+            {
+                VideoId = videoId,
+                VideoCategoryId = category.Id
+            });
+        }
+    }
 
     /// <summary>
     /// 以小写形式持久化已由 validator 验证的语言标签。

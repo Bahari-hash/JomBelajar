@@ -75,6 +75,7 @@ try
         .MapSecurityApi()
         .MapUploadsApi()
         .MapArticlesApi()
+        .MapVideoCategoriesApi()
         .MapVideosApi()
         .MapBonusScenesApi()
         .AddEndpointFilter<ValidationEndpointFilter>();

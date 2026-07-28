@@ -53,12 +53,32 @@ public sealed class VideoEndpointTests
             .Should().Be(RateLimitPolicies.VideoProgressLimit);
     }
 
+    [Fact]
+    public async Task VideoCategoryRoutesShouldUseUserAndAdminPolicies()
+    {
+        await using var app = CreateApp();
+        var routes = GetRoutes(app);
+
+        GetRoute(routes, "/api/video-categories", "GET")
+            .Metadata.GetOrderedMetadata<IAuthorizeData>()
+            .Should().Contain(value => value.Policy == AuthorizationPolicies.RequireUser);
+        foreach (var route in routes.Where(value =>
+            value.RoutePattern.RawText!.StartsWith("/api/admin/video-categories", StringComparison.Ordinal)))
+        {
+            route.Metadata.GetOrderedMetadata<IAuthorizeData>()
+                .Should().Contain(value => value.Policy == AuthorizationPolicies.RequireAdmin);
+        }
+    }
+
     private static WebApplication CreateApp()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(Mock.Of<IVideoService>());
+        builder.Services.AddSingleton(Mock.Of<IVideoCategoryService>());
         var app = builder.Build();
-        app.MapGroup("/api").MapVideosApi();
+        app.MapGroup("/api")
+            .MapVideoCategoriesApi()
+            .MapVideosApi();
         return app;
     }
 

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using System.Text;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -48,6 +49,139 @@ public sealed class VideoServiceTests
         response.ProcessingStatus.Should().Be(VideoProcessingStatus.Queued);
         (await db.VideoProcessingJobs.SingleAsync(
             TestContext.Current.CancellationToken)).OutputVersion.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task CreateShouldAssociateAllEnabledVideoCategories()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var source = CreateResource(ownerId, ResourceModule.CourseVideo, ResourceStatus.Active);
+        var first = new VideoCategory { Name = "Grammar", Slug = "grammar" };
+        var second = new VideoCategory { Name = "Listening", Slug = "listening" };
+        db.AddRange(source, first, second);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var response = await service.CreateAsync(ownerId, new CreateVideoRequest
+        {
+            SourceMediaResourceId = source.Id,
+            Title = "Lesson",
+            OriginalLanguage = "en",
+            CategoryIds = [second.Id, first.Id]
+        }, TestContext.Current.CancellationToken);
+
+        response.Categories.Select(value => value.Id)
+            .Should().BeEquivalentTo([first.Id, second.Id]);
+        (await db.VideoCategoryAssignments.CountAsync(
+            TestContext.Current.CancellationToken)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task UpdateShouldSynchronizeVideoCategoryTargetSet()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var first = new VideoCategory { Name = "Grammar", Slug = "grammar" };
+        var second = new VideoCategory { Name = "Listening", Slug = "listening" };
+        var video = CreateVideo(ownerId);
+        video.CategoryAssignments.Add(new VideoCategoryAssignment
+        {
+            Video = video,
+            VideoCategory = first,
+            VideoId = video.Id,
+            VideoCategoryId = first.Id
+        });
+        db.AddRange(first, second, video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        await service.UpdateAsync(video.Id, ownerId, new UpdateVideoRequest
+        {
+            Title = "Updated",
+            OriginalLanguage = "en",
+            CategoryIds = [second.Id]
+        }, TestContext.Current.CancellationToken);
+
+        var assignment = await db.VideoCategoryAssignments.SingleAsync(
+            TestContext.Current.CancellationToken);
+        assignment.VideoCategoryId.Should().Be(second.Id);
+    }
+
+    [Fact]
+    public async Task CreateShouldRejectInactiveVideoCategoryWithoutSavingVideo()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var source = CreateResource(ownerId, ResourceModule.CourseVideo, ResourceStatus.Active);
+        var category = new VideoCategory
+        {
+            Name = "Legacy",
+            Slug = "legacy",
+            IsActive = false
+        };
+        db.AddRange(source, category);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var action = () => service.CreateAsync(ownerId, new CreateVideoRequest
+        {
+            SourceMediaResourceId = source.Id,
+            Title = "Lesson",
+            OriginalLanguage = "en",
+            CategoryIds = [category.Id]
+        }, TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<ConflictException>();
+        (await db.Videos.CountAsync(TestContext.Current.CancellationToken)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task CatalogShouldHideInactiveCategoriesAndFilterOnlyActiveCategories()
+    {
+        await using var db = CreateDbContext();
+        var active = new VideoCategory { Name = "Grammar", Slug = "grammar" };
+        var inactive = new VideoCategory
+        {
+            Name = "Legacy",
+            Slug = "legacy",
+            IsActive = false
+        };
+        var video = CreateVideo(Guid.NewGuid());
+        video.ProcessingStatus = VideoProcessingStatus.Ready;
+        video.PublicationStatus = VideoPublicationStatus.Published;
+        video.DurationSeconds = 120;
+        video.DisplayWidth = 1920;
+        video.DisplayHeight = 1080;
+        video.PublishedAt = Now;
+        video.CategoryAssignments.Add(new VideoCategoryAssignment
+        {
+            Video = video,
+            VideoCategory = active,
+            VideoId = video.Id,
+            VideoCategoryId = active.Id
+        });
+        video.CategoryAssignments.Add(new VideoCategoryAssignment
+        {
+            Video = video,
+            VideoCategory = inactive,
+            VideoId = video.Id,
+            VideoCategoryId = inactive.Id
+        });
+        db.AddRange(active, inactive, video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var catalog = await service.GetCatalogAsync(
+            new VideoCatalogRequest(),
+            TestContext.Current.CancellationToken);
+        var inactiveFilter = await service.GetCatalogAsync(
+            new VideoCatalogRequest { CategoryId = inactive.Id },
+            TestContext.Current.CancellationToken);
+
+        catalog.Items.Should().ContainSingle().Which.Categories.Should().ContainSingle()
+            .Which.Id.Should().Be(active.Id);
+        inactiveFilter.Items.Should().BeEmpty();
     }
 
     [Fact]

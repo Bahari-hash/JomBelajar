@@ -11,6 +11,7 @@ public sealed record CreateVideoRequest
     public required string Title { get; init; }
     public string? Description { get; init; }
     public required string OriginalLanguage { get; init; }
+    public IReadOnlyCollection<Guid> CategoryIds { get; init; } = [];
 }
 
 /// <summary>
@@ -21,6 +22,7 @@ public sealed record UpdateVideoRequest
     public required string Title { get; init; }
     public string? Description { get; init; }
     public required string OriginalLanguage { get; init; }
+    public IReadOnlyCollection<Guid> CategoryIds { get; init; } = [];
 }
 
 /// <summary>
@@ -33,6 +35,7 @@ public sealed record EditorVideoListRequest
     public string? Keyword { get; init; }
     public VideoProcessingStatus? ProcessingStatus { get; init; }
     public VideoPublicationStatus? PublicationStatus { get; init; }
+    public Guid? CategoryId { get; init; }
 }
 
 /// <summary>
@@ -43,6 +46,46 @@ public sealed record VideoCatalogRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
+    public Guid? CategoryId { get; init; }
+}
+
+/// <summary>
+/// 描述登录用户可见视频分类列表的分页和关键词条件。
+/// </summary>
+public record VideoCategoryListRequest
+{
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+    public string? Keyword { get; init; }
+}
+
+/// <summary>
+/// 描述管理员视频分类列表及是否包含停用分类的条件。
+/// </summary>
+public sealed record AdminVideoCategoryListRequest : VideoCategoryListRequest
+{
+    public bool IncludeInactive { get; init; }
+}
+
+/// <summary>
+/// 描述管理员创建视频分类的请求。
+/// </summary>
+public sealed record CreateVideoCategoryRequest
+{
+    public required string Name { get; init; }
+    public required string Slug { get; init; }
+    public string? Description { get; init; }
+}
+
+/// <summary>
+/// 描述管理员更新视频分类内容和启用状态的请求。
+/// </summary>
+public sealed record UpdateVideoCategoryRequest
+{
+    public required string Name { get; init; }
+    public required string Slug { get; init; }
+    public string? Description { get; init; }
+    public bool IsActive { get; init; }
 }
 
 /// <summary>
@@ -76,7 +119,36 @@ public sealed record EditorVideoListItemResponse(
     VideoPublicationStatus PublicationStatus,
     double? DurationSeconds,
     string? FailureCode,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<EditorVideoCategorySummaryResponse> Categories);
+
+/// <summary>
+/// 返回普通用户可见的视频分类摘要。
+/// </summary>
+public sealed record VideoCategorySummaryResponse(
+    Guid Id,
+    string Name,
+    string Slug);
+
+/// <summary>
+/// 返回编辑者管理视频关联的分类摘要及启用状态。
+/// </summary>
+public sealed record EditorVideoCategorySummaryResponse(
+    Guid Id,
+    string Name,
+    string Slug,
+    bool IsActive);
+
+/// <summary>
+/// 返回视频分类的管理字段和关联视频数量。
+/// </summary>
+public sealed record VideoCategoryResponse(
+    Guid Id,
+    string Name,
+    string Slug,
+    string? Description,
+    bool IsActive,
+    int VideoCount);
 
 /// <summary>
 /// 返回一个实际生成的视频清晰度。
@@ -121,6 +193,7 @@ public sealed record EditorVideoResponse(
     DateTimeOffset? PublishedAt,
     IReadOnlyList<VideoRenditionResponse> Renditions,
     IReadOnlyList<EditorVideoSubtitleResponse> Subtitles,
+    IReadOnlyList<EditorVideoCategorySummaryResponse> Categories,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -133,7 +206,8 @@ public sealed record VideoCatalogItemResponse(
     string? Description,
     string OriginalLanguage,
     double DurationSeconds,
-    DateTimeOffset PublishedAt);
+    DateTimeOffset PublishedAt,
+    IReadOnlyList<VideoCategorySummaryResponse> Categories);
 
 /// <summary>
 /// 返回登录用户可见的已发布视频详情。
@@ -146,7 +220,8 @@ public sealed record VideoDetailsResponse(
     double DurationSeconds,
     int DisplayWidth,
     int DisplayHeight,
-    DateTimeOffset PublishedAt);
+    DateTimeOffset PublishedAt,
+    IReadOnlyList<VideoCategorySummaryResponse> Categories);
 
 /// <summary>
 /// 返回播放器使用的一条带临时授权字幕地址。

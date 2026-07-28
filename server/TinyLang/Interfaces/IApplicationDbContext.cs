@@ -20,6 +20,8 @@ public interface IApplicationDbContext
     DbSet<VideoProcessingJob> VideoProcessingJobs { get; }
     DbSet<VideoRendition> VideoRenditions { get; }
     DbSet<VideoSubtitle> VideoSubtitles { get; }
+    DbSet<VideoCategory> VideoCategories { get; }
+    DbSet<VideoCategoryAssignment> VideoCategoryAssignments { get; }
     DbSet<UserVideoProgress> UserVideoProgress { get; }
     /// <summary>
     /// 将当前上下文中跟踪的变更持久化到底层数据库。

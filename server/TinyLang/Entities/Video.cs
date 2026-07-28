@@ -41,5 +41,6 @@ public sealed class Video : BaseAuditableEntity
     public ICollection<VideoProcessingJob> ProcessingJobs { get; set; } = [];
     public ICollection<VideoRendition> Renditions { get; set; } = [];
     public ICollection<VideoSubtitle> Subtitles { get; set; } = [];
+    public ICollection<VideoCategoryAssignment> CategoryAssignments { get; set; } = [];
     public ICollection<UserVideoProgress> UserProgress { get; set; } = [];
 }

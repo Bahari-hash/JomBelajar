@@ -28,6 +28,78 @@ public sealed class VideoValidatorsTests
         ]);
     }
 
+    [Fact]
+    public async Task CreateVideoShouldRejectDuplicateAndTooManyCategories()
+    {
+        var categoryId = Guid.NewGuid();
+        var validator = new CreateVideoRequestValidator();
+
+        var duplicate = await validator.ValidateAsync(
+            new CreateVideoRequest
+            {
+                SourceMediaResourceId = Guid.NewGuid(),
+                Title = "Video",
+                OriginalLanguage = "en",
+                CategoryIds = [categoryId, categoryId]
+            },
+            TestContext.Current.CancellationToken);
+        var tooMany = await validator.ValidateAsync(
+            new CreateVideoRequest
+            {
+                SourceMediaResourceId = Guid.NewGuid(),
+                Title = "Video",
+                OriginalLanguage = "en",
+                CategoryIds = Enumerable.Range(0, 11)
+                    .Select(_ => Guid.NewGuid())
+                    .ToArray()
+            },
+            TestContext.Current.CancellationToken);
+
+        duplicate.Errors.Should().Contain(error =>
+            error.PropertyName == nameof(CreateVideoRequest.CategoryIds));
+        tooMany.Errors.Should().Contain(error =>
+            error.PropertyName == nameof(CreateVideoRequest.CategoryIds));
+    }
+
+    [Theory]
+    [InlineData("double--dash")]
+    [InlineData("-leading")]
+    [InlineData("trailing-")]
+    public async Task VideoCategoryShouldRejectInvalidSlug(string slug)
+    {
+        var validator = new CreateVideoCategoryRequestValidator();
+
+        var result = await validator.ValidateAsync(
+            new CreateVideoCategoryRequest { Name = "Category", Slug = slug },
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task VideoCategoryListShouldRejectEmptyCategoryFilter()
+    {
+        var validator = new EditorVideoListRequestValidator();
+
+        var result = await validator.ValidateAsync(
+            new EditorVideoListRequest { CategoryId = Guid.Empty },
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task AdminVideoCategoryListShouldRejectInvalidPageSize()
+    {
+        var validator = new AdminVideoCategoryListRequestValidator();
+
+        var result = await validator.ValidateAsync(
+            new AdminVideoCategoryListRequest { PageSize = 101 },
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeFalse();
+    }
+
     [Theory]
     [InlineData("en")]
     [InlineData("zh-Hans")]

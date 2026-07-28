@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddHostedService<MediaUploadMaintenanceWorker>();
         services.AddScoped<IArticleService, ArticleService>();
         services.AddScoped<IArticleCategoryService, ArticleCategoryService>();
+        services.AddScoped<IVideoCategoryService, VideoCategoryService>();
         services.AddScoped<IVideoService, VideoService>();
         services.AddSingleton<VideoRenditionPlanner>();
         services.AddScoped<IVideoProcessingService, VideoProcessingService>();

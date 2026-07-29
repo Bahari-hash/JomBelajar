@@ -38,4 +38,6 @@ public sealed class AudioClip : BaseAuditableEntity
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 
     public ICollection<AudioProcessingJob> ProcessingJobs { get; set; } = [];
+    public ICollection<WordPronunciation> WordPronunciations { get; set; } = [];
+    public ICollection<ExampleSentence> ExampleSentences { get; set; } = [];
 }

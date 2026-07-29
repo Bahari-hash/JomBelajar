@@ -414,6 +414,107 @@ public enum ErrorCodes
     [Description("文章分类 Slug 已存在.")]
     ArticleCategorySlugConflict,
 
+    // --** Word Errors **--
+
+    [Description("词条不存在.")]
+    WordNotFound,
+
+    [Description("词头不能为空.")]
+    WordHeadwordRequired,
+
+    [Description("词头长度最大不能超过200个字符.")]
+    WordHeadwordLengthLimit,
+
+    [Description("词条语言标签不能为空或格式无效.")]
+    WordLanguageInvalid,
+
+    [Description("词性无效.")]
+    WordPartOfSpeechInvalid,
+
+    [Description("释义不能为空.")]
+    WordDefinitionRequired,
+
+    [Description("释义长度最大不能超过2000个字符.")]
+    WordDefinitionLengthLimit,
+
+    [Description("用法说明长度最大不能超过1000个字符.")]
+    WordUsageNoteLengthLimit,
+
+    [Description("例句不能为空.")]
+    WordSentenceRequired,
+
+    [Description("例句长度最大不能超过2000个字符.")]
+    WordSentenceLengthLimit,
+
+    [Description("例句翻译不能为空.")]
+    WordTranslationRequired,
+
+    [Description("例句翻译长度最大不能超过2000个字符.")]
+    WordTranslationLengthLimit,
+
+    [Description("发音口音标签长度最大不能超过100个字符.")]
+    WordAccentTagLengthLimit,
+
+    [Description("发音 IPA 长度最大不能超过200个字符.")]
+    WordIpaLengthLimit,
+
+    [Description("词条子项集合无效.")]
+    WordChildCollectionInvalid,
+
+    [Description("词条子项数量超过限制.")]
+    WordChildCountLimit,
+
+    [Description("词条子项标识无效.")]
+    WordChildIdInvalid,
+
+    [Description("词条子项标识重复或不属于当前聚合.")]
+    WordChildIdConflict,
+
+    [Description("词条子项排序值无效.")]
+    WordSortOrderInvalid,
+
+    [Description("同级词条子项排序值不能重复.")]
+    WordSortOrderConflict,
+
+    [Description("词条发音音频标识无效.")]
+    WordPronunciationAudioInvalid,
+
+    [Description("同一词条不能重复使用相同的发音音频.")]
+    WordPronunciationAudioDuplicate,
+
+    [Description("词条最多只能包含一个默认发音，发布时必须恰好包含一个.")]
+    WordDefaultPronunciationConflict,
+
+    [Description("词条发布状态无效.")]
+    WordStatusInvalid,
+
+    [Description("相同语言的词条已存在.")]
+    WordDuplicate,
+
+    [Description("词条关联的音频不存在.")]
+    WordAudioNotFound,
+
+    [Description("词条关联的音频当前不可用.")]
+    WordAudioUnavailable,
+
+    [Description("词条关联的音频用途不匹配.")]
+    WordAudioKindMismatch,
+
+    [Description("词条关联的音频语言不兼容.")]
+    WordAudioLanguageMismatch,
+
+    [Description("词条内容不满足发布要求.")]
+    WordPublishRequirementsNotMet,
+
+    [Description("词条当前状态不允许执行该操作.")]
+    WordStatusConflict,
+
+    [Description("词条已被其他编辑者修改，请刷新后重试.")]
+    WordConcurrencyConflict,
+
+    [Description("已发布词条必须先下架才能删除.")]
+    WordPublishedDeleteConflict,
+
     // --** Pagination Errors **--
 
     [Description("页码必须大于或等于1.")]

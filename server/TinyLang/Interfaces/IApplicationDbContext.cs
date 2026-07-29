@@ -25,6 +25,17 @@ public interface IApplicationDbContext
     DbSet<UserVideoProgress> UserVideoProgress { get; }
     DbSet<AudioClip> AudioClips { get; }
     DbSet<AudioProcessingJob> AudioProcessingJobs { get; }
+    DbSet<Word> Words { get; }
+    DbSet<WordSense> WordSenses { get; }
+    DbSet<ExampleSentence> ExampleSentences { get; }
+    DbSet<WordPronunciation> WordPronunciations { get; }
+    /// <summary>
+    /// 开始一个用于多次保存同一业务变更的数据库事务。
+    /// </summary>
+    /// <param name="cancellationToken">用于取消事务创建的令牌。</param>
+    /// <returns>可提交和异步释放的事务契约。</returns>
+    Task<IApplicationDbTransaction> BeginTransactionAsync(
+        CancellationToken cancellationToken = default);
     /// <summary>
     /// 将当前上下文中跟踪的变更持久化到底层数据库。
     /// </summary>

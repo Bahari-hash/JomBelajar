@@ -79,6 +79,7 @@ try
         .MapVideoCategoriesApi()
         .MapVideosApi()
         .MapAudioApi()
+        .MapWordsApi()
         .MapBonusScenesApi()
         .AddEndpointFilter<ValidationEndpointFilter>();
 

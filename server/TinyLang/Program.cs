@@ -81,6 +81,7 @@ try
         .MapAudioApi()
         .MapWordsApi()
         .MapWordStudyApi()
+        .MapOnlineQuizApi()
         .MapBonusScenesApi()
         .AddEndpointFilter<ValidationEndpointFilter>();
 

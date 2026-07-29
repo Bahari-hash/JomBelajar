@@ -37,4 +37,7 @@ public sealed class User : BaseAuditableEntity
     public ICollection<WordStudySession> WordStudySessions { get; set; } = [];
     public ICollection<Word> CreatedWords { get; set; } = [];
     public ICollection<Word> EditedWords { get; set; } = [];
+    public ICollection<Paper> CreatedPapers { get; set; } = [];
+    public ICollection<Paper> EditedPapers { get; set; } = [];
+    public ICollection<PaperAttempt> PaperAttempts { get; set; } = [];
 }

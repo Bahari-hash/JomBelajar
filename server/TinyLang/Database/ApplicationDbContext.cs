@@ -36,6 +36,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.UserWordProgress> UserWordProgress => Set<Entities.UserWordProgress>();
     public DbSet<Entities.WordStudySession> WordStudySessions => Set<Entities.WordStudySession>();
     public DbSet<Entities.WordStudySessionItem> WordStudySessionItems => Set<Entities.WordStudySessionItem>();
+    public DbSet<Entities.Paper> Papers => Set<Entities.Paper>();
+    public DbSet<Entities.PaperQuestion> PaperQuestions => Set<Entities.PaperQuestion>();
+    public DbSet<Entities.PaperQuestionOption> PaperQuestionOptions => Set<Entities.PaperQuestionOption>();
+    public DbSet<Entities.FillBlankAcceptedAnswer> FillBlankAcceptedAnswers => Set<Entities.FillBlankAcceptedAnswer>();
+    public DbSet<Entities.PaperAttempt> PaperAttempts => Set<Entities.PaperAttempt>();
+    public DbSet<Entities.PaperAttemptAnswer> PaperAttemptAnswers => Set<Entities.PaperAttemptAnswer>();
 
     /// <inheritdoc />
     public async Task<IApplicationDbTransaction> BeginTransactionAsync(

@@ -32,6 +32,12 @@ public interface IApplicationDbContext
     DbSet<UserWordProgress> UserWordProgress { get; }
     DbSet<WordStudySession> WordStudySessions { get; }
     DbSet<WordStudySessionItem> WordStudySessionItems { get; }
+    DbSet<Paper> Papers { get; }
+    DbSet<PaperQuestion> PaperQuestions { get; }
+    DbSet<PaperQuestionOption> PaperQuestionOptions { get; }
+    DbSet<FillBlankAcceptedAnswer> FillBlankAcceptedAnswers { get; }
+    DbSet<PaperAttempt> PaperAttempts { get; }
+    DbSet<PaperAttemptAnswer> PaperAttemptAnswers { get; }
     /// <summary>
     /// 开始一个用于多次保存同一业务变更的数据库事务。
     /// </summary>

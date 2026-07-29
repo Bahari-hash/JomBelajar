@@ -1,0 +1,469 @@
+using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
+using TinyLang.Database;
+using TinyLang.Dtos;
+using TinyLang.Entities;
+using TinyLang.Entities.Enums;
+using TinyLang.Infrastructure;
+using TinyLang.Services;
+
+namespace TinyLang.IntegrationTests;
+
+/// <summary>
+/// 使用真实 PostgreSQL 验证在线试卷 migration、约束、查询和并发行为。
+/// </summary>
+public sealed class OnlineQuizDatabaseIntegrationTests
+{
+    /// <summary>
+    /// 在隔离 schema 中验证完整测验流程和 PostgreSQL 专属约束。
+    /// </summary>
+    [Fact]
+    public async Task OnlineQuizSchemaShouldEnforceConstraintsAndTranslateQueries()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            "TINYLANG_POSTGRES_TEST_CONNECTION_STRING");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            Assert.Skip(
+                "Set TINYLANG_POSTGRES_TEST_CONNECTION_STRING to run PostgreSQL online quiz tests.");
+        }
+
+        var schema = $"tiny_lang_quiz_{Guid.NewGuid():N}";
+        await using var adminConnection = new NpgsqlConnection(connectionString);
+        await adminConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await ExecuteSchemaCommandAsync(
+            adminConnection,
+            $"CREATE SCHEMA \"{schema}\"",
+            TestContext.Current.CancellationToken);
+
+        try
+        {
+            var schemaConnection = new NpgsqlConnectionStringBuilder(connectionString)
+            {
+                SearchPath = schema
+            }.ConnectionString;
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseNpgsql(schemaConnection)
+                .AddInterceptors(new AuditableEntityInterceptor())
+                .Options;
+            await using (var migrationDb = new ApplicationDbContext(options))
+            {
+                await migrationDb.Database.MigrateAsync(
+                    TestContext.Current.CancellationToken);
+            }
+
+            Guid paperId;
+            Guid userId;
+            Guid activeAttemptId;
+            Guid trueFalseQuestionId;
+            await using (var db = new ApplicationDbContext(options))
+            {
+                var editor = await CreateUserAsync(db, UserRole.Editor);
+                var user = await CreateUserAsync(db, UserRole.User);
+                userId = user.Id;
+                var paperService = CreatePaperService(db);
+                var draft = await paperService.CreateDraftAsync(
+                    editor.Id,
+                    CreateCompleteRequest(),
+                    TestContext.Current.CancellationToken);
+                var reordered = await paperService.UpdateAsync(
+                    draft.Id,
+                    editor.Id,
+                    CreateReorderedUpdate(draft),
+                    TestContext.Current.CancellationToken);
+                var published = await paperService.PublishAsync(
+                    reordered.Id,
+                    editor.Id,
+                    TestContext.Current.CancellationToken);
+                paperId = published.Id;
+                trueFalseQuestionId = published.Questions.Single(value =>
+                    value.Type == PaperQuestionType.TrueFalse).Id;
+
+                var attemptService = CreateAttemptService(db);
+                var first = await attemptService.StartAsync(
+                    user.Id,
+                    paperId,
+                    TestContext.Current.CancellationToken);
+                await attemptService.SaveAnswerAsync(
+                    user.Id,
+                    first.Attempt.Id,
+                    trueFalseQuestionId,
+                    new SavePaperAttemptAnswerRequest { BooleanAnswer = true },
+                    TestContext.Current.CancellationToken);
+                var result = await attemptService.SubmitAsync(
+                    user.Id,
+                    first.Attempt.Id,
+                    TestContext.Current.CancellationToken);
+                result.Score.Should().Be(2);
+                result.Questions.Should().HaveCount(3);
+
+                var second = await attemptService.StartAsync(
+                    user.Id,
+                    paperId,
+                    TestContext.Current.CancellationToken);
+                activeAttemptId = second.Attempt.Id;
+                second.Attempt.AttemptNumber.Should().Be(2);
+                (await attemptService.GetHistoryAsync(
+                    user.Id,
+                    paperId,
+                    new PaperAttemptListRequest(),
+                    TestContext.Current.CancellationToken)).Items.Should().HaveCount(2);
+            }
+
+            await VerifyActiveAttemptUniqueAsync(
+                options,
+                paperId,
+                userId);
+            await VerifyAnswerUniqueAndShapeAsync(
+                options,
+                activeAttemptId,
+                trueFalseQuestionId);
+            await VerifyQuestionCheckConstraintAsync(options, paperId);
+            await VerifyConcurrentSubmitAsync(options, userId, activeAttemptId);
+            await VerifyAttemptConcurrencyAsync(options, activeAttemptId);
+            await VerifyPaperDeleteRestrictedAsync(options, paperId);
+        }
+        finally
+        {
+            await ExecuteSchemaCommandAsync(
+                adminConnection,
+                $"DROP SCHEMA IF EXISTS \"{schema}\" CASCADE",
+                TestContext.Current.CancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// 验证同一用户和试卷不能持久化第二个 InProgress Attempt。
+    /// </summary>
+    private static async Task VerifyActiveAttemptUniqueAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        Guid paperId,
+        Guid userId)
+    {
+        await using var db = new ApplicationDbContext(options);
+        var paper = await db.Papers.AsNoTracking().SingleAsync(
+            value => value.Id == paperId,
+            TestContext.Current.CancellationToken);
+        db.PaperAttempts.Add(new PaperAttempt
+        {
+            PaperId = paperId,
+            UserId = userId,
+            AttemptNumber = 3,
+            PaperTotalScore = paper.TotalScore,
+            PaperPassingScore = paper.PassingScore,
+            StartedAt = DateTimeOffset.UtcNow
+        });
+
+        var action = async () => await db.SaveChangesAsync(
+            TestContext.Current.CancellationToken);
+        var exception = await action.Should().ThrowAsync<DbUpdateException>();
+        GetConstraintName(exception.Which).Should()
+            .Be("IX_paper_attempts_UserId_PaperId");
+    }
+
+    /// <summary>
+    /// 验证同一 Attempt/Question 答案唯一并执行答案形状 check。
+    /// </summary>
+    private static async Task VerifyAnswerUniqueAndShapeAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        Guid attemptId,
+        Guid questionId)
+    {
+        await using (var db = new ApplicationDbContext(options))
+        {
+            db.PaperAttemptAnswers.AddRange(
+                new PaperAttemptAnswer
+                {
+                    AttemptId = attemptId,
+                    QuestionId = questionId,
+                    BooleanAnswer = true,
+                    IsAnswered = true
+                },
+                new PaperAttemptAnswer
+                {
+                    AttemptId = attemptId,
+                    QuestionId = questionId,
+                    BooleanAnswer = false,
+                    IsAnswered = true
+                });
+            var action = async () => await db.SaveChangesAsync(
+                TestContext.Current.CancellationToken);
+            var exception = await action.Should().ThrowAsync<DbUpdateException>();
+            GetConstraintName(exception.Which).Should()
+                .Be("IX_paper_attempt_answers_AttemptId_QuestionId");
+        }
+
+        await using (var db = new ApplicationDbContext(options))
+        {
+            db.PaperAttemptAnswers.Add(new PaperAttemptAnswer
+            {
+                AttemptId = attemptId,
+                QuestionId = questionId,
+                IsAnswered = true
+            });
+            var action = async () => await db.SaveChangesAsync(
+                TestContext.Current.CancellationToken);
+            var exception = await action.Should().ThrowAsync<DbUpdateException>();
+            GetConstraintName(exception.Which).Should()
+                .Be("CK_paper_attempt_answers_shape");
+        }
+    }
+
+    /// <summary>
+    /// 验证题目分值边界由数据库 check constraint 最终保护。
+    /// </summary>
+    private static async Task VerifyQuestionCheckConstraintAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        Guid paperId)
+    {
+        await using var db = new ApplicationDbContext(options);
+        db.PaperQuestions.Add(new PaperQuestion
+        {
+            PaperId = paperId,
+            Type = PaperQuestionType.TrueFalse,
+            Prompt = "Invalid points",
+            CorrectBoolean = true,
+            Points = 0,
+            SortOrder = 100
+        });
+
+        var action = async () => await db.SaveChangesAsync(
+            TestContext.Current.CancellationToken);
+        var exception = await action.Should().ThrowAsync<DbUpdateException>();
+        GetConstraintName(exception.Which).Should()
+            .Be("CK_paper_questions_points");
+    }
+
+    /// <summary>
+    /// 验证两个 context 并发 Submit 只产生一组答案并返回同一持久化结果。
+    /// </summary>
+    private static async Task VerifyConcurrentSubmitAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        Guid userId,
+        Guid attemptId)
+    {
+        await using var firstDb = new ApplicationDbContext(options);
+        await using var secondDb = new ApplicationDbContext(options);
+        var firstService = CreateAttemptService(firstDb);
+        var secondService = CreateAttemptService(secondDb);
+
+        var results = await Task.WhenAll(
+            firstService.SubmitAsync(
+                userId,
+                attemptId,
+                TestContext.Current.CancellationToken),
+            secondService.SubmitAsync(
+                userId,
+                attemptId,
+                TestContext.Current.CancellationToken));
+
+        results[1].Score.Should().Be(results[0].Score);
+        results[1].SubmittedAt.Should().Be(results[0].SubmittedAt);
+        await using var verificationDb = new ApplicationDbContext(options);
+        (await verificationDb.PaperAttemptAnswers.CountAsync(
+            value => value.AttemptId == attemptId,
+            TestContext.Current.CancellationToken)).Should().Be(3);
+    }
+
+    /// <summary>
+    /// 验证两个 context 不能用相同原始 stamp 静默覆盖 Attempt。
+    /// </summary>
+    private static async Task VerifyAttemptConcurrencyAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        Guid attemptId)
+    {
+        await using var firstDb = new ApplicationDbContext(options);
+        await using var secondDb = new ApplicationDbContext(options);
+        var first = await firstDb.PaperAttempts.SingleAsync(
+            value => value.Id == attemptId,
+            TestContext.Current.CancellationToken);
+        var second = await secondDb.PaperAttempts.SingleAsync(
+            value => value.Id == attemptId,
+            TestContext.Current.CancellationToken);
+        first.ConcurrencyStamp = Guid.NewGuid();
+        second.ConcurrencyStamp = Guid.NewGuid();
+        await firstDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var action = async () => await secondDb.SaveChangesAsync(
+            TestContext.Current.CancellationToken);
+        await action.Should().ThrowAsync<DbUpdateConcurrencyException>();
+    }
+
+    /// <summary>
+    /// 验证存在 Attempt 时数据库 Restrict 阻止 Paper 被删除。
+    /// </summary>
+    private static async Task VerifyPaperDeleteRestrictedAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        Guid paperId)
+    {
+        await using var db = new ApplicationDbContext(options);
+        var paper = await db.Papers.SingleAsync(
+            value => value.Id == paperId,
+            TestContext.Current.CancellationToken);
+        db.Papers.Remove(paper);
+
+        var action = async () => await db.SaveChangesAsync(
+            TestContext.Current.CancellationToken);
+        await action.Should().ThrowAsync<DbUpdateException>();
+    }
+
+    /// <summary>
+    /// 创建并保存指定角色的测试用户。
+    /// </summary>
+    private static async Task<User> CreateUserAsync(
+        ApplicationDbContext db,
+        UserRole role)
+    {
+        var user = new User
+        {
+            Username = $"quiz-{Guid.NewGuid():N}",
+            Email = $"quiz-{Guid.NewGuid():N}@example.test",
+            PasswordHash = "not-used",
+            Role = role
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return user;
+    }
+
+    /// <summary>
+    /// 创建真实数据库测试使用的试卷服务。
+    /// </summary>
+    private static PaperService CreatePaperService(ApplicationDbContext db)
+        => new(
+            db,
+            new PostgresDatabaseExceptionClassifier(),
+            TimeProvider.System,
+            NullLogger<PaperService>.Instance);
+
+    /// <summary>
+    /// 创建真实数据库测试使用的测验服务。
+    /// </summary>
+    private static PaperAttemptService CreateAttemptService(ApplicationDbContext db)
+        => new(
+            db,
+            new PostgresDatabaseExceptionClassifier(),
+            TimeProvider.System,
+            NullLogger<PaperAttemptService>.Instance);
+
+    /// <summary>
+    /// 创建包含三类题目的数据库集成测试请求。
+    /// </summary>
+    private static CreatePaperRequest CreateCompleteRequest()
+        => new()
+        {
+            Title = "Integration Quiz",
+            LanguageTag = "en",
+            PassingScore = 2,
+            Questions =
+            [
+                new PaperQuestionInput
+                {
+                    Type = PaperQuestionType.SingleChoice,
+                    Prompt = "Choose A",
+                    Points = 1,
+                    SortOrder = 0,
+                    Options =
+                    [
+                        new PaperQuestionOptionInput
+                        {
+                            Text = "A",
+                            IsCorrect = true,
+                            SortOrder = 0
+                        },
+                        new PaperQuestionOptionInput { Text = "B", SortOrder = 1 }
+                    ]
+                },
+                new PaperQuestionInput
+                {
+                    Type = PaperQuestionType.TrueFalse,
+                    Prompt = "True",
+                    Points = 2,
+                    SortOrder = 1,
+                    CorrectBoolean = true
+                },
+                new PaperQuestionInput
+                {
+                    Type = PaperQuestionType.FillBlank,
+                    Prompt = "Fill",
+                    Points = 3,
+                    SortOrder = 2,
+                    AcceptedAnswers =
+                    [
+                        new FillBlankAcceptedAnswerInput
+                        {
+                            Text = "answer",
+                            SortOrder = 0
+                        }
+                    ]
+                }
+            ]
+        };
+
+    /// <summary>
+    /// 创建会交换现有题目和选项顺序的完整更新请求。
+    /// </summary>
+    private static UpdatePaperRequest CreateReorderedUpdate(
+        EditorPaperResponse draft)
+        => new()
+        {
+            Title = draft.Title,
+            Description = draft.Description,
+            Instructions = draft.Instructions,
+            LanguageTag = draft.LanguageTag,
+            PassingScore = draft.PassingScore,
+            ConcurrencyStamp = draft.ConcurrencyStamp,
+            Questions = draft.Questions.Reverse()
+                .Select((question, questionSortOrder) => new PaperQuestionInput
+                {
+                    Id = question.Id,
+                    Type = question.Type,
+                    Prompt = question.Prompt,
+                    Explanation = question.Explanation,
+                    Points = question.Points,
+                    SortOrder = questionSortOrder,
+                    CorrectBoolean = question.CorrectBoolean,
+                    FillBlankCaseSensitive = question.FillBlankCaseSensitive,
+                    Options = question.Options.Reverse()
+                        .Select((option, optionSortOrder) =>
+                            new PaperQuestionOptionInput
+                            {
+                                Id = option.Id,
+                                Text = option.Text,
+                                IsCorrect = option.IsCorrect,
+                                SortOrder = optionSortOrder
+                            })
+                        .ToArray(),
+                    AcceptedAnswers = question.AcceptedAnswers.Reverse()
+                        .Select((answer, answerSortOrder) =>
+                            new FillBlankAcceptedAnswerInput
+                            {
+                                Id = answer.Id,
+                                Text = answer.Text,
+                                SortOrder = answerSortOrder
+                            })
+                        .ToArray()
+                })
+                .ToArray()
+        };
+
+    /// <summary>
+    /// 从 PostgreSQL update exception 中读取违反的约束名称。
+    /// </summary>
+    private static string? GetConstraintName(DbUpdateException exception)
+        => (exception.InnerException as PostgresException)?.ConstraintName;
+
+    /// <summary>
+    /// 在测试数据库执行仅包含服务端生成 schema 名称的 DDL。
+    /// </summary>
+    private static async Task ExecuteSchemaCommandAsync(
+        NpgsqlConnection connection,
+        string commandText,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(commandText, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+}

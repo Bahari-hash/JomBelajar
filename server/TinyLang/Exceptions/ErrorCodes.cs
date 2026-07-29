@@ -550,6 +550,122 @@ public enum ErrorCodes
     [Description("词条已有用户学习历史，不能删除.")]
     WordHasStudyHistory,
 
+    // --** Online Quiz Errors **--
+
+    [Description("试卷不存在.")]
+    PaperNotFound,
+
+    [Description("试卷标题不能为空.")]
+    PaperTitleRequired,
+
+    [Description("试卷标题长度最大不能超过200个字符.")]
+    PaperTitleLengthLimit,
+
+    [Description("试卷描述长度最大不能超过2000个字符.")]
+    PaperDescriptionLengthLimit,
+
+    [Description("试卷说明长度最大不能超过5000个字符.")]
+    PaperInstructionsLengthLimit,
+
+    [Description("试卷语言标签不能为空或格式无效.")]
+    PaperLanguageInvalid,
+
+    [Description("试卷发布状态无效.")]
+    PaperStatusInvalid,
+
+    [Description("试卷题目集合无效.")]
+    PaperQuestionCollectionInvalid,
+
+    [Description("试卷题目或答案子项数量超过限制.")]
+    PaperChildCountLimit,
+
+    [Description("试卷题目或答案子项标识无效.")]
+    PaperChildIdInvalid,
+
+    [Description("试卷题目或答案子项标识重复或不属于当前聚合.")]
+    PaperChildIdConflict,
+
+    [Description("试卷题型无效.")]
+    PaperQuestionTypeInvalid,
+
+    [Description("试卷题型与标准答案结构不匹配.")]
+    PaperQuestionShapeInvalid,
+
+    [Description("试卷题干不能为空.")]
+    PaperQuestionPromptRequired,
+
+    [Description("试卷题干长度最大不能超过5000个字符.")]
+    PaperQuestionPromptLengthLimit,
+
+    [Description("试卷答案解析长度最大不能超过5000个字符.")]
+    PaperExplanationLengthLimit,
+
+    [Description("试卷题目分值必须介于1到100之间.")]
+    PaperPointsInvalid,
+
+    [Description("试卷及格分必须介于0和总分之间.")]
+    PaperPassingScoreInvalid,
+
+    [Description("试卷子项排序值无效.")]
+    PaperSortOrderInvalid,
+
+    [Description("同级试卷子项排序值不能重复.")]
+    PaperSortOrderConflict,
+
+    [Description("单选题选项不能为空.")]
+    PaperOptionTextRequired,
+
+    [Description("单选题选项长度最大不能超过2000个字符.")]
+    PaperOptionTextLengthLimit,
+
+    [Description("填空题可接受答案不能为空.")]
+    PaperAcceptedAnswerRequired,
+
+    [Description("填空题答案长度最大不能超过1000个字符.")]
+    PaperAnswerTextLengthLimit,
+
+    [Description("填空题可接受答案规范化后不能重复.")]
+    PaperAcceptedAnswerDuplicate,
+
+    [Description("试卷内容不满足发布要求.")]
+    PaperPublishRequirementsNotMet,
+
+    [Description("试卷当前状态不允许执行该操作.")]
+    PaperStatusConflict,
+
+    [Description("试卷已有用户测验记录，内容已永久锁定.")]
+    PaperContentLocked,
+
+    [Description("已发布试卷必须先下架才能删除.")]
+    PaperPublishedDeleteConflict,
+
+    [Description("试卷已被其他请求修改，请刷新后重试.")]
+    PaperConcurrencyConflict,
+
+    [Description("测验记录不存在.")]
+    PaperAttemptNotFound,
+
+    [Description("测验当前状态不允许继续保存答案.")]
+    PaperAttemptNotInProgress,
+
+    [Description("测验尚未提交，不能查看结果.")]
+    PaperAttemptNotSubmitted,
+
+    [Description("题目不属于当前测验试卷.")]
+    PaperAttemptQuestionNotFound,
+
+    [Description("提交的题目答案结构与题型不匹配.")]
+    PaperAttemptAnswerShapeInvalid,
+
+    [Description("所选选项不属于当前题目.")]
+    PaperAttemptSelectedOptionInvalid,
+
+    [Description("当前已有进行中的试卷测验.")]
+    PaperAttemptActiveConflict,
+
+    [Description("测验已被其他请求修改，请刷新后重试.")]
+    PaperAttemptConcurrencyConflict,
+
     // --** Pagination Errors **--
 
     [Description("页码必须大于或等于1.")]

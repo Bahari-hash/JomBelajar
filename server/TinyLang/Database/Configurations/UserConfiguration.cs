@@ -44,5 +44,9 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .IsUnique();
         builder.HasIndex(x => x.Username)
             .IsUnique();
+
+        builder.HasIndex(x => new { x.IsDeleted, x.CreatedAt, x.Id });
+        builder.HasIndex(x => new { x.IsDeleted, x.Role, x.CreatedAt, x.Id });
+        builder.HasIndex(x => new { x.IsDeleted, x.IsBanned, x.CreatedAt, x.Id });
     }
 }

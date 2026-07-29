@@ -113,6 +113,9 @@ public enum ErrorCodes
     [Description("管理员不能封禁自己.")]
     CannotBanSelf,
 
+    [Description("管理员不能修改自己的角色.")]
+    CannotChangeOwnRole,
+
     // --** Media Resource Errors **--
 
     [Description("媒体文件名不能为空.")]

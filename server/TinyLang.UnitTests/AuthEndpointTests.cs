@@ -1,9 +1,11 @@
+using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -38,6 +40,35 @@ public sealed class AuthEndpointTests
             tokenId,
             expiresAt,
             refreshToken,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AdminRevokeRouteShouldRemainAdminOnlyAndAllowSelfRevoke()
+    {
+        var userId = Guid.NewGuid();
+        var authService = new Mock<IAuthService>();
+        await using var app = await CreateAppAsync(
+            authService.Object,
+            userId,
+            Guid.NewGuid().ToString("N"),
+            DateTimeOffset.UtcNow.AddMinutes(10));
+        var route = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(endpoint => endpoint.RoutePattern.RawText ==
+                "/api/auth/admin/users/{userId:guid}/revoke");
+
+        var response = await app.GetTestClient().PostAsync(
+            $"/api/auth/admin/users/{userId}/revoke",
+            null,
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        route.Metadata.GetOrderedMetadata<IAuthorizeData>()
+            .Should().Contain(data => data.Policy == AuthorizationPolicies.RequireAdmin);
+        authService.Verify(value => value.RevokeUserAsync(
+            userId,
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

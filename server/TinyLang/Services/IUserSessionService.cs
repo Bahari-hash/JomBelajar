@@ -8,10 +8,11 @@ namespace TinyLang.Services;
 public interface IUserSessionService
 {
     /// <summary>
-    /// 递增用户 token version，并撤销其所有有效 refresh token。
+    /// 在同一事务中保存用户的已跟踪变更、递增 token version，
+    /// 并撤销其所有尚未撤销的 refresh token。
     /// </summary>
     /// <param name="user">需要失效全部会话的已跟踪用户。</param>
     /// <param name="cancellationToken">用于取消数据库查询的令牌。</param>
-    /// <returns>表示异步会话失效操作的任务；调用方负责保存上下文变更。</returns>
+    /// <returns>表示异步会话失效和持久化操作的任务。</returns>
     Task InvalidateAllAsync(User user, CancellationToken cancellationToken = default);
 }

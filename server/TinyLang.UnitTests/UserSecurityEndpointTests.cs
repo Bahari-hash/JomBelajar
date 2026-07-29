@@ -19,7 +19,11 @@ public sealed class UserSecurityEndpointTests
         await using var app = CreateApp();
         var routes = GetRouteEndpoints(app);
 
+        AssertPolicy(routes, "/api/users/me", AuthorizationPolicies.RequireUser);
         AssertPolicy(routes, "/api/users/me/profile", AuthorizationPolicies.RequireUser);
+        AssertPolicy(routes, "/api/users/{id:guid}/profile", AuthorizationPolicies.RequireUser);
+        AssertPolicy(routes, "/api/admin/users", AuthorizationPolicies.RequireAdmin);
+        AssertPolicy(routes, "/api/admin/users/{id:guid}", AuthorizationPolicies.RequireAdmin);
         AssertPolicy(routes, "/api/admin/users/{id:guid}/ban", AuthorizationPolicies.RequireAdmin);
         AssertPolicy(routes, "/api/admin/users/{id:guid}/unban", AuthorizationPolicies.RequireAdmin);
         AssertPolicy(routes, "/api/admin/users/{id:guid}/role", AuthorizationPolicies.RequireAdmin);

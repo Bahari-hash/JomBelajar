@@ -33,6 +33,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.WordSense> WordSenses => Set<Entities.WordSense>();
     public DbSet<Entities.ExampleSentence> ExampleSentences => Set<Entities.ExampleSentence>();
     public DbSet<Entities.WordPronunciation> WordPronunciations => Set<Entities.WordPronunciation>();
+    public DbSet<Entities.UserWordProgress> UserWordProgress => Set<Entities.UserWordProgress>();
+    public DbSet<Entities.WordStudySession> WordStudySessions => Set<Entities.WordStudySession>();
+    public DbSet<Entities.WordStudySessionItem> WordStudySessionItems => Set<Entities.WordStudySessionItem>();
 
     /// <inheritdoc />
     public async Task<IApplicationDbTransaction> BeginTransactionAsync(
@@ -53,6 +56,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
     }
+
+    /// <inheritdoc />
+    public void ClearTrackedChanges() => ChangeTracker.Clear();
 
     /// <summary>
     /// 将 EF Core relational transaction 适配为应用事务契约。

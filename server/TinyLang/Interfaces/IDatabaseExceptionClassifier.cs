@@ -14,4 +14,14 @@ public interface IDatabaseExceptionClassifier
     /// <param name="constraintNames">允许匹配的数据库约束名称。</param>
     /// <returns>异常对应任一指定唯一约束时返回 <see langword="true"/>。</returns>
     bool IsUniqueConstraintViolation(DbUpdateException exception, params string[] constraintNames);
+
+    /// <summary>
+    /// 判断更新异常是否由指定数据库外键约束之一触发。
+    /// </summary>
+    /// <param name="exception">EF Core 更新异常。</param>
+    /// <param name="constraintNames">允许匹配的数据库约束名称。</param>
+    /// <returns>异常对应任一指定外键约束时返回 <see langword="true"/>。</returns>
+    bool IsForeignKeyConstraintViolation(
+        DbUpdateException exception,
+        params string[] constraintNames);
 }

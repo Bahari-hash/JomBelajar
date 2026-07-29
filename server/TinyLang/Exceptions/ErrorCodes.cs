@@ -515,6 +515,41 @@ public enum ErrorCodes
     [Description("已发布词条必须先下架才能删除.")]
     WordPublishedDeleteConflict,
 
+    // --** Word Study Errors **--
+
+    [Description("本轮背诵单词数量必须介于1到100之间.")]
+    WordStudyWordCountInvalid,
+
+    [Description("背诵会话抽词模式无效.")]
+    WordStudySelectionModeInvalid,
+
+    [Description("背诵结果无效.")]
+    WordStudyResultInvalid,
+
+    [Description("背诵会话不存在.")]
+    WordStudySessionNotFound,
+
+    [Description("当前已有进行中的背诵会话.")]
+    WordStudyActiveSessionExists,
+
+    [Description("当前没有符合条件的可背诵词条.")]
+    WordStudyNoEligibleWords,
+
+    [Description("背诵会话当前状态不允许执行该操作.")]
+    WordStudySessionNotActive,
+
+    [Description("背诵会话项不存在.")]
+    WordStudyItemNotFound,
+
+    [Description("该会话项已经提交了不同的背诵结果.")]
+    WordStudyItemResultConflict,
+
+    [Description("背诵会话已被其他请求修改，请刷新后重试.")]
+    WordStudyConcurrencyConflict,
+
+    [Description("词条已有用户学习历史，不能删除.")]
+    WordHasStudyHistory,
+
     // --** Pagination Errors **--
 
     [Description("页码必须大于或等于1.")]

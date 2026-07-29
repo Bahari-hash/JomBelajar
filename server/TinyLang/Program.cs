@@ -80,6 +80,7 @@ try
         .MapVideosApi()
         .MapAudioApi()
         .MapWordsApi()
+        .MapWordStudyApi()
         .MapBonusScenesApi()
         .AddEndpointFilter<ValidationEndpointFilter>();
 

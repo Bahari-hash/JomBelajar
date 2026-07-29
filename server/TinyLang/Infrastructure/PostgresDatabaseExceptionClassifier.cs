@@ -25,4 +25,21 @@ public sealed class PostgresDatabaseExceptionClassifier : IDatabaseExceptionClas
 
         return constraintNames.Contains(constraintName, StringComparer.OrdinalIgnoreCase);
     }
+
+    /// <inheritdoc />
+    public bool IsForeignKeyConstraintViolation(
+        DbUpdateException exception,
+        params string[] constraintNames)
+    {
+        if (exception.InnerException is not PostgresException
+            {
+                SqlState: PostgresErrorCodes.ForeignKeyViolation,
+                ConstraintName: { } constraintName
+            })
+        {
+            return false;
+        }
+
+        return constraintNames.Contains(constraintName, StringComparer.OrdinalIgnoreCase);
+    }
 }

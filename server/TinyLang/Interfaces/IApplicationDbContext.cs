@@ -29,6 +29,9 @@ public interface IApplicationDbContext
     DbSet<WordSense> WordSenses { get; }
     DbSet<ExampleSentence> ExampleSentences { get; }
     DbSet<WordPronunciation> WordPronunciations { get; }
+    DbSet<UserWordProgress> UserWordProgress { get; }
+    DbSet<WordStudySession> WordStudySessions { get; }
+    DbSet<WordStudySessionItem> WordStudySessionItems { get; }
     /// <summary>
     /// 开始一个用于多次保存同一业务变更的数据库事务。
     /// </summary>
@@ -42,4 +45,8 @@ public interface IApplicationDbContext
     /// <param name="cancellationToken">用于取消数据库操作的令牌。</param>
     /// <returns>写入数据库的状态项数量。</returns>
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// 清除失败事务遗留的 tracked 状态，以便重新读取数据库最终结果。
+    /// </summary>
+    void ClearTrackedChanges();
 }

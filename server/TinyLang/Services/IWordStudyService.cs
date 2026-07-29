@@ -1,0 +1,58 @@
+using TinyLang.Dtos;
+
+namespace TinyLang.Services;
+
+/// <summary>
+/// 定义登录用户创建、恢复和完成基础单词背诵会话的业务用例。
+/// </summary>
+public interface IWordStudyService
+{
+    /// <summary>
+    /// 按指定数量、历史范围和选词模式创建固定内容的活动会话。
+    /// </summary>
+    Task<WordStudySessionResponse> CreateSessionAsync(
+        Guid userId,
+        CreateWordStudySessionRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取当前用户唯一的活动会话；不存在时返回 null。
+    /// </summary>
+    Task<WordStudySessionResponse?> GetActiveSessionAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取当前用户拥有的指定会话摘要。
+    /// </summary>
+    Task<WordStudySessionResponse> GetSessionAsync(
+        Guid userId,
+        Guid sessionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取 Position 最小的可用待处理项，并跳过实时不可见内容。
+    /// </summary>
+    Task<WordStudyNextItemResponse?> GetNextItemAsync(
+        Guid userId,
+        Guid sessionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 幂等提交会话项结果并原子累计当前用户的词条进度。
+    /// </summary>
+    Task<WordStudySessionResponse> SubmitResultAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        SubmitWordStudyResultRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 幂等放弃当前用户仍处于活动状态的指定会话。
+    /// </summary>
+    Task<WordStudySessionResponse> AbandonSessionAsync(
+        Guid userId,
+        Guid sessionId,
+        CancellationToken cancellationToken = default);
+}

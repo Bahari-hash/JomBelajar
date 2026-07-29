@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<IVideoService, VideoService>();
         services.AddScoped<IAudioClipService, AudioClipService>();
         services.AddScoped<IWordService, WordService>();
+        services.AddScoped<IWordStudyService, WordStudyService>();
         services.AddSingleton<VideoRenditionPlanner>();
         services.AddScoped<IVideoProcessingService, VideoProcessingService>();
         services.AddScoped<IVideoProcessingDispatcher, VideoProcessingDispatcher>();

@@ -6,6 +6,7 @@ using TinyLang.Entities;
 using TinyLang.Entities.Enums;
 using TinyLang.Exceptions;
 using TinyLang.Interfaces;
+using TinyLang.Policies;
 
 namespace TinyLang.Services;
 
@@ -25,6 +26,11 @@ public sealed class WordService : IWordService
         "IX_word_senses_WordId_SortOrder",
         "IX_example_sentences_WordSenseId_SortOrder",
         "IX_word_pronunciations_WordId_SortOrder"
+    ];
+    private static readonly string[] StudyHistoryForeignKeys =
+    [
+        "FK_user_word_progress_words_WordId",
+        "FK_word_study_session_items_words_WordId"
     ];
 
     private readonly IApplicationDbContext _db;
@@ -206,6 +212,15 @@ public sealed class WordService : IWordService
         {
             throw ConflictException.Create(ErrorCodes.WordPublishedDeleteConflict);
         }
+        if (await _db.UserWordProgress.AsNoTracking().AnyAsync(
+                value => value.WordId == wordId,
+                cancellationToken) ||
+            await _db.WordStudySessionItems.AsNoTracking().AnyAsync(
+                value => value.WordId == wordId,
+                cancellationToken))
+        {
+            throw ConflictException.Create(ErrorCodes.WordHasStudyHistory);
+        }
 
         _db.Words.Remove(word);
         await SaveWordChangesAsync(cancellationToken);
@@ -270,7 +285,7 @@ public sealed class WordService : IWordService
     public async Task<WordResponse> GetUserByIdAsync(
         Guid wordId,
         CancellationToken cancellationToken = default)
-        => await ApplyUserVisibility(_db.Words.AsNoTracking())
+        => await WordVisibilityPolicy.Apply(_db.Words.AsNoTracking())
             .Where(value => value.Id == wordId)
             .Select(ToUserResponseProjection())
             .SingleOrDefaultAsync(cancellationToken)
@@ -281,7 +296,7 @@ public sealed class WordService : IWordService
         WordListRequest request,
         CancellationToken cancellationToken = default)
     {
-        var query = ApplyUserVisibility(_db.Words.AsNoTracking());
+        var query = WordVisibilityPolicy.Apply(_db.Words.AsNoTracking());
         if (!string.IsNullOrWhiteSpace(request.Language))
         {
             var language = WordTextNormalizer.NormalizeLanguageTag(request.Language);
@@ -863,34 +878,6 @@ public sealed class WordService : IWordService
     }
 
     /// <summary>
-    /// 应用普通用户词条状态和全部关联音频实时可用性条件。
-    /// </summary>
-    private static IQueryable<Word> ApplyUserVisibility(IQueryable<Word> query)
-        => query.Where(word =>
-            word.Status == WordPublicationStatus.Published &&
-            word.PublishedAt != null &&
-            word.Senses.Any() &&
-            word.Pronunciations.Any() &&
-            word.Pronunciations.Count(value => value.IsDefault) == 1 &&
-            word.Pronunciations.All(pronunciation =>
-                pronunciation.AudioClip != null &&
-                pronunciation.AudioClip.ProcessingStatus == AudioProcessingStatus.Ready &&
-                pronunciation.AudioClip.PublicationStatus == AudioPublicationStatus.Published &&
-                pronunciation.AudioClip.Kind == AudioClipKind.WordPronunciation &&
-                (pronunciation.AudioClip.LanguageTag == word.LanguageTag ||
-                 pronunciation.AudioClip.LanguageTag.StartsWith(word.LanguageTag + "-") ||
-                 word.LanguageTag.StartsWith(pronunciation.AudioClip.LanguageTag + "-"))) &&
-            word.Senses.SelectMany(sense => sense.Examples).All(example =>
-                example.AudioClipId == null ||
-                (example.AudioClip != null &&
-                 example.AudioClip.ProcessingStatus == AudioProcessingStatus.Ready &&
-                 example.AudioClip.PublicationStatus == AudioPublicationStatus.Published &&
-                 example.AudioClip.Kind == AudioClipKind.ExampleSentence &&
-                 (example.AudioClip.LanguageTag == example.LanguageTag ||
-                  example.AudioClip.LanguageTag.StartsWith(example.LanguageTag + "-") ||
-                  example.LanguageTag.StartsWith(example.AudioClip.LanguageTag + "-")))));
-
-    /// <summary>
     /// 创建可由 EF Core 翻译的编辑者详情 projection。
     /// </summary>
     private static Expression<Func<Word, EditorWordResponse>> ToEditorResponseProjection()
@@ -1018,6 +1005,13 @@ public sealed class WordService : IWordService
                 SortOrderUniqueIndexes))
         {
             throw ConflictException.Create(ErrorCodes.WordSortOrderConflict);
+        }
+        catch (DbUpdateException exception) when (
+            _databaseExceptionClassifier.IsForeignKeyConstraintViolation(
+                exception,
+                StudyHistoryForeignKeys))
+        {
+            throw ConflictException.Create(ErrorCodes.WordHasStudyHistory);
         }
     }
 

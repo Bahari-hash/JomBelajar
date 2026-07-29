@@ -28,4 +28,6 @@ public sealed class Word : BaseAuditableEntity
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
     public ICollection<WordSense> Senses { get; set; } = [];
     public ICollection<WordPronunciation> Pronunciations { get; set; } = [];
+    public ICollection<UserWordProgress> UserProgress { get; set; } = [];
+    public ICollection<WordStudySessionItem> StudySessionItems { get; set; } = [];
 }

@@ -10,9 +10,10 @@ public sealed class TooManyRequestsException : BaseAppException
     /// <summary>
     /// 使用指定客户端消息创建限流异常。
     /// </summary>
+    /// <param name="errorCode">业务错误码。</param>
     /// <param name="message">面向客户端的限流消息。</param>
-    private TooManyRequestsException(string message)
-        : base(StatusCodes.Status429TooManyRequests, "Too Many Requests", message)
+    private TooManyRequestsException(ErrorCodes errorCode, string message)
+        : base(errorCode, StatusCodes.Status429TooManyRequests, "Too Many Requests", message)
     {
     }
 
@@ -24,6 +25,6 @@ public sealed class TooManyRequestsException : BaseAppException
     /// <returns>配置完成的限流异常。</returns>
     public static TooManyRequestsException Create(ErrorCodes errorCode, string? message = null)
     {
-        return new TooManyRequestsException(message ?? errorCode.GetMessage());
+        return new TooManyRequestsException(errorCode, message ?? errorCode.GetMessage());
     }
 }

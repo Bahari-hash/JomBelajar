@@ -10,9 +10,10 @@ public sealed class UnexpectedException : BaseAppException
     /// <summary>
     /// 使用指定客户端消息创建系统异常。
     /// </summary>
+    /// <param name="errorCode">业务错误码。</param>
     /// <param name="message">面向客户端的系统错误消息。</param>
-    private UnexpectedException(string message)
-        : base(StatusCodes.Status500InternalServerError, "Internal Server Error", message)
+    private UnexpectedException(ErrorCodes errorCode, string message)
+        : base(errorCode, StatusCodes.Status500InternalServerError, "Internal Server Error", message)
     {
     }
 
@@ -24,6 +25,6 @@ public sealed class UnexpectedException : BaseAppException
     /// <returns>配置完成的系统异常。</returns>
     public static UnexpectedException Create(ErrorCodes errorCode, string? message = null)
     {
-        return new UnexpectedException(message ?? errorCode.GetMessage());
+        return new UnexpectedException(errorCode, message ?? errorCode.GetMessage());
     }
 }

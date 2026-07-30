@@ -9,6 +9,7 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = options.status ?? "FETCH_ERROR";
     this.detail = options.detail ?? message;
+    this.errorCode = options.errorCode ?? null;
     this.fieldErrors = options.fieldErrors ?? {};
     this.kind = options.kind ?? "request";
   }
@@ -38,10 +39,18 @@ function createResponseError(response) {
     problem && typeof problem.detail === "string"
       ? problem.detail
       : DEFAULT_ERROR_MESSAGE;
+  const errorCode =
+    problem &&
+    typeof problem.errorCode === "string" &&
+    problem.errorCode.length > 0 &&
+    problem.errorCode.trim() === problem.errorCode
+      ? problem.errorCode
+      : null;
 
   return new ApiError(detail, {
     status: response.status,
     detail,
+    errorCode,
     fieldErrors: normalizeFieldErrors(problem?.errors),
     kind: "http",
   });
@@ -74,6 +83,7 @@ export function toRtkQueryError(error) {
   return {
     status: apiError.status,
     detail: apiError.detail,
+    errorCode: apiError.errorCode,
     fieldErrors: apiError.fieldErrors,
     kind: apiError.kind,
   };

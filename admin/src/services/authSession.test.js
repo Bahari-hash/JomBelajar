@@ -39,7 +39,7 @@ describe("authSession", () => {
       user: {
         id: "33333333-3333-3333-3333-333333333333",
         email: "editor@example.test",
-        role: 1,
+        role: "Editor",
       },
     });
     const requestMock = mockHttpClient(vi.fn());

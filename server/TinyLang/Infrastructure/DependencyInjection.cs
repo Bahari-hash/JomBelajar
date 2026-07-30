@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using Amazon;
 using Amazon.Runtime;
 using Amazon.S3;
@@ -24,6 +25,19 @@ namespace TinyLang.Infrastructure;
 /// </summary>
 public static class DependencyInjection
 {
+    /// <summary>
+    /// Configures the Minimal API JSON contract to use exact enum member names and reject numeric values.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <returns>The same service collection after configuring HTTP JSON.</returns>
+    public static IServiceCollection AddApiJsonSerialization(this IServiceCollection services)
+    {
+        services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.Converters.Add(
+                new JsonStringEnumConverter(allowIntegerValues: false)));
+        return services;
+    }
+
     /// <summary>
     /// 注册 JWT bearer authentication、令牌签发服务和令牌撤销检查。
     /// </summary>

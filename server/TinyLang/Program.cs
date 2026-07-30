@@ -30,6 +30,7 @@ try
 
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+    builder.Services.AddApiJsonSerialization();
 
     builder.Services.AddAppSettings(builder.Configuration, builder.Environment);
 

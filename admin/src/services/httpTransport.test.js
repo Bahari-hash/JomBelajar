@@ -65,6 +65,7 @@ describe("httpTransport", () => {
       axiosHttpError(
         {
           detail: "请求验证失败。",
+          errorCode: "RequestValidationFailed",
           errors: { Email: ["邮箱格式无效。"] },
         },
         400,
@@ -74,6 +75,7 @@ describe("httpTransport", () => {
     await expect(requestApi({ path: "/auth/login" })).rejects.toMatchObject({
       status: 400,
       detail: "请求验证失败。",
+      errorCode: "RequestValidationFailed",
       fieldErrors: { email: ["邮箱格式无效。"] },
       kind: "http",
     });

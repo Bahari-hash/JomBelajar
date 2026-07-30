@@ -1,15 +1,11 @@
-/** Central mapping for the numeric UserRole values returned by the API. */
+/** Stable UserRole strings exposed by the HTTP JSON contract. */
 export const USER_ROLES = Object.freeze({
   USER: "User",
   EDITOR: "Editor",
   ADMIN: "Admin",
 });
 
-const ROLE_BY_VALUE = Object.freeze({
-  0: USER_ROLES.USER,
-  1: USER_ROLES.EDITOR,
-  2: USER_ROLES.ADMIN,
-});
+const VALID_USER_ROLES = new Set(Object.values(USER_ROLES));
 
 export const ROLE_OPTIONS = Object.freeze([
   { value: USER_ROLES.USER, label: "普通用户" },
@@ -17,19 +13,20 @@ export const ROLE_OPTIONS = Object.freeze([
   { value: USER_ROLES.ADMIN, label: "管理员" },
 ]);
 
+/** Validates and returns an exact UserRole string from an API response. */
 export function parseUserRole(value) {
-  const role = ROLE_BY_VALUE[value];
-  if (!role || !Number.isInteger(value)) {
+  if (typeof value !== "string" || !VALID_USER_ROLES.has(value)) {
     throw new Error("API returned an invalid user role.");
   }
 
-  return role;
+  return value;
 }
 
 export function getRoleLabel(role) {
   return ROLE_OPTIONS.find((option) => option.value === role)?.label ?? "未知角色";
 }
 
+/** Validates the minimal authenticated-user response without retaining tokens. */
 export function normalizeAuthUser(value) {
   if (
     !value ||

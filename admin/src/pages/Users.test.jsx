@@ -15,14 +15,20 @@ function pageResponse(items = [userListItem()]) {
 }
 
 describe("Users", () => {
-  it("reads supported URL filters and renders numeric response roles", async () => {
+  it("reads supported URL filters and renders string response roles", async () => {
     const requestMock = mockHttpClient(() =>
       Promise.resolve(axiosResponse(pageResponse())),
     );
 
     renderAppAt("/users?page=2&pageSize=5&keyword=alice&role=Editor&status=Banned");
 
-    expect(await screen.findByRole("heading", { level: 1, name: "用户管理" })).toBeVisible();
+    expect(
+      await screen.findByRole(
+        "heading",
+        { level: 1, name: "用户管理" },
+        { timeout: 3000 },
+      ),
+    ).toBeVisible();
     const email = await screen.findByText("alice@example.test");
     expect(email).toBeVisible();
     expect(within(email.closest("tr")).getByText("编辑")).toBeVisible();

@@ -21,6 +21,7 @@ public sealed class GlobalExceptionHandler(
         var statusCode = StatusCodes.Status500InternalServerError;
         var title = "Internal Server Error";
         var message = "Internal sever error, please try again later.";
+        var errorCode = ErrorCodes.UnexpectedError;
 
         var problemDetails = new ProblemDetails();
         if (exception is BaseAppException appException)
@@ -28,13 +29,17 @@ public sealed class GlobalExceptionHandler(
             statusCode = appException.StatusCode;
             title = appException.Title;
             message = appException.ErrorMessages;
+            errorCode = appException.ErrorCode;
 
             if (appException is RequestValidationException validationException)
             {
                 problemDetails.Extensions["errors"] = validationException.Errors;
             }
 
-            logger.LogWarning("Business rule violation: {Message}.", appException.Message);
+            logger.LogWarning(
+                "Business rule violation {ErrorCode}: {Message}.",
+                appException.ErrorCode,
+                appException.Message);
         }
         else
         {
@@ -48,6 +53,7 @@ public sealed class GlobalExceptionHandler(
         problemDetails.Title = title;
         problemDetails.Detail = message;
         problemDetails.Instance = httpContext.Request.Path;
+        problemDetails.Extensions["errorCode"] = errorCode.ToString();
 
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {

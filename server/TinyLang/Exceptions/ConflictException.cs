@@ -10,9 +10,10 @@ public sealed class ConflictException : BaseAppException
     /// <summary>
     /// 使用指定客户端消息创建冲突异常。
     /// </summary>
+    /// <param name="errorCode">业务错误码。</param>
     /// <param name="message">面向客户端的冲突消息。</param>
-    private ConflictException(string message)
-        : base(StatusCodes.Status409Conflict, "Resource Conflict", message)
+    private ConflictException(ErrorCodes errorCode, string message)
+        : base(errorCode, StatusCodes.Status409Conflict, "Resource Conflict", message)
     {
     }
 
@@ -24,6 +25,6 @@ public sealed class ConflictException : BaseAppException
     /// <returns>配置完成的冲突异常。</returns>
     public static ConflictException Create(ErrorCodes errorCode, string? message = null)
     {
-        return new ConflictException(message ?? errorCode.GetMessage());
+        return new ConflictException(errorCode, message ?? errorCode.GetMessage());
     }
 }

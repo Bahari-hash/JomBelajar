@@ -50,6 +50,8 @@ pnpm --dir admin dlx shadcn@4.16.0 add <component>
 
 所有浏览器 HTTP 请求通过单一 Axios client 执行。用户查询和管理操作使用单一 RTK Query cache；登录、刷新和退出复用同一 HTTP/Error 边界，但不会进入 Redux action 或 cache，避免 password 和 token 暴露在 Redux DevTools。
 
+后端 JSON 枚举统一使用与 C# 成员同名的 PascalCase 字符串，例如 `Admin`、`Draft` 和 `CourseVideo`；数字枚举响应视为契约错误。Problem Details 中的稳定 `errorCode` 会由共享 Axios 错误边界保留，业务恢复应联合 HTTP status 与 `errorCode` 判断，不得匹配本地化 `detail`。
+
 ## 管理员会话
 
 - 管理后台只接受后端 login/refresh 响应中的 Admin 角色，不解析 JWT 来推导权限。

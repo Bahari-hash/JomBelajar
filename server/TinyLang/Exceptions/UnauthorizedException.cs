@@ -10,9 +10,10 @@ public sealed class UnauthorizedException : BaseAppException
     /// <summary>
     /// 使用指定客户端消息创建未授权异常。
     /// </summary>
+    /// <param name="errorCode">业务错误码。</param>
     /// <param name="message">面向客户端的认证消息。</param>
-    private UnauthorizedException(string message)
-        : base(StatusCodes.Status401Unauthorized, "User Unauthorized", message)
+    private UnauthorizedException(ErrorCodes errorCode, string message)
+        : base(errorCode, StatusCodes.Status401Unauthorized, "User Unauthorized", message)
     {
     }
 
@@ -24,6 +25,6 @@ public sealed class UnauthorizedException : BaseAppException
     /// <returns>配置完成的未授权异常。</returns>
     public static UnauthorizedException Create(ErrorCodes errorCode, string? message = null)
     {
-        return new UnauthorizedException(message ?? errorCode.GetMessage());
+        return new UnauthorizedException(errorCode, message ?? errorCode.GetMessage());
     }
 }

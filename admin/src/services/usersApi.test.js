@@ -20,7 +20,7 @@ describe("usersApi mutations", () => {
 
     await store.dispatch(usersApi.endpoints.banUser.initiate({ userId, reason: "abuse" })).unwrap();
     await store.dispatch(usersApi.endpoints.unbanUser.initiate({ userId })).unwrap();
-    requestMock.mockResolvedValueOnce(axiosResponse({ userId, role: 2 }));
+    requestMock.mockResolvedValueOnce(axiosResponse({ userId, role: "Admin" }));
     await store.dispatch(usersApi.endpoints.updateUserRole.initiate({ userId, role: "Admin" })).unwrap();
     await store.dispatch(usersApi.endpoints.revokeUserSessions.initiate({ userId })).unwrap();
 
@@ -43,7 +43,14 @@ describe("usersApi mutations", () => {
     mockHttpClient((config) => {
       if (config.url.endsWith("/ban")) {
         return Promise.reject(
-          axiosHttpError({ status: 400, detail: "封禁请求无效。" }, 400),
+          axiosHttpError(
+            {
+              status: 400,
+              detail: "封禁请求无效。",
+              errorCode: "BanUserReasonRequired",
+            },
+            400,
+          ),
         );
       }
 
@@ -72,7 +79,10 @@ describe("usersApi mutations", () => {
           }),
         )
         .unwrap(),
-    ).rejects.toMatchObject({ status: 400 });
+    ).rejects.toMatchObject({
+      status: 400,
+      errorCode: "BanUserReasonRequired",
+    });
     await new Promise((resolve) => window.setTimeout(resolve, 0));
 
     expect(listRequests).toBe(1);

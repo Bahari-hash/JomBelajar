@@ -10,6 +10,7 @@ using TinyLang.Constants;
 using TinyLang.Dtos;
 using TinyLang.Endpoints;
 using TinyLang.Entities.Enums;
+using TinyLang.Infrastructure;
 using TinyLang.Services;
 
 namespace TinyLang.UnitTests;
@@ -84,7 +85,7 @@ public sealed class UserEndpointTests
     }
 
     [Fact]
-    public async Task RoleUpdateShouldKeepNumericEnumResponseContract()
+    public async Task RoleUpdateShouldReturnStringEnumResponseContract()
     {
         var operatorId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
@@ -105,7 +106,7 @@ public sealed class UserEndpointTests
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        content.Should().Contain("\"role\":2");
+        content.Should().Contain("\"role\":\"Admin\"");
         userService.Verify(value => value.UpdateRoleAsync(
             operatorId,
             targetId,
@@ -122,6 +123,7 @@ public sealed class UserEndpointTests
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
+        builder.Services.AddApiJsonSerialization();
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy(AuthorizationPolicies.RequireUser, policy =>

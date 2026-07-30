@@ -17,7 +17,11 @@ public sealed class RequestValidationException : BaseAppException
     /// <param name="customMessage">可选的顶层客户端消息。</param>
     public RequestValidationException(
         ErrorCodes errorCode, IDictionary<string, string[]>? errors = null, string? customMessage = null)
-        : base(StatusCodes.Status400BadRequest, "Request Validation Failed", customMessage ?? errorCode.GetMessage())
+        : base(
+            errorCode,
+            StatusCodes.Status400BadRequest,
+            "Request Validation Failed",
+            customMessage ?? errorCode.GetMessage())
     {
         Errors = errors;
     }

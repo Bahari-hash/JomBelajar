@@ -25,7 +25,8 @@ const THEME_OPTIONS = [
 /** Accessible menu for selecting and persisting the three supported theme modes. */
 export function ThemeMenu() {
   const { theme, setTheme } = useTheme();
-  const ActiveIcon = THEME_OPTIONS.find((option) => option.value === theme)?.icon ?? Monitor;
+  const ActiveIcon =
+    THEME_OPTIONS.find((option) => option.value === theme)?.icon ?? Monitor;
 
   return (
     <DropdownMenu>

@@ -8,6 +8,8 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { level: 1, name: "管理员登录" })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "管理员登录" }),
+    ).toBeVisible();
   });
 });

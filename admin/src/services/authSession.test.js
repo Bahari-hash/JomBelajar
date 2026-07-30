@@ -48,7 +48,10 @@ describe("authSession", () => {
       .mockResolvedValueOnce(axiosResponse(undefined, 204));
 
     await expect(
-      authSession.login({ email: "editor@example.test", password: "secret-password" }),
+      authSession.login({
+        email: "editor@example.test",
+        password: "secret-password",
+      }),
     ).rejects.toMatchObject({ status: 403 });
 
     expect(requestMock).toHaveBeenCalledTimes(2);
@@ -85,15 +88,18 @@ describe("authSession", () => {
   it("clears the local session when remote logout times out", async () => {
     vi.useFakeTimers();
     tokenVault.install("access-token", "refresh-token");
-    mockHttpClient((config) =>
-      new Promise((_resolve, reject) => {
-        config.signal.addEventListener("abort", () => {
-          reject(new CanceledError());
-        });
-      }),
+    mockHttpClient(
+      (config) =>
+        new Promise((_resolve, reject) => {
+          config.signal.addEventListener("abort", () => {
+            reject(new CanceledError());
+          });
+        }),
     );
 
-    const logoutExpectation = expect(authSession.logout()).resolves.toBeUndefined();
+    const logoutExpectation = expect(
+      authSession.logout(),
+    ).resolves.toBeUndefined();
     await vi.advanceTimersByTimeAsync(5000);
 
     await logoutExpectation;

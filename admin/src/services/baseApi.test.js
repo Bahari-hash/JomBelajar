@@ -43,11 +43,15 @@ describe("baseApi reauthentication", () => {
 
     await vi.waitFor(() => {
       expect(
-        requestMock.mock.calls.filter(([config]) => config.url === "/auth/refresh"),
+        requestMock.mock.calls.filter(
+          ([config]) => config.url === "/auth/refresh",
+        ),
       ).toHaveLength(1);
     });
     resolveRefresh();
-    await expect(Promise.all([first.unwrap(), second.unwrap()])).resolves.toHaveLength(2);
+    await expect(
+      Promise.all([first.unwrap(), second.unwrap()]),
+    ).resolves.toHaveLength(2);
 
     expect(
       requestMock.mock.calls.filter(([config]) =>

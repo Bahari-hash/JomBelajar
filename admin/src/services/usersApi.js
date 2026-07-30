@@ -2,7 +2,11 @@ import { baseApi } from "@/services/baseApi.js";
 import { parseUserRole } from "@/services/roles.js";
 
 function normalizeUser(value) {
-  if (!value || typeof value.id !== "string" || typeof value.email !== "string") {
+  if (
+    !value ||
+    typeof value.id !== "string" ||
+    typeof value.email !== "string"
+  ) {
     throw new Error("API returned invalid user data.");
   }
 
@@ -47,14 +51,19 @@ export const usersApi = baseApi.injectEndpoints({
         result
           ? [
               { type: "AdminUser", id: "LIST" },
-              ...result.items.map((user) => ({ type: "AdminUser", id: user.id })),
+              ...result.items.map((user) => ({
+                type: "AdminUser",
+                id: user.id,
+              })),
             ]
           : [{ type: "AdminUser", id: "LIST" }],
     }),
     getAdminUser: builder.query({
       query: (userId) => ({ url: `/admin/users/${userId}` }),
       transformResponse: normalizeUser,
-      providesTags: (_result, _error, userId) => [{ type: "AdminUser", id: userId }],
+      providesTags: (_result, _error, userId) => [
+        { type: "AdminUser", id: userId },
+      ],
     }),
     banUser: builder.mutation({
       query: ({ userId, reason }) => ({

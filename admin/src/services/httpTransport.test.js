@@ -54,7 +54,9 @@ describe("httpTransport", () => {
   it("returns undefined for 204 and non-JSON success responses", async () => {
     const requestMock = vi.spyOn(httpClient, "request");
     requestMock.mockResolvedValueOnce(axiosResponse(undefined, 204));
-    requestMock.mockResolvedValueOnce(axiosResponse("plain text", 200, "text/plain"));
+    requestMock.mockResolvedValueOnce(
+      axiosResponse("plain text", 200, "text/plain"),
+    );
 
     await expect(requestApi({ path: "/first" })).resolves.toBeUndefined();
     await expect(requestApi({ path: "/second" })).resolves.toBeUndefined();
@@ -66,7 +68,10 @@ describe("httpTransport", () => {
         {
           detail: "请求验证失败。",
           errorCode: "RequestValidationFailed",
-          errors: { Email: ["邮箱格式无效。"] },
+          errors: {
+            Email: ["邮箱格式无效。"],
+            ContentMarkdown: ["文章正文不能为空。"],
+          },
         },
         400,
       ),
@@ -76,7 +81,10 @@ describe("httpTransport", () => {
       status: 400,
       detail: "请求验证失败。",
       errorCode: "RequestValidationFailed",
-      fieldErrors: { email: ["邮箱格式无效。"] },
+      fieldErrors: {
+        email: ["邮箱格式无效。"],
+        contentMarkdown: ["文章正文不能为空。"],
+      },
       kind: "http",
     });
   });

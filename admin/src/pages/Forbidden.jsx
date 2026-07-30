@@ -22,7 +22,10 @@ function Forbidden() {
       <div className="absolute right-4 top-4">
         <ThemeMenu />
       </div>
-      <section className="max-w-md text-center" aria-labelledby="forbidden-title">
+      <section
+        className="max-w-md text-center"
+        aria-labelledby="forbidden-title"
+      >
         <span className="mx-auto flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
           <ShieldX aria-hidden="true" className="size-5" />
         </span>

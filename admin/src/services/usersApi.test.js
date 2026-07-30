@@ -18,11 +18,23 @@ describe("usersApi mutations", () => {
     const store = createAppStore();
     const userId = "22222222-2222-2222-2222-222222222222";
 
-    await store.dispatch(usersApi.endpoints.banUser.initiate({ userId, reason: "abuse" })).unwrap();
-    await store.dispatch(usersApi.endpoints.unbanUser.initiate({ userId })).unwrap();
+    await store
+      .dispatch(
+        usersApi.endpoints.banUser.initiate({ userId, reason: "abuse" }),
+      )
+      .unwrap();
+    await store
+      .dispatch(usersApi.endpoints.unbanUser.initiate({ userId }))
+      .unwrap();
     requestMock.mockResolvedValueOnce(axiosResponse({ userId, role: "Admin" }));
-    await store.dispatch(usersApi.endpoints.updateUserRole.initiate({ userId, role: "Admin" })).unwrap();
-    await store.dispatch(usersApi.endpoints.revokeUserSessions.initiate({ userId })).unwrap();
+    await store
+      .dispatch(
+        usersApi.endpoints.updateUserRole.initiate({ userId, role: "Admin" }),
+      )
+      .unwrap();
+    await store
+      .dispatch(usersApi.endpoints.revokeUserSessions.initiate({ userId }))
+      .unwrap();
 
     const calls = requestMock.mock.calls.map(([config]) => ({
       url: config.url,
@@ -30,10 +42,22 @@ describe("usersApi mutations", () => {
       data: config.data,
     }));
     expect(calls).toEqual([
-      { url: `/admin/users/${userId}/ban`, method: "POST", data: { reason: "abuse" } },
+      {
+        url: `/admin/users/${userId}/ban`,
+        method: "POST",
+        data: { reason: "abuse" },
+      },
       { url: `/admin/users/${userId}/unban`, method: "POST", data: undefined },
-      { url: `/admin/users/${userId}/role`, method: "POST", data: { role: "Admin" } },
-      { url: `/auth/admin/users/${userId}/revoke`, method: "POST", data: undefined },
+      {
+        url: `/admin/users/${userId}/role`,
+        method: "POST",
+        data: { role: "Admin" },
+      },
+      {
+        url: `/auth/admin/users/${userId}/revoke`,
+        method: "POST",
+        data: undefined,
+      },
     ]);
   });
 
@@ -66,8 +90,16 @@ describe("usersApi mutations", () => {
       );
     });
     const store = createAppStore();
-    const filters = { page: 1, pageSize: 20, keyword: "", role: "", status: "" };
-    const subscription = store.dispatch(usersApi.endpoints.getAdminUsers.initiate(filters));
+    const filters = {
+      page: 1,
+      pageSize: 20,
+      keyword: "",
+      role: "",
+      status: "",
+    };
+    const subscription = store.dispatch(
+      usersApi.endpoints.getAdminUsers.initiate(filters),
+    );
     await subscription.unwrap();
 
     await expect(

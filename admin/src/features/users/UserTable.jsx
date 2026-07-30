@@ -37,8 +37,12 @@ export function UserTable({ users, currentUserId, onAction }) {
             <TableHead className="w-28">角色</TableHead>
             <TableHead className="w-24">状态</TableHead>
             <TableHead className="w-24 text-right">活动会话</TableHead>
-            <TableHead className="hidden w-40 lg:table-cell">最近登录</TableHead>
-            <TableHead className="hidden w-40 xl:table-cell">创建时间</TableHead>
+            <TableHead className="hidden w-40 lg:table-cell">
+              最近登录
+            </TableHead>
+            <TableHead className="hidden w-40 xl:table-cell">
+              创建时间
+            </TableHead>
             <TableHead className="w-14 pr-4 text-right">操作</TableHead>
           </TableRow>
         </TableHeader>
@@ -52,13 +56,23 @@ export function UserTable({ users, currentUserId, onAction }) {
                   <div className="min-w-0">
                     <p className="truncate font-medium" title={user.username}>
                       {user.username}
-                      {isSelf ? <span className="ml-1 text-xs text-muted-foreground">（当前）</span> : null}
+                      {isSelf ? (
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          （当前）
+                        </span>
+                      ) : null}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground" title={user.email}>
+                    <p
+                      className="truncate text-xs text-muted-foreground"
+                      title={user.email}
+                    >
                       {user.email}
                     </p>
                     {user.nickname ? (
-                      <p className="truncate text-xs text-muted-foreground" title={user.nickname}>
+                      <p
+                        className="truncate text-xs text-muted-foreground"
+                        title={user.nickname}
+                      >
                         {user.nickname}
                       </p>
                     ) : null}
@@ -70,7 +84,9 @@ export function UserTable({ users, currentUserId, onAction }) {
                 <TableCell>
                   <Badge variant={status.variant}>{status.label}</Badge>
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{user.activeSessionCount}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {user.activeSessionCount}
+                </TableCell>
                 <TableCell className="hidden text-muted-foreground lg:table-cell">
                   {formatDateTime(user.lastLoginAt)}
                 </TableCell>
@@ -80,13 +96,19 @@ export function UserTable({ users, currentUserId, onAction }) {
                 <TableCell className="pr-4 text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" aria-label={`管理用户 ${user.email}`}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`管理用户 ${user.email}`}
+                      >
                         <MoreHorizontal aria-hidden="true" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
                       <DropdownMenuLabel>用户操作</DropdownMenuLabel>
-                      <DropdownMenuItem onSelect={() => onAction("detail", user)}>
+                      <DropdownMenuItem
+                        onSelect={() => onAction("detail", user)}
+                      >
                         查看详情
                       </DropdownMenuItem>
                       {!user.isDeleted ? <DropdownMenuSeparator /> : null}
@@ -100,21 +122,28 @@ export function UserTable({ users, currentUserId, onAction }) {
                         </DropdownMenuItem>
                       ) : null}
                       {!user.isDeleted && user.isBanned ? (
-                        <DropdownMenuItem onSelect={() => onAction("unban", user)}>
+                        <DropdownMenuItem
+                          onSelect={() => onAction("unban", user)}
+                        >
                           解除封禁
                         </DropdownMenuItem>
                       ) : null}
                       {!user.isDeleted ? (
                         <DropdownMenuItem
                           disabled={isSelf}
-                          title={isSelf ? "管理员不能修改自己的角色" : undefined}
+                          title={
+                            isSelf ? "管理员不能修改自己的角色" : undefined
+                          }
                           onSelect={() => onAction("role", user)}
                         >
                           {isSelf ? "不能修改当前角色" : "修改角色"}
                         </DropdownMenuItem>
                       ) : null}
                       {!user.isDeleted ? (
-                        <DropdownMenuItem onSelect={() => onAction("revoke", user)}>
+                        <DropdownMenuItem
+                        variant="destructive"
+                          onSelect={() => onAction("revoke", user)}
+                        >
                           {isSelf ? "撤销自己的全部会话" : "撤销全部会话"}
                         </DropdownMenuItem>
                       ) : null}

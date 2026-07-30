@@ -7,11 +7,12 @@ describe("AdminLayout", () => {
   it("exposes the dashboard through the shared navigation", async () => {
     renderAppAt("/");
 
-    const desktopNavigation = await screen.findByRole("navigation", { name: "主导航" });
-    expect(within(desktopNavigation).getByRole("link", { name: "工作台" })).toHaveAttribute(
-      "href",
-      "/",
-    );
+    const desktopNavigation = await screen.findByRole("navigation", {
+      name: "主导航",
+    });
+    expect(
+      within(desktopNavigation).getByRole("link", { name: "工作台" }),
+    ).toHaveAttribute("href", "/");
   });
 
   it("opens and closes the mobile navigation while restoring trigger focus", async () => {
@@ -23,7 +24,9 @@ describe("AdminLayout", () => {
     expect(await screen.findByRole("dialog")).toBeVisible();
 
     await user.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
     expect(trigger).toHaveFocus();
   });
 
@@ -31,10 +34,14 @@ describe("AdminLayout", () => {
     const user = userEvent.setup();
     renderAppAt("/");
 
-    await user.click(await screen.findByRole("button", { name: "打开导航菜单" }));
+    await user.click(
+      await screen.findByRole("button", { name: "打开导航菜单" }),
+    );
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("link", { name: "工作台" }));
 
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
   });
 });

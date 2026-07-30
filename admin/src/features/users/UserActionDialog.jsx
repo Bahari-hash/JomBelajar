@@ -63,7 +63,13 @@ function getDialogCopy(action, user, isSelf) {
 }
 
 /** Executes one user mutation at a time while preserving confirmation context on failure. */
-export function UserActionDialog({ action, user, currentUserId, onClose, onSelfRevoked }) {
+export function UserActionDialog({
+  action,
+  user,
+  currentUserId,
+  onClose,
+  onSelfRevoked,
+}) {
   const [reason, setReason] = useState("");
   const [role, setRole] = useState(user.role);
   const [error, setError] = useState(null);
@@ -74,7 +80,10 @@ export function UserActionDialog({ action, user, currentUserId, onClose, onSelfR
   const isSelf = user.id === currentUserId;
   const copy = getDialogCopy(action, user, isSelf);
   const pending =
-    banState.isLoading || unbanState.isLoading || roleState.isLoading || revokeState.isLoading;
+    banState.isLoading ||
+    unbanState.isLoading ||
+    roleState.isLoading ||
+    revokeState.isLoading;
   const reasonError = error?.fieldErrors?.reason?.[0];
 
   const handleSubmit = async (event) => {
@@ -82,11 +91,17 @@ export function UserActionDialog({ action, user, currentUserId, onClose, onSelfR
     if (pending) return;
     const normalizedReason = reason.trim();
     if (action === "ban" && !normalizedReason) {
-      setError({ detail: "请输入封禁原因。", fieldErrors: { reason: ["请输入封禁原因。"] } });
+      setError({
+        detail: "请输入封禁原因。",
+        fieldErrors: { reason: ["请输入封禁原因。"] },
+      });
       return;
     }
     if (action === "ban" && normalizedReason.length > 500) {
-      setError({ detail: "封禁原因不能超过 500 个字符。", fieldErrors: { reason: ["封禁原因不能超过 500 个字符。"] } });
+      setError({
+        detail: "封禁原因不能超过 500 个字符。",
+        fieldErrors: { reason: ["封禁原因不能超过 500 个字符。"] },
+      });
       return;
     }
 
@@ -123,7 +138,9 @@ export function UserActionDialog({ action, user, currentUserId, onClose, onSelfR
           <div className="mt-4 space-y-4">
             {error ? (
               <Alert variant="destructive">
-                <AlertDescription>{getErrorMessage(error, "操作失败，请重试。")}</AlertDescription>
+                <AlertDescription>
+                  {getErrorMessage(error, "操作失败，请重试。")}
+                </AlertDescription>
               </Alert>
             ) : null}
 
@@ -140,14 +157,20 @@ export function UserActionDialog({ action, user, currentUserId, onClose, onSelfR
                     setError(null);
                   }}
                   aria-invalid={Boolean(reasonError)}
-                  aria-describedby={reasonError ? "ban-reason-error" : "ban-reason-help"}
+                  aria-describedby={
+                    reasonError ? "ban-reason-error" : "ban-reason-help"
+                  }
                   disabled={pending}
                 />
                 <div className="flex justify-between gap-3 text-xs text-muted-foreground">
-                  <span id={reasonError ? "ban-reason-error" : "ban-reason-help"}>
+                  <span
+                    id={reasonError ? "ban-reason-error" : "ban-reason-help"}
+                  >
                     {reasonError ?? "该原因将保存在用户管理记录中。"}
                   </span>
-                  <span className="shrink-0 tabular-nums">{reason.length}/500</span>
+                  <span className="shrink-0 tabular-nums">
+                    {reason.length}/500
+                  </span>
                 </div>
               </div>
             ) : null}
@@ -156,7 +179,10 @@ export function UserActionDialog({ action, user, currentUserId, onClose, onSelfR
               <div className="space-y-2">
                 <Label id="role-update-label">新角色</Label>
                 <Select value={role} onValueChange={setRole} disabled={pending}>
-                  <SelectTrigger className="w-full" aria-labelledby="role-update-label">
+                  <SelectTrigger
+                    className="w-full"
+                    aria-labelledby="role-update-label"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -172,7 +198,9 @@ export function UserActionDialog({ action, user, currentUserId, onClose, onSelfR
           </div>
 
           <AlertDialogFooter className="mt-4">
-            <AlertDialogCancel type="button" disabled={pending}>取消</AlertDialogCancel>
+            <AlertDialogCancel type="button" disabled={pending}>
+              取消
+            </AlertDialogCancel>
             <Button
               type="submit"
               variant={action === "role" ? "default" : "destructive"}

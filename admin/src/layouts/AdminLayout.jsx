@@ -26,6 +26,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip.jsx";
 import { NAVIGATION_ITEMS } from "@/router/navigation.js";
+import { AdminPageContext } from "@/lib/adminPageContext.js";
 
 function Brand() {
   return (
@@ -35,7 +36,9 @@ function Brand() {
       </span>
       <span className="min-w-0">
         <span className="block truncate text-sm font-semibold">TinyLang</span>
-        <span className="block truncate text-xs text-muted-foreground">管理后台</span>
+        <span className="block truncate text-xs text-muted-foreground">
+          管理后台
+        </span>
       </span>
     </div>
   );
@@ -44,10 +47,14 @@ function Brand() {
 /** Responsive administrator shell with a shared desktop and mobile navigation source. */
 function AdminLayout() {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [pageLabel, setPageLabel] = useState(null);
   const location = useLocation();
-  const currentPage =
-    NAVIGATION_ITEMS.find((item) => item.href === location.pathname)?.label ??
-    "页面未找到";
+  const navigationPage = NAVIGATION_ITEMS.find((item) =>
+    item.href === "/"
+      ? location.pathname === "/"
+      : location.pathname.startsWith(item.href),
+  )?.label;
+  const currentPage = pageLabel ?? navigationPage ?? "页面未找到";
 
   const handleMobileNavigate = () => setMobileNavigationOpen(false);
 
@@ -61,7 +68,10 @@ function AdminLayout() {
 
       <div className="min-w-0">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur-sm sm:px-4">
-          <Sheet open={mobileNavigationOpen} onOpenChange={setMobileNavigationOpen}>
+          <Sheet
+            open={mobileNavigationOpen}
+            onOpenChange={setMobileNavigationOpen}
+          >
             <Tooltip>
               <TooltipTrigger asChild>
                 <SheetTrigger asChild>
@@ -77,12 +87,17 @@ function AdminLayout() {
               </TooltipTrigger>
               <TooltipContent>打开导航菜单</TooltipContent>
             </Tooltip>
-            <SheetContent side="left" className="w-[min(20rem,85vw)] gap-0 bg-sidebar p-0">
+            <SheetContent
+              side="left"
+              className="w-[min(20rem,85vw)] gap-0 bg-sidebar p-0"
+            >
               <SheetHeader className="border-b border-sidebar-border p-4 text-left">
                 <SheetTitle asChild>
                   <Brand />
                 </SheetTitle>
-                <SheetDescription className="sr-only">后台主导航</SheetDescription>
+                <SheetDescription className="sr-only">
+                  后台主导航
+                </SheetDescription>
               </SheetHeader>
               <div className="p-4">
                 <AdminNavigation onNavigate={handleMobileNavigate} />
@@ -93,7 +108,9 @@ function AdminLayout() {
           <Breadcrumb className="min-w-0 flex-1">
             <BreadcrumbList className="flex-nowrap">
               <BreadcrumbItem className="min-w-0">
-                <BreadcrumbPage className="truncate">{currentPage}</BreadcrumbPage>
+                <BreadcrumbPage className="truncate">
+                  {currentPage}
+                </BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
@@ -104,9 +121,11 @@ function AdminLayout() {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
-          <Outlet />
-        </main>
+        <AdminPageContext.Provider value={setPageLabel}>
+          <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
+            <Outlet />
+          </main>
+        </AdminPageContext.Provider>
       </div>
     </div>
   );

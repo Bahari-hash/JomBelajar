@@ -23,7 +23,9 @@ export function parseUserRole(value) {
 }
 
 export function getRoleLabel(role) {
-  return ROLE_OPTIONS.find((option) => option.value === role)?.label ?? "未知角色";
+  return (
+    ROLE_OPTIONS.find((option) => option.value === role)?.label ?? "未知角色"
+  );
 }
 
 /** Validates the minimal authenticated-user response without retaining tokens. */

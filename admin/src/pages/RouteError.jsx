@@ -9,7 +9,10 @@ function RouteError() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-4">
-      <section className="max-w-md text-center" aria-labelledby="route-error-title">
+      <section
+        className="max-w-md text-center"
+        aria-labelledby="route-error-title"
+      >
         <span className="mx-auto flex size-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
           <AlertTriangle aria-hidden="true" className="size-5" />
         </span>

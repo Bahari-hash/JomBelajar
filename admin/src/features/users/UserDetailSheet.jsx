@@ -28,7 +28,12 @@ function DetailRow({ label, children }) {
 /** Loads and displays only the server's administrator detail DTO. */
 export function UserDetailSheet({ userId, open, onOpenChange }) {
   const [copied, setCopied] = useState(false);
-  const { data: user, error, isLoading, refetch } = useGetAdminUserQuery(userId, {
+  const {
+    data: user,
+    error,
+    isLoading,
+    refetch,
+  } = useGetAdminUserQuery(userId, {
     skip: !open || !userId,
   });
 
@@ -53,7 +58,11 @@ export function UserDetailSheet({ userId, open, onOpenChange }) {
 
         <div className="px-4 pb-6">
           {isLoading ? (
-            <div className="space-y-3 py-4" role="status" aria-label="正在加载用户详情">
+            <div
+              className="space-y-3 py-4"
+              role="status"
+              aria-label="正在加载用户详情"
+            >
               {Array.from({ length: 8 }, (_, index) => (
                 <Skeleton key={index} className="h-10 w-full" />
               ))}
@@ -72,9 +81,20 @@ export function UserDetailSheet({ userId, open, onOpenChange }) {
             <dl>
               <DetailRow label="用户 ID">
                 <span className="flex min-w-0 items-center gap-2">
-                  <code className="min-w-0 truncate text-xs" title={user.id}>{user.id}</code>
-                  <Button size="icon-sm" variant="ghost" onClick={handleCopyId} aria-label="复制用户 ID">
-                    {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                  <code className="min-w-0 truncate text-xs" title={user.id}>
+                    {user.id}
+                  </code>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    onClick={handleCopyId}
+                    aria-label="复制用户 ID"
+                  >
+                    {copied ? (
+                      <Check aria-hidden="true" />
+                    ) : (
+                      <Copy aria-hidden="true" />
+                    )}
                   </Button>
                 </span>
               </DetailRow>
@@ -89,20 +109,32 @@ export function UserDetailSheet({ userId, open, onOpenChange }) {
               </DetailRow>
               {user.isBanned ? (
                 <>
-                  <DetailRow label="封禁时间">{formatDateTime(user.bannedAt)}</DetailRow>
+                  <DetailRow label="封禁时间">
+                    {formatDateTime(user.bannedAt)}
+                  </DetailRow>
                   <DetailRow label="封禁原因">{user.bannedReason}</DetailRow>
                 </>
               ) : null}
               {user.isDeleted ? (
-                <DetailRow label="删除时间">{formatDateTime(user.deletedAt)}</DetailRow>
+                <DetailRow label="删除时间">
+                  {formatDateTime(user.deletedAt)}
+                </DetailRow>
               ) : null}
               <DetailRow label="个人简介">
-                <span className="whitespace-pre-wrap">{user.bio ?? "未设置"}</span>
+                <span className="whitespace-pre-wrap">
+                  {user.bio ?? "未设置"}
+                </span>
               </DetailRow>
               <DetailRow label="活动会话">{user.activeSessionCount}</DetailRow>
-              <DetailRow label="最近登录">{formatDateTime(user.lastLoginAt)}</DetailRow>
-              <DetailRow label="创建时间">{formatDateTime(user.createdAt)}</DetailRow>
-              <DetailRow label="更新时间">{formatDateTime(user.updatedAt)}</DetailRow>
+              <DetailRow label="最近登录">
+                {formatDateTime(user.lastLoginAt)}
+              </DetailRow>
+              <DetailRow label="创建时间">
+                {formatDateTime(user.createdAt)}
+              </DetailRow>
+              <DetailRow label="更新时间">
+                {formatDateTime(user.updatedAt)}
+              </DetailRow>
             </dl>
           ) : null}
         </div>

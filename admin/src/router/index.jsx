@@ -19,7 +19,10 @@ export const routes = [
       {
         element: <PublicAuthGuard />,
         children: [
-          { path: "login", lazy: lazyComponent(() => import("@/pages/Login.jsx")) },
+          {
+            path: "login",
+            lazy: lazyComponent(() => import("@/pages/Login.jsx")),
+          },
           {
             path: "forbidden",
             lazy: lazyComponent(() => import("@/pages/Forbidden.jsx")),
@@ -39,6 +42,28 @@ export const routes = [
               {
                 path: "users",
                 lazy: lazyComponent(() => import("@/pages/Users.jsx")),
+              },
+              {
+                path: "articles",
+                lazy: lazyComponent(() => import("@/pages/Articles.jsx")),
+              },
+              {
+                path: "articles/new",
+                lazy: lazyComponent(() => import("@/pages/ArticleEditor.jsx")),
+              },
+              {
+                path: "articles/:articleId/edit",
+                lazy: lazyComponent(() => import("@/pages/ArticleEditor.jsx")),
+              },
+              {
+                path: "articles/:articleId/preview",
+                lazy: lazyComponent(() => import("@/pages/ArticlePreview.jsx")),
+              },
+              {
+                path: "article-categories",
+                lazy: lazyComponent(
+                  () => import("@/pages/ArticleCategories.jsx"),
+                ),
               },
               {
                 path: "*",

@@ -4,7 +4,10 @@ import { toApiError } from "@/services/problemDetails.js";
 const DEFAULT_API_BASE_URL = "/api";
 
 function normalizeBaseUrl(value) {
-  const baseUrl = typeof value === "string" && value.trim() ? value.trim() : DEFAULT_API_BASE_URL;
+  const baseUrl =
+    typeof value === "string" && value.trim()
+      ? value.trim()
+      : DEFAULT_API_BASE_URL;
   return baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
 }
 
@@ -23,7 +26,13 @@ export const httpClient = axios.create({
 });
 
 /** Executes TinyLang API requests without exposing raw error bodies to callers. */
-export async function requestApi({ path, method = "GET", body, accessToken, signal }) {
+export async function requestApi({
+  path,
+  method = "GET",
+  body,
+  accessToken,
+  signal,
+}) {
   validatePath(path);
 
   try {
@@ -42,7 +51,10 @@ export async function requestApi({ path, method = "GET", body, accessToken, sign
     }
 
     const contentType = response.headers?.get?.("content-type") ?? "";
-    if (!contentType.includes("application/json") && !contentType.includes("+json")) {
+    if (
+      !contentType.includes("application/json") &&
+      !contentType.includes("+json")
+    ) {
       return undefined;
     }
 

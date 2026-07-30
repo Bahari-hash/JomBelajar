@@ -7,7 +7,9 @@ export const USER_STATUS_OPTIONS = Object.freeze([
 ]);
 
 const VALID_ROLES = new Set(Object.values(USER_ROLES));
-const VALID_STATUSES = new Set(USER_STATUS_OPTIONS.map((option) => option.value));
+const VALID_STATUSES = new Set(
+  USER_STATUS_OPTIONS.map((option) => option.value),
+);
 
 function parseInteger(value, fallback, minimum, maximum) {
   const parsed = Number(value);
@@ -20,7 +22,8 @@ function parseInteger(value, fallback, minimum, maximum) {
 export function readUserFilters(searchParams) {
   const keywordValue = searchParams.get("keyword")?.trim() ?? "";
   const keyword =
-    keywordValue.length <= 200 && !Array.from(keywordValue).some((character) => /\p{Cc}/u.test(character))
+    keywordValue.length <= 200 &&
+    !Array.from(keywordValue).some((character) => /\p{Cc}/u.test(character))
       ? keywordValue
       : "";
   const roleValue = searchParams.get("role");
@@ -38,7 +41,8 @@ export function readUserFilters(searchParams) {
 export function writeUserFilters(filters) {
   const searchParams = new URLSearchParams();
   if (filters.page !== 1) searchParams.set("page", String(filters.page));
-  if (filters.pageSize !== 20) searchParams.set("pageSize", String(filters.pageSize));
+  if (filters.pageSize !== 20)
+    searchParams.set("pageSize", String(filters.pageSize));
   if (filters.keyword) searchParams.set("keyword", filters.keyword);
   if (filters.role) searchParams.set("role", filters.role);
   if (filters.status) searchParams.set("status", filters.status);

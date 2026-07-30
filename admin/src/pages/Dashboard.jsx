@@ -10,7 +10,10 @@ function Dashboard() {
 
       <section aria-labelledby="modules-title" className="border-t pt-6">
         <div className="flex min-h-48 flex-col items-center justify-center text-center">
-          <LayoutDashboard aria-hidden="true" className="size-8 text-muted-foreground" />
+          <LayoutDashboard
+            aria-hidden="true"
+            className="size-8 text-muted-foreground"
+          />
           <h2 id="modules-title" className="mt-4 text-sm font-medium">
             暂无可用管理模块
           </h2>

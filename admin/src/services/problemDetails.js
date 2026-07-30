@@ -26,15 +26,21 @@ export function normalizeFieldErrors(errors) {
         return [];
       }
 
-      const safeMessages = messages.filter((message) => typeof message === "string");
-      return safeMessages.length > 0 ? [[field.toLowerCase(), safeMessages]] : [];
+      const safeMessages = messages.filter(
+        (message) => typeof message === "string",
+      );
+      const normalizedField =
+        field.length > 0 ? `${field[0].toLowerCase()}${field.slice(1)}` : field;
+      return safeMessages.length > 0 ? [[normalizedField, safeMessages]] : [];
     }),
   );
 }
 
 function createResponseError(response) {
   const problem =
-    response?.data && typeof response.data === "object" ? response.data : undefined;
+    response?.data && typeof response.data === "object"
+      ? response.data
+      : undefined;
   const detail =
     problem && typeof problem.detail === "string"
       ? problem.detail

@@ -23,7 +23,8 @@ function Users() {
   const canonicalSearch = writeUserFilters(filters).toString();
   const [detailUserId, setDetailUserId] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
-  const { data, error, isLoading, isFetching, refetch } = useGetAdminUsersQuery(filters);
+  const { data, error, isLoading, isFetching, refetch } =
+    useGetAdminUsersQuery(filters);
 
   useEffect(() => {
     document.title = "用户管理 | TinyLang 管理后台";
@@ -65,7 +66,10 @@ function Users() {
 
   const handleSelfRevoked = () => {
     clearApiSession(dispatch, "全部会话已撤销，请重新登录。");
-    navigate("/login", { replace: true, state: { message: "全部会话已撤销，请重新登录。" } });
+    navigate("/login", {
+      replace: true,
+      state: { message: "全部会话已撤销，请重新登录。" },
+    });
   };
 
   const hasFilters = Boolean(filters.keyword || filters.role || filters.status);
@@ -74,16 +78,25 @@ function Users() {
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">账户与权限</p>
+          <p className="text-sm font-medium text-muted-foreground">
+            账户与权限
+          </p>
           <h1 className="mt-1 text-2xl font-semibold">用户管理</h1>
         </div>
         <Button variant="outline" onClick={refetch} disabled={isFetching}>
-          <RotateCcw aria-hidden="true" className={isFetching ? "animate-spin" : undefined} />
+          <RotateCcw
+            aria-hidden="true"
+            className={isFetching ? "animate-spin" : undefined}
+          />
           {isFetching ? "正在刷新" : "刷新"}
         </Button>
       </header>
 
-      <UserFilters filters={filters} onApply={handleApplyFilters} onReset={handleResetFilters} />
+      <UserFilters
+        filters={filters}
+        onApply={handleApplyFilters}
+        onReset={handleResetFilters}
+      />
 
       {isLoading ? (
         <div className="space-y-2" role="status" aria-label="正在加载用户列表">
@@ -94,7 +107,9 @@ function Users() {
         </div>
       ) : error ? (
         <Alert variant="destructive">
-          <AlertTitle>{error.status === 403 ? "无权查看用户" : "用户列表加载失败"}</AlertTitle>
+          <AlertTitle>
+            {error.status === 403 ? "无权查看用户" : "用户列表加载失败"}
+          </AlertTitle>
           <AlertDescription className="mt-2 flex flex-wrap items-center justify-between gap-3">
             <span>
               {error.status === 403
@@ -109,27 +124,46 @@ function Users() {
         </Alert>
       ) : data?.items.length === 0 ? (
         <section className="flex min-h-64 flex-col items-center justify-center border-y px-4 text-center">
-          <UsersRound aria-hidden="true" className="size-8 text-muted-foreground" />
+          <UsersRound
+            aria-hidden="true"
+            className="size-8 text-muted-foreground"
+          />
           <h2 className="mt-4 text-sm font-medium">
             {hasFilters ? "没有符合条件的用户" : "暂无用户"}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {hasFilters ? "调整或清除筛选条件后重试。" : "后端当前没有返回用户记录。"}
+            {hasFilters
+              ? "调整或清除筛选条件后重试。"
+              : "后端当前没有返回用户记录。"}
           </p>
           {hasFilters ? (
-            <Button variant="outline" className="mt-4" onClick={handleResetFilters}>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={handleResetFilters}
+            >
               清除筛选
             </Button>
           ) : null}
         </section>
       ) : data ? (
         <>
-          <div className="flex min-h-6 flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground" aria-live="polite">
+          <div
+            className="flex min-h-6 flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground"
+            aria-live="polite"
+          >
             <span>共 {data.totalCount} 位用户</span>
             {isFetching ? <span>正在更新列表</span> : null}
           </div>
-          <UserTable users={data.items} currentUserId={currentUserId} onAction={handleAction} />
-          <nav className="flex items-center justify-between gap-3" aria-label="用户列表分页">
+          <UserTable
+            users={data.items}
+            currentUserId={currentUserId}
+            onAction={handleAction}
+          />
+          <nav
+            className="flex items-center justify-between gap-3"
+            aria-label="用户列表分页"
+          >
             <p className="text-sm text-muted-foreground">
               第 {data.page} / {Math.max(data.totalPages, 1)} 页
             </p>

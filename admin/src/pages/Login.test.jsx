@@ -62,7 +62,9 @@ describe("Login", () => {
     await user.type(screen.getByLabelText("密码"), "secret-password");
     await user.click(screen.getByRole("button", { name: "登录" }));
 
-    expect(await screen.findByRole("heading", { level: 1, name: "工作台" })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "工作台" }),
+    ).toBeVisible();
     expect(store.getState().auth.user).toEqual({
       id: "11111111-1111-1111-1111-111111111111",
       email: "admin@example.test",
@@ -95,6 +97,9 @@ describe("Login", () => {
     await user.click(screen.getByRole("button", { name: "登录" }));
 
     expect(await screen.findByText("邮箱格式无效。")).toBeVisible();
-    expect(screen.getByLabelText("邮箱")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("邮箱")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 });

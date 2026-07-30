@@ -11,7 +11,10 @@ function App() {
     <Provider store={store}>
       <ThemeProvider>
         <TooltipProvider delayDuration={300}>
-          <RouterProvider router={router} fallbackElement={<SessionLoading />} />
+          <RouterProvider
+            router={router}
+            fallbackElement={<SessionLoading />}
+          />
         </TooltipProvider>
       </ThemeProvider>
     </Provider>

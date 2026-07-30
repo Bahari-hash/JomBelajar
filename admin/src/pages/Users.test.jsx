@@ -20,7 +20,9 @@ describe("Users", () => {
       Promise.resolve(axiosResponse(pageResponse())),
     );
 
-    renderAppAt("/users?page=2&pageSize=5&keyword=alice&role=Editor&status=Banned");
+    renderAppAt(
+      "/users?page=2&pageSize=5&keyword=alice&role=Editor&status=Banned",
+    );
 
     expect(
       await screen.findByRole(
@@ -48,10 +50,15 @@ describe("Users", () => {
     renderAppAt("/users?page=2&pageSize=5");
 
     await screen.findByText("alice@example.test");
-    await user.click(screen.getByRole("button", { name: "管理用户 alice@example.test" }));
+    await user.click(
+      screen.getByRole("button", { name: "管理用户 alice@example.test" }),
+    );
     await user.click(await screen.findByRole("menuitem", { name: "封禁用户" }));
     const dialog = await screen.findByRole("alertdialog");
-    await user.type(within(dialog).getByLabelText("封禁原因"), "policy violation");
+    await user.type(
+      within(dialog).getByLabelText("封禁原因"),
+      "policy violation",
+    );
     await user.click(within(dialog).getByRole("button", { name: "确认封禁" }));
 
     await vi.waitFor(() => {

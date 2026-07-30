@@ -153,7 +153,8 @@ public sealed class ArticleCategoryService(
                 x.IsActive,
                 publishedOnly
                     ? x.ArticleAssignments.Count(assignment => assignment.Article.Status == ArticleStatus.Published)
-                    : x.ArticleAssignments.Count(assignment => assignment.Article.Status != ArticleStatus.Archived)))
+                    : x.ArticleAssignments.Count(assignment => assignment.Article.Status != ArticleStatus.Archived),
+                x.CreatedAt))
             .ToListAsync(cancellationToken);
 
         return new PagedResponse<ArticleCategoryResponse>(
@@ -191,7 +192,8 @@ public sealed class ArticleCategoryService(
                 x.Slug,
                 x.Description,
                 x.IsActive,
-                x.ArticleAssignments.Count(assignment => assignment.Article.Status != ArticleStatus.Archived)))
+                x.ArticleAssignments.Count(assignment => assignment.Article.Status != ArticleStatus.Archived),
+                x.CreatedAt))
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.ArticleCategoryNotFound);
     }

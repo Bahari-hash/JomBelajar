@@ -11,7 +11,10 @@ let refreshPromise = null;
 
 async function logoutWithTimeout(session, timeoutMilliseconds) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMilliseconds);
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    timeoutMilliseconds,
+  );
   try {
     await requestLogout({
       token: session.token,

@@ -41,9 +41,12 @@ describe("ThemeProvider", () => {
       const expectedMode = storedTheme === "invalid" ? "system" : storedTheme;
       expect(screen.getByLabelText("当前主题")).toHaveTextContent(expectedMode);
       await waitFor(() =>
-        expect(document.documentElement).toHaveClass(expectedDark ? "dark" : "", {
-          exact: true,
-        }),
+        expect(document.documentElement).toHaveClass(
+          expectedDark ? "dark" : "",
+          {
+            exact: true,
+          },
+        ),
       );
     },
   );
@@ -65,7 +68,9 @@ describe("ThemeProvider", () => {
     renderTheme();
 
     await user.click(screen.getByRole("button", { name: "切换主题" }));
-    await user.click(await screen.findByRole("menuitemradio", { name: "深色" }));
+    await user.click(
+      await screen.findByRole("menuitemradio", { name: "深色" }),
+    );
 
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
     expect(screen.getByLabelText("当前主题")).toHaveTextContent("dark");

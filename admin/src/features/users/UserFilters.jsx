@@ -48,7 +48,7 @@ export function UserFilters({ filters, onApply, onReset }) {
 
   return (
     <form onSubmit={handleSubmit} className="border-y py-4">
-      <div className="grid gap-3 md:grid-cols-[16rem_10rem_10rem_8rem_auto] items-start">
+      <div className="grid gap-y-3 gap-x-4 md:grid-cols-[16rem_10rem_10rem_8rem_auto] items-start">
         <div className="space-y-1.5">
           <Label htmlFor="user-keyword">关键词</Label>
           <Input

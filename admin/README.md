@@ -59,3 +59,17 @@ pnpm --dir admin dlx shadcn@4.16.0 add <component>
 - 页面刷新时先轮换 refresh token，再显示受保护内容；并发 401 共享同一次刷新且每个原请求最多重试一次。
 - 退出请求无论成功或失败都会清理 token、认证状态和用户 API cache。
 - `/users` 使用真实管理员分页、详情、封禁、解封、角色更新和会话撤销 endpoint，不包含 mock 用户或静态统计。
+
+## 文章管理
+
+内容管理使用以下受保护路由：
+
+- `/articles`：文章列表、筛选和状态操作。
+- `/articles/new`：创建文章草稿。
+- `/articles/:articleId/edit`：编辑草稿及请求服务端规范预览。
+- `/articles/:articleId/preview`：预览已保存文章。
+- `/article-categories`：维护文章分类及其文章关联。
+
+Markdown 源文始终由后端保存和渲染。`mdast-util-from-markdown` 只用于识别正文图片节点并维护已确认媒体 ID 映射，不作为客户端权威渲染器。规范 HTML 只允许通过 `ArticleHtmlPreview` 渲染。
+
+图片上传遵循 TinyLang 的 presign、对象存储 PUT、confirm 流程。TinyLang 元数据请求复用认证 Axios transport；预签名绝对 URL 使用隔离的 Axios PUT，不携带 Bearer token、cookie 或 API client 默认配置。

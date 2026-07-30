@@ -227,7 +227,8 @@ public sealed record ArticleCategoryResponse(
     string Slug,
     string? Description,
     bool IsActive,
-    int ArticleCount);
+    int ArticleCount,
+    DateTimeOffset CreatedAt);
 
 /// <summary>
 /// 封装列表数据及其分页元数据。

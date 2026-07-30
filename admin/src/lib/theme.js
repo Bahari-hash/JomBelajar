@@ -47,7 +47,10 @@ export function resolveTheme(theme, prefersDark) {
   return prefersDark ? THEME_MODES.DARK : THEME_MODES.LIGHT;
 }
 
-export function applyResolvedTheme(theme, root = globalThis.document?.documentElement) {
+export function applyResolvedTheme(
+  theme,
+  root = globalThis.document?.documentElement,
+) {
   if (!root || !isThemeMode(theme) || theme === THEME_MODES.SYSTEM) {
     return;
   }

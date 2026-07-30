@@ -36,7 +36,10 @@ export function renderAppAt(pathname, options = {}) {
       <Provider store={appStore}>
         <ThemeProvider>
           <TooltipProvider delayDuration={0}>
-            <RouterProvider router={router} fallbackElement={<SessionLoading />} />
+            <RouterProvider
+              router={router}
+              fallbackElement={<SessionLoading />}
+            />
           </TooltipProvider>
         </ThemeProvider>
       </Provider>,

@@ -14,7 +14,7 @@ public interface IArticleService
     /// <param name="request">文章草稿内容。</param>
     /// <param name="cancellationToken">用于取消操作的令牌。</param>
     /// <returns>创建后的编辑视图。</returns>
-    Task<ArticleResponse> CreateDraftAsync(
+    Task<EditorArticleResponse> CreateDraftAsync(
         Guid editorId,
         CreateArticleRequest request,
         CancellationToken cancellationToken = default);
@@ -27,7 +27,7 @@ public interface IArticleService
     /// <param name="request">新的文章内容。</param>
     /// <param name="cancellationToken">用于取消操作的令牌。</param>
     /// <returns>更新后的编辑视图。</returns>
-    Task<ArticleResponse> UpdateAsync(
+    Task<EditorArticleResponse> UpdateAsync(
         Guid articleId,
         Guid editorId,
         UpdateArticleRequest request,
@@ -40,7 +40,7 @@ public interface IArticleService
     /// <param name="editorId">执行发布的编辑者标识。</param>
     /// <param name="cancellationToken">用于取消操作的令牌。</param>
     /// <returns>发布后的编辑视图。</returns>
-    Task<ArticleResponse> PublishAsync(
+    Task<EditorArticleResponse> PublishAsync(
         Guid articleId,
         Guid editorId,
         CancellationToken cancellationToken = default);
@@ -52,7 +52,7 @@ public interface IArticleService
     /// <param name="editorId">执行下架的编辑者标识。</param>
     /// <param name="cancellationToken">用于取消操作的令牌。</param>
     /// <returns>下架后的编辑视图。</returns>
-    Task<ArticleResponse> UnpublishAsync(
+    Task<EditorArticleResponse> UnpublishAsync(
         Guid articleId,
         Guid editorId,
         CancellationToken cancellationToken = default);
@@ -72,7 +72,9 @@ public interface IArticleService
     /// <param name="articleId">文章标识。</param>
     /// <param name="cancellationToken">用于取消查询的令牌。</param>
     /// <returns>包含编辑审计信息的文章详情。</returns>
-    Task<ArticleResponse> GetEditorByIdAsync(Guid articleId, CancellationToken cancellationToken = default);
+    Task<EditorArticleResponse> GetEditorByIdAsync(
+        Guid articleId,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 获取编辑者可见的文章分页列表。
@@ -90,7 +92,9 @@ public interface IArticleService
     /// <param name="articleId">文章标识。</param>
     /// <param name="cancellationToken">用于取消查询的令牌。</param>
     /// <returns>不含内部编辑信息的文章详情。</returns>
-    Task<ArticleResponse> GetPublicByIdAsync(Guid articleId, CancellationToken cancellationToken = default);
+    Task<PublicArticleResponse> GetPublicByIdAsync(
+        Guid articleId,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 获取已发布文章的公开分页列表。
@@ -100,5 +104,15 @@ public interface IArticleService
     /// <returns>已发布文章分页结果。</returns>
     Task<PagedResponse<ArticleListItemResponse>> GetPublicListAsync(
         ArticleListRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Renders Markdown through the canonical article pipeline without persisting content or media associations.
+    /// </summary>
+    /// <param name="request">The Markdown preview request.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The canonical sanitized HTML preview.</returns>
+    Task<ArticlePreviewResponse> PreviewAsync(
+        ArticlePreviewRequest request,
         CancellationToken cancellationToken = default);
 }

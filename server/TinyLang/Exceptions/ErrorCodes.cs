@@ -346,7 +346,7 @@ public enum ErrorCodes
     [Description("文章正文长度超过限制.")]
     ArticleContentLengthLimit,
 
-    [Description("文章正文包含不安全或无效的 HTML 内容.")]
+    [Description("文章正文包含不安全或无效的内容.")]
     ArticleContentInvalid,
 
     [Description("文章当前状态不允许执行该操作.")]
@@ -354,6 +354,9 @@ public enum ErrorCodes
 
     [Description("文章状态无效.")]
     ArticleStatusInvalid,
+
+    [Description("文章已被其他编辑者修改，请刷新后重试.")]
+    ArticleConcurrencyConflict,
 
     [Description("发布文章前必须选择分类.")]
     ArticleCategoryRequired,
@@ -416,6 +419,9 @@ public enum ErrorCodes
 
     [Description("文章分类 Slug 已存在.")]
     ArticleCategorySlugConflict,
+
+    [Description("文章分类仍被文章使用，请先清空分类中的文章.")]
+    ArticleCategoryInUse,
 
     // --** Word Errors **--
 

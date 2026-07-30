@@ -38,6 +38,16 @@ public interface IArticleCategoryService
     Task DeleteAsync(Guid categoryId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Explicitly removes every article association from a category without deleting either resource.
+    /// </summary>
+    /// <param name="categoryId">The category identifier.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The category identifier and number of removed associations.</returns>
+    Task<ClearArticleCategoryResponse> ClearArticlesAsync(
+        Guid categoryId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 获取仅包含启用分类的公开分页列表。
     /// </summary>
     /// <param name="request">分页和关键词条件。</param>

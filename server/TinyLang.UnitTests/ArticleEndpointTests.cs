@@ -1,7 +1,8 @@
+using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
-using System.Linq;
 using System.Security.Claims;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -30,6 +31,7 @@ public sealed class ArticleEndpointTests
     private static readonly string[] EditorRoutes =
     [
         "/api/editor/articles",
+        "/api/editor/articles/preview",
         "/api/editor/articles/{id:guid}",
         "/api/editor/articles/{id:guid}/publish",
         "/api/editor/articles/{id:guid}/unpublish",
@@ -38,7 +40,8 @@ public sealed class ArticleEndpointTests
     private static readonly string[] AdminRoutes =
     [
         "/api/admin/article-categories",
-        "/api/admin/article-categories/{id:guid}"
+        "/api/admin/article-categories/{id:guid}",
+        "/api/admin/article-categories/{id:guid}/articles"
     ];
 
     [Fact]
@@ -113,7 +116,7 @@ public sealed class ArticleEndpointTests
 
         var response = await app.GetTestClient().PostAsJsonAsync(
             "/api/editor/articles",
-            new CreateArticleRequest { Title = "Article", ContentHtml = "<p>Body</p>" },
+            new CreateArticleRequest { Title = "Article", ContentMarkdown = "Body" },
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -121,6 +124,29 @@ public sealed class ArticleEndpointTests
         articleService.Verify(x => x.CreateDraftAsync(
             userId,
             It.Is<CreateArticleRequest>(request => request.Title == "Article"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PreviewShouldReturnCanonicalHtmlWithoutPersistenceContract()
+    {
+        var articleService = new Mock<IArticleService>();
+        articleService.Setup(value => value.PreviewAsync(
+                It.IsAny<ArticlePreviewRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ArticlePreviewResponse("<h1>Preview</h1>"));
+        await using var app = await CreateHttpAppAsync(articleService.Object);
+
+        var response = await app.GetTestClient().PostAsJsonAsync(
+            "/api/editor/articles/preview",
+            new ArticlePreviewRequest { ContentMarkdown = "# Preview" },
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<ArticlePreviewResponse>(
+            TestContext.Current.CancellationToken))!.ContentHtml.Should().Be("<h1>Preview</h1>");
+        articleService.Verify(value => value.PreviewAsync(
+            It.Is<ArticlePreviewRequest>(request => request.ContentMarkdown == "# Preview"),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -163,6 +189,62 @@ public sealed class ArticleEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().Be($"/api/admin/article-categories/{categoryId}");
+    }
+
+    [Fact]
+    public async Task ClearCategoryShouldReturnRemovedArticleCount()
+    {
+        var categoryId = Guid.NewGuid();
+        var categoryService = new Mock<IArticleCategoryService>();
+        categoryService.Setup(value => value.ClearArticlesAsync(
+                categoryId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClearArticleCategoryResponse(categoryId, 3));
+        await using var app = await CreateHttpAppAsync(
+            Mock.Of<IArticleService>(), categoryService.Object);
+
+        var response = await app.GetTestClient().DeleteAsync(
+            $"/api/admin/article-categories/{categoryId}/articles",
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ClearArticleCategoryResponse>(
+            TestContext.Current.CancellationToken);
+        body.Should().Be(new ClearArticleCategoryResponse(categoryId, 3));
+    }
+
+    [Fact]
+    public async Task PublicDetailShouldNotSerializeEditorOnlyFields()
+    {
+        var articleId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var articleService = new Mock<IArticleService>();
+        articleService.Setup(value => value.GetPublicByIdAsync(
+                articleId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PublicArticleResponse(
+                articleId,
+                "Article",
+                null,
+                "<p>Body</p>",
+                [],
+                new ArticleUserSummaryResponse(userId, "Editor", null),
+                DateTimeOffset.UtcNow,
+                null,
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow));
+        await using var app = await CreateHttpAppAsync(articleService.Object);
+
+        var response = await app.GetTestClient().GetAsync(
+            $"/api/articles/{articleId}",
+            TestContext.Current.CancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
+        var names = json.RootElement.EnumerateObject().Select(value => value.Name).ToArray();
+
+        names.Should().NotContain([
+            "contentMarkdown", "bodyMedia", "coverMedia", "lastEditor", "concurrencyStamp"
+        ]);
     }
 
     private static WebApplication CreateMetadataApp()
@@ -214,11 +296,12 @@ public sealed class ArticleEndpointTests
             .OfType<RouteEndpoint>()
             .ToArray();
 
-    private static ArticleResponse CreateArticleResponse(Guid articleId, Guid userId)
+    private static EditorArticleResponse CreateArticleResponse(Guid articleId, Guid userId)
         => new(
             articleId,
             "Article",
             null,
+            "Body",
             "<p>Body</p>",
             ArticleStatus.Draft,
             [],
@@ -227,6 +310,7 @@ public sealed class ArticleEndpointTests
             null,
             null,
             [],
+            Guid.NewGuid(),
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow);
 }

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using TinyLang.Database;
@@ -60,21 +61,24 @@ public sealed class ArticleMediaFlowTests
             presign.ResourceId,
             editor.Id,
             TestContext.Current.CancellationToken);
-        var articleService = new ArticleService(db, new HtmlContentSanitizer());
+        var articleService = new ArticleService(
+            db,
+            new ArticleMarkdownRenderer(new HtmlContentSanitizer()),
+            NullLogger<ArticleService>.Instance);
 
         var article = await articleService.CreateDraftAsync(
             editor.Id,
             new CreateArticleRequest
             {
                 Title = "Lesson",
-                ContentHtml = $"<p>Read this lesson.</p><img src=\"{confirmed.Url}\" alt=\"Lesson\">",
-                MediaResourceIds = [confirmed.Id]
+                ContentMarkdown = $"Read this lesson.\n\n![Lesson]({confirmed.Url})",
+                BodyMediaResourceIds = [confirmed.Id]
             },
             TestContext.Current.CancellationToken);
 
         confirmed.Status.Should().Be(ResourceStatus.Active);
         confirmed.Url.Should().StartWith("https://cdn.example.com/");
-        article.MediaResourceIds.Should().ContainSingle().Which.Should().Be(confirmed.Id);
+        article.BodyMedia.Should().ContainSingle().Which.Id.Should().Be(confirmed.Id);
     }
 
     private static ApplicationDbContext CreateDbContext()

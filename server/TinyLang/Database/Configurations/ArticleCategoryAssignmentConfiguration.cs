@@ -27,6 +27,7 @@ public sealed class ArticleCategoryAssignmentConfiguration
         builder.HasOne(x => x.ArticleCategory)
             .WithMany(x => x.ArticleAssignments)
             .HasForeignKey(x => x.ArticleCategoryId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .HasConstraintName("FK_article_category_assignments_article_categories")
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

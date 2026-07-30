@@ -16,6 +16,9 @@ public sealed class ArticleCategoryService(
     IApplicationDbContext db,
     IDatabaseExceptionClassifier databaseExceptionClassifier) : IArticleCategoryService
 {
+    private const string CategoryAssignmentForeignKey =
+        "FK_article_category_assignments_article_categories";
+
     /// <inheritdoc />
     public async Task<ArticleCategoryResponse> CreateAsync(
         CreateArticleCategoryRequest request,
@@ -60,12 +63,41 @@ public sealed class ArticleCategoryService(
             .SingleOrDefaultAsync(x => x.Id == categoryId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.ArticleCategoryNotFound);
 
-        var assignments = await db.ArticleCategoryAssignments
-            .Where(x => x.ArticleCategoryId == categoryId)
-            .ToListAsync(cancellationToken);
-        db.ArticleCategoryAssignments.RemoveRange(assignments);
+        if (await db.ArticleCategoryAssignments.AsNoTracking()
+            .AnyAsync(value => value.ArticleCategoryId == categoryId, cancellationToken))
+        {
+            throw ConflictException.Create(ErrorCodes.ArticleCategoryInUse);
+        }
+
         db.ArticleCategories.Remove(category);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (
+            databaseExceptionClassifier.IsForeignKeyConstraintViolation(
+                exception,
+                CategoryAssignmentForeignKey))
+        {
+            throw ConflictException.Create(ErrorCodes.ArticleCategoryInUse);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<ClearArticleCategoryResponse> ClearArticlesAsync(
+        Guid categoryId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await db.ArticleCategories.AsNoTracking()
+            .AnyAsync(value => value.Id == categoryId, cancellationToken))
+        {
+            throw NotFoundException.Create(ErrorCodes.ArticleCategoryNotFound);
+        }
+
+        var removedCount = await db.ArticleCategoryAssignments
+            .Where(value => value.ArticleCategoryId == categoryId)
+            .ExecuteDeleteAsync(cancellationToken);
+        return new ClearArticleCategoryResponse(categoryId, removedCount);
     }
 
     /// <inheritdoc />

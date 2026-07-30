@@ -1,7 +1,7 @@
 namespace TinyLang.Entities;
 
 /// <summary>
-/// 表示文章与其使用的媒体资源之间的关联。
+/// Represents an article body image association; cover media is stored separately on the article.
 /// </summary>
 public sealed class ArticleMediaResource
 {

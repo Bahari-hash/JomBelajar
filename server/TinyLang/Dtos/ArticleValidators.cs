@@ -24,10 +24,11 @@ internal sealed class ArticleUpsertRequestValidator<T> : AbstractValidator<T>
         RuleFor(x => x.Summary)
             .MaximumLength(500).WithErrKey(ErrorCodes.ArticleSummaryLengthLimit);
 
-        RuleFor(x => x.ContentHtml)
+        RuleFor(x => x.ContentMarkdown)
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithErrKey(ErrorCodes.ArticleContentRequired)
-            .MaximumLength(1_000_000).WithErrKey(ErrorCodes.ArticleContentLengthLimit);
+            .MaximumLength(ArticleConstraints.MaxContentLength)
+            .WithErrKey(ErrorCodes.ArticleContentLengthLimit);
 
         RuleFor(x => x.CategoryIds)
             .Cascade(CascadeMode.Stop)
@@ -42,10 +43,11 @@ internal sealed class ArticleUpsertRequestValidator<T> : AbstractValidator<T>
         RuleFor(x => x.CoverMediaResourceId)
             .Must(BeNullOrNonEmptyGuid).WithErrKey(ErrorCodes.ArticleMediaInvalid);
 
-        RuleFor(x => x.MediaResourceIds)
+        RuleFor(x => x.BodyMediaResourceIds)
             .Cascade(CascadeMode.Stop)
             .NotNull().WithErrKey(ErrorCodes.ArticleMediaInvalid)
-            .Must(ids => ids.Count <= 100).WithErrKey(ErrorCodes.ArticleMediaCountLimit)
+            .Must(ids => ids.Count <= ArticleConstraints.MaxBodyMediaCount)
+            .WithErrKey(ErrorCodes.ArticleMediaCountLimit)
             .Must(ids => ids.All(id => id != Guid.Empty)).WithErrKey(ErrorCodes.ArticleMediaInvalid)
             .Must(ids => ids.Count == ids.Distinct().Count()).WithErrKey(ErrorCodes.ArticleMediaDuplicate);
     }
@@ -85,6 +87,26 @@ public sealed class UpdateArticleRequestValidator : AbstractValidator<UpdateArti
     public UpdateArticleRequestValidator()
     {
         Include(new ArticleUpsertRequestValidator<UpdateArticleRequest>());
+        RuleFor(x => x.ConcurrencyStamp)
+            .NotEqual(Guid.Empty).WithErrKey(ErrorCodes.ArticleConcurrencyConflict);
+    }
+}
+
+/// <summary>
+/// Validates Markdown submitted to the canonical article preview endpoint.
+/// </summary>
+public sealed class ArticlePreviewRequestValidator : AbstractValidator<ArticlePreviewRequest>
+{
+    /// <summary>
+    /// Initializes the required Markdown and length rules for previews.
+    /// </summary>
+    public ArticlePreviewRequestValidator()
+    {
+        RuleFor(x => x.ContentMarkdown)
+            .Cascade(CascadeMode.Stop)
+            .NotEmpty().WithErrKey(ErrorCodes.ArticleContentRequired)
+            .MaximumLength(ArticleConstraints.MaxContentLength)
+            .WithErrKey(ErrorCodes.ArticleContentLengthLimit);
     }
 }
 

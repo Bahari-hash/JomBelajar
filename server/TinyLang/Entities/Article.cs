@@ -10,8 +10,10 @@ public sealed class Article : BaseAuditableEntity
 {
     public required string Title { get; set; }
     public string? Summary { get; set; }
+    public required string ContentMarkdown { get; set; }
     public required string ContentHtml { get; set; }
     public ArticleStatus Status { get; set; } = ArticleStatus.Draft;
+    public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 
     public Guid AuthorId { get; set; }
     public User Author { get; set; } = null!;

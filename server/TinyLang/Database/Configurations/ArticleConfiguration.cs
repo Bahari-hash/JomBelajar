@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using TinyLang.Dtos;
 using TinyLang.Entities;
 
 namespace TinyLang.Database.Configurations;
@@ -21,9 +22,14 @@ public sealed class ArticleConfiguration : IEntityTypeConfiguration<Article>
             .IsRequired();
         builder.Property(x => x.Summary)
             .HasMaxLength(500);
-        builder.Property(x => x.ContentHtml)
-            .HasMaxLength(1_000_000)
+        builder.Property(x => x.ContentMarkdown)
+            .HasMaxLength(ArticleConstraints.MaxContentLength)
             .IsRequired();
+        builder.Property(x => x.ContentHtml)
+            .HasMaxLength(ArticleConstraints.MaxContentLength)
+            .IsRequired();
+        builder.Property(x => x.ConcurrencyStamp)
+            .IsConcurrencyToken();
         builder.Property(x => x.Status)
             .HasConversion<string>()
             .HasMaxLength(16)

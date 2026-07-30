@@ -31,6 +31,8 @@ public static class ArticleEndpoints
             .RequireAuthorization(AuthorizationPolicies.RequireEditor);
         editorGroup.MapPost("/articles", CreateArticleDraftAsync);
 
+        editorGroup.MapPost("/articles/preview", PreviewArticleAsync);
+
         editorGroup.MapGet("/articles", GetEditorArticlesAsync);
 
         editorGroup.MapGet("/articles/{id:guid}", GetEditorArticleAsync);
@@ -53,6 +55,10 @@ public static class ArticleEndpoints
         adminGroup.MapPut("/article-categories/{id:guid}", UpdateArticleCategoryAsync);
 
         adminGroup.MapDelete("/article-categories/{id:guid}", DeleteArticleCategoryAsync);
+
+        adminGroup.MapDelete(
+            "/article-categories/{id:guid}/articles",
+            ClearArticleCategoryArticlesAsync);
 
         return endpoints;
     }
@@ -77,7 +83,7 @@ public static class ArticleEndpoints
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>文章详情成功响应。</returns>
-    public static async Task<Ok<ArticleResponse>> GetPublicArticleAsync(
+    public static async Task<Ok<PublicArticleResponse>> GetPublicArticleAsync(
         Guid id,
         IArticleService articleService,
         CancellationToken cancellationToken)
@@ -91,7 +97,7 @@ public static class ArticleEndpoints
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>包含新资源位置的创建响应。</returns>
-    public static async Task<Created<ArticleResponse>> CreateArticleDraftAsync(
+    public static async Task<Created<EditorArticleResponse>> CreateArticleDraftAsync(
         CreateArticleRequest request,
         ClaimsPrincipal principal,
         IArticleService articleService,
@@ -101,6 +107,19 @@ public static class ArticleEndpoints
             EndpointIdentity.GetUserId(principal), request, cancellationToken);
         return TypedResults.Created($"/api/editor/articles/{response.Id}", response);
     }
+
+    /// <summary>
+    /// Renders an authenticated editor's Markdown with the canonical article pipeline without persisting it.
+    /// </summary>
+    /// <param name="request">The Markdown preview request.</param>
+    /// <param name="articleService">The article business service.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns>The canonical sanitized HTML preview.</returns>
+    public static async Task<Ok<ArticlePreviewResponse>> PreviewArticleAsync(
+        ArticlePreviewRequest request,
+        IArticleService articleService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await articleService.PreviewAsync(request, cancellationToken));
 
     /// <summary>
     /// 获取编辑者可见的文章分页列表。
@@ -122,7 +141,7 @@ public static class ArticleEndpoints
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>文章编辑详情成功响应。</returns>
-    public static async Task<Ok<ArticleResponse>> GetEditorArticleAsync(
+    public static async Task<Ok<EditorArticleResponse>> GetEditorArticleAsync(
         Guid id,
         IArticleService articleService,
         CancellationToken cancellationToken)
@@ -137,7 +156,7 @@ public static class ArticleEndpoints
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>更新后的文章成功响应。</returns>
-    public static async Task<Ok<ArticleResponse>> UpdateArticleAsync(
+    public static async Task<Ok<EditorArticleResponse>> UpdateArticleAsync(
         Guid id,
         UpdateArticleRequest request,
         ClaimsPrincipal principal,
@@ -154,7 +173,7 @@ public static class ArticleEndpoints
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>发布后的文章成功响应。</returns>
-    public static async Task<Ok<ArticleResponse>> PublishArticleAsync(
+    public static async Task<Ok<EditorArticleResponse>> PublishArticleAsync(
         Guid id,
         ClaimsPrincipal principal,
         IArticleService articleService,
@@ -170,7 +189,7 @@ public static class ArticleEndpoints
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>下架后的文章成功响应。</returns>
-    public static async Task<Ok<ArticleResponse>> UnpublishArticleAsync(
+    public static async Task<Ok<EditorArticleResponse>> UnpublishArticleAsync(
         Guid id,
         ClaimsPrincipal principal,
         IArticleService articleService,
@@ -269,4 +288,17 @@ public static class ArticleEndpoints
         await categoryService.DeleteAsync(id, cancellationToken);
         return TypedResults.NoContent();
     }
+
+    /// <summary>
+    /// Explicitly removes all article associations from a category without deleting either resource.
+    /// </summary>
+    /// <param name="id">The category identifier.</param>
+    /// <param name="categoryService">The article category business service.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns>The number of removed article associations.</returns>
+    public static async Task<Ok<ClearArticleCategoryResponse>> ClearArticleCategoryArticlesAsync(
+        Guid id,
+        IArticleCategoryService categoryService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await categoryService.ClearArticlesAsync(id, cancellationToken));
 }

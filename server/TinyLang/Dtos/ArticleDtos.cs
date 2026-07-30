@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using TinyLang.Entities.Enums;
 
 namespace TinyLang.Dtos;
@@ -10,10 +9,10 @@ public abstract record ArticleUpsertRequest
 {
     public required string Title { get; init; }
     public string? Summary { get; init; }
-    public required string ContentHtml { get; init; }
+    public required string ContentMarkdown { get; init; }
     public IReadOnlyCollection<Guid> CategoryIds { get; init; } = [];
     public Guid? CoverMediaResourceId { get; init; }
-    public IReadOnlyCollection<Guid> MediaResourceIds { get; init; } = [];
+    public IReadOnlyCollection<Guid> BodyMediaResourceIds { get; init; } = [];
 }
 
 /// <summary>
@@ -24,7 +23,18 @@ public sealed record CreateArticleRequest : ArticleUpsertRequest;
 /// <summary>
 /// 描述更新现有文章草稿内容的请求。
 /// </summary>
-public sealed record UpdateArticleRequest : ArticleUpsertRequest;
+public sealed record UpdateArticleRequest : ArticleUpsertRequest
+{
+    public Guid ConcurrencyStamp { get; init; }
+}
+
+/// <summary>
+/// Describes Markdown submitted for a canonical server-side article preview.
+/// </summary>
+public sealed record ArticlePreviewRequest
+{
+    public required string ContentMarkdown { get; init; }
+}
 
 /// <summary>
 /// 描述创建文章分类的请求。
@@ -100,36 +110,84 @@ public sealed record ArticleCategorySummaryResponse(
     string Slug);
 
 /// <summary>
-/// 返回文章详情及其作者、分类和媒体关联信息。
+/// Returns a stable media identifier and URL mapping for article editing.
 /// </summary>
-/// <param name="Id">文章标识。</param>
-/// <param name="Title">文章标题。</param>
-/// <param name="Summary">文章摘要。</param>
-/// <param name="ContentHtml">清理后的文章 HTML 正文。</param>
-/// <param name="Status">文章当前状态。</param>
-/// <param name="Categories">文章关联的分类。</param>
-/// <param name="Author">文章作者摘要。</param>
-/// <param name="LastEditor">最后编辑者摘要；公开响应中可省略。</param>
-/// <param name="PublishedAt">文章发布时间。</param>
-/// <param name="CoverUrl">封面媒体公开地址。</param>
-/// <param name="MediaResourceIds">文章关联的媒体资源标识。</param>
-/// <param name="CreatedAt">文章创建时间。</param>
-/// <param name="UpdatedAt">文章最后更新时间。</param>
-public sealed record ArticleResponse(
+/// <param name="Id">The media resource identifier.</param>
+/// <param name="Url">The validated absolute public URL.</param>
+public sealed record ArticleMediaReferenceResponse(Guid Id, string Url);
+
+/// <summary>
+/// Returns the canonical HTML generated for an article preview.
+/// </summary>
+/// <param name="ContentHtml">The canonical sanitized HTML.</param>
+public sealed record ArticlePreviewResponse(string ContentHtml);
+
+/// <summary>
+/// Returns public article fields without Markdown source or internal editing metadata.
+/// </summary>
+/// <param name="Id">The article identifier.</param>
+/// <param name="Title">The article title.</param>
+/// <param name="Summary">The optional article summary.</param>
+/// <param name="ContentHtml">The canonical sanitized HTML.</param>
+/// <param name="Categories">The associated category summaries.</param>
+/// <param name="Author">The author summary.</param>
+/// <param name="PublishedAt">The publication timestamp.</param>
+/// <param name="CoverUrl">The public cover URL.</param>
+/// <param name="CreatedAt">The creation timestamp.</param>
+/// <param name="UpdatedAt">The last update timestamp.</param>
+public sealed record PublicArticleResponse(
     Guid Id,
     string Title,
     string? Summary,
     string ContentHtml,
+    IReadOnlyCollection<ArticleCategorySummaryResponse> Categories,
+    ArticleUserSummaryResponse Author,
+    DateTimeOffset? PublishedAt,
+    string? CoverUrl,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// Returns the complete article editing contract, including Markdown, media mappings and concurrency state.
+/// </summary>
+/// <param name="Id">The article identifier.</param>
+/// <param name="Title">The article title.</param>
+/// <param name="Summary">The optional article summary.</param>
+/// <param name="ContentMarkdown">The canonical editing source.</param>
+/// <param name="ContentHtml">The canonical sanitized HTML derived from the Markdown source.</param>
+/// <param name="Status">The current article status.</param>
+/// <param name="Categories">The associated category summaries.</param>
+/// <param name="Author">The author summary.</param>
+/// <param name="LastEditor">The last editor summary.</param>
+/// <param name="PublishedAt">The publication timestamp.</param>
+/// <param name="CoverMedia">The optional cover media mapping.</param>
+/// <param name="BodyMedia">The body image mappings referenced by Markdown.</param>
+/// <param name="ConcurrencyStamp">The optimistic concurrency token required by updates.</param>
+/// <param name="CreatedAt">The creation timestamp.</param>
+/// <param name="UpdatedAt">The last update timestamp.</param>
+public sealed record EditorArticleResponse(
+    Guid Id,
+    string Title,
+    string? Summary,
+    string ContentMarkdown,
+    string ContentHtml,
     ArticleStatus Status,
     IReadOnlyCollection<ArticleCategorySummaryResponse> Categories,
     ArticleUserSummaryResponse Author,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    ArticleUserSummaryResponse? LastEditor,
+    ArticleUserSummaryResponse LastEditor,
     DateTimeOffset? PublishedAt,
-    string? CoverUrl,
-    IReadOnlyCollection<Guid> MediaResourceIds,
+    ArticleMediaReferenceResponse? CoverMedia,
+    IReadOnlyCollection<ArticleMediaReferenceResponse> BodyMedia,
+    Guid ConcurrencyStamp,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// Reports the result of explicitly clearing every article association from a category.
+/// </summary>
+/// <param name="CategoryId">The category identifier.</param>
+/// <param name="RemovedArticleCount">The number of removed article associations.</param>
+public sealed record ClearArticleCategoryResponse(Guid CategoryId, int RemovedArticleCount);
 
 /// <summary>
 /// 返回文章列表中单个条目的摘要信息。
@@ -192,5 +250,7 @@ public sealed record PagedResponse<T>(
 /// </summary>
 public static class ArticleConstraints
 {
+    public const int MaxContentLength = 1_000_000;
     public const int MaxCategoryCount = 10;
+    public const int MaxBodyMediaCount = 100;
 }

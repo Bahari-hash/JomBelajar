@@ -14,6 +14,13 @@ export default defineConfig({
   server: {
     host: "localhost",
     port: "5500",
+    proxy: {
+      "/api": {
+        target: "https://localhost:7000",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   resolve: {
     alias: {

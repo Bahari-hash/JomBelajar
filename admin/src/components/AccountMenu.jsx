@@ -1,4 +1,7 @@
-import { UserRound } from "lucide-react";
+import { useState } from "react";
+import { LogOut, UserRound } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button.jsx";
 import {
   DropdownMenu,
@@ -12,9 +15,29 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip.jsx";
+import { authSession } from "@/services/authSession.js";
+import { clearApiSession } from "@/services/baseApi.js";
+import { getRoleLabel } from "@/services/roles.js";
 
-/** Account entry point kept intentionally inert until authentication is implemented. */
+/** Shows the verified administrator identity and provides reliable local logout. */
 export function AccountMenu() {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const user = useSelector((state) => state.auth.user);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async (event) => {
+    event.preventDefault();
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await authSession.logout();
+    } finally {
+      clearApiSession(dispatch);
+      navigate("/login", { replace: true });
+    }
+  };
+
   return (
     <DropdownMenu>
       <Tooltip>
@@ -27,9 +50,19 @@ export function AccountMenu() {
         </TooltipTrigger>
         <TooltipContent>账户菜单</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel>账户</DropdownMenuLabel>
-        <DropdownMenuItem disabled>账户信息不可用</DropdownMenuItem>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="min-w-0">
+          <span className="block truncate" title={user?.email}>
+            {user?.email}
+          </span>
+          <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+            {getRoleLabel(user?.role)}
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuItem disabled={loggingOut} onSelect={handleLogout}>
+          <LogOut aria-hidden="true" />
+          {loggingOut ? "正在退出" : "退出登录"}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

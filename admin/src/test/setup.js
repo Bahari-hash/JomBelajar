@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 import { installMatchMedia } from "@/test/matchMedia.js";
+import { tokenVault } from "@/services/tokenVault.js";
 
 beforeEach(() => {
   installMatchMedia();
@@ -10,9 +11,12 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  window.sessionStorage.clear();
+  tokenVault.clear();
   document.documentElement.classList.remove("dark");
   document.documentElement.style.colorScheme = "";
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 if (!Element.prototype.hasPointerCapture) {

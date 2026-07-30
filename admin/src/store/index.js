@@ -1,13 +1,18 @@
 import { configureStore } from "@reduxjs/toolkit";
+import { baseApi } from "@/services/baseApi.js";
+import { authReducer } from "@/store/authSlice.js";
 
-/** Stable empty root state until the first real cross-page state owner is introduced. */
-const INITIAL_STATE = Object.freeze({});
-
-function rootReducer(state = INITIAL_STATE) {
-  return state;
+/** Creates an isolated store for the auth state and single RTK Query cache boundary. */
+export function createAppStore(preloadedState) {
+  return configureStore({
+    reducer: {
+      auth: authReducer,
+      [baseApi.reducerPath]: baseApi.reducer,
+    },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(baseApi.middleware),
+    preloadedState,
+  });
 }
 
-/** TinyLang admin Redux store; feature reducers are added only with real consumers. */
-export const store = configureStore({
-  reducer: rootReducer,
-});
+export const store = createAppStore();

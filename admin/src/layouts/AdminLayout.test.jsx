@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 import { renderAppAt } from "@/test/renderApp.jsx";
 
 describe("AdminLayout", () => {
-  it("exposes the dashboard through the shared navigation", () => {
+  it("exposes the dashboard through the shared navigation", async () => {
     renderAppAt("/");
 
-    const desktopNavigation = screen.getByRole("navigation", { name: "主导航" });
+    const desktopNavigation = await screen.findByRole("navigation", { name: "主导航" });
     expect(within(desktopNavigation).getByRole("link", { name: "工作台" })).toHaveAttribute(
       "href",
       "/",
@@ -17,7 +17,7 @@ describe("AdminLayout", () => {
   it("opens and closes the mobile navigation while restoring trigger focus", async () => {
     const user = userEvent.setup();
     renderAppAt("/");
-    const trigger = screen.getByRole("button", { name: "打开导航菜单" });
+    const trigger = await screen.findByRole("button", { name: "打开导航菜单" });
 
     await user.click(trigger);
     expect(await screen.findByRole("dialog")).toBeVisible();
@@ -31,7 +31,7 @@ describe("AdminLayout", () => {
     const user = userEvent.setup();
     renderAppAt("/");
 
-    await user.click(screen.getByRole("button", { name: "打开导航菜单" }));
+    await user.click(await screen.findByRole("button", { name: "打开导航菜单" }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("link", { name: "工作台" }));
 

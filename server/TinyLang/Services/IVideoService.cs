@@ -30,6 +30,13 @@ public interface IVideoService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 为管理员返回任意发布状态下已转码视频的短期预览地址。
+    /// </summary>
+    Task<VideoPlaybackResponse> GetAdminPlaybackAsync(
+        Guid videoId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 更新当前管理员视频的展示元数据。
     /// </summary>
     Task<AdminVideoResponse> UpdateAsync(

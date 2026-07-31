@@ -80,6 +80,8 @@ describe("VideoCreate", () => {
       screen.getByLabelText(/^视频源文件/),
       new File(["mp4"], "video.mp4", { type: "video/mp4" }),
     );
+    expect(screen.getByRole("button", { name: "重新选择视频" })).toBeVisible();
+    expect(screen.getByText(/video\.mp4/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "上传并创建视频" }));
     await expect
       .poll(() => router.state.location.pathname)

@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress.jsx";
 import { Skeleton } from "@/components/ui/skeleton.jsx";
 import { Textarea } from "@/components/ui/textarea.jsx";
 import { VideoCategorySelector } from "@/features/videos/VideoCategorySelector.jsx";
+import { VideoFileControl } from "@/features/videos/VideoFileControl.jsx";
 import { useCourseVideoUpload } from "@/features/videos/useCourseVideoUpload.js";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
 import { getErrorMessage } from "@/services/problemDetails.js";
@@ -258,28 +259,23 @@ function VideoCreate() {
             MB；系统会自动选择简单或分片上传。
           </p>
         </div>
-        <Input
+        <VideoFileControl
           id="video-file"
-          type="file"
           disabled={busy || !capability}
           accept={capability.allowedTypes
             .flatMap((item) => item.contentTypes)
             .join(",")}
-          aria-invalid={Boolean(fieldError("file"))}
-          onChange={(event) => {
-            setFile(event.target.files?.[0] ?? null);
+          file={file}
+          error={fieldError("file")}
+          status={
+            uploadedResource ? "源文件已上传并确认；可重试创建视频。" : null
+          }
+          onFileChange={(nextFile) => {
+            setFile(nextFile);
             setUploadedResource(null);
             setError(null);
           }}
         />
-        <p className="text-xs text-muted-foreground">
-          {fieldError("file") ??
-            (uploadedResource
-              ? "源文件已上传并确认；可重试创建视频。"
-              : file
-                ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB`
-                : "尚未选择文件")}
-        </p>
         {uploader.stage !== "idle" ? (
           <div className="space-y-2" role="status" aria-live="polite">
             <div className="flex justify-between text-sm">

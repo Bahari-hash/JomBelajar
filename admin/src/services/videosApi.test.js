@@ -140,7 +140,7 @@ describe("videosApi", () => {
         data: { concurrencyStamp: response.concurrencyStamp },
       })),
       {
-        url: `/videos/${videoId}/playback`,
+        url: `/admin/videos/${videoId}/playback`,
         method: "POST",
         data: undefined,
       },

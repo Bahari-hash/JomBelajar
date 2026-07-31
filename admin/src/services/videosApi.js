@@ -156,7 +156,7 @@ export const videosApi = baseApi.injectEndpoints({
     getVideoPlayback: builder.mutation({
       queryFn: normalizedQuery(
         (videoId) => ({
-          url: `/videos/${videoId}/playback`,
+          url: `/admin/videos/${videoId}/playback`,
           method: "POST",
         }),
         normalizePlayback,

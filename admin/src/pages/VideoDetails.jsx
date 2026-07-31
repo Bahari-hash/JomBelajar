@@ -57,6 +57,13 @@ function VideoDetails() {
   const [playback, setPlayback] = useState(null);
   const [updateVideo, updateState] = useUpdateVideoMutation();
   const [loadPlayback, playbackState] = useGetVideoPlaybackMutation();
+  const activePlayback =
+    playback &&
+    video &&
+    playback.videoId === video.id &&
+    playback.concurrencyStamp === video.concurrencyStamp
+      ? playback.data
+      : null;
   const dirty = Boolean(
     form &&
     baselineRef.current &&
@@ -144,8 +151,11 @@ function VideoDetails() {
     }
   };
   const handlePlayback = async () => {
+    if (!video) return;
+    const concurrencyStamp = video.concurrencyStamp;
     try {
-      setPlayback(await loadPlayback(videoId).unwrap());
+      const data = await loadPlayback(videoId).unwrap();
+      setPlayback({ videoId, concurrencyStamp, data });
     } catch (error) {
       setFormError(error);
     }
@@ -446,8 +456,7 @@ function VideoDetails() {
           </div>
         ) : null}
       </section>
-      {video.processingStatus === "Ready" &&
-      video.publicationStatus === "Published" ? (
+      {video.processingStatus === "Ready" ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold">播放预览</h2>
@@ -461,13 +470,13 @@ function VideoDetails() {
               <Play aria-hidden="true" />
               {playbackState.isLoading
                 ? "正在获取播放地址"
-                : playback
+                : activePlayback
                   ? "刷新播放地址"
                   : "加载播放预览"}
             </Button>
           </div>
-          {playback ? (
-            <VideoPlayer playback={playback} onRefresh={handlePlayback} />
+          {activePlayback ? (
+            <VideoPlayer playback={activePlayback} onRefresh={handlePlayback} />
           ) : (
             <p className="text-sm text-muted-foreground">
               播放地址仅在需要预览时请求，不会写入缓存或本地存储。

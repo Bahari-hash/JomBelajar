@@ -31,6 +31,8 @@ public static class VideoEndpoints
         admin.MapPost("/{id:guid}/unpublish", UnpublishVideoAsync);
         admin.MapPost("/{id:guid}/retry", RetryVideoAsync);
         admin.MapPost("/{id:guid}/archive", ArchiveVideoAsync);
+        admin.MapPost("/{id:guid}/playback", GetAdminPlaybackAsync)
+            .RequireRateLimiting(RateLimitPolicies.VideoPlaybackLimit);
 
         var videos = endpoints.MapGroup("/videos")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
@@ -138,6 +140,20 @@ public static class VideoEndpoints
         CancellationToken cancellationToken)
         => TypedResults.Ok(await videoService.ArchiveAsync(
             id, EndpointIdentity.GetUserId(principal), request, cancellationToken));
+
+    /// <summary>
+    /// 返回任意发布状态下已转码视频的管理员短期预览地址。
+    /// </summary>
+    public static async Task<Ok<VideoPlaybackResponse>> GetAdminPlaybackAsync(
+        Guid id,
+        HttpContext httpContext,
+        IVideoService videoService,
+        CancellationToken cancellationToken)
+    {
+        var response = await videoService.GetAdminPlaybackAsync(id, cancellationToken);
+        httpContext.Response.Headers.CacheControl = "private, no-store";
+        return TypedResults.Ok(response);
+    }
 
     /// <summary>
     /// 返回登录用户可见的已发布视频目录。

@@ -224,6 +224,90 @@ public sealed class VideoServiceTests
         await action.Should().ThrowAsync<NotFoundException>();
     }
 
+    [Theory]
+    [InlineData(VideoPublicationStatus.Draft)]
+    [InlineData(VideoPublicationStatus.Published)]
+    [InlineData(VideoPublicationStatus.Unpublished)]
+    [InlineData(VideoPublicationStatus.Archived)]
+    public async Task AdminPlaybackShouldAllowReadyVideoRegardlessOfPublicationStatus(
+        VideoPublicationStatus publicationStatus)
+    {
+        await using var db = CreateDbContext();
+        var video = CreateVideo(Guid.NewGuid());
+        video.ProcessingStatus = VideoProcessingStatus.Ready;
+        video.PublicationStatus = publicationStatus;
+        video.CurrentOutputVersion = Guid.NewGuid();
+        video.DurationSeconds = 90;
+        db.Videos.Add(video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var delivery = new Mock<IVideoDeliveryUrlService>();
+        delivery.Setup(value => value.CreateUrl(
+                "videos/id/outputs/version/master.m3u8",
+                "videos/id/outputs/version/"))
+            .Returns(new VideoDeliveryUrl(
+                "https://media.example.test/master.m3u8",
+                Now.AddMinutes(5)));
+        var progress = new Mock<IUserVideoProgressStore>();
+        var service = CreateService(db, progress.Object, delivery.Object);
+
+        var response = await service.GetAdminPlaybackAsync(
+            video.Id,
+            TestContext.Current.CancellationToken);
+
+        response.MasterPlaylistUrl.Should().Be(
+            "https://media.example.test/master.m3u8");
+        response.PositionSeconds.Should().Be(0);
+        response.IsCompleted.Should().BeFalse();
+        progress.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData(VideoProcessingStatus.Queued, true)]
+    [InlineData(VideoProcessingStatus.Processing, true)]
+    [InlineData(VideoProcessingStatus.Failed, true)]
+    [InlineData(VideoProcessingStatus.Ready, false)]
+    public async Task AdminPlaybackShouldRejectUnreadyOrIncompleteVideo(
+        VideoProcessingStatus processingStatus,
+        bool completeOutput)
+    {
+        await using var db = CreateDbContext();
+        var video = CreateVideo(Guid.NewGuid());
+        video.ProcessingStatus = processingStatus;
+        video.DurationSeconds = 90;
+        video.CurrentOutputVersion = completeOutput ? Guid.NewGuid() : null;
+        db.Videos.Add(video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var action = () => service.GetAdminPlaybackAsync(
+            video.Id,
+            TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task UserPlaybackShouldRejectReadyDraftVideo()
+    {
+        await using var db = CreateDbContext();
+        var video = CreateVideo(Guid.NewGuid());
+        video.ProcessingStatus = VideoProcessingStatus.Ready;
+        video.DurationSeconds = 90;
+        video.DisplayWidth = 1280;
+        video.DisplayHeight = 720;
+        video.CurrentOutputVersion = Guid.NewGuid();
+        db.Videos.Add(video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var action = () => service.GetPlaybackAsync(
+            video.Id,
+            Guid.NewGuid(),
+            TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<NotFoundException>();
+    }
+
     [Fact]
     public async Task ReadyVideoPublishShouldBeIdempotentAndVisible()
     {
@@ -451,10 +535,11 @@ public sealed class VideoServiceTests
 
     private static VideoService CreateService(
         ApplicationDbContext db,
-        IUserVideoProgressStore? progressStore = null)
+        IUserVideoProgressStore? progressStore = null,
+        IVideoDeliveryUrlService? deliveryUrlService = null)
         => new(
             db,
-            Mock.Of<IVideoDeliveryUrlService>(),
+            deliveryUrlService ?? Mock.Of<IVideoDeliveryUrlService>(),
             progressStore ?? Mock.Of<IUserVideoProgressStore>(),
             Mock.Of<IDatabaseExceptionClassifier>(),
             Options.Create(new VideoProgressSettings()),

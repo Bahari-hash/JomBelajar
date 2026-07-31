@@ -2,11 +2,13 @@ using System.Linq;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using TinyLang.Constants;
+using TinyLang.Dtos;
 using TinyLang.Endpoints;
 using TinyLang.Services;
 
@@ -48,9 +50,40 @@ public sealed class VideoEndpointTests
         GetRoute(routes, "/api/videos/{id:guid}/playback", "POST")
             .Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
             .Should().Be(RateLimitPolicies.VideoPlaybackLimit);
+        GetRoute(routes, "/api/admin/videos/{id:guid}/playback", "POST")
+            .Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+            .Should().Be(RateLimitPolicies.VideoPlaybackLimit);
         GetRoute(routes, "/api/videos/{id:guid}/progress", "PUT")
             .Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
             .Should().Be(RateLimitPolicies.VideoProgressLimit);
+    }
+
+    [Fact]
+    public async Task AdminPlaybackShouldDisableResponseCaching()
+    {
+        var videoId = Guid.NewGuid();
+        var response = new VideoPlaybackResponse(
+            "https://media.example.test/master.m3u8",
+            null,
+            null,
+            60,
+            0,
+            false);
+        var service = new Mock<IVideoService>();
+        service.Setup(value => value.GetAdminPlaybackAsync(
+                videoId,
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(response);
+        var context = new DefaultHttpContext();
+
+        var result = await VideoEndpoints.GetAdminPlaybackAsync(
+            videoId,
+            context,
+            service.Object,
+            TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be(response);
+        context.Response.Headers.CacheControl.ToString().Should().Be("private, no-store");
     }
 
     [Fact]

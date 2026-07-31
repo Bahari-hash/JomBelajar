@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   adminVideo,
   axiosHttpError,
@@ -9,7 +9,82 @@ import {
 } from "@/test/http.js";
 import { renderAppAt } from "@/test/renderApp.jsx";
 
+vi.mock("@/features/videos/VideoPlayer.jsx", () => ({
+  VideoPlayer: ({ playback }) => (
+    <div aria-label="视频播放器">{playback.masterPlaylistUrl}</div>
+  ),
+}));
+
 describe("VideoDetails", () => {
+  it("previews a ready draft through the administrator playback endpoint", async () => {
+    const user = userEvent.setup();
+    const initial = adminVideo({ publicationStatus: "Draft" });
+    const requestMock = mockHttpClient((config) => {
+      if (config.url.startsWith("/admin/video-categories"))
+        return Promise.resolve(
+          axiosResponse({
+            items: [],
+            page: 1,
+            pageSize: 100,
+            totalCount: 0,
+            totalPages: 0,
+          }),
+        );
+      if (config.url.endsWith("/playback"))
+        return Promise.resolve(
+          axiosResponse({
+            masterPlaylistUrl: "https://media.example.test/master.m3u8",
+            posterUrl: null,
+            expiresAt: null,
+            durationSeconds: 42.5,
+            positionSeconds: 0,
+            isCompleted: false,
+          }),
+        );
+      return Promise.resolve(axiosResponse(initial));
+    });
+
+    renderAppAt(`/videos/${initial.id}`);
+    await user.click(
+      await screen.findByRole("button", { name: "加载播放预览" }),
+    );
+
+    expect(await screen.findByLabelText("视频播放器")).toHaveTextContent(
+      "https://media.example.test/master.m3u8",
+    );
+    expect(
+      requestMock.mock.calls.some(
+        ([config]) =>
+          config.url === `/admin/videos/${initial.id}/playback` &&
+          config.method === "POST",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not offer playback before processing is ready", async () => {
+    const initial = adminVideo({ processingStatus: "Processing" });
+    mockHttpClient((config) => {
+      if (config.url.startsWith("/admin/video-categories"))
+        return Promise.resolve(
+          axiosResponse({
+            items: [],
+            page: 1,
+            pageSize: 100,
+            totalCount: 0,
+            totalPages: 0,
+          }),
+        );
+      return Promise.resolve(axiosResponse(initial));
+    });
+
+    renderAppAt(`/videos/${initial.id}`);
+    await screen.findByLabelText(/^标题/);
+
+    expect(
+      screen.queryByRole("button", { name: "加载播放预览" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("saves metadata with the latest concurrency stamp", async () => {
     const user = userEvent.setup();
     const initial = adminVideo();

@@ -31,6 +31,7 @@ public sealed class OpenApiContractTests
 
         paths.TryGetProperty("/api/admin/videos", out _).Should().BeTrue();
         paths.TryGetProperty("/api/admin/videos/{id}/archive", out _).Should().BeTrue();
+        paths.TryGetProperty("/api/admin/videos/{id}/playback", out _).Should().BeTrue();
         paths.TryGetProperty("/api/admin/video-categories/{id}/videos", out _)
             .Should().BeTrue();
         paths.TryGetProperty("/api/uploads/admin/media/capabilities", out _)

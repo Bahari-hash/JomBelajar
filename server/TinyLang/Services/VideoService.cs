@@ -452,24 +452,32 @@ public sealed class VideoService : IVideoService
             throw NotFoundException.Create(ErrorCodes.VideoNotFound);
         }
 
-        var outputPrefix = GetObjectDirectory(video.MasterPlaylistObjectName);
-        var masterUrl = _deliveryUrlService.CreateUrl(
-            video.MasterPlaylistObjectName,
-            outputPrefix);
-        var posterUrl = video.PosterObjectName is null
-            ? null
-            : _deliveryUrlService.CreateUrl(video.PosterObjectName, outputPrefix).Url;
         var progress = await _db.UserVideoProgress.AsNoTracking()
             .SingleOrDefaultAsync(
                 value => value.UserId == userId && value.VideoId == videoId,
                 cancellationToken);
-        return new VideoPlaybackResponse(
-            masterUrl.Url,
-            posterUrl,
-            masterUrl.ExpiresAt,
-            video.DurationSeconds.Value,
+        return CreatePlaybackResponse(
+            video,
             progress?.PositionSeconds ?? 0,
             progress?.IsCompleted ?? false);
+    }
+
+    /// <inheritdoc />
+    public async Task<VideoPlaybackResponse> GetAdminPlaybackAsync(
+        Guid videoId,
+        CancellationToken cancellationToken = default)
+    {
+        var video = await _db.Videos.AsNoTracking()
+            .SingleOrDefaultAsync(value =>
+                value.Id == videoId &&
+                value.ProcessingStatus == VideoProcessingStatus.Ready &&
+                value.MasterPlaylistObjectName != null &&
+                value.CurrentOutputVersion != null &&
+                value.DurationSeconds != null,
+                cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.VideoNotFound);
+
+        return CreatePlaybackResponse(video, 0, false);
     }
 
     /// <inheritdoc />
@@ -522,6 +530,34 @@ public sealed class VideoService : IVideoService
             value.DisplayWidth != null &&
             value.DisplayHeight != null &&
             value.PublishedAt != null);
+
+    /// <summary>
+    /// 为已经通过播放产物校验的视频生成短期地址和指定进度响应。
+    /// </summary>
+    private VideoPlaybackResponse CreatePlaybackResponse(
+        Video video,
+        double positionSeconds,
+        bool isCompleted)
+    {
+        var masterObjectName = video.MasterPlaylistObjectName
+            ?? throw new InvalidOperationException("Video master playlist is missing.");
+        var durationSeconds = video.DurationSeconds
+            ?? throw new InvalidOperationException("Video duration is missing.");
+        var outputPrefix = GetObjectDirectory(masterObjectName);
+        var masterUrl = _deliveryUrlService.CreateUrl(
+            masterObjectName,
+            outputPrefix);
+        var posterUrl = video.PosterObjectName is null
+            ? null
+            : _deliveryUrlService.CreateUrl(video.PosterObjectName, outputPrefix).Url;
+        return new VideoPlaybackResponse(
+            masterUrl.Url,
+            posterUrl,
+            masterUrl.ExpiresAt,
+            durationSeconds,
+            positionSeconds,
+            isCompleted);
+    }
 
     /// <summary>
     /// 查找管理员可变更的全局视频。

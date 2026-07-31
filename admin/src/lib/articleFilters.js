@@ -3,8 +3,8 @@ import { ARTICLE_STATUS_OPTIONS } from "@/constants/articleStatus.js";
 const VALID_STATUSES = new Set(
   ARTICLE_STATUS_OPTIONS.map((option) => option.value),
 );
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const GUID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+const EMPTY_GUID = "00000000-0000-0000-0000-000000000000";
 
 function parseInteger(value, fallback, minimum, maximum) {
   const parsed = Number(value);
@@ -29,7 +29,10 @@ export function readArticleFilters(searchParams) {
     page: parseInteger(searchParams.get("page"), 1, 1, Number.MAX_SAFE_INTEGER),
     pageSize: parseInteger(searchParams.get("pageSize"), 20, 1, 100),
     keyword: parseKeyword(searchParams.get("keyword")),
-    categoryId: UUID_PATTERN.test(categoryId) ? categoryId : "",
+    categoryId:
+      GUID_PATTERN.test(categoryId) && categoryId.toLowerCase() !== EMPTY_GUID
+        ? categoryId
+        : "",
     status: VALID_STATUSES.has(status) ? status : "",
   };
 }

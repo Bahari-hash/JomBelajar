@@ -66,6 +66,16 @@ export function VideoFilters({
     });
   };
 
+  const handleReset = () => {
+    update("keyword", "");
+    update("processingStatus", ALL);
+    update("publicationStatus", ALL);
+    update("categoryId", ALL);
+    update("createdById", ALL);
+    update("pageSize", String(STANDARD_PAGE_SIZES[0]));
+    onReset();
+  };
+
   return (
     <form onSubmit={handleSubmit} className="border-y py-4">
       <div className="grid gap-y-3 gap-x-4 xl:grid-cols-[16rem_repeat(4,8rem)_6rem_auto] items-start">
@@ -135,7 +145,7 @@ export function VideoFilters({
               type="button"
               variant="outline"
               aria-label="重置筛选"
-              onClick={onReset}
+              onClick={handleReset}
             >
               <RotateCcw aria-hidden="true" />
             </Button>

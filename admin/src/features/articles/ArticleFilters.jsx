@@ -33,10 +33,8 @@ export function ArticleFilters({ filters, categories = [], onApply, onReset }) {
     setKeyword("");
     setStatus(ALL);
     setCategoryId(ALL);
-    setPageSize(STANDARD_PAGE_SIZES[0]);
-    if (onReset) {
-      onReset();
-    }
+    setPageSize(String(STANDARD_PAGE_SIZES[0]));
+    onReset();
   };
 
   const handleSubmit = (event) => {
@@ -111,7 +109,7 @@ export function ArticleFilters({ filters, categories = [], onApply, onReset }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {[20, 50, 100].map((size) => (
+              {STANDARD_PAGE_SIZES.map((size) => (
                 <SelectItem key={size} value={String(size)}>
                   {size} 条
                 </SelectItem>

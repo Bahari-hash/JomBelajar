@@ -1,4 +1,5 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import {
   articleCategory,
@@ -50,5 +51,47 @@ describe("Articles", () => {
           "/admin/articles?page=2&pageSize=20&keyword=grammar&status=Draft",
       ),
     ).toBe(true);
+  });
+
+  it("applies the selected category to the article list request", async () => {
+    const user = userEvent.setup();
+    const categoryId = "0198c8d0-1234-7abc-8def-0123456789ab";
+    const requestMock = mockHttpClient((config) => {
+      if (config.url.startsWith("/admin/article-categories"))
+        return Promise.resolve(
+          axiosResponse({
+            items: [articleCategory({ id: categoryId })],
+            page: 1,
+            pageSize: 100,
+            totalCount: 1,
+            totalPages: 1,
+          }),
+        );
+      return Promise.resolve(
+        axiosResponse({
+          items: [articleListItem()],
+          page: 1,
+          pageSize: 20,
+          totalCount: 1,
+          totalPages: 1,
+        }),
+      );
+    });
+    renderAppAt("/articles");
+    const category = await screen.findByRole("combobox", { name: "分类" });
+
+    await user.click(category);
+    await user.click(await screen.findByRole("option", { name: "语法" }));
+    await user.click(screen.getByRole("button", { name: "应用" }));
+
+    await waitFor(() =>
+      expect(
+        requestMock.mock.calls.some(
+          ([config]) =>
+            config.url ===
+            `/admin/articles?page=1&pageSize=20&categoryId=${categoryId}`,
+        ),
+      ).toBe(true),
+    );
   });
 });

@@ -52,4 +52,19 @@ describe("article filters", () => {
       "includeInactive=false",
     );
   });
+
+  it("preserves non-empty standard Guid category identifiers", () => {
+    const categoryId = "0198c8d0-1234-7abc-8def-0123456789ab";
+
+    expect(
+      readArticleFilters(new URLSearchParams({ categoryId })).categoryId,
+    ).toBe(categoryId);
+    expect(
+      readArticleFilters(
+        new URLSearchParams({
+          categoryId: "00000000-0000-0000-0000-000000000000",
+        }),
+      ).categoryId,
+    ).toBe("");
+  });
 });

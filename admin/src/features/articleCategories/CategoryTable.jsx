@@ -22,16 +22,16 @@ import { formatDateTime } from "@/lib/dateTime.js";
 /** Presents administrator category data with explicit edit and delete commands. */
 export function CategoryTable({ categories, onEdit, onDelete }) {
   return (
-    <div className="rounded-lg border">
-      <Table className="min-w-[48rem] table-fixed">
+    <div className="max-w-full min-w-0 overflow-x-auto rounded-lg border">
+      <Table className="min-w-240 table-fixed">
         <TableHeader>
           <TableRow>
             <TableHead className="w-[22%] pl-4">名称</TableHead>
             <TableHead className="w-[22%]">Slug</TableHead>
             <TableHead>描述</TableHead>
             <TableHead className="w-24">状态</TableHead>
-            <TableHead className="w-24 text-right">文章数</TableHead>
             <TableHead className="w-40">创建时间</TableHead>
+            <TableHead className="w-24 text-right">文章数</TableHead>
             <TableHead className="w-14 pr-4 text-right">操作</TableHead>
           </TableRow>
         </TableHeader>
@@ -61,11 +61,11 @@ export function CategoryTable({ categories, onEdit, onDelete }) {
                   {category.isActive ? "启用" : "停用"}
                 </Badge>
               </TableCell>
+              <TableCell className="text-muted-foreground tabular-nums">
+                {formatDateTime(category.createdAt)}
+              </TableCell>
               <TableCell className="text-right tabular-nums">
                 {category.articleCount}
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                {formatDateTime(category.createdAt)}
               </TableCell>
               <TableCell className="pr-4 text-right">
                 <DropdownMenu>

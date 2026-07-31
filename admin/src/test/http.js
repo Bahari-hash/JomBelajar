@@ -46,7 +46,7 @@ export function userListItem(overrides = {}) {
     id: "22222222-2222-2222-2222-222222222222",
     username: "alice",
     email: "alice@example.test",
-    role: "Editor",
+    role: "User",
     nickname: "Alice",
     avatarUrl: null,
     isBanned: false,
@@ -70,6 +70,7 @@ export function articleCategory(overrides = {}) {
     description: null,
     isActive: true,
     articleCount: 1,
+    createdAt: "2026-07-31T08:00:00+00:00",
     ...overrides,
   };
 }
@@ -90,7 +91,7 @@ export function articleListItem(overrides = {}) {
     coverUrl: null,
     author: {
       id: "11111111-1111-1111-8111-111111111111",
-      nickname: "Editor",
+      nickname: "Admin",
       avatarUrl: null,
     },
     publishedAt: null,
@@ -99,7 +100,7 @@ export function articleListItem(overrides = {}) {
   };
 }
 
-export function editorArticle(overrides = {}) {
+export function adminArticle(overrides = {}) {
   const list = articleListItem();
   const { coverUrl: _coverUrl, ...common } = list;
   return {
@@ -111,6 +112,78 @@ export function editorArticle(overrides = {}) {
     bodyMedia: [],
     concurrencyStamp: "66666666-6666-4666-8666-666666666666",
     createdAt: "2026-07-30T07:00:00+00:00",
+    ...overrides,
+  };
+}
+
+export function videoCategory(overrides = {}) {
+  return {
+    id: "77777777-7777-4777-8777-777777777777",
+    name: "听力",
+    slug: "listening",
+    description: null,
+    isActive: true,
+    videoCount: 1,
+    createdAt: "2026-07-31T08:00:00+00:00",
+    ...overrides,
+  };
+}
+
+export function videoListItem(overrides = {}) {
+  const auditUser = {
+    id: "11111111-1111-4111-8111-111111111111",
+    nickname: "Admin",
+    avatarUrl: null,
+  };
+  return {
+    id: "88888888-8888-4888-8888-888888888888",
+    title: "French greetings",
+    originalLanguage: "fr",
+    processingStatus: "Ready",
+    publicationStatus: "Draft",
+    durationSeconds: 42.5,
+    failureCode: null,
+    categories: [videoCategory()],
+    createdBy: auditUser,
+    lastEditor: auditUser,
+    concurrencyStamp: "99999999-9999-4999-8999-999999999999",
+    createdAt: "2026-07-31T08:00:00+00:00",
+    updatedAt: "2026-07-31T09:00:00+00:00",
+    latestJob: {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      status: "Completed",
+      attemptCount: 1,
+      nextAttemptAt: null,
+      startedAt: "2026-07-31T08:01:00+00:00",
+      completedAt: "2026-07-31T08:03:00+00:00",
+      failureCode: null,
+    },
+    ...overrides,
+  };
+}
+
+export function adminVideo(overrides = {}) {
+  return {
+    ...videoListItem(),
+    sourceMediaResourceId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    description: "Basic phrases",
+    displayWidth: 1280,
+    displayHeight: 720,
+    containerFormat: "mov,mp4,m4a,3gp,3g2,mj2",
+    videoCodec: "h264",
+    audioCodec: "aac",
+    publishedAt: null,
+    archivedAt: null,
+    renditions: [
+      {
+        targetHeight: 720,
+        width: 1280,
+        height: 720,
+        videoBitrateKbps: 2800,
+        audioBitrateKbps: 128,
+        codecs: "avc1.64001f,mp4a.40.2",
+      },
+    ],
     ...overrides,
   };
 }

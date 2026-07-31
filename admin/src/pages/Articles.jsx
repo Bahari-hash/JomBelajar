@@ -19,7 +19,7 @@ import {
   writeArticleFilters,
 } from "@/lib/articleFilters.js";
 import { useGetAllArticleCategoryOptionsQuery } from "@/services/articleCategoriesApi.js";
-import { useGetEditorArticlesQuery } from "@/services/articlesApi.js";
+import { useGetAdminArticlesQuery } from "@/services/articlesApi.js";
 import { getErrorMessage } from "@/services/problemDetails.js";
 
 function Articles() {
@@ -30,7 +30,7 @@ function Articles() {
   const [pendingAction, setPendingAction] = useState(null);
   const [notice, setNotice] = useState(null);
   const { data, error, isLoading, isFetching, refetch } =
-    useGetEditorArticlesQuery(filters);
+    useGetAdminArticlesQuery(filters);
   const { data: categories = [] } = useGetAllArticleCategoryOptionsQuery();
 
   useEffect(() => {

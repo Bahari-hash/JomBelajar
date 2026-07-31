@@ -66,6 +66,24 @@ export const routes = [
                 ),
               },
               {
+                path: "videos",
+                lazy: lazyComponent(() => import("@/pages/Videos.jsx")),
+              },
+              {
+                path: "videos/new",
+                lazy: lazyComponent(() => import("@/pages/VideoCreate.jsx")),
+              },
+              {
+                path: "videos/:videoId",
+                lazy: lazyComponent(() => import("@/pages/VideoDetails.jsx")),
+              },
+              {
+                path: "video-categories",
+                lazy: lazyComponent(
+                  () => import("@/pages/VideoCategories.jsx"),
+                ),
+              },
+              {
                 path: "*",
                 lazy: lazyComponent(() => import("@/pages/NotFound.jsx")),
               },

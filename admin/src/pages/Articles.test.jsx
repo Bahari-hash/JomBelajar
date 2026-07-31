@@ -47,7 +47,7 @@ describe("Articles", () => {
       requestMock.mock.calls.some(
         ([config]) =>
           config.url ===
-          "/editor/articles?page=2&pageSize=20&keyword=grammar&status=Draft",
+          "/admin/articles?page=2&pageSize=20&keyword=grammar&status=Draft",
       ),
     ).toBe(true);
   });

@@ -11,7 +11,7 @@ export const articleMediaApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     presignArticlePicture: builder.mutation({
       query: (file) => ({
-        url: "/uploads/editor/media/presign",
+        url: "/uploads/admin/media/presign",
         method: "POST",
         body: {
           originalName: file.name,

@@ -21,6 +21,10 @@
 
   "files.autoSave": "afterDelay",
   "files.autoSaveDelay": 300,
+  "files.associations": {
+    "*.css": "tailwindcss",
+    "*.scss": "tailwindcss"
+  },
 
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.expand": false,

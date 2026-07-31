@@ -5,7 +5,7 @@ import { createAppStore } from "@/store/index.js";
 import {
   articleListItem,
   axiosResponse,
-  editorArticle,
+  adminArticle,
   mockHttpClient,
 } from "@/test/http.js";
 
@@ -25,7 +25,7 @@ describe("articlesApi", () => {
     );
     const store = createAppStore();
     const request = store.dispatch(
-      articlesApi.endpoints.getEditorArticles.initiate({
+      articlesApi.endpoints.getAdminArticles.initiate({
         page: 2,
         pageSize: 20,
         keyword: "grammar",
@@ -38,14 +38,14 @@ describe("articlesApi", () => {
       totalPages: 2,
     });
     expect(requestMock.mock.calls[0][0].url).toBe(
-      "/editor/articles?page=2&pageSize=20&keyword=grammar&categoryId=44444444-4444-4444-8444-444444444444&status=Draft",
+      "/admin/articles?page=2&pageSize=20&keyword=grammar&categoryId=44444444-4444-4444-8444-444444444444&status=Draft",
     );
     request.unsubscribe();
   });
 
   it("uses exact create, update, preview and state mutation contracts", async () => {
     tokenVault.install("access", "refresh");
-    const response = editorArticle();
+    const response = adminArticle();
     const requestMock = mockHttpClient((config) =>
       Promise.resolve(
         axiosResponse(
@@ -54,7 +54,7 @@ describe("articlesApi", () => {
             : response,
           config.method === "DELETE"
             ? 204
-            : config.method === "POST" && config.url === "/editor/articles"
+            : config.method === "POST" && config.url === "/admin/articles"
               ? 201
               : 200,
         ),
@@ -101,29 +101,29 @@ describe("articlesApi", () => {
         data: config.data,
       })),
     ).toEqual([
-      { url: "/editor/articles", method: "POST", data: body },
+      { url: "/admin/articles", method: "POST", data: body },
       {
-        url: `/editor/articles/${articleId}`,
+        url: `/admin/articles/${articleId}`,
         method: "PUT",
         data: { ...body, concurrencyStamp: response.concurrencyStamp },
       },
       {
-        url: "/editor/articles/preview",
+        url: "/admin/articles/preview",
         method: "POST",
         data: { contentMarkdown: "# Preview" },
       },
       {
-        url: `/editor/articles/${articleId}/publish`,
+        url: `/admin/articles/${articleId}/publish`,
         method: "POST",
         data: undefined,
       },
       {
-        url: `/editor/articles/${articleId}/unpublish`,
+        url: `/admin/articles/${articleId}/unpublish`,
         method: "POST",
         data: undefined,
       },
       {
-        url: `/editor/articles/${articleId}`,
+        url: `/admin/articles/${articleId}`,
         method: "DELETE",
         data: undefined,
       },

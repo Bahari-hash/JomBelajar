@@ -142,7 +142,7 @@ export const articleCategoriesApi = baseApi.injectEndpoints({
           ? []
           : [
               ...invalidateCategory(result, error, argument),
-              { type: "EditorArticle", id: "LIST" },
+              { type: "AdminArticle", id: "LIST" },
             ],
     }),
   }),

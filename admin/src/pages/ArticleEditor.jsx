@@ -32,7 +32,7 @@ import {
 import { useGetAllArticleCategoryOptionsQuery } from "@/services/articleCategoriesApi.js";
 import {
   useCreateArticleMutation,
-  useGetEditorArticleQuery,
+  useGetAdminArticleQuery,
   usePreviewArticleMutation,
   useUpdateArticleMutation,
 } from "@/services/articlesApi.js";
@@ -96,7 +96,7 @@ function ArticleEditor() {
     error: loadError,
     isLoading,
     refetch,
-  } = useGetEditorArticleQuery(articleId, { skip: isNew });
+  } = useGetAdminArticleQuery(articleId, { skip: isNew });
   const { data: categories = [], error: categoryError } =
     useGetAllArticleCategoryOptionsQuery();
   const [createArticle, createState] = useCreateArticleMutation();
@@ -501,7 +501,7 @@ function ArticleEditor() {
               fieldError("contentMarkdown") ||
               fieldError("bodyMediaResourceIds"),
             )}
-            className="min-h-[32rem] resize-y rounded-none border-0 font-mono text-sm field-sizing-fixed focus-visible:ring-0"
+            className="min-h-128 resize-y rounded-none border-0 font-mono text-sm field-sizing-fixed focus-visible:ring-0"
             onChange={(event) => {
               setForm({ ...form, contentMarkdown: event.target.value });
               setFormError(null);
@@ -585,7 +585,7 @@ function ArticleEditor() {
             }
           >
             {viewMode === "split" ? (
-              <pre className="max-h-[36rem] overflow-auto whitespace-pre-wrap break-words rounded-lg border p-4 text-sm">
+              <pre className="max-h-144 overflow-auto whitespace-pre-wrap wrap-break-word rounded-lg border p-4 text-sm">
                 {form.contentMarkdown}
               </pre>
             ) : null}

@@ -137,7 +137,8 @@ function ArticleCategories() {
             </Label>
             <div className="flex gap-2">
               <Button type="submit">
-                <Search aria-hidden="true" className="mr-2 h-4 w-4" /> 应用
+                <Search aria-hidden="true" />
+                应用
               </Button>
               <Button
                 type="button"

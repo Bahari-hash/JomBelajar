@@ -13,7 +13,7 @@ import {
 } from "@/constants/articleStatus.js";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
 import { formatDateTime } from "@/lib/dateTime.js";
-import { useGetEditorArticleQuery } from "@/services/articlesApi.js";
+import { useGetAdminArticleQuery } from "@/services/articlesApi.js";
 import { getErrorMessage } from "@/services/problemDetails.js";
 
 function ArticlePreview() {
@@ -25,7 +25,7 @@ function ArticlePreview() {
     error,
     isLoading,
     refetch,
-  } = useGetEditorArticleQuery(articleId);
+  } = useGetAdminArticleQuery(articleId);
   useAdminPage(article?.title ?? "文章预览", article?.title ?? "文章预览");
 
   if (isLoading)
@@ -72,7 +72,7 @@ function ArticlePreview() {
               更新于 {formatDateTime(article.updatedAt)}
             </span>
           </div>
-          <h1 className="mt-2 max-w-4xl break-words text-2xl font-semibold">
+          <h1 className="mt-2 max-w-4xl wrap-break-word text-2xl font-semibold">
             {article.title}
           </h1>
         </div>
@@ -146,7 +146,7 @@ function ArticlePreview() {
         </div>
         {article.coverMedia ? (
           <img
-            className="max-h-[30rem] w-full rounded-lg object-contain"
+            className="max-h-120 w-full rounded-lg object-contain"
             src={article.coverMedia.url}
             alt={`${article.title} 封面`}
           />

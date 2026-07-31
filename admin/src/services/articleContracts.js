@@ -125,7 +125,7 @@ export function normalizeArticleListItem(value) {
   };
 }
 
-export function normalizeEditorArticle(value) {
+export function normalizeAdminArticle(value) {
   const source = assertObject(value, "editor article");
   if (!Array.isArray(source.categories))
     throw new Error("API returned invalid article categories.");

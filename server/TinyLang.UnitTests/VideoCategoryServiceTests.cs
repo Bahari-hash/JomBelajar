@@ -73,11 +73,13 @@ public sealed class VideoCategoryServiceTests
     public async Task AdminListShouldIncludeInactiveAndExcludeArchivedFromCount()
     {
         await using var db = CreateDbContext();
+        var createdAt = new DateTimeOffset(2026, 7, 31, 8, 0, 0, TimeSpan.Zero);
         var category = new VideoCategory
         {
             Name = "Legacy",
             Slug = "legacy",
-            IsActive = false
+            IsActive = false,
+            CreatedAt = createdAt
         };
         var video = CreateVideo(VideoProcessingStatus.Queued, VideoPublicationStatus.Draft);
         var archived = CreateVideo(
@@ -107,6 +109,7 @@ public sealed class VideoCategoryServiceTests
 
         response.Items.Should().ContainSingle().Which.VideoCount.Should().Be(1);
         response.Items[0].IsActive.Should().BeFalse();
+        response.Items[0].CreatedAt.Should().Be(createdAt);
     }
 
     [Fact]

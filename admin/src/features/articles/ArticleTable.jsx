@@ -30,7 +30,7 @@ const ACTION_LABELS = { publish: "发布", unpublish: "下架", archive: "归档
 export function ArticleTable({ articles, onAction }) {
   return (
     <div className="rounded-lg border">
-      <Table className="min-w-[62rem] table-fixed">
+      <Table className="min-w-248 table-fixed">
         <TableHeader>
           <TableRow>
             <TableHead className="w-[34%] pl-4">文章</TableHead>

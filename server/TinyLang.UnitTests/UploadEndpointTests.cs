@@ -41,16 +41,21 @@ public sealed class UploadEndpointTests
             .Should().Contain(data => data.Policy == AuthorizationPolicies.RequireAdmin);
         foreach (var (pattern, method) in new[]
         {
-            ("/api/uploads/multipart/{sessionId:guid}/parts/presign", "POST"),
-            ("/api/uploads/multipart/{sessionId:guid}", "GET"),
-            ("/api/uploads/multipart/{sessionId:guid}/complete", "POST"),
-            ("/api/uploads/multipart/{sessionId:guid}", "DELETE")
+            ("/api/uploads/admin/multipart/{sessionId:guid}/parts/presign", "POST"),
+            ("/api/uploads/admin/multipart/{sessionId:guid}", "GET"),
+            ("/api/uploads/admin/multipart/{sessionId:guid}/complete", "POST"),
+            ("/api/uploads/admin/multipart/{sessionId:guid}", "DELETE")
         })
         {
             GetRoute(routes, pattern, method)
                 .Metadata.GetOrderedMetadata<IAuthorizeData>()
-                .Should().Contain(data => data.Policy == AuthorizationPolicies.RequireUser);
+                .Should().Contain(data => data.Policy == AuthorizationPolicies.RequireAdmin);
         }
+
+        routes.Should().NotContain(endpoint =>
+            endpoint.RoutePattern.RawText!.StartsWith(
+                "/api/uploads/multipart",
+                StringComparison.Ordinal));
     }
 
     [Fact]
@@ -99,7 +104,7 @@ public sealed class UploadEndpointTests
             },
             TestContext.Current.CancellationToken);
         var completed = await client.PostAsJsonAsync(
-            $"/api/uploads/multipart/{sessionId}/complete",
+            $"/api/uploads/admin/multipart/{sessionId}/complete",
             new CompleteMultipartUploadRequest
             {
                 Parts =
@@ -112,13 +117,13 @@ public sealed class UploadEndpointTests
             },
             TestContext.Current.CancellationToken);
         var aborted = await client.DeleteAsync(
-            $"/api/uploads/multipart/{sessionId}",
+            $"/api/uploads/admin/multipart/{sessionId}",
             TestContext.Current.CancellationToken);
 
         created.StatusCode.Should().Be(HttpStatusCode.Created);
-        created.Headers.Location.Should().Be($"/api/uploads/multipart/{sessionId}");
+        created.Headers.Location.Should().Be($"/api/uploads/admin/multipart/{sessionId}");
         completed.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        completed.Headers.Location.Should().Be($"/api/uploads/multipart/{sessionId}");
+        completed.Headers.Location.Should().Be($"/api/uploads/admin/multipart/{sessionId}");
         aborted.StatusCode.Should().Be(HttpStatusCode.NoContent);
         service.Verify(x => x.AbortMultipartUploadAsync(
             sessionId, userId, It.IsAny<CancellationToken>()), Times.Once);

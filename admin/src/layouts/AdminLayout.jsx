@@ -66,7 +66,7 @@ function AdminLayout() {
         <AdminNavigation />
       </aside>
 
-      <div className="min-w-0">
+      <div className="min-w-0 max-w-full overflow-x-hidden">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur-sm sm:px-4">
           <Sheet
             open={mobileNavigationOpen}
@@ -122,7 +122,7 @@ function AdminLayout() {
         </header>
 
         <AdminPageContext.Provider value={setPageLabel}>
-          <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
+          <main className="mx-auto w-full max-w-[min(80rem,100vw)] p-4 sm:p-6 lg:p-8">
             <Outlet />
           </main>
         </AdminPageContext.Provider>

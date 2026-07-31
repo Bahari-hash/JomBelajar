@@ -35,8 +35,19 @@ public sealed class OpenApiContractTests
             .Should().BeTrue();
         paths.TryGetProperty("/api/uploads/admin/media/capabilities", out _)
             .Should().BeTrue();
+        foreach (var path in new[]
+        {
+            "/api/uploads/admin/media/multipart",
+            "/api/uploads/admin/multipart/{sessionId}/parts/presign",
+            "/api/uploads/admin/multipart/{sessionId}",
+            "/api/uploads/admin/multipart/{sessionId}/complete"
+        })
+        {
+            paths.TryGetProperty(path, out _).Should().BeTrue();
+        }
         paths.EnumerateObject().Should().NotContain(path =>
             path.Name.StartsWith("/api/editor", StringComparison.Ordinal) ||
+            path.Name.StartsWith("/api/uploads/multipart", StringComparison.Ordinal) ||
             path.Name.Contains("subtitles", StringComparison.Ordinal));
 
         var schemas = document.RootElement

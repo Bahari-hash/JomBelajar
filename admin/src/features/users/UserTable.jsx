@@ -30,7 +30,7 @@ function getUserStatus(user) {
 export function UserTable({ users, currentUserId, onAction }) {
   return (
     <div className="rounded-lg border">
-      <Table className="min-w-[58rem]">
+      <Table className="min-w-232">
         <TableHeader>
           <TableRow>
             <TableHead className="w-[26%] pl-4">用户</TableHead>
@@ -141,7 +141,7 @@ export function UserTable({ users, currentUserId, onAction }) {
                       ) : null}
                       {!user.isDeleted ? (
                         <DropdownMenuItem
-                        variant="destructive"
+                          variant="destructive"
                           onSelect={() => onAction("revoke", user)}
                         >
                           {isSelf ? "撤销自己的全部会话" : "撤销全部会话"}

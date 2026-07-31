@@ -29,7 +29,7 @@ public sealed class RateLimitEndpointTests
     [InlineData("/api/uploads/users/avatar/presign")]
     [InlineData("/api/uploads/admin/media/presign")]
     [InlineData("/api/uploads/admin/media/multipart")]
-    [InlineData("/api/uploads/multipart/{sessionId:guid}/parts/presign")]
+    [InlineData("/api/uploads/admin/multipart/{sessionId:guid}/parts/presign")]
     public async Task PresignEndpointsShouldUseUploadPresignLimit(string routePattern)
     {
         await using var app = CreateApp();
@@ -46,8 +46,8 @@ public sealed class RateLimitEndpointTests
     }
 
     [Theory]
-    [InlineData("/api/uploads/multipart/{sessionId:guid}/complete")]
-    [InlineData("/api/uploads/multipart/{sessionId:guid}")]
+    [InlineData("/api/uploads/admin/multipart/{sessionId:guid}/complete")]
+    [InlineData("/api/uploads/admin/multipart/{sessionId:guid}")]
     public async Task MultipartCommandsShouldUseUploadCommandLimit(string routePattern)
     {
         await using var app = CreateApp();

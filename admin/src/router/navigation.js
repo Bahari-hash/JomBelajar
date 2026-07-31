@@ -1,4 +1,11 @@
-import { FileText, FolderTree, LayoutDashboard, Users } from "lucide-react";
+import {
+  Clapperboard,
+  FileText,
+  FolderTree,
+  LayoutDashboard,
+  Tags,
+  Users,
+} from "lucide-react";
 
 /** Single navigation source shared by desktop and mobile admin shells. */
 export const NAVIGATION_GROUPS = Object.freeze([
@@ -14,6 +21,8 @@ export const NAVIGATION_GROUPS = Object.freeze([
     items: [
       { label: "文章管理", href: "/articles", icon: FileText },
       { label: "文章分类", href: "/article-categories", icon: FolderTree },
+      { label: "视频管理", href: "/videos", icon: Clapperboard },
+      { label: "视频分类", href: "/video-categories", icon: Tags },
     ],
   },
 ]);

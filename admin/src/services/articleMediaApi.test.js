@@ -56,7 +56,7 @@ describe("article media upload", () => {
       })),
     ).toEqual([
       {
-        url: "/uploads/editor/media/presign",
+        url: "/uploads/admin/media/presign",
         method: "POST",
         data: {
           originalName: "a.png",

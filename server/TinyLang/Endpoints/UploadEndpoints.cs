@@ -48,19 +48,19 @@ public static class UploadEndpoints
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin)
             .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
 
-        group.MapPost("/multipart/{sessionId:guid}/parts/presign", PresignMultipartPartsAsync)
-            .RequireAuthorization(AuthorizationPolicies.RequireUser)
+        group.MapPost("/admin/multipart/{sessionId:guid}/parts/presign", PresignMultipartPartsAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin)
             .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
 
-        group.MapGet("/multipart/{sessionId:guid}", GetMultipartUploadAsync)
-            .RequireAuthorization(AuthorizationPolicies.RequireUser);
+        group.MapGet("/admin/multipart/{sessionId:guid}", GetMultipartUploadAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
-        group.MapPost("/multipart/{sessionId:guid}/complete", CompleteMultipartUploadAsync)
-            .RequireAuthorization(AuthorizationPolicies.RequireUser)
+        group.MapPost("/admin/multipart/{sessionId:guid}/complete", CompleteMultipartUploadAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin)
             .RequireRateLimiting(RateLimitPolicies.UploadCommandLimit);
 
-        group.MapDelete("/multipart/{sessionId:guid}", AbortMultipartUploadAsync)
-            .RequireAuthorization(AuthorizationPolicies.RequireUser)
+        group.MapDelete("/admin/multipart/{sessionId:guid}", AbortMultipartUploadAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin)
             .RequireRateLimiting(RateLimitPolicies.UploadCommandLimit);
 
         return endpoints;
@@ -189,7 +189,7 @@ public static class UploadEndpoints
             result.PartCount,
             result.ExpiresAt);
         return TypedResults.Created(
-            $"/api/uploads/multipart/{result.SessionId}",
+            $"/api/uploads/admin/multipart/{result.SessionId}",
             response);
     }
 
@@ -251,7 +251,7 @@ public static class UploadEndpoints
                 part.ETag)).ToArray(),
             cancellationToken);
         return TypedResults.Accepted(
-            $"/api/uploads/multipart/{sessionId}",
+            $"/api/uploads/admin/multipart/{sessionId}",
             ToResponse(result));
     }
 

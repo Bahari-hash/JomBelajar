@@ -1,7 +1,7 @@
 import { baseApi } from "@/services/baseApi.js";
 import {
   normalizeArticleListItem,
-  normalizeEditorArticle,
+  normalizeAdminArticle,
   normalizePage,
   normalizePreview,
 } from "@/services/articleContracts.js";
@@ -14,12 +14,12 @@ function buildListUrl(filters) {
   if (filters.keyword) params.set("keyword", filters.keyword);
   if (filters.categoryId) params.set("categoryId", filters.categoryId);
   if (filters.status) params.set("status", filters.status);
-  return `/editor/articles?${params.toString()}`;
+  return `/admin/articles?${params.toString()}`;
 }
 
 function articleTags(article) {
   return [
-    { type: "EditorArticle", id: article.id },
+    { type: "AdminArticle", id: article.id },
     ...article.categories.map((category) => ({
       type: "ArticleCategory",
       id: category.id,
@@ -31,52 +31,52 @@ function invalidateArticle(_result, error, { articleId }) {
   return error
     ? []
     : [
-        { type: "EditorArticle", id: articleId },
-        { type: "EditorArticle", id: "LIST" },
+        { type: "AdminArticle", id: articleId },
+        { type: "AdminArticle", id: "LIST" },
       ];
 }
 
 /** RTK Query endpoints for the final editor article and canonical preview contracts. */
 export const articlesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    getEditorArticles: builder.query({
+    getAdminArticles: builder.query({
       query: (filters) => ({ url: buildListUrl(filters) }),
       transformResponse: (value) =>
         normalizePage(value, normalizeArticleListItem),
       providesTags: (result) =>
         result
           ? [
-              { type: "EditorArticle", id: "LIST" },
+              { type: "AdminArticle", id: "LIST" },
               ...result.items.flatMap(articleTags),
             ]
-          : [{ type: "EditorArticle", id: "LIST" }],
+          : [{ type: "AdminArticle", id: "LIST" }],
     }),
-    getEditorArticle: builder.query({
-      query: (articleId) => ({ url: `/editor/articles/${articleId}` }),
-      transformResponse: normalizeEditorArticle,
+    getAdminArticle: builder.query({
+      query: (articleId) => ({ url: `/admin/articles/${articleId}` }),
+      transformResponse: normalizeAdminArticle,
       providesTags: (result, _error, articleId) =>
         result
           ? articleTags(result)
-          : [{ type: "EditorArticle", id: articleId }],
+          : [{ type: "AdminArticle", id: articleId }],
     }),
     createArticle: builder.mutation({
-      query: (body) => ({ url: "/editor/articles", method: "POST", body }),
-      transformResponse: normalizeEditorArticle,
+      query: (body) => ({ url: "/admin/articles", method: "POST", body }),
+      transformResponse: normalizeAdminArticle,
       invalidatesTags: (_result, error) =>
-        error ? [] : [{ type: "EditorArticle", id: "LIST" }],
+        error ? [] : [{ type: "AdminArticle", id: "LIST" }],
     }),
     updateArticle: builder.mutation({
       query: ({ articleId, ...body }) => ({
-        url: `/editor/articles/${articleId}`,
+        url: `/admin/articles/${articleId}`,
         method: "PUT",
         body,
       }),
-      transformResponse: normalizeEditorArticle,
+      transformResponse: normalizeAdminArticle,
       invalidatesTags: invalidateArticle,
     }),
     previewArticle: builder.mutation({
       query: (contentMarkdown) => ({
-        url: "/editor/articles/preview",
+        url: "/admin/articles/preview",
         method: "POST",
         body: { contentMarkdown },
       }),
@@ -84,23 +84,23 @@ export const articlesApi = baseApi.injectEndpoints({
     }),
     publishArticle: builder.mutation({
       query: ({ articleId }) => ({
-        url: `/editor/articles/${articleId}/publish`,
+        url: `/admin/articles/${articleId}/publish`,
         method: "POST",
       }),
-      transformResponse: normalizeEditorArticle,
+      transformResponse: normalizeAdminArticle,
       invalidatesTags: invalidateArticle,
     }),
     unpublishArticle: builder.mutation({
       query: ({ articleId }) => ({
-        url: `/editor/articles/${articleId}/unpublish`,
+        url: `/admin/articles/${articleId}/unpublish`,
         method: "POST",
       }),
-      transformResponse: normalizeEditorArticle,
+      transformResponse: normalizeAdminArticle,
       invalidatesTags: invalidateArticle,
     }),
     archiveArticle: builder.mutation({
       query: ({ articleId }) => ({
-        url: `/editor/articles/${articleId}`,
+        url: `/admin/articles/${articleId}`,
         method: "DELETE",
       }),
       invalidatesTags: invalidateArticle,
@@ -111,8 +111,8 @@ export const articlesApi = baseApi.injectEndpoints({
 export const {
   useArchiveArticleMutation,
   useCreateArticleMutation,
-  useGetEditorArticleQuery,
-  useGetEditorArticlesQuery,
+  useGetAdminArticleQuery,
+  useGetAdminArticlesQuery,
   usePreviewArticleMutation,
   usePublishArticleMutation,
   useUnpublishArticleMutation,

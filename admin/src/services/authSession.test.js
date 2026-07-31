@@ -38,8 +38,8 @@ describe("authSession", () => {
     const nonAdminResponse = adminTokenResponse({
       user: {
         id: "33333333-3333-3333-3333-333333333333",
-        email: "editor@example.test",
-        role: "Editor",
+        email: "user@example.test",
+        role: "User",
       },
     });
     const requestMock = mockHttpClient(vi.fn());
@@ -49,7 +49,7 @@ describe("authSession", () => {
 
     await expect(
       authSession.login({
-        email: "editor@example.test",
+        email: "user@example.test",
         password: "secret-password",
       }),
     ).rejects.toMatchObject({ status: 403 });

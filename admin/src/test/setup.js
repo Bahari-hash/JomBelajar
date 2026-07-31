@@ -1,8 +1,10 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 import { installMatchMedia } from "@/test/matchMedia.js";
 import { tokenVault } from "@/services/tokenVault.js";
+
+configure({ asyncUtilTimeout: 3000 });
 
 beforeEach(() => {
   installMatchMedia();

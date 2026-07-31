@@ -53,7 +53,13 @@ async function baseQueryWithRefresh(args, api) {
 export const baseApi = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithRefresh,
-  tagTypes: ["AdminUser", "EditorArticle", "ArticleCategory"],
+  tagTypes: [
+    "AdminUser",
+    "AdminArticle",
+    "ArticleCategory",
+    "Video",
+    "VideoCategory",
+  ],
   endpoints: () => ({}),
 });
 

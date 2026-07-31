@@ -21,7 +21,7 @@ describe("Users", () => {
     );
 
     renderAppAt(
-      "/users?page=2&pageSize=5&keyword=alice&role=Editor&status=Banned",
+      "/users?page=2&pageSize=5&keyword=alice&role=User&status=Banned",
     );
 
     expect(
@@ -33,9 +33,9 @@ describe("Users", () => {
     ).toBeVisible();
     const email = await screen.findByText("alice@example.test");
     expect(email).toBeVisible();
-    expect(within(email.closest("tr")).getByText("编辑")).toBeVisible();
+    expect(within(email.closest("tr")).getByText("普通用户")).toBeVisible();
     expect(requestMock.mock.calls[0][0].url).toBe(
-      "/admin/users?page=2&pageSize=5&keyword=alice&role=Editor&status=Banned",
+      "/admin/users?page=2&pageSize=5&keyword=alice&role=User&status=Banned",
     );
   });
 

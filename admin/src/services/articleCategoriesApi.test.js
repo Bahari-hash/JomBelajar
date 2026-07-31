@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { articleCategoriesApi } from "@/services/articleCategoriesApi.js";
+import { normalizeArticleCategory } from "@/services/articleContracts.js";
 import { tokenVault } from "@/services/tokenVault.js";
 import { createAppStore } from "@/store/index.js";
 import { articleCategory, axiosResponse, mockHttpClient } from "@/test/http.js";
@@ -31,17 +32,23 @@ describe("articleCategoriesApi", () => {
       );
     });
     const store = createAppStore();
-    await expect(
-      store
-        .dispatch(
-          articleCategoriesApi.endpoints.getAllArticleCategoryOptions.initiate(),
-        )
-        .unwrap(),
-    ).resolves.toHaveLength(2);
+    const categories = await store
+      .dispatch(
+        articleCategoriesApi.endpoints.getAllArticleCategoryOptions.initiate(),
+      )
+      .unwrap();
+    expect(categories).toHaveLength(2);
+    expect(categories[0].createdAt).toBe("2026-07-31T08:00:00+00:00");
     expect(requestMock.mock.calls.map(([config]) => config.url)).toEqual([
       "/admin/article-categories?page=1&pageSize=100&includeInactive=true",
       "/admin/article-categories?page=2&pageSize=100&includeInactive=true",
     ]);
+  });
+
+  it("rejects an invalid category creation timestamp", () => {
+    expect(() =>
+      normalizeArticleCategory(articleCategory({ createdAt: "not-a-date" })),
+    ).toThrow("API returned invalid createdAt.");
   });
 
   it("keeps clear and delete as separate endpoint calls", async () => {

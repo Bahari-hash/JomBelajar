@@ -166,7 +166,7 @@ public sealed record AdminVideoCategorySummaryResponse(
     bool IsActive);
 
 /// <summary>
-/// 返回视频分类的管理字段和关联视频数量。
+/// 返回视频分类的管理字段、关联视频数量和创建时间。
 /// </summary>
 public sealed record VideoCategoryResponse(
     Guid Id,
@@ -174,7 +174,8 @@ public sealed record VideoCategoryResponse(
     string Slug,
     string? Description,
     bool IsActive,
-    int VideoCount);
+    int VideoCount,
+    DateTimeOffset CreatedAt);
 
 /// <summary>
 /// 返回显式清空视频分类关联的结果。

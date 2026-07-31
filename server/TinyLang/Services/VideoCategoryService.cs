@@ -152,7 +152,8 @@ public sealed class VideoCategoryService(
                         assignment.Video.PublicationStatus == VideoPublicationStatus.Published)
                     : value.VideoAssignments.Count(assignment =>
                         assignment.Video.PublicationStatus !=
-                            VideoPublicationStatus.Archived)))
+                            VideoPublicationStatus.Archived),
+                value.CreatedAt))
             .ToListAsync(cancellationToken);
 
         return new PagedResponse<VideoCategoryResponse>(
@@ -187,7 +188,8 @@ public sealed class VideoCategoryService(
                 value.IsActive,
                 value.VideoAssignments.Count(assignment =>
                     assignment.Video.PublicationStatus !=
-                        VideoPublicationStatus.Archived)))
+                        VideoPublicationStatus.Archived),
+                value.CreatedAt))
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.VideoCategoryNotFound);
     }

@@ -30,6 +30,7 @@ public static class VideoCategoryEndpoints
         admin.MapPost("", CreateAsync);
         admin.MapPut("/{id:guid}", UpdateAsync);
         admin.MapDelete("/{id:guid}", DeleteAsync);
+        admin.MapDelete("/{id:guid}/videos", ClearVideosAsync);
         return endpoints;
     }
 
@@ -91,4 +92,13 @@ public static class VideoCategoryEndpoints
         await categoryService.DeleteAsync(id, cancellationToken);
         return TypedResults.NoContent();
     }
+
+    /// <summary>
+    /// 显式清除分类与所有状态视频的关联。
+    /// </summary>
+    public static async Task<Ok<ClearVideoCategoryResponse>> ClearVideosAsync(
+        Guid id,
+        IVideoCategoryService categoryService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await categoryService.ClearVideosAsync(id, cancellationToken));
 }

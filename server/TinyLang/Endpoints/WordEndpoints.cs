@@ -10,7 +10,7 @@ using TinyLang.Services;
 namespace TinyLang.Endpoints;
 
 /// <summary>
-/// 定义编辑者词条管理和登录用户词条查询 HTTP endpoints。
+/// 定义管理员词条管理和登录用户词条查询 HTTP endpoints。
 /// </summary>
 public static class WordEndpoints
 {
@@ -21,15 +21,15 @@ public static class WordEndpoints
     /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapWordsApi(this RouteGroupBuilder endpoints)
     {
-        var editor = endpoints.MapGroup("/editor/words")
-            .RequireAuthorization(AuthorizationPolicies.RequireEditor);
-        editor.MapPost("", CreateWordAsync);
-        editor.MapGet("", GetEditorWordsAsync);
-        editor.MapGet("/{id:guid}", GetEditorWordAsync);
-        editor.MapPut("/{id:guid}", UpdateWordAsync);
-        editor.MapPost("/{id:guid}/publish", PublishWordAsync);
-        editor.MapPost("/{id:guid}/unpublish", UnpublishWordAsync);
-        editor.MapDelete("/{id:guid}", DeleteWordAsync);
+        var admin = endpoints.MapGroup("/admin/words")
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+        admin.MapPost("", CreateWordAsync);
+        admin.MapGet("", GetAdminWordsAsync);
+        admin.MapGet("/{id:guid}", GetAdminWordAsync);
+        admin.MapPut("/{id:guid}", UpdateWordAsync);
+        admin.MapPost("/{id:guid}/publish", PublishWordAsync);
+        admin.MapPost("/{id:guid}/unpublish", UnpublishWordAsync);
+        admin.MapDelete("/{id:guid}", DeleteWordAsync);
 
         var user = endpoints.MapGroup("/words")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
@@ -39,9 +39,9 @@ public static class WordEndpoints
     }
 
     /// <summary>
-    /// 以当前编辑者身份创建词条草稿。
+    /// 以当前管理员身份创建词条草稿。
     /// </summary>
-    public static async Task<Created<EditorWordResponse>> CreateWordAsync(
+    public static async Task<Created<AdminWordResponse>> CreateWordAsync(
         CreateWordRequest request,
         ClaimsPrincipal principal,
         IWordService wordService,
@@ -51,34 +51,34 @@ public static class WordEndpoints
             EndpointIdentity.GetUserId(principal),
             request,
             cancellationToken);
-        return TypedResults.Created($"/api/editor/words/{response.Id}", response);
+        return TypedResults.Created($"/api/admin/words/{response.Id}", response);
     }
 
     /// <summary>
-    /// 获取编辑者可见的全局词条分页列表。
+    /// 获取管理员可见的全局词条分页列表。
     /// </summary>
-    public static async Task<Ok<PagedResponse<EditorWordListItemResponse>>>
-        GetEditorWordsAsync(
-            [AsParameters] EditorWordListRequest request,
+    public static async Task<Ok<PagedResponse<AdminWordListItemResponse>>>
+        GetAdminWordsAsync(
+            [AsParameters] AdminWordListRequest request,
             IWordService wordService,
             CancellationToken cancellationToken)
-        => TypedResults.Ok(await wordService.GetEditorListAsync(
+        => TypedResults.Ok(await wordService.GetAdminListAsync(
             request,
             cancellationToken));
 
     /// <summary>
-    /// 获取编辑者可见的词条管理详情。
+    /// 获取管理员可见的词条管理详情。
     /// </summary>
-    public static async Task<Ok<EditorWordResponse>> GetEditorWordAsync(
+    public static async Task<Ok<AdminWordResponse>> GetAdminWordAsync(
         Guid id,
         IWordService wordService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await wordService.GetEditorByIdAsync(id, cancellationToken));
+        => TypedResults.Ok(await wordService.GetAdminByIdAsync(id, cancellationToken));
 
     /// <summary>
     /// 以完整目标集合和并发标识更新词条。
     /// </summary>
-    public static async Task<Ok<EditorWordResponse>> UpdateWordAsync(
+    public static async Task<Ok<AdminWordResponse>> UpdateWordAsync(
         Guid id,
         UpdateWordRequest request,
         ClaimsPrincipal principal,
@@ -91,9 +91,9 @@ public static class WordEndpoints
             cancellationToken));
 
     /// <summary>
-    /// 以当前编辑者身份幂等发布词条。
+    /// 以当前管理员身份幂等发布词条。
     /// </summary>
-    public static async Task<Ok<EditorWordResponse>> PublishWordAsync(
+    public static async Task<Ok<AdminWordResponse>> PublishWordAsync(
         Guid id,
         ClaimsPrincipal principal,
         IWordService wordService,
@@ -104,9 +104,9 @@ public static class WordEndpoints
             cancellationToken));
 
     /// <summary>
-    /// 以当前编辑者身份幂等下架词条。
+    /// 以当前管理员身份幂等下架词条。
     /// </summary>
-    public static async Task<Ok<EditorWordResponse>> UnpublishWordAsync(
+    public static async Task<Ok<AdminWordResponse>> UnpublishWordAsync(
         Guid id,
         ClaimsPrincipal principal,
         IWordService wordService,

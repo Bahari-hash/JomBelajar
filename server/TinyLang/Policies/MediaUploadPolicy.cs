@@ -22,19 +22,17 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
         => module is ResourceModule.Avatar or
             ResourceModule.ArticlePicture or
             ResourceModule.Audio or
-            ResourceModule.CourseVideo or
-            ResourceModule.VideoSubtitle;
+            ResourceModule.CourseVideo;
 
     /// <summary>
-    /// 判断资源模块是否仅供编辑者媒体上传使用。
+    /// 判断资源模块是否仅供管理员媒体上传使用。
     /// </summary>
     /// <param name="module">资源模块。</param>
     /// <returns>模块属于文章图片、音频或课程视频时返回 <see langword="true"/>。</returns>
-    public bool IsEditorModule(ResourceModule module)
+    public bool IsAdminModule(ResourceModule module)
         => module is ResourceModule.ArticlePicture or
             ResourceModule.Audio or
-            ResourceModule.CourseVideo or
-            ResourceModule.VideoSubtitle;
+            ResourceModule.CourseVideo;
 
     /// <summary>
     /// 判断规范化扩展名是否在指定模块允许列表中。
@@ -101,11 +99,28 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
             ResourceModule.Avatar or ResourceModule.ArticlePicture => _settings.PictureMaxMB,
             ResourceModule.Audio => _settings.AudioMaxMB,
             ResourceModule.CourseVideo => _settings.VideoMaxMB,
-            ResourceModule.VideoSubtitle => _settings.SubtitleMaxMB,
             _ => 0
         };
         return (long)megabytes * 1024 * 1024;
     }
+
+    /// <summary>
+    /// 获取指定模块规范化、去重且按扩展名排序的只读上传类型投影。
+    /// </summary>
+    /// <param name="module">资源模块。</param>
+    /// <returns>扩展名到有序媒体类型集合的独立副本。</returns>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> GetAllowedTypes(
+        ResourceModule module)
+        => GetConfiguredAllowedTypes(module)
+            .OrderBy(pair => NormalizeExtension(pair.Key), StringComparer.Ordinal)
+            .ToDictionary(
+                pair => NormalizeExtension(pair.Key),
+                pair => (IReadOnlyList<string>)pair.Value
+                    .Select(NormalizeContentType)
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(value => value, StringComparer.Ordinal)
+                    .ToArray(),
+                StringComparer.Ordinal);
 
     /// <summary>
     /// 将扩展名转换为带前导点的小写形式。
@@ -168,21 +183,21 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
     /// <param name="module">资源模块。</param>
     /// <returns>允许的扩展名序列。</returns>
     private IEnumerable<string> GetAllowedExtensions(ResourceModule module)
-        => GetAllowedTypes(module).Keys;
+        => GetConfiguredAllowedTypes(module).Keys;
 
     /// <summary>
     /// 获取指定模块的扩展名到媒体类型映射。
     /// </summary>
     /// <param name="module">资源模块。</param>
     /// <returns>允许的扩展名及其媒体类型映射；不支持的模块返回空映射。</returns>
-    private IReadOnlyDictionary<string, string[]> GetAllowedTypes(ResourceModule module)
+    private IReadOnlyDictionary<string, string[]> GetConfiguredAllowedTypes(
+        ResourceModule module)
         => module switch
         {
             ResourceModule.Avatar or ResourceModule.ArticlePicture
                 => _settings.PictureAllowedTypes,
             ResourceModule.Audio => _settings.AudioAllowedTypes,
             ResourceModule.CourseVideo => _settings.VideoAllowedTypes,
-            ResourceModule.VideoSubtitle => _settings.SubtitleAllowedTypes,
             _ => new Dictionary<string, string[]>()
         };
 }

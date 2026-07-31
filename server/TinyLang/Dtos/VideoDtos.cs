@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using TinyLang.Entities.Enums;
 
 namespace TinyLang.Dtos;
@@ -15,7 +16,7 @@ public sealed record CreateVideoRequest
 }
 
 /// <summary>
-/// 描述视频允许编辑者修改的展示元数据。
+/// 描述视频允许管理员修改的展示元数据。
 /// </summary>
 public sealed record UpdateVideoRequest
 {
@@ -23,12 +24,23 @@ public sealed record UpdateVideoRequest
     public string? Description { get; init; }
     public required string OriginalLanguage { get; init; }
     public IReadOnlyCollection<Guid> CategoryIds { get; init; } = [];
+    [Required]
+    public Guid ConcurrencyStamp { get; init; }
 }
 
 /// <summary>
-/// 描述编辑者视频列表的分页、关键词和状态筛选。
+/// 描述发布、下架、重试和归档视频所需的并发前置条件。
 /// </summary>
-public sealed record EditorVideoListRequest
+public sealed record VideoMutationRequest
+{
+    [Required]
+    public Guid ConcurrencyStamp { get; init; }
+}
+
+/// <summary>
+/// 描述管理员视频列表的分页、关键词和状态筛选。
+/// </summary>
+public sealed record AdminVideoListRequest
 {
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
@@ -36,6 +48,7 @@ public sealed record EditorVideoListRequest
     public VideoProcessingStatus? ProcessingStatus { get; init; }
     public VideoPublicationStatus? PublicationStatus { get; init; }
     public Guid? CategoryId { get; init; }
+    public Guid? CreatedById { get; init; }
 }
 
 /// <summary>
@@ -89,18 +102,6 @@ public sealed record UpdateVideoCategoryRequest
 }
 
 /// <summary>
-/// 描述编辑者为视频关联 WebVTT 上传资源的请求。
-/// </summary>
-public sealed record AddVideoSubtitleRequest
-{
-    public Guid MediaResourceId { get; init; }
-    public required string LanguageTag { get; init; }
-    public required string DisplayName { get; init; }
-    public bool IsDefault { get; init; }
-    public int SortOrder { get; init; }
-}
-
-/// <summary>
 /// 描述当前登录用户上报的播放位置。
 /// </summary>
 public sealed record UpdateVideoProgressRequest
@@ -109,9 +110,9 @@ public sealed record UpdateVideoProgressRequest
 }
 
 /// <summary>
-/// 返回编辑者可见的视频处理和发布状态摘要。
+/// 返回管理员可见的视频处理和发布状态摘要。
 /// </summary>
-public sealed record EditorVideoListItemResponse(
+public sealed record AdminVideoListItemResponse(
     Guid Id,
     string Title,
     string OriginalLanguage,
@@ -119,8 +120,33 @@ public sealed record EditorVideoListItemResponse(
     VideoPublicationStatus PublicationStatus,
     double? DurationSeconds,
     string? FailureCode,
+    IReadOnlyList<AdminVideoCategorySummaryResponse> Categories,
+    ContentAuditUserResponse CreatedBy,
+    ContentAuditUserResponse LastEditor,
+    Guid ConcurrencyStamp,
+    DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    IReadOnlyList<EditorVideoCategorySummaryResponse> Categories);
+    VideoProcessingJobSummaryResponse? LatestJob);
+
+/// <summary>
+/// 返回内容管理审计所需的最小用户资料。
+/// </summary>
+public sealed record ContentAuditUserResponse(
+    Guid Id,
+    string? Nickname,
+    string? AvatarUrl);
+
+/// <summary>
+/// 返回不含租约、对象路径或内部异常的视频处理任务摘要。
+/// </summary>
+public sealed record VideoProcessingJobSummaryResponse(
+    Guid Id,
+    VideoProcessingJobStatus Status,
+    int AttemptCount,
+    DateTimeOffset? NextAttemptAt,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? CompletedAt,
+    string? FailureCode);
 
 /// <summary>
 /// 返回普通用户可见的视频分类摘要。
@@ -131,9 +157,9 @@ public sealed record VideoCategorySummaryResponse(
     string Slug);
 
 /// <summary>
-/// 返回编辑者管理视频关联的分类摘要及启用状态。
+/// 返回管理员管理视频关联的分类摘要及启用状态。
 /// </summary>
-public sealed record EditorVideoCategorySummaryResponse(
+public sealed record AdminVideoCategorySummaryResponse(
     Guid Id,
     string Name,
     string Slug,
@@ -151,6 +177,13 @@ public sealed record VideoCategoryResponse(
     int VideoCount);
 
 /// <summary>
+/// 返回显式清空视频分类关联的结果。
+/// </summary>
+public sealed record ClearVideoCategoryResponse(
+    Guid CategoryId,
+    int RemovedVideoCount);
+
+/// <summary>
 /// 返回一个实际生成的视频清晰度。
 /// </summary>
 public sealed record VideoRenditionResponse(
@@ -162,20 +195,9 @@ public sealed record VideoRenditionResponse(
     string Codecs);
 
 /// <summary>
-/// 返回编辑者管理字幕所需的稳定字段。
+/// 返回管理员管理视频所需的完整业务状态，不包含存储凭据。
 /// </summary>
-public sealed record EditorVideoSubtitleResponse(
-    Guid Id,
-    Guid MediaResourceId,
-    string LanguageTag,
-    string DisplayName,
-    bool IsDefault,
-    int SortOrder);
-
-/// <summary>
-/// 返回编辑者管理视频所需的完整业务状态，不包含存储凭据。
-/// </summary>
-public sealed record EditorVideoResponse(
+public sealed record AdminVideoResponse(
     Guid Id,
     Guid SourceMediaResourceId,
     string Title,
@@ -191,11 +213,15 @@ public sealed record EditorVideoResponse(
     string? AudioCodec,
     string? FailureCode,
     DateTimeOffset? PublishedAt,
+    DateTimeOffset? ArchivedAt,
     IReadOnlyList<VideoRenditionResponse> Renditions,
-    IReadOnlyList<EditorVideoSubtitleResponse> Subtitles,
-    IReadOnlyList<EditorVideoCategorySummaryResponse> Categories,
+    IReadOnlyList<AdminVideoCategorySummaryResponse> Categories,
+    ContentAuditUserResponse CreatedBy,
+    ContentAuditUserResponse LastEditor,
+    Guid ConcurrencyStamp,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    VideoProcessingJobSummaryResponse? LatestJob);
 
 /// <summary>
 /// 返回登录用户视频目录中的展示摘要。
@@ -224,22 +250,12 @@ public sealed record VideoDetailsResponse(
     IReadOnlyList<VideoCategorySummaryResponse> Categories);
 
 /// <summary>
-/// 返回播放器使用的一条带临时授权字幕地址。
-/// </summary>
-public sealed record VideoPlaybackSubtitleResponse(
-    string LanguageTag,
-    string DisplayName,
-    bool IsDefault,
-    string Url);
-
-/// <summary>
-/// 返回短期播放地址、poster、字幕和当前用户续播位置。
+/// 返回短期播放地址、poster 和当前用户续播位置。
 /// </summary>
 public sealed record VideoPlaybackResponse(
     string MasterPlaylistUrl,
     string? PosterUrl,
-    DateTimeOffset ExpiresAt,
+    DateTimeOffset? ExpiresAt,
     double DurationSeconds,
     double PositionSeconds,
-    bool IsCompleted,
-    IReadOnlyList<VideoPlaybackSubtitleResponse> Subtitles);
+    bool IsCompleted);

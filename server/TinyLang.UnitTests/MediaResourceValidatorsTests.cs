@@ -74,16 +74,16 @@ public sealed class MediaResourceValidatorsTests
     [Theory]
     [InlineData(ResourceModule.ArticlePicture, "picture.gif", ".gif", "image/gif", 5)]
     [InlineData(ResourceModule.Audio, "lesson.webm", ".webm", "audio/webm", 20)]
-    [InlineData(ResourceModule.CourseVideo, "course.webm", ".webm", "video/webm", 200)]
-    public async Task EditorMediaShouldApplyRulesForEachModule(
+    [InlineData(ResourceModule.CourseVideo, "course.webm", ".webm", "video/webm", 63)]
+    public async Task AdminMediaShouldApplyRulesForEachModule(
         ResourceModule module,
         string originalName,
         string extension,
         string contentType,
         int sizeMb)
     {
-        var validator = new EditorMediaPresignRequestValidator(CreatePolicy());
-        var request = CreateEditorRequest(
+        var validator = CreateAdminPresignValidator();
+        var request = CreateAdminRequest(
             module,
             originalName,
             extension,
@@ -98,11 +98,11 @@ public sealed class MediaResourceValidatorsTests
     }
 
     [Fact]
-    public async Task EditorMediaShouldRejectWrongModuleTypeAndSizeOverflow()
+    public async Task AdminMediaShouldRejectWrongModuleTypeAndSizeOverflow()
     {
-        var validator = new EditorMediaPresignRequestValidator(CreatePolicy());
+        var validator = CreateAdminPresignValidator();
         var wrongType = await validator.ValidateAsync(
-            CreateEditorRequest(
+            CreateAdminRequest(
                 ResourceModule.CourseVideo,
                 "course.png",
                 ".png",
@@ -110,7 +110,7 @@ public sealed class MediaResourceValidatorsTests
                 1024),
             TestContext.Current.CancellationToken);
         var oversizedAudio = await validator.ValidateAsync(
-            CreateEditorRequest(
+            CreateAdminRequest(
                 ResourceModule.Audio,
                 "lesson.mp3",
                 ".mp3",
@@ -122,7 +122,7 @@ public sealed class MediaResourceValidatorsTests
         oversizedAudio.ShouldContain(ErrorCodes.MediaSizeLimitExceeded);
     }
 
-    private static EditorMediaPresignRequest CreateEditorRequest(
+    private static AdminMediaPresignRequest CreateAdminRequest(
         ResourceModule module,
         string originalName,
         string extension,
@@ -139,6 +139,9 @@ public sealed class MediaResourceValidatorsTests
 
     private static MediaUploadPolicy CreatePolicy()
         => new(Options.Create(TestUploadSettings.Create()));
+
+    private static AdminMediaPresignRequestValidator CreateAdminPresignValidator()
+        => new(CreatePolicy(), Options.Create(TestMultipartUploadSettings.Create()));
 
     private static long Megabytes(int value) => (long)value * 1024 * 1024;
 
@@ -166,6 +169,42 @@ public sealed class MediaResourceValidatorsTests
             TestContext.Current.CancellationToken);
 
         result.IsValid.Should().Be(expectedValid);
+    }
+
+    [Theory]
+    [InlineData(63, true)]
+    [InlineData(64, false)]
+    public async Task SimplePresignShouldStopBeforeMultipartThreshold(
+        int sizeMb,
+        bool expectedValid)
+    {
+        var validator = CreateAdminPresignValidator();
+        var request = CreateAdminRequest(
+            ResourceModule.CourseVideo,
+            "course.mp4",
+            ".mp4",
+            "video/mp4",
+            Megabytes(sizeMb));
+
+        var result = await validator.ValidateAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().Be(expectedValid);
+    }
+
+    [Theory]
+    [InlineData(ResourceModule.Avatar)]
+    [InlineData((ResourceModule)999)]
+    public async Task CapabilityShouldRejectNonAdminOrUndefinedModule(ResourceModule module)
+    {
+        var validator = new AdminMediaCapabilityRequestValidator(CreatePolicy());
+
+        var result = await validator.ValidateAsync(
+            new AdminMediaCapabilityRequest { Module = module },
+            TestContext.Current.CancellationToken);
+
+        result.ShouldContain(ErrorCodes.ResourceModuleInvalid);
     }
 
     [Fact]

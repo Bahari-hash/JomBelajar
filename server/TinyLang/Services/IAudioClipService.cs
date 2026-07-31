@@ -3,65 +3,63 @@ using TinyLang.Dtos;
 namespace TinyLang.Services;
 
 /// <summary>
-/// 定义编辑者音频管理和登录用户播放授权用例。
+/// 定义管理员音频管理和登录用户播放授权用例。
 /// </summary>
 public interface IAudioClipService
 {
     /// <summary>
-    /// 使用当前编辑者的 Active Audio 资源创建音频和首个处理任务。
+    /// 使用当前管理员的 Active Audio 资源创建音频和首个处理任务。
     /// </summary>
-    Task<EditorAudioClipResponse> CreateAsync(
-        Guid editorId,
+    Task<AdminAudioClipResponse> CreateAsync(
+        Guid adminId,
         CreateAudioClipRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 返回当前编辑者拥有的音频管理分页列表。
+    /// 返回所有管理员协作维护的音频管理分页列表。
     /// </summary>
-    Task<PagedResponse<EditorAudioClipListItemResponse>> GetEditorListAsync(
-        Guid editorId,
-        EditorAudioClipListRequest request,
+    Task<PagedResponse<AdminAudioClipListItemResponse>> GetAdminListAsync(
+        AdminAudioClipListRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 返回当前编辑者拥有的音频管理详情。
+    /// 返回全局音频管理详情。
     /// </summary>
-    Task<EditorAudioClipResponse> GetEditorByIdAsync(
+    Task<AdminAudioClipResponse> GetAdminByIdAsync(
         Guid audioClipId,
-        Guid editorId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 更新当前编辑者音频的展示元数据。
+    /// 更新当前管理员音频的展示元数据。
     /// </summary>
-    Task<EditorAudioClipResponse> UpdateAsync(
+    Task<AdminAudioClipResponse> UpdateAsync(
         Guid audioClipId,
-        Guid editorId,
+        Guid adminId,
         UpdateAudioClipRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 幂等发布一个已经处理就绪的音频。
     /// </summary>
-    Task<EditorAudioClipResponse> PublishAsync(
+    Task<AdminAudioClipResponse> PublishAsync(
         Guid audioClipId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 幂等下架当前编辑者已经发布的音频。
+    /// 幂等下架当前管理员已经发布的音频。
     /// </summary>
-    Task<EditorAudioClipResponse> UnpublishAsync(
+    Task<AdminAudioClipResponse> UnpublishAsync(
         Guid audioClipId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 为失败音频创建新输出版本和持久化任务。
     /// </summary>
-    Task<EditorAudioClipResponse> RetryAsync(
+    Task<AdminAudioClipResponse> RetryAsync(
         Guid audioClipId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default);
 
     /// <summary>

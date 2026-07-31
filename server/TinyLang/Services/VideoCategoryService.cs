@@ -17,6 +17,9 @@ public sealed class VideoCategoryService(
     IDatabaseExceptionClassifier databaseExceptionClassifier)
     : IVideoCategoryService
 {
+    private const string CategoryAssignmentForeignKey =
+        "FK_video_category_assignments_video_categories";
+
     /// <inheritdoc />
     public async Task<VideoCategoryResponse> CreateAsync(
         CreateVideoCategoryRequest request,
@@ -59,8 +62,42 @@ public sealed class VideoCategoryService(
         var category = await db.VideoCategories
             .SingleOrDefaultAsync(value => value.Id == categoryId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.VideoCategoryNotFound);
+
+        if (await db.VideoCategoryAssignments.AsNoTracking()
+            .AnyAsync(value => value.VideoCategoryId == categoryId, cancellationToken))
+        {
+            throw ConflictException.Create(ErrorCodes.VideoCategoryInUse);
+        }
+
         db.VideoCategories.Remove(category);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (
+            databaseExceptionClassifier.IsForeignKeyConstraintViolation(
+                exception,
+                CategoryAssignmentForeignKey))
+        {
+            throw ConflictException.Create(ErrorCodes.VideoCategoryInUse);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<ClearVideoCategoryResponse> ClearVideosAsync(
+        Guid categoryId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await db.VideoCategories.AsNoTracking()
+            .AnyAsync(value => value.Id == categoryId, cancellationToken))
+        {
+            throw NotFoundException.Create(ErrorCodes.VideoCategoryNotFound);
+        }
+
+        var removedCount = await db.VideoCategoryAssignments
+            .Where(value => value.VideoCategoryId == categoryId)
+            .ExecuteDeleteAsync(cancellationToken);
+        return new ClearVideoCategoryResponse(categoryId, removedCount);
     }
 
     /// <inheritdoc />
@@ -113,7 +150,9 @@ public sealed class VideoCategoryService(
                     ? value.VideoAssignments.Count(assignment =>
                         assignment.Video.ProcessingStatus == VideoProcessingStatus.Ready &&
                         assignment.Video.PublicationStatus == VideoPublicationStatus.Published)
-                    : value.VideoAssignments.Count()))
+                    : value.VideoAssignments.Count(assignment =>
+                        assignment.Video.PublicationStatus !=
+                            VideoPublicationStatus.Archived)))
             .ToListAsync(cancellationToken);
 
         return new PagedResponse<VideoCategoryResponse>(
@@ -146,7 +185,9 @@ public sealed class VideoCategoryService(
                 value.Slug,
                 value.Description,
                 value.IsActive,
-                value.VideoAssignments.Count()))
+                value.VideoAssignments.Count(assignment =>
+                    assignment.Video.PublicationStatus !=
+                        VideoPublicationStatus.Archived)))
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.VideoCategoryNotFound);
     }

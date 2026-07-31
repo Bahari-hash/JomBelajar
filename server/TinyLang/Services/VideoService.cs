@@ -1,7 +1,4 @@
-using System.IO;
-using System.Text;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TinyLang.Dtos;
 using TinyLang.Entities;
@@ -13,56 +10,46 @@ using TinyLang.Settings;
 namespace TinyLang.Services;
 
 /// <summary>
-/// 实现视频源绑定、状态机、字幕、登录播放授权和播放进度业务规则。
+/// 实现视频源绑定、状态机、登录播放授权和播放进度业务规则。
 /// </summary>
 public sealed class VideoService : IVideoService
 {
     private readonly IApplicationDbContext _db;
-    private readonly IObjectStorageService _objectStorage;
     private readonly IVideoDeliveryUrlService _deliveryUrlService;
     private readonly IUserVideoProgressStore _progressStore;
     private readonly IDatabaseExceptionClassifier _databaseExceptionClassifier;
     private readonly VideoProgressSettings _progressSettings;
-    private readonly UploadSettings _uploadSettings;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger<VideoService> _logger;
 
     /// <summary>
-    /// 使用数据库、存储、delivery、进度持久化和业务配置创建视频服务。
+    /// 使用数据库、delivery、进度持久化和业务配置创建视频服务。
     /// </summary>
     public VideoService(
         IApplicationDbContext db,
-        IObjectStorageService objectStorage,
         IVideoDeliveryUrlService deliveryUrlService,
         IUserVideoProgressStore progressStore,
         IDatabaseExceptionClassifier databaseExceptionClassifier,
         IOptions<VideoProgressSettings> progressOptions,
-        IOptions<UploadSettings> uploadOptions,
-        TimeProvider timeProvider,
-        ILogger<VideoService> logger)
+        TimeProvider timeProvider)
     {
         _db = db;
-        _objectStorage = objectStorage;
         _deliveryUrlService = deliveryUrlService;
         _progressStore = progressStore;
         _databaseExceptionClassifier = databaseExceptionClassifier;
         _progressSettings = progressOptions.Value;
-        _uploadSettings = uploadOptions.Value;
         _timeProvider = timeProvider;
-        _logger = logger;
     }
 
     /// <inheritdoc />
-    public async Task<EditorVideoResponse> CreateAsync(
-        Guid editorId,
+    public async Task<AdminVideoResponse> CreateAsync(
+        Guid adminId,
         CreateVideoRequest request,
         CancellationToken cancellationToken = default)
     {
         var source = await _db.MediaResources.SingleOrDefaultAsync(
             value => value.Id == request.SourceMediaResourceId,
             cancellationToken);
-        if (source is null || source.UploaderId != editorId ||
-            source.Module != ResourceModule.CourseVideo)
+        if (source is null || source.Module != ResourceModule.CourseVideo)
         {
             throw NotFoundException.Create(ErrorCodes.VideoSourceInvalid);
         }
@@ -82,7 +69,8 @@ public sealed class VideoService : IVideoService
 
         var video = new Video
         {
-            OwnerId = editorId,
+            CreatedById = adminId,
+            LastEditorId = adminId,
             SourceMediaResourceId = source.Id,
             SourceMediaResource = source,
             Title = request.Title.Trim(),
@@ -117,16 +105,20 @@ public sealed class VideoService : IVideoService
         {
             throw ConflictException.Create(ErrorCodes.VideoSourceAlreadyUsed);
         }
-        return await GetEditorByIdAsync(video.Id, editorId, cancellationToken);
+        return await GetAdminByIdAsync(video.Id, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<PagedResponse<EditorVideoListItemResponse>> GetEditorListAsync(
-        Guid editorId,
-        EditorVideoListRequest request,
+    public async Task<PagedResponse<AdminVideoListItemResponse>> GetAdminListAsync(
+        AdminVideoListRequest request,
         CancellationToken cancellationToken = default)
     {
-        var query = _db.Videos.AsNoTracking().Where(value => value.OwnerId == editorId);
+        var query = _db.Videos.AsNoTracking();
+        if (request.PublicationStatus is null)
+        {
+            query = query.Where(value =>
+                value.PublicationStatus != VideoPublicationStatus.Archived);
+        }
         if (request.ProcessingStatus is { } processingStatus)
         {
             query = query.Where(value => value.ProcessingStatus == processingStatus);
@@ -145,6 +137,10 @@ public sealed class VideoService : IVideoService
             query = query.Where(value => value.CategoryAssignments
                 .Any(assignment => assignment.VideoCategoryId == categoryId));
         }
+        if (request.CreatedById is { } createdById)
+        {
+            query = query.Where(value => value.CreatedById == createdById);
+        }
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
@@ -152,7 +148,7 @@ public sealed class VideoService : IVideoService
             .ThenByDescending(value => value.Id)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(value => new EditorVideoListItemResponse(
+            .Select(value => new AdminVideoListItemResponse(
                 value.Id,
                 value.Title,
                 value.OriginalLanguage,
@@ -160,42 +156,70 @@ public sealed class VideoService : IVideoService
                 value.PublicationStatus,
                 value.DurationSeconds,
                 value.LastFailureCode,
-                value.UpdatedAt,
                 value.CategoryAssignments
                     .OrderBy(assignment => assignment.VideoCategory.Name)
                     .ThenBy(assignment => assignment.VideoCategoryId)
-                    .Select(assignment => new EditorVideoCategorySummaryResponse(
+                    .Select(assignment => new AdminVideoCategorySummaryResponse(
                         assignment.VideoCategory.Id,
                         assignment.VideoCategory.Name,
                         assignment.VideoCategory.Slug,
                         assignment.VideoCategory.IsActive))
-                    .ToList()))
+                    .ToList(),
+                new ContentAuditUserResponse(
+                    value.CreatedById,
+                    value.CreatedBy.Nickname,
+                    value.CreatedBy.AvatarUrl),
+                new ContentAuditUserResponse(
+                    value.LastEditorId,
+                    value.LastEditor.Nickname,
+                    value.LastEditor.AvatarUrl),
+                value.ConcurrencyStamp,
+                value.CreatedAt,
+                value.UpdatedAt,
+                value.ProcessingJobs
+                    .OrderByDescending(job => job.CreatedAt)
+                    .ThenByDescending(job => job.Id)
+                    .Select(job => new VideoProcessingJobSummaryResponse(
+                        job.Id,
+                        job.Status,
+                        job.AttemptCount,
+                        job.NextAttemptAt,
+                        job.StartedAt,
+                        job.CompletedAt,
+                        job.FailureCode))
+                    .FirstOrDefault()))
             .ToListAsync(cancellationToken);
         return CreatePage(items, request.Page, request.PageSize, totalCount);
     }
 
     /// <inheritdoc />
-    public async Task<EditorVideoResponse> GetEditorByIdAsync(
+    public async Task<AdminVideoResponse> GetAdminByIdAsync(
         Guid videoId,
-        Guid editorId,
         CancellationToken cancellationToken = default)
     {
-        var video = await EditorDetailsQuery()
-            .SingleOrDefaultAsync(
-                value => value.Id == videoId && value.OwnerId == editorId,
-                cancellationToken)
+        var video = await AdminDetailsQuery()
+            .SingleOrDefaultAsync(value => value.Id == videoId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.VideoNotFound);
-        return ToEditorResponse(video);
+        var auditUsers = await _db.Users.AsNoTracking()
+            .Where(value => value.Id == video.CreatedById || value.Id == video.LastEditorId)
+            .ToListAsync(cancellationToken);
+        return ToAdminResponse(video, auditUsers);
     }
 
     /// <inheritdoc />
-    public async Task<EditorVideoResponse> UpdateAsync(
+    public async Task<AdminVideoResponse> UpdateAsync(
         Guid videoId,
-        Guid editorId,
+        Guid adminId,
         UpdateVideoRequest request,
         CancellationToken cancellationToken = default)
     {
-        var video = await FindOwnedVideoAsync(videoId, editorId, cancellationToken);
+        var video = await FindVideoAsync(videoId, cancellationToken);
+        EnsureExpectedStamp(video, request.ConcurrencyStamp);
+        if (video.PublicationStatus is VideoPublicationStatus.Published or
+            VideoPublicationStatus.Archived)
+        {
+            throw ConflictException.Create(ErrorCodes.VideoStatusConflict);
+        }
         var categories = await LoadUsableCategoriesAsync(
             request.CategoryIds,
             cancellationToken);
@@ -206,21 +230,28 @@ public sealed class VideoService : IVideoService
         video.Title = request.Title.Trim();
         video.Description = NormalizeOptional(request.Description);
         video.OriginalLanguage = NormalizeLanguageTag(request.OriginalLanguage);
+        video.LastEditorId = adminId;
         video.ConcurrencyStamp = Guid.NewGuid();
         await SaveWithVideoConflictAsync(cancellationToken);
-        return await GetEditorByIdAsync(videoId, editorId, cancellationToken);
+        return await GetAdminByIdAsync(videoId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorVideoResponse> PublishAsync(
+    public async Task<AdminVideoResponse> PublishAsync(
         Guid videoId,
-        Guid editorId,
+        Guid adminId,
+        VideoMutationRequest request,
         CancellationToken cancellationToken = default)
     {
-        var video = await FindOwnedVideoAsync(videoId, editorId, cancellationToken);
+        var video = await FindVideoAsync(videoId, cancellationToken);
+        EnsureExpectedStamp(video, request.ConcurrencyStamp);
         if (video.PublicationStatus == VideoPublicationStatus.Published)
         {
-            return await GetEditorByIdAsync(videoId, editorId, cancellationToken);
+            return await GetAdminByIdAsync(videoId, cancellationToken);
+        }
+        if (video.PublicationStatus == VideoPublicationStatus.Archived)
+        {
+            throw ConflictException.Create(ErrorCodes.VideoStatusConflict);
         }
         if (video.ProcessingStatus != VideoProcessingStatus.Ready)
         {
@@ -228,45 +259,56 @@ public sealed class VideoService : IVideoService
         }
         video.PublicationStatus = VideoPublicationStatus.Published;
         video.PublishedAt = _timeProvider.GetUtcNow();
+        video.LastEditorId = adminId;
         video.ConcurrencyStamp = Guid.NewGuid();
         await SaveWithVideoConflictAsync(cancellationToken);
-        return await GetEditorByIdAsync(videoId, editorId, cancellationToken);
+        return await GetAdminByIdAsync(videoId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorVideoResponse> UnpublishAsync(
+    public async Task<AdminVideoResponse> UnpublishAsync(
         Guid videoId,
-        Guid editorId,
+        Guid adminId,
+        VideoMutationRequest request,
         CancellationToken cancellationToken = default)
     {
-        var video = await FindOwnedVideoAsync(videoId, editorId, cancellationToken);
+        var video = await FindVideoAsync(videoId, cancellationToken);
+        EnsureExpectedStamp(video, request.ConcurrencyStamp);
         if (video.PublicationStatus == VideoPublicationStatus.Unpublished)
         {
-            return await GetEditorByIdAsync(videoId, editorId, cancellationToken);
+            return await GetAdminByIdAsync(videoId, cancellationToken);
         }
         if (video.PublicationStatus != VideoPublicationStatus.Published)
         {
             throw ConflictException.Create(ErrorCodes.VideoStatusConflict);
         }
         video.PublicationStatus = VideoPublicationStatus.Unpublished;
+        video.LastEditorId = adminId;
         video.ConcurrencyStamp = Guid.NewGuid();
         await SaveWithVideoConflictAsync(cancellationToken);
-        return await GetEditorByIdAsync(videoId, editorId, cancellationToken);
+        return await GetAdminByIdAsync(videoId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorVideoResponse> RetryAsync(
+    public async Task<AdminVideoResponse> RetryAsync(
         Guid videoId,
-        Guid editorId,
+        Guid adminId,
+        VideoMutationRequest request,
         CancellationToken cancellationToken = default)
     {
-        var video = await FindOwnedVideoAsync(videoId, editorId, cancellationToken);
+        var video = await FindVideoAsync(videoId, cancellationToken);
+        EnsureExpectedStamp(video, request.ConcurrencyStamp);
+        if (video.PublicationStatus == VideoPublicationStatus.Archived)
+        {
+            throw ConflictException.Create(ErrorCodes.VideoStatusConflict);
+        }
         if (video.ProcessingStatus != VideoProcessingStatus.Failed)
         {
             throw ConflictException.Create(ErrorCodes.VideoRetryConflict);
         }
         video.ProcessingStatus = VideoProcessingStatus.Queued;
         video.LastFailureCode = null;
+        video.LastEditorId = adminId;
         video.ConcurrencyStamp = Guid.NewGuid();
         _db.VideoProcessingJobs.Add(new VideoProcessingJob
         {
@@ -286,110 +328,40 @@ public sealed class VideoService : IVideoService
         }
         catch (DbUpdateConcurrencyException)
         {
-            throw ConflictException.Create(ErrorCodes.VideoRetryConflict);
+            throw ConflictException.Create(ErrorCodes.VideoConcurrencyConflict);
         }
-        return await GetEditorByIdAsync(videoId, editorId, cancellationToken);
+        return await GetAdminByIdAsync(videoId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorVideoSubtitleResponse> AddSubtitleAsync(
+    public async Task<AdminVideoResponse> ArchiveAsync(
         Guid videoId,
-        Guid editorId,
-        AddVideoSubtitleRequest request,
+        Guid adminId,
+        VideoMutationRequest request,
         CancellationToken cancellationToken = default)
     {
-        var video = await FindOwnedVideoAsync(videoId, editorId, cancellationToken);
-        var resource = await _db.MediaResources.SingleOrDefaultAsync(
-            value => value.Id == request.MediaResourceId,
-            cancellationToken);
-        if (resource is null || resource.UploaderId != editorId ||
-            resource.Module != ResourceModule.VideoSubtitle ||
-            resource.Status != ResourceStatus.Active)
+        var video = await FindVideoAsync(videoId, cancellationToken);
+        EnsureExpectedStamp(video, request.ConcurrencyStamp);
+        if (video.PublicationStatus == VideoPublicationStatus.Archived)
         {
-            throw NotFoundException.Create(ErrorCodes.VideoSubtitleInvalid);
+            return await GetAdminByIdAsync(videoId, cancellationToken);
         }
-        if (await _db.VideoSubtitles.AsNoTracking().AnyAsync(
-            value => value.MediaResourceId == resource.Id,
-            cancellationToken))
+        if (video.PublicationStatus == VideoPublicationStatus.Published ||
+            await _db.VideoProcessingJobs.AsNoTracking().AnyAsync(
+                job => job.VideoId == videoId &&
+                    (job.Status == VideoProcessingJobStatus.Queued ||
+                        job.Status == VideoProcessingJobStatus.Processing),
+                cancellationToken))
         {
-            throw ConflictException.Create(ErrorCodes.VideoSubtitleInvalid);
+            throw ConflictException.Create(ErrorCodes.VideoArchiveConflict);
         }
-        var languageTag = NormalizeLanguageTag(request.LanguageTag);
-        if (await _db.VideoSubtitles.AsNoTracking().AnyAsync(
-            value => value.VideoId == videoId && value.LanguageTag == languageTag,
-            cancellationToken))
-        {
-            throw ConflictException.Create(ErrorCodes.VideoSubtitleLanguageConflict);
-        }
-        await ValidateWebVttAsync(resource, cancellationToken);
 
-        if (request.IsDefault)
-        {
-            var currentDefaults = await _db.VideoSubtitles
-                .Where(value => value.VideoId == videoId && value.IsDefault)
-                .ToListAsync(cancellationToken);
-            foreach (var currentDefault in currentDefaults)
-            {
-                currentDefault.IsDefault = false;
-            }
-        }
-        var subtitle = new VideoSubtitle
-        {
-            VideoId = video.Id,
-            MediaResourceId = resource.Id,
-            LanguageTag = languageTag,
-            DisplayName = request.DisplayName.Trim(),
-            IsDefault = request.IsDefault,
-            SortOrder = request.SortOrder
-        };
-        _db.VideoSubtitles.Add(subtitle);
-        try
-        {
-            await _db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException exception) when (
-            _databaseExceptionClassifier.IsUniqueConstraintViolation(
-                exception,
-                "IX_video_subtitles_MediaResourceId",
-                "IX_video_subtitles_VideoId_LanguageTag",
-                "IX_video_subtitles_VideoId"))
-        {
-            throw ConflictException.Create(ErrorCodes.VideoSubtitleLanguageConflict);
-        }
-        return ToSubtitleResponse(subtitle);
-    }
-
-    /// <inheritdoc />
-    public async Task RemoveSubtitleAsync(
-        Guid videoId,
-        Guid subtitleId,
-        Guid editorId,
-        CancellationToken cancellationToken = default)
-    {
-        _ = await FindOwnedVideoAsync(videoId, editorId, cancellationToken);
-        var subtitle = await _db.VideoSubtitles
-            .Include(value => value.MediaResource)
-            .SingleOrDefaultAsync(
-                value => value.Id == subtitleId && value.VideoId == videoId,
-                cancellationToken)
-            ?? throw NotFoundException.Create(ErrorCodes.VideoSubtitleInvalid);
-        _db.VideoSubtitles.Remove(subtitle);
-        subtitle.MediaResource.Status = ResourceStatus.Aborted;
-        subtitle.MediaResource.ConcurrencyStamp = Guid.NewGuid();
-        await _db.SaveChangesAsync(cancellationToken);
-        try
-        {
-            await _objectStorage.DeleteObjectAsync(
-                subtitle.MediaResource.ObjectName,
-                cancellationToken);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            _logger.LogWarning(
-                "Video subtitle object cleanup failed for subtitle {SubtitleId} with {FailureType}",
-                subtitleId,
-                exception.GetType().Name);
-        }
+        video.PublicationStatus = VideoPublicationStatus.Archived;
+        video.ArchivedAt = _timeProvider.GetUtcNow();
+        video.LastEditorId = adminId;
+        video.ConcurrencyStamp = Guid.NewGuid();
+        await SaveWithVideoConflictAsync(cancellationToken);
+        return await GetAdminByIdAsync(videoId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -471,8 +443,6 @@ public sealed class VideoService : IVideoService
         CancellationToken cancellationToken = default)
     {
         var video = await PublishedVideosQuery()
-            .Include(value => value.Subtitles.OrderBy(subtitle => subtitle.SortOrder))
-                .ThenInclude(value => value.MediaResource)
             .SingleOrDefaultAsync(value => value.Id == videoId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.VideoNotFound);
         if (video.MasterPlaylistObjectName is null ||
@@ -489,15 +459,6 @@ public sealed class VideoService : IVideoService
         var posterUrl = video.PosterObjectName is null
             ? null
             : _deliveryUrlService.CreateUrl(video.PosterObjectName, outputPrefix).Url;
-        var subtitles = video.Subtitles
-            .Select(subtitle => new VideoPlaybackSubtitleResponse(
-                subtitle.LanguageTag,
-                subtitle.DisplayName,
-                subtitle.IsDefault,
-                _deliveryUrlService.CreateUrl(
-                    subtitle.MediaResource.ObjectName,
-                    GetObjectDirectory(subtitle.MediaResource.ObjectName)).Url))
-            .ToArray();
         var progress = await _db.UserVideoProgress.AsNoTracking()
             .SingleOrDefaultAsync(
                 value => value.UserId == userId && value.VideoId == videoId,
@@ -508,8 +469,7 @@ public sealed class VideoService : IVideoService
             masterUrl.ExpiresAt,
             video.DurationSeconds.Value,
             progress?.PositionSeconds ?? 0,
-            progress?.IsCompleted ?? false,
-            subtitles);
+            progress?.IsCompleted ?? false);
     }
 
     /// <inheritdoc />
@@ -542,12 +502,12 @@ public sealed class VideoService : IVideoService
     }
 
     /// <summary>
-    /// 创建包含 rendition 和字幕的编辑者只读详情查询。
+    /// 创建包含 rendition 和分类的管理员只读详情查询。
     /// </summary>
-    private IQueryable<Video> EditorDetailsQuery()
+    private IQueryable<Video> AdminDetailsQuery()
         => _db.Videos.AsNoTracking()
             .Include(value => value.Renditions)
-            .Include(value => value.Subtitles)
+            .Include(value => value.ProcessingJobs)
             .Include(value => value.CategoryAssignments)
                 .ThenInclude(value => value.VideoCategory);
 
@@ -564,61 +524,22 @@ public sealed class VideoService : IVideoService
             value.PublishedAt != null);
 
     /// <summary>
-    /// 查找当前编辑者拥有的可变视频，不泄漏其他 owner 的实体存在性。
+    /// 查找管理员可变更的全局视频。
     /// </summary>
-    private async Task<Video> FindOwnedVideoAsync(
+    private async Task<Video> FindVideoAsync(
         Guid videoId,
-        Guid editorId,
         CancellationToken cancellationToken)
-        => await _db.Videos.SingleOrDefaultAsync(
-            value => value.Id == videoId && value.OwnerId == editorId,
-            cancellationToken)
+        => await _db.Videos.SingleOrDefaultAsync(value => value.Id == videoId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.VideoNotFound);
 
     /// <summary>
-    /// 验证字幕对象是有界、无 BOM 的 UTF-8 文本且首行具有 WEBVTT header。
+    /// 在任何状态判断前校验客户端读取到的视频版本。
     /// </summary>
-    private async Task ValidateWebVttAsync(
-        MediaResource resource,
-        CancellationToken cancellationToken)
+    private static void EnsureExpectedStamp(Video video, Guid expectedStamp)
     {
-        var maxBytes = (long)_uploadSettings.SubtitleMaxMB * 1024 * 1024;
-        var metadata = await _objectStorage.GetObjectMetadataAsync(
-            resource.ObjectName,
-            cancellationToken);
-        if (metadata is null || metadata.Size <= 0 || metadata.Size > maxBytes)
+        if (video.ConcurrencyStamp != expectedStamp)
         {
-            throw ConflictException.Create(ErrorCodes.VideoSubtitleInvalid);
-        }
-        await using var content = new MemoryStream((int)metadata.Size);
-        await _objectStorage.DownloadObjectAsync(
-            resource.ObjectName,
-            content,
-            cancellationToken);
-        if (content.Length != metadata.Size || content.Length > maxBytes)
-        {
-            throw ConflictException.Create(ErrorCodes.VideoSubtitleInvalid);
-        }
-        var bytes = content.ToArray();
-        if (bytes.Length >= 3 && bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf)
-        {
-            throw ConflictException.Create(ErrorCodes.VideoSubtitleInvalid);
-        }
-        string text;
-        try
-        {
-            text = new UTF8Encoding(false, true).GetString(bytes);
-        }
-        catch (DecoderFallbackException)
-        {
-            throw ConflictException.Create(ErrorCodes.VideoSubtitleInvalid);
-        }
-        using var reader = new StringReader(text);
-        var firstLine = reader.ReadLine();
-        if (firstLine is null || !firstLine.StartsWith("WEBVTT", StringComparison.Ordinal) ||
-            (firstLine.Length > 6 && !char.IsWhiteSpace(firstLine[6])))
-        {
-            throw ConflictException.Create(ErrorCodes.VideoSubtitleInvalid);
+            throw ConflictException.Create(ErrorCodes.VideoConcurrencyConflict);
         }
     }
 
@@ -633,14 +554,16 @@ public sealed class VideoService : IVideoService
         }
         catch (DbUpdateConcurrencyException)
         {
-            throw ConflictException.Create(ErrorCodes.VideoStatusConflict);
+            throw ConflictException.Create(ErrorCodes.VideoConcurrencyConflict);
         }
     }
 
     /// <summary>
     /// 将编辑实体映射为不包含内部对象路径的管理响应。
     /// </summary>
-    private static EditorVideoResponse ToEditorResponse(Video video)
+    private static AdminVideoResponse ToAdminResponse(
+        Video video,
+        IReadOnlyCollection<User> auditUsers)
         => new(
             video.Id,
             video.SourceMediaResourceId,
@@ -657,6 +580,7 @@ public sealed class VideoService : IVideoService
             video.AudioCodec,
             video.LastFailureCode,
             video.PublishedAt,
+            video.ArchivedAt,
             video.Renditions.OrderBy(value => value.Height)
                 .Select(value => new VideoRenditionResponse(
                     value.TargetHeight,
@@ -666,32 +590,49 @@ public sealed class VideoService : IVideoService
                     value.AudioBitrateKbps,
                     value.Codecs))
                 .ToArray(),
-            video.Subtitles.OrderBy(value => value.SortOrder)
-                .Select(ToSubtitleResponse)
-                .ToArray(),
             video.CategoryAssignments
                 .OrderBy(value => value.VideoCategory.Name)
                 .ThenBy(value => value.VideoCategoryId)
-                .Select(value => new EditorVideoCategorySummaryResponse(
+                .Select(value => new AdminVideoCategorySummaryResponse(
                     value.VideoCategory.Id,
                     value.VideoCategory.Name,
                     value.VideoCategory.Slug,
                     value.VideoCategory.IsActive))
                 .ToArray(),
+            ToAuditUser(video.CreatedById, auditUsers),
+            ToAuditUser(video.LastEditorId, auditUsers),
+            video.ConcurrencyStamp,
             video.CreatedAt,
-            video.UpdatedAt);
+            video.UpdatedAt,
+            video.ProcessingJobs
+                .OrderByDescending(value => value.CreatedAt)
+                .ThenByDescending(value => value.Id)
+                .Select(ToJobSummary)
+                .FirstOrDefault());
 
     /// <summary>
-    /// 将字幕实体映射为编辑者管理响应。
+    /// 将用户映射为不含账号、邮箱或角色的内容审计摘要。
     /// </summary>
-    private static EditorVideoSubtitleResponse ToSubtitleResponse(VideoSubtitle subtitle)
+    private static ContentAuditUserResponse ToAuditUser(
+        Guid userId,
+        IEnumerable<User> auditUsers)
+    {
+        var user = auditUsers.FirstOrDefault(value => value.Id == userId);
+        return new(userId, user?.Nickname, user?.AvatarUrl);
+    }
+
+    /// <summary>
+    /// 将处理任务映射为不含租约和基础设施字段的管理摘要。
+    /// </summary>
+    private static VideoProcessingJobSummaryResponse ToJobSummary(VideoProcessingJob job)
         => new(
-            subtitle.Id,
-            subtitle.MediaResourceId,
-            subtitle.LanguageTag,
-            subtitle.DisplayName,
-            subtitle.IsDefault,
-            subtitle.SortOrder);
+            job.Id,
+            job.Status,
+            job.AttemptCount,
+            job.NextAttemptAt,
+            job.StartedAt,
+            job.CompletedAt,
+            job.FailureCode);
 
     /// <summary>
     /// 创建具有确定总页数的通用分页响应。

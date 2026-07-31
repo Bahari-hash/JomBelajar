@@ -134,6 +134,59 @@ public sealed class VideoProcessingService : IVideoProcessingService
     }
 
     /// <inheritdoc />
+    public async Task<bool> RenewLeaseAsync(
+        Guid jobId,
+        Guid workerId,
+        CancellationToken cancellationToken = default)
+    {
+        _db.ChangeTracker.Clear();
+        var now = _timeProvider.GetUtcNow();
+        var leaseExpiresAt = now.AddSeconds(_settings.LeaseSeconds);
+        if (_db.Database.IsRelational())
+        {
+            var updated = await _db.VideoProcessingJobs
+                .Where(job =>
+                    job.Id == jobId &&
+                    job.Status == VideoProcessingJobStatus.Processing &&
+                    job.LeaseOwner == workerId &&
+                    job.LeaseExpiresAt > now)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(job => job.LeaseExpiresAt, leaseExpiresAt),
+                    cancellationToken);
+            return updated == 1;
+        }
+
+        // The non-relational path preserves lease behavior in isolated tests;
+        // production PostgreSQL uses the conditional update above.
+        var trackedJob = await _db.VideoProcessingJobs
+            .SingleOrDefaultAsync(job =>
+                job.Id == jobId &&
+                job.Status == VideoProcessingJobStatus.Processing &&
+                job.LeaseOwner == workerId &&
+                job.LeaseExpiresAt > now,
+                cancellationToken);
+        if (trackedJob is null)
+        {
+            return false;
+        }
+
+        trackedJob.LeaseExpiresAt = leaseExpiresAt;
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return false;
+        }
+        finally
+        {
+            _db.ChangeTracker.Clear();
+        }
+    }
+
+    /// <inheritdoc />
     public async Task ProcessClaimedAsync(
         Guid jobId,
         Guid workerId,
@@ -189,7 +242,12 @@ public sealed class VideoProcessingService : IVideoProcessingService
                 probe,
                 cancellationToken);
             await UploadOutputAsync(job, outputDirectory, output, cancellationToken);
-            await MarkReadyAsync(job, probe, output, cancellationToken);
+            await MarkReadyAsync(
+                jobId,
+                workerId,
+                probe,
+                output,
+                cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -360,12 +418,24 @@ public sealed class VideoProcessingService : IVideoProcessingService
     /// <summary>
     /// 在 master 已验证后原子写入媒体属性、renditions 和 Ready 状态。
     /// </summary>
-    private async Task MarkReadyAsync(
-        VideoProcessingJob job,
+    private async Task<bool> MarkReadyAsync(
+        Guid jobId,
+        Guid workerId,
         MediaProbeResult probe,
         VideoTranscodeResult output,
         CancellationToken cancellationToken)
     {
+        _db.ChangeTracker.Clear();
+        var now = _timeProvider.GetUtcNow();
+        var job = await _db.VideoProcessingJobs
+            .Include(value => value.Video)
+            .SingleOrDefaultAsync(value => value.Id == jobId, cancellationToken);
+        if (job is null || job.Status != VideoProcessingJobStatus.Processing ||
+            job.LeaseOwner != workerId || job.LeaseExpiresAt <= now)
+        {
+            return false;
+        }
+
         var prefix = GetOutputPrefix(job.VideoId, job.OutputVersion);
         job.Video.DurationSeconds = probe.DurationSeconds;
         job.Video.DisplayWidth = probe.DisplayWidth;
@@ -401,13 +471,22 @@ public sealed class VideoProcessingService : IVideoProcessingService
             });
         }
         job.Status = VideoProcessingJobStatus.Completed;
-        job.CompletedAt = _timeProvider.GetUtcNow();
+        job.CompletedAt = now;
         job.NextAttemptAt = null;
         job.LeaseOwner = null;
         job.LeaseExpiresAt = null;
         job.FailureCode = null;
         job.ConcurrencyStamp = Guid.NewGuid();
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            _db.ChangeTracker.Clear();
+            return false;
+        }
     }
 
     /// <summary>
@@ -421,11 +500,12 @@ public sealed class VideoProcessingService : IVideoProcessingService
         CancellationToken cancellationToken)
     {
         _db.ChangeTracker.Clear();
+        var now = _timeProvider.GetUtcNow();
         var job = await _db.VideoProcessingJobs
             .Include(value => value.Video)
             .SingleOrDefaultAsync(value => value.Id == jobId, cancellationToken);
         if (job is null || job.Status != VideoProcessingJobStatus.Processing ||
-            job.LeaseOwner != workerId)
+            job.LeaseOwner != workerId || job.LeaseExpiresAt <= now)
         {
             return;
         }
@@ -440,7 +520,7 @@ public sealed class VideoProcessingService : IVideoProcessingService
         if (reachesTerminal)
         {
             job.Status = VideoProcessingJobStatus.Failed;
-            job.CompletedAt = _timeProvider.GetUtcNow();
+            job.CompletedAt = now;
             job.NextAttemptAt = null;
             job.Video.ProcessingStatus = VideoProcessingStatus.Failed;
         }
@@ -450,7 +530,7 @@ public sealed class VideoProcessingService : IVideoProcessingService
             var delayMinutes = Math.Min(
                 Math.Pow(2, job.AttemptCount - 1),
                 _settings.RetryMaxDelayMinutes);
-            job.NextAttemptAt = _timeProvider.GetUtcNow().AddMinutes(delayMinutes);
+            job.NextAttemptAt = now.AddMinutes(delayMinutes);
             job.Video.ProcessingStatus = VideoProcessingStatus.Queued;
         }
         try

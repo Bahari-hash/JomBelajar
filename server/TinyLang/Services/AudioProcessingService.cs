@@ -231,13 +231,12 @@ public sealed class AudioProcessingService : IAudioProcessingService
     }
 
     /// <summary>
-    /// 验证处理时的 source 仍属于音频 owner 且保持 Active Audio 状态。
+    /// 验证处理时的 source 仍保持 Active Audio 状态。
     /// </summary>
     private static void ValidateSourceResource(AudioClip audioClip)
     {
         var source = audioClip.SourceMediaResource;
-        if (source.UploaderId != audioClip.OwnerId ||
-            source.Module != ResourceModule.Audio ||
+        if (source.Module != ResourceModule.Audio ||
             source.Status != ResourceStatus.Active)
         {
             throw new AudioProcessingException(

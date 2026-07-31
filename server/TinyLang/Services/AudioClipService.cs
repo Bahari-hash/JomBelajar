@@ -8,7 +8,7 @@ using TinyLang.Interfaces;
 namespace TinyLang.Services;
 
 /// <summary>
-/// 实现音频源绑定、编辑者管理状态机和登录用户播放授权规则。
+/// 实现音频源绑定、管理员协作状态机和登录用户播放授权规则。
 /// </summary>
 public sealed class AudioClipService : IAudioClipService
 {
@@ -33,16 +33,15 @@ public sealed class AudioClipService : IAudioClipService
     }
 
     /// <inheritdoc />
-    public async Task<EditorAudioClipResponse> CreateAsync(
-        Guid editorId,
+    public async Task<AdminAudioClipResponse> CreateAsync(
+        Guid adminId,
         CreateAudioClipRequest request,
         CancellationToken cancellationToken = default)
     {
         var source = await _db.MediaResources.SingleOrDefaultAsync(
             value => value.Id == request.SourceMediaResourceId,
             cancellationToken);
-        if (source is null || source.UploaderId != editorId ||
-            source.Module != ResourceModule.Audio)
+        if (source is null || source.Module != ResourceModule.Audio)
         {
             throw NotFoundException.Create(ErrorCodes.AudioSourceInvalid);
         }
@@ -60,7 +59,8 @@ public sealed class AudioClipService : IAudioClipService
 
         var audioClip = new AudioClip
         {
-            OwnerId = editorId,
+            CreatedById = adminId,
+            LastEditorId = adminId,
             SourceMediaResourceId = source.Id,
             SourceMediaResource = source,
             Title = request.Title.Trim(),
@@ -86,17 +86,15 @@ public sealed class AudioClipService : IAudioClipService
         {
             throw ConflictException.Create(ErrorCodes.AudioSourceAlreadyUsed);
         }
-        return await GetEditorByIdAsync(audioClip.Id, editorId, cancellationToken);
+        return await GetAdminByIdAsync(audioClip.Id, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<PagedResponse<EditorAudioClipListItemResponse>> GetEditorListAsync(
-        Guid editorId,
-        EditorAudioClipListRequest request,
+    public async Task<PagedResponse<AdminAudioClipListItemResponse>> GetAdminListAsync(
+        AdminAudioClipListRequest request,
         CancellationToken cancellationToken = default)
     {
-        var query = _db.AudioClips.AsNoTracking()
-            .Where(value => value.OwnerId == editorId);
+        var query = _db.AudioClips.AsNoTracking();
         if (request.ProcessingStatus is { } processingStatus)
         {
             query = query.Where(value => value.ProcessingStatus == processingStatus);
@@ -121,7 +119,7 @@ public sealed class AudioClipService : IAudioClipService
             .ThenByDescending(value => value.Id)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(value => new EditorAudioClipListItemResponse(
+            .Select(value => new AdminAudioClipListItemResponse(
                 value.Id,
                 value.Title,
                 value.LanguageTag,
@@ -136,53 +134,45 @@ public sealed class AudioClipService : IAudioClipService
     }
 
     /// <inheritdoc />
-    public async Task<EditorAudioClipResponse> GetEditorByIdAsync(
+    public async Task<AdminAudioClipResponse> GetAdminByIdAsync(
         Guid audioClipId,
-        Guid editorId,
         CancellationToken cancellationToken = default)
     {
         var audioClip = await _db.AudioClips.AsNoTracking()
-            .SingleOrDefaultAsync(
-                value => value.Id == audioClipId && value.OwnerId == editorId,
-                cancellationToken)
+            .SingleOrDefaultAsync(value => value.Id == audioClipId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.AudioNotFound);
-        return ToEditorResponse(audioClip);
+        return ToAdminResponse(audioClip);
     }
 
     /// <inheritdoc />
-    public async Task<EditorAudioClipResponse> UpdateAsync(
+    public async Task<AdminAudioClipResponse> UpdateAsync(
         Guid audioClipId,
-        Guid editorId,
+        Guid adminId,
         UpdateAudioClipRequest request,
         CancellationToken cancellationToken = default)
     {
         EnsureKindIsValid(request.Kind);
-        var audioClip = await FindOwnedAudioClipAsync(
-            audioClipId,
-            editorId,
-            cancellationToken);
+        var audioClip = await FindAudioClipAsync(audioClipId, cancellationToken);
         audioClip.Title = request.Title.Trim();
         audioClip.Description = NormalizeOptional(request.Description);
         audioClip.LanguageTag = NormalizeLanguageTag(request.LanguageTag);
         audioClip.Kind = request.Kind;
+        audioClip.LastEditorId = adminId;
         audioClip.ConcurrencyStamp = Guid.NewGuid();
         await SaveWithAudioConflictAsync(cancellationToken);
-        return await GetEditorByIdAsync(audioClipId, editorId, cancellationToken);
+        return await GetAdminByIdAsync(audioClipId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorAudioClipResponse> PublishAsync(
+    public async Task<AdminAudioClipResponse> PublishAsync(
         Guid audioClipId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
-        var audioClip = await FindOwnedAudioClipAsync(
-            audioClipId,
-            editorId,
-            cancellationToken);
+        var audioClip = await FindAudioClipAsync(audioClipId, cancellationToken);
         if (audioClip.PublicationStatus == AudioPublicationStatus.Published)
         {
-            return await GetEditorByIdAsync(audioClipId, editorId, cancellationToken);
+            return await GetAdminByIdAsync(audioClipId, cancellationToken);
         }
         if (audioClip.ProcessingStatus != AudioProcessingStatus.Ready)
         {
@@ -190,51 +180,48 @@ public sealed class AudioClipService : IAudioClipService
         }
         audioClip.PublicationStatus = AudioPublicationStatus.Published;
         audioClip.PublishedAt = _timeProvider.GetUtcNow();
+        audioClip.LastEditorId = adminId;
         audioClip.ConcurrencyStamp = Guid.NewGuid();
         await SaveWithAudioConflictAsync(cancellationToken);
-        return await GetEditorByIdAsync(audioClipId, editorId, cancellationToken);
+        return await GetAdminByIdAsync(audioClipId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorAudioClipResponse> UnpublishAsync(
+    public async Task<AdminAudioClipResponse> UnpublishAsync(
         Guid audioClipId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
-        var audioClip = await FindOwnedAudioClipAsync(
-            audioClipId,
-            editorId,
-            cancellationToken);
+        var audioClip = await FindAudioClipAsync(audioClipId, cancellationToken);
         if (audioClip.PublicationStatus == AudioPublicationStatus.Unpublished)
         {
-            return await GetEditorByIdAsync(audioClipId, editorId, cancellationToken);
+            return await GetAdminByIdAsync(audioClipId, cancellationToken);
         }
         if (audioClip.PublicationStatus != AudioPublicationStatus.Published)
         {
             throw ConflictException.Create(ErrorCodes.AudioStatusConflict);
         }
         audioClip.PublicationStatus = AudioPublicationStatus.Unpublished;
+        audioClip.LastEditorId = adminId;
         audioClip.ConcurrencyStamp = Guid.NewGuid();
         await SaveWithAudioConflictAsync(cancellationToken);
-        return await GetEditorByIdAsync(audioClipId, editorId, cancellationToken);
+        return await GetAdminByIdAsync(audioClipId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorAudioClipResponse> RetryAsync(
+    public async Task<AdminAudioClipResponse> RetryAsync(
         Guid audioClipId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
-        var audioClip = await FindOwnedAudioClipAsync(
-            audioClipId,
-            editorId,
-            cancellationToken);
+        var audioClip = await FindAudioClipAsync(audioClipId, cancellationToken);
         if (audioClip.ProcessingStatus != AudioProcessingStatus.Failed)
         {
             throw ConflictException.Create(ErrorCodes.AudioRetryConflict);
         }
         audioClip.ProcessingStatus = AudioProcessingStatus.Queued;
         audioClip.LastFailureCode = null;
+        audioClip.LastEditorId = adminId;
         audioClip.ConcurrencyStamp = Guid.NewGuid();
         _db.AudioProcessingJobs.Add(new AudioProcessingJob
         {
@@ -257,7 +244,7 @@ public sealed class AudioClipService : IAudioClipService
         {
             throw ConflictException.Create(ErrorCodes.AudioRetryConflict);
         }
-        return await GetEditorByIdAsync(audioClipId, editorId, cancellationToken);
+        return await GetAdminByIdAsync(audioClipId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -299,14 +286,13 @@ public sealed class AudioClipService : IAudioClipService
     }
 
     /// <summary>
-    /// 查找当前编辑者拥有的可变音频，不泄漏其他 owner 的实体存在性。
+    /// 查找管理员可变更的全局音频。
     /// </summary>
-    private async Task<AudioClip> FindOwnedAudioClipAsync(
+    private async Task<AudioClip> FindAudioClipAsync(
         Guid audioClipId,
-        Guid editorId,
         CancellationToken cancellationToken)
         => await _db.AudioClips.SingleOrDefaultAsync(
-            value => value.Id == audioClipId && value.OwnerId == editorId,
+            value => value.Id == audioClipId,
             cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.AudioNotFound);
 
@@ -328,7 +314,7 @@ public sealed class AudioClipService : IAudioClipService
     /// <summary>
     /// 将音频实体映射为不包含内部对象路径的管理响应。
     /// </summary>
-    private static EditorAudioClipResponse ToEditorResponse(AudioClip audioClip)
+    private static AdminAudioClipResponse ToAdminResponse(AudioClip audioClip)
         => new(
             audioClip.Id,
             audioClip.SourceMediaResourceId,

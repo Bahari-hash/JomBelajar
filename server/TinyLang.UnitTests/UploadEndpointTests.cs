@@ -2,19 +2,23 @@ using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Moq;
 using TinyLang.Constants;
 using TinyLang.Dtos;
 using TinyLang.Endpoints;
 using TinyLang.Entities.Enums;
 using TinyLang.Models;
+using TinyLang.Policies;
 using TinyLang.Services;
+using TinyLang.Settings;
 
 namespace TinyLang.UnitTests;
 
@@ -29,9 +33,12 @@ public sealed class UploadEndpointTests
             .OfType<RouteEndpoint>()
             .ToArray();
 
-        GetRoute(routes, "/api/uploads/editor/media/multipart", "POST")
+        GetRoute(routes, "/api/uploads/admin/media/multipart", "POST")
             .Metadata.GetOrderedMetadata<IAuthorizeData>()
-            .Should().Contain(data => data.Policy == AuthorizationPolicies.RequireEditor);
+            .Should().Contain(data => data.Policy == AuthorizationPolicies.RequireAdmin);
+        GetRoute(routes, "/api/uploads/admin/media/capabilities", "GET")
+            .Metadata.GetOrderedMetadata<IAuthorizeData>()
+            .Should().Contain(data => data.Policy == AuthorizationPolicies.RequireAdmin);
         foreach (var (pattern, method) in new[]
         {
             ("/api/uploads/multipart/{sessionId:guid}/parts/presign", "POST"),
@@ -81,7 +88,7 @@ public sealed class UploadEndpointTests
         var client = app.GetTestClient();
 
         var created = await client.PostAsJsonAsync(
-            "/api/uploads/editor/media/multipart",
+            "/api/uploads/admin/media/multipart",
             new MultipartUploadRequest
             {
                 OriginalName = "course.mp4",
@@ -117,6 +124,36 @@ public sealed class UploadEndpointTests
             sessionId, userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task CapabilityShouldReturnOrderedPolicyAndMultipartLimitsWithoutProviderData()
+    {
+        await using var app = await CreateHttpAppAsync(
+            Mock.Of<IMediaResourceService>(),
+            Guid.NewGuid());
+
+        var response = await app.GetTestClient().GetAsync(
+            "/api/uploads/admin/media/capabilities?module=CourseVideo",
+            TestContext.Current.CancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        json.RootElement.GetProperty("maxSizeBytes").GetInt64()
+            .Should().Be(1024L * 1024 * 1024);
+        json.RootElement.GetProperty("multipartThresholdBytes").GetInt64()
+            .Should().Be(64L * 1024 * 1024);
+        json.RootElement.GetProperty("partSizeBytes").GetInt64()
+            .Should().Be(16L * 1024 * 1024);
+        json.RootElement.GetProperty("maxPartCount").GetInt32().Should().Be(10000);
+        json.RootElement.GetProperty("partPresignBatchLimit").GetInt32().Should().Be(20);
+        json.RootElement.GetProperty("allowedTypes")
+            .EnumerateArray()
+            .Select(value => value.GetProperty("extension").GetString())
+            .Should().Equal(".mp4", ".ogg", ".webm");
+        json.RootElement.TryGetProperty("bucket", out _).Should().BeFalse();
+        json.RootElement.TryGetProperty("objectName", out _).Should().BeFalse();
+    }
+
     private static WebApplication CreateMetadataApp()
     {
         var builder = WebApplication.CreateBuilder();
@@ -136,10 +173,14 @@ public sealed class UploadEndpointTests
         {
             options.AddPolicy(AuthorizationPolicies.RequireUser, policy =>
                 policy.RequireAssertion(_ => true));
-            options.AddPolicy(AuthorizationPolicies.RequireEditor, policy =>
+            options.AddPolicy(AuthorizationPolicies.RequireAdmin, policy =>
                 policy.RequireAssertion(_ => true));
         });
         builder.Services.AddSingleton(service);
+        builder.Services.AddSingleton(new MediaUploadPolicy(
+            Options.Create(TestUploadSettings.Create())));
+        builder.Services.AddSingleton<IOptions<MultipartUploadSettings>>(
+            Options.Create(TestMultipartUploadSettings.Create()));
         var app = builder.Build();
         app.Use(async (context, next) =>
         {

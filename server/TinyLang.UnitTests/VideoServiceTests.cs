@@ -1,9 +1,6 @@
-using System.IO;
 using System.Linq;
-using System.Text;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using TinyLang.Database;
@@ -19,7 +16,7 @@ using TinyLang.Settings;
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证视频源绑定、发布可见性、字幕基础校验和进度完成判定。
+/// 验证视频源绑定、发布可见性和进度完成判定。
 /// </summary>
 public sealed class VideoServiceTests
 {
@@ -27,16 +24,16 @@ public sealed class VideoServiceTests
         2026, 7, 27, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task ActiveOwnedCourseVideoShouldCreateVideoAndJobTogether()
+    public async Task ActiveCourseVideoShouldCreateVideoAndJobAcrossAdmins()
     {
         await using var db = CreateDbContext();
-        var ownerId = Guid.NewGuid();
-        var source = CreateResource(ownerId, ResourceModule.CourseVideo, ResourceStatus.Active);
+        var adminId = Guid.NewGuid();
+        var source = CreateResource(Guid.NewGuid(), ResourceModule.CourseVideo, ResourceStatus.Active);
         db.MediaResources.Add(source);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
-        var response = await service.CreateAsync(ownerId, new CreateVideoRequest
+        var response = await service.CreateAsync(adminId, new CreateVideoRequest
         {
             SourceMediaResourceId = source.Id,
             Title = "  Listening lesson  ",
@@ -49,21 +46,24 @@ public sealed class VideoServiceTests
         response.ProcessingStatus.Should().Be(VideoProcessingStatus.Queued);
         (await db.VideoProcessingJobs.SingleAsync(
             TestContext.Current.CancellationToken)).OutputVersion.Should().NotBeEmpty();
+        var video = await db.Videos.SingleAsync(TestContext.Current.CancellationToken);
+        video.CreatedById.Should().Be(adminId);
+        video.LastEditorId.Should().Be(adminId);
     }
 
     [Fact]
     public async Task CreateShouldAssociateAllEnabledVideoCategories()
     {
         await using var db = CreateDbContext();
-        var ownerId = Guid.NewGuid();
-        var source = CreateResource(ownerId, ResourceModule.CourseVideo, ResourceStatus.Active);
+        var adminId = Guid.NewGuid();
+        var source = CreateResource(Guid.NewGuid(), ResourceModule.CourseVideo, ResourceStatus.Active);
         var first = new VideoCategory { Name = "Grammar", Slug = "grammar" };
         var second = new VideoCategory { Name = "Listening", Slug = "listening" };
         db.AddRange(source, first, second);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
-        var response = await service.CreateAsync(ownerId, new CreateVideoRequest
+        var response = await service.CreateAsync(adminId, new CreateVideoRequest
         {
             SourceMediaResourceId = source.Id,
             Title = "Lesson",
@@ -100,12 +100,36 @@ public sealed class VideoServiceTests
         {
             Title = "Updated",
             OriginalLanguage = "en",
-            CategoryIds = [second.Id]
+            CategoryIds = [second.Id],
+            ConcurrencyStamp = video.ConcurrencyStamp
         }, TestContext.Current.CancellationToken);
 
         var assignment = await db.VideoCategoryAssignments.SingleAsync(
             TestContext.Current.CancellationToken);
         assignment.VideoCategoryId.Should().Be(second.Id);
+    }
+
+    [Fact]
+    public async Task AnotherAdminShouldUpdateGlobalVideoAndBecomeLastEditor()
+    {
+        await using var db = CreateDbContext();
+        var creatorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var video = CreateVideo(creatorId);
+        db.Videos.Add(video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        await service.UpdateAsync(video.Id, adminId, new UpdateVideoRequest
+        {
+            Title = "Updated",
+            OriginalLanguage = "en",
+            ConcurrencyStamp = video.ConcurrencyStamp
+        }, TestContext.Current.CancellationToken);
+
+        video.CreatedById.Should().Be(creatorId);
+        video.LastEditorId.Should().Be(adminId);
+        video.Title.Should().Be("Updated");
     }
 
     [Fact]
@@ -214,10 +238,15 @@ public sealed class VideoServiceTests
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
-        await service.PublishAsync(video.Id, ownerId, TestContext.Current.CancellationToken);
+        var published = await service.PublishAsync(
+            video.Id,
+            ownerId,
+            new VideoMutationRequest { ConcurrencyStamp = video.ConcurrencyStamp },
+            TestContext.Current.CancellationToken);
         var repeated = await service.PublishAsync(
             video.Id,
             ownerId,
+            new VideoMutationRequest { ConcurrencyStamp = published.ConcurrencyStamp },
             TestContext.Current.CancellationToken);
         var details = await service.GetDetailsAsync(
             video.Id,
@@ -261,67 +290,175 @@ public sealed class VideoServiceTests
     }
 
     [Fact]
-    public async Task ActiveWebVttShouldBeValidatedAndAssociatedAsDefault()
+    public async Task StaleStampShouldConflictBeforeVideoStateValidation()
     {
         await using var db = CreateDbContext();
-        var ownerId = Guid.NewGuid();
-        var video = CreateVideo(ownerId);
-        var subtitleResource = CreateResource(
-            ownerId,
-            ResourceModule.VideoSubtitle,
-            ResourceStatus.Active);
-        subtitleResource.ObjectName = "subtitles/example.vtt";
-        subtitleResource.ContentType = "text/vtt";
-        var bytes = Encoding.UTF8.GetBytes("WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n");
-        subtitleResource.Size = bytes.Length;
-        db.AddRange(video, subtitleResource);
+        var video = CreateVideo(Guid.NewGuid());
+        video.PublicationStatus = VideoPublicationStatus.Published;
+        db.Videos.Add(video);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var storage = new Mock<IObjectStorageService>();
-        storage.Setup(value => value.GetObjectMetadataAsync(
-                subtitleResource.ObjectName,
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ObjectStorageMetadata(bytes.Length, "text/vtt"));
-        storage.Setup(value => value.DownloadObjectAsync(
-                subtitleResource.ObjectName,
-                It.IsAny<Stream>(),
-                It.IsAny<CancellationToken>()))
-            .Returns((string _, Stream destination, CancellationToken _) =>
-            {
-                destination.Write(bytes);
-                return Task.CompletedTask;
-            });
-        var service = CreateService(db, storage: storage.Object);
+        var service = CreateService(db);
 
-        var result = await service.AddSubtitleAsync(
+        var action = () => service.UpdateAsync(video.Id, Guid.NewGuid(), new UpdateVideoRequest
+        {
+            Title = "Updated",
+            OriginalLanguage = "en",
+            ConcurrencyStamp = Guid.NewGuid()
+        }, TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<ConflictException>();
+        exception.Which.ErrorCode.Should().Be(ErrorCodes.VideoConcurrencyConflict);
+    }
+
+    [Fact]
+    public async Task PublishedVideoShouldRequireUnpublishBeforeMetadataUpdate()
+    {
+        await using var db = CreateDbContext();
+        var video = CreateVideo(Guid.NewGuid());
+        video.PublicationStatus = VideoPublicationStatus.Published;
+        db.Videos.Add(video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var action = () => service.UpdateAsync(video.Id, Guid.NewGuid(), new UpdateVideoRequest
+        {
+            Title = "Updated",
+            OriginalLanguage = "en",
+            ConcurrencyStamp = video.ConcurrencyStamp
+        }, TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<ConflictException>();
+        exception.Which.ErrorCode.Should().Be(ErrorCodes.VideoStatusConflict);
+    }
+
+    [Fact]
+    public async Task ArchiveShouldBeIdempotentAndHideVideoFromUserQueries()
+    {
+        await using var db = CreateDbContext();
+        var adminId = Guid.NewGuid();
+        var video = CreateVideo(adminId);
+        video.ProcessingStatus = VideoProcessingStatus.Ready;
+        video.DurationSeconds = 100;
+        video.DisplayWidth = 1280;
+        video.DisplayHeight = 720;
+        db.Videos.Add(video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var archived = await service.ArchiveAsync(
             video.Id,
-            ownerId,
-            new AddVideoSubtitleRequest
+            adminId,
+            new VideoMutationRequest { ConcurrencyStamp = video.ConcurrencyStamp },
+            TestContext.Current.CancellationToken);
+        var repeated = await service.ArchiveAsync(
+            video.Id,
+            adminId,
+            new VideoMutationRequest { ConcurrencyStamp = archived.ConcurrencyStamp },
+            TestContext.Current.CancellationToken);
+        var details = () => service.GetDetailsAsync(
+            video.Id,
+            TestContext.Current.CancellationToken);
+
+        archived.PublicationStatus.Should().Be(VideoPublicationStatus.Archived);
+        archived.ArchivedAt.Should().Be(Now);
+        repeated.ConcurrencyStamp.Should().Be(archived.ConcurrencyStamp);
+        await details.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task ArchiveShouldRejectVideoWithActiveProcessingJob()
+    {
+        await using var db = CreateDbContext();
+        var adminId = Guid.NewGuid();
+        var video = CreateVideo(adminId);
+        video.ProcessingJobs.Add(new VideoProcessingJob
+        {
+            VideoId = video.Id,
+            OutputVersion = Guid.NewGuid(),
+            Status = VideoProcessingJobStatus.Processing
+        });
+        db.Videos.Add(video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var action = () => service.ArchiveAsync(
+            video.Id,
+            adminId,
+            new VideoMutationRequest { ConcurrencyStamp = video.ConcurrencyStamp },
+            TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<ConflictException>();
+        exception.Which.ErrorCode.Should().Be(ErrorCodes.VideoArchiveConflict);
+    }
+
+    [Fact]
+    public async Task AdminListShouldExcludeArchivedByDefaultAndReturnSafeAuditAndJobSummary()
+    {
+        await using var db = CreateDbContext();
+        var creator = new User
+        {
+            Username = "creator",
+            Email = "creator@example.com",
+            PasswordHash = "hash",
+            Nickname = "Creator"
+        };
+        var editor = new User
+        {
+            Username = "editor",
+            Email = "editor@example.com",
+            PasswordHash = "hash",
+            Nickname = "Editor"
+        };
+        db.Users.AddRange(creator, editor);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var visible = CreateVideo(creator.Id);
+        visible.LastEditorId = editor.Id;
+        visible.ProcessingJobs.Add(new VideoProcessingJob
+        {
+            VideoId = visible.Id,
+            OutputVersion = Guid.NewGuid(),
+            Status = VideoProcessingJobStatus.Failed,
+            AttemptCount = 2,
+            FailureCode = "ProbeFailed"
+        });
+        var archived = CreateVideo(creator.Id);
+        archived.PublicationStatus = VideoPublicationStatus.Archived;
+        archived.ArchivedAt = Now;
+        db.Videos.AddRange(visible, archived);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var defaultPage = await service.GetAdminListAsync(
+            new AdminVideoListRequest { CreatedById = creator.Id },
+            TestContext.Current.CancellationToken);
+        var archivedPage = await service.GetAdminListAsync(
+            new AdminVideoListRequest
             {
-                MediaResourceId = subtitleResource.Id,
-                LanguageTag = "EN",
-                DisplayName = "English",
-                IsDefault = true
+                PublicationStatus = VideoPublicationStatus.Archived,
+                CreatedById = creator.Id
             },
             TestContext.Current.CancellationToken);
 
-        result.LanguageTag.Should().Be("en");
-        result.IsDefault.Should().BeTrue();
+        var item = defaultPage.Items.Should().ContainSingle().Which;
+        item.Id.Should().Be(visible.Id);
+        item.CreatedBy.Nickname.Should().Be("Creator");
+        item.LastEditor.Nickname.Should().Be("Editor");
+        item.LatestJob.Should().NotBeNull();
+        item.LatestJob!.FailureCode.Should().Be("ProbeFailed");
+        typeof(VideoProcessingJobSummaryResponse).GetProperty("LeaseOwner").Should().BeNull();
+        archivedPage.Items.Should().ContainSingle().Which.Id.Should().Be(archived.Id);
     }
 
     private static VideoService CreateService(
         ApplicationDbContext db,
-        IObjectStorageService? storage = null,
         IUserVideoProgressStore? progressStore = null)
         => new(
             db,
-            storage ?? Mock.Of<IObjectStorageService>(),
             Mock.Of<IVideoDeliveryUrlService>(),
             progressStore ?? Mock.Of<IUserVideoProgressStore>(),
             Mock.Of<IDatabaseExceptionClassifier>(),
             Options.Create(new VideoProgressSettings()),
-            Options.Create(TestUploadSettings.Create()),
-            new TestTimeProvider(Now),
-            NullLogger<VideoService>.Instance);
+            new TestTimeProvider(Now));
 
     private static ApplicationDbContext CreateDbContext()
         => new(new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -331,7 +468,8 @@ public sealed class VideoServiceTests
     private static Video CreateVideo(Guid ownerId)
         => new()
         {
-            OwnerId = ownerId,
+            CreatedById = ownerId,
+            LastEditorId = ownerId,
             SourceMediaResourceId = Guid.NewGuid(),
             Title = "Video",
             OriginalLanguage = "en",

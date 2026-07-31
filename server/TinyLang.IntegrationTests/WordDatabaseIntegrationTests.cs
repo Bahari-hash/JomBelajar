@@ -255,16 +255,16 @@ public sealed class WordDatabaseIntegrationTests
     }
 
     /// <summary>
-    /// 创建并保存测试 editor 用户。
+    /// 创建并保存测试 admin 用户。
     /// </summary>
     private static async Task<User> CreateUserAsync(ApplicationDbContext db)
     {
         var user = new User
         {
-            Username = $"editor-{Guid.NewGuid():N}",
-            Email = $"editor-{Guid.NewGuid():N}@example.test",
+            Username = $"admin-{Guid.NewGuid():N}",
+            Email = $"admin-{Guid.NewGuid():N}@example.test",
             PasswordHash = "not-used",
-            Role = UserRole.Editor
+            Role = UserRole.Admin
         };
         db.Users.Add(user);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -294,8 +294,10 @@ public sealed class WordDatabaseIntegrationTests
         };
         var audio = new AudioClip
         {
-            OwnerId = owner.Id,
-            Owner = owner,
+            CreatedById = owner.Id,
+            CreatedBy = owner,
+            LastEditorId = owner.Id,
+            LastEditor = owner,
             SourceMediaResourceId = source.Id,
             SourceMediaResource = source,
             Title = "Pronunciation",
@@ -377,7 +379,7 @@ public sealed class WordDatabaseIntegrationTests
     /// 从管理详情创建交换两个已有发音默认项和排序的完整更新请求。
     /// </summary>
     private static UpdateWordRequest CreateDefaultSwapRequest(
-        EditorWordResponse response,
+        AdminWordResponse response,
         Guid firstAudioId,
         Guid secondAudioId)
         => new()

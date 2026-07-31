@@ -121,10 +121,10 @@ public sealed class ArticleCategoryServiceTests
     private static User CreateUser()
         => new()
         {
-            Username = "editor@example.com",
-            Email = "editor@example.com",
+            Username = "admin@example.com",
+            Email = "admin@example.com",
             PasswordHash = "hash",
-            Role = UserRole.Editor
+            Role = UserRole.Admin
         };
 
     private static Article CreateArticle(User user, ArticleCategory category)

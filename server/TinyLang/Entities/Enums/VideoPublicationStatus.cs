@@ -7,5 +7,6 @@ public enum VideoPublicationStatus
 {
     Draft,
     Published,
-    Unpublished
+    Unpublished,
+    Archived
 }

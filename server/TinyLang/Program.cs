@@ -90,6 +90,7 @@ try
 }
 catch (Exception ex) when (ex is not HostAbortedException)
 {
+    Environment.ExitCode = 1;
     // HostAbortedException usually used in design time.
     // For example, EntityFramework Core migrations.
     Log.Fatal(ex, "Server terminated unexpectedly!");

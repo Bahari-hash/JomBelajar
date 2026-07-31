@@ -67,9 +67,9 @@ public sealed record FillBlankAcceptedAnswerInput
 }
 
 /// <summary>
-/// 描述编辑者试卷列表的筛选和分页条件。
+/// 描述管理员试卷列表的筛选和分页条件。
 /// </summary>
-public sealed record EditorPaperListRequest
+public sealed record AdminPaperListRequest
 {
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
@@ -109,26 +109,26 @@ public sealed record SavePaperAttemptAnswerRequest
 }
 
 /// <summary>
-/// 返回编辑者管理单选题选项所需的标准答案标记。
+/// 返回管理员管理单选题选项所需的标准答案标记。
 /// </summary>
-public sealed record EditorPaperQuestionOptionResponse(
+public sealed record AdminPaperQuestionOptionResponse(
     Guid Id,
     string Text,
     bool IsCorrect,
     int SortOrder);
 
 /// <summary>
-/// 返回编辑者管理填空题标准答案所需的展示内容。
+/// 返回管理员管理填空题标准答案所需的展示内容。
 /// </summary>
-public sealed record EditorFillBlankAcceptedAnswerResponse(
+public sealed record AdminFillBlankAcceptedAnswerResponse(
     Guid Id,
     string Text,
     int SortOrder);
 
 /// <summary>
-/// 返回编辑者管理一道题目所需的完整标准答案和解析。
+/// 返回管理员管理一道题目所需的完整标准答案和解析。
 /// </summary>
-public sealed record EditorPaperQuestionResponse(
+public sealed record AdminPaperQuestionResponse(
     Guid Id,
     PaperQuestionType Type,
     string Prompt,
@@ -137,13 +137,13 @@ public sealed record EditorPaperQuestionResponse(
     int SortOrder,
     bool? CorrectBoolean,
     bool FillBlankCaseSensitive,
-    IReadOnlyList<EditorPaperQuestionOptionResponse> Options,
-    IReadOnlyList<EditorFillBlankAcceptedAnswerResponse> AcceptedAnswers);
+    IReadOnlyList<AdminPaperQuestionOptionResponse> Options,
+    IReadOnlyList<AdminFillBlankAcceptedAnswerResponse> AcceptedAnswers);
 
 /// <summary>
 /// 返回试卷完整编辑状态、审计信息、并发标识和标准答案。
 /// </summary>
-public sealed record EditorPaperResponse(
+public sealed record AdminPaperResponse(
     Guid Id,
     string Title,
     string? Description,
@@ -156,14 +156,14 @@ public sealed record EditorPaperResponse(
     Guid LastEditorId,
     DateTimeOffset? PublishedAt,
     Guid ConcurrencyStamp,
-    IReadOnlyList<EditorPaperQuestionResponse> Questions,
+    IReadOnlyList<AdminPaperQuestionResponse> Questions,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
 /// <summary>
-/// 返回编辑者试卷列表中的轻量管理摘要。
+/// 返回管理员试卷列表中的轻量管理摘要。
 /// </summary>
-public sealed record EditorPaperListItemResponse(
+public sealed record AdminPaperListItemResponse(
     Guid Id,
     string Title,
     string LanguageTag,

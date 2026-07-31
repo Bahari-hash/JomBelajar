@@ -23,7 +23,7 @@ public sealed class UserServiceTests
     public async Task ProfileQueriesShouldKeepPrivateAndPublicFieldsSeparated()
     {
         await using var db = CreateDbContext();
-        var user = CreateUser("alice", UserRole.Editor, Now.AddDays(-2));
+        var user = CreateUser("alice", UserRole.Admin, Now.AddDays(-2));
         user.Nickname = "Alice";
         user.AvatarUrl = "https://cdn.example.test/alice.jpg";
         user.Bio = "Learner";
@@ -39,7 +39,7 @@ public sealed class UserServiceTests
             TestContext.Current.CancellationToken);
 
         current.Email.Should().Be(user.Email);
-        current.Role.Should().Be(UserRole.Editor);
+        current.Role.Should().Be(UserRole.Admin);
         current.CreatedAt.Should().Be(user.CreatedAt);
         publicProfile.Should().BeEquivalentTo(new PublicUserProfileResponse(
             user.Id,
@@ -77,7 +77,7 @@ public sealed class UserServiceTests
     {
         await using var db = CreateDbContext();
         var older = CreateUser("older", UserRole.User, Now.AddDays(-2));
-        var newer = CreateUser("newer", UserRole.Editor, Now.AddDays(-1));
+        var newer = CreateUser("newer", UserRole.Admin, Now.AddDays(-1));
         var deleted = CreateUser("deleted", UserRole.User, Now);
         deleted.IsDeleted = true;
         AddSession(older, Now.AddHours(-4), Now.AddHours(1), false, older.TokenVersion);
@@ -104,10 +104,10 @@ public sealed class UserServiceTests
     public async Task AdminListShouldCombineStatusRoleAndCaseInsensitiveKeywordFilters()
     {
         await using var db = CreateDbContext();
-        var matching = CreateUser("matched-editor", UserRole.Editor, Now);
-        matching.Email = "Editor@Example.Test";
+        var matching = CreateUser("matched-admin", UserRole.Admin, Now);
+        matching.Email = "Admin@Example.Test";
         matching.IsBanned = true;
-        var active = CreateUser("active-editor", UserRole.Editor, Now.AddMinutes(-1));
+        var active = CreateUser("active-admin", UserRole.Admin, Now.AddMinutes(-1));
         var user = CreateUser("matched-user", UserRole.User, Now.AddMinutes(-2));
         user.IsBanned = true;
         db.Users.AddRange(matching, active, user);
@@ -117,8 +117,8 @@ public sealed class UserServiceTests
         var response = await service.GetAdminListAsync(
             new AdminUserListRequest
             {
-                Keyword = "editor@example",
-                Role = UserRole.Editor,
+                Keyword = "admin@example",
+                Role = "Admin",
                 Status = AdminUserStatus.Banned
             },
             TestContext.Current.CancellationToken);
@@ -188,7 +188,7 @@ public sealed class UserServiceTests
     public async Task AdminDetailShouldIncludeDeletedUserAndReturnZeroActiveSessions()
     {
         await using var db = CreateDbContext();
-        var user = CreateUser("deleted", UserRole.Editor, Now);
+        var user = CreateUser("deleted", UserRole.Admin, Now);
         user.Nickname = "Former User";
         user.Bio = "Historical bio";
         user.IsDeleted = true;
@@ -357,7 +357,7 @@ public sealed class UserServiceTests
         var selfAction = async () => await service.UpdateRoleAsync(
             user.Id,
             user.Id,
-            new UpdateRoleRequest { Role = "Editor" },
+            new UpdateRoleRequest { Role = "Admin" },
             TestContext.Current.CancellationToken);
         await selfAction.Should().ThrowAsync<ForbiddenException>();
 
@@ -369,13 +369,54 @@ public sealed class UserServiceTests
         var response = await service.UpdateRoleAsync(
             Guid.NewGuid(),
             user.Id,
-            new UpdateRoleRequest { Role = "editor" },
+            new UpdateRoleRequest { Role = "Admin" },
             TestContext.Current.CancellationToken);
 
-        response.Role.Should().Be(UserRole.Editor);
+        response.Role.Should().Be(UserRole.Admin);
         sessions.Verify(value => value.InvalidateAllAsync(
             user,
             TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("admin")]
+    [InlineData("Editor")]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("2")]
+    public async Task RoleChangeShouldDefensivelyRejectNonCanonicalRoles(string role)
+    {
+        await using var db = CreateDbContext();
+        var user = CreateUser("target", UserRole.User, Now);
+        db.Users.Add(user);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var sessions = new Mock<IUserSessionService>();
+        var service = CreateService(db, sessions);
+
+        var action = async () => await service.UpdateRoleAsync(
+            Guid.NewGuid(),
+            user.Id,
+            new UpdateRoleRequest { Role = role },
+            TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<RequestValidationException>();
+        user.Role.Should().Be(UserRole.User);
+        sessions.Verify(value => value.InvalidateAllAsync(
+            It.IsAny<User>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AdminListShouldDefensivelyRejectInvalidRoleFilter()
+    {
+        await using var db = CreateDbContext();
+        var service = CreateService(db);
+
+        var action = async () => await service.GetAdminListAsync(
+            new AdminUserListRequest { Role = "1" },
+            TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<RequestValidationException>();
     }
 
     [Fact]
@@ -401,7 +442,7 @@ public sealed class UserServiceTests
         var roleAction = async () => await service.UpdateRoleAsync(
             operatorId,
             user.Id,
-            new UpdateRoleRequest { Role = "Editor" },
+            new UpdateRoleRequest { Role = "Admin" },
             TestContext.Current.CancellationToken);
 
         await banAction.Should().ThrowAsync<NotFoundException>();

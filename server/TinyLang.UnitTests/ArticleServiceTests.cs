@@ -24,16 +24,16 @@ public sealed class ArticleServiceTests
     public async Task CreateDraftShouldRoundTripMarkdownAndSupportOptionalCategories()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
+        var admin = CreateUser("admin@example.com");
         var grammar = new ArticleCategory { Name = "Grammar", Slug = "grammar" };
         var listening = new ArticleCategory { Name = "Listening", Slug = "listening" };
-        db.AddRange(editor, grammar, listening);
+        db.AddRange(admin, grammar, listening);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
         const string markdown = "# Heading\n\nBody with **emphasis**.";
 
         var categorized = await service.CreateDraftAsync(
-            editor.Id,
+            admin.Id,
             new CreateArticleRequest
             {
                 Title = "  Categorized  ",
@@ -42,7 +42,7 @@ public sealed class ArticleServiceTests
             },
             TestContext.Current.CancellationToken);
         var uncategorized = await service.CreateDraftAsync(
-            editor.Id,
+            admin.Id,
             new CreateArticleRequest { Title = "Uncategorized", ContentMarkdown = "Body" },
             TestContext.Current.CancellationToken);
 
@@ -79,12 +79,12 @@ public sealed class ArticleServiceTests
     public async Task UpdateShouldReplaceCategoriesAndAdvanceConcurrencyStamp()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
+        var admin = CreateUser("admin@example.com");
         var first = new ArticleCategory { Name = "Grammar", Slug = "grammar" };
         var second = new ArticleCategory { Name = "Listening", Slug = "listening" };
-        db.AddRange(editor, first, second);
+        db.AddRange(admin, first, second);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var article = CreateArticle(editor, first);
+        var article = CreateArticle(admin, first);
         db.Articles.Add(article);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -92,7 +92,7 @@ public sealed class ArticleServiceTests
 
         var response = await service.UpdateAsync(
             article.Id,
-            editor.Id,
+            admin.Id,
             new UpdateArticleRequest
             {
                 Title = "Updated",
@@ -117,17 +117,17 @@ public sealed class ArticleServiceTests
     public async Task UpdateShouldRejectStaleConcurrencyStamp()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
-        db.Users.Add(editor);
+        var admin = CreateUser("admin@example.com");
+        db.Users.Add(admin);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var article = CreateArticle(editor);
+        var article = CreateArticle(admin);
         db.Articles.Add(article);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
         var action = () => service.UpdateAsync(
             article.Id,
-            editor.Id,
+            admin.Id,
             new UpdateArticleRequest
             {
                 Title = "Stale",
@@ -147,14 +147,14 @@ public sealed class ArticleServiceTests
     public async Task CoverOnlyDraftShouldKeepCoverSeparateFromBodyMedia()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
-        var cover = CreateMedia(editor, ResourceStatus.Active);
-        db.AddRange(editor, cover);
+        var admin = CreateUser("admin@example.com");
+        var cover = CreateMedia(admin, ResourceStatus.Active);
+        db.AddRange(admin, cover);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
         var response = await service.CreateDraftAsync(
-            editor.Id,
+            admin.Id,
             new CreateArticleRequest
             {
                 Title = "Article",
@@ -176,14 +176,14 @@ public sealed class ArticleServiceTests
     public async Task CoverAndBodyMediaShouldRoundTripThroughUnchangedUpdate()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
-        var image = CreateMedia(editor, ResourceStatus.Active);
-        db.AddRange(editor, image);
+        var admin = CreateUser("admin@example.com");
+        var image = CreateMedia(admin, ResourceStatus.Active);
+        db.AddRange(admin, image);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var markdown = $"Body\n\n![Lesson]({image.Url})";
         var created = await service.CreateDraftAsync(
-            editor.Id,
+            admin.Id,
             new CreateArticleRequest
             {
                 Title = "Article",
@@ -195,7 +195,7 @@ public sealed class ArticleServiceTests
 
         var updated = await service.UpdateAsync(
             created.Id,
-            editor.Id,
+            admin.Id,
             new UpdateArticleRequest
             {
                 Title = created.Title,
@@ -221,19 +221,19 @@ public sealed class ArticleServiceTests
     public async Task UpdateShouldRemoveBodyMediaNoLongerReferencedByMarkdown()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
-        var image = CreateMedia(editor, ResourceStatus.Active);
-        db.AddRange(editor, image);
+        var admin = CreateUser("admin@example.com");
+        var image = CreateMedia(admin, ResourceStatus.Active);
+        db.AddRange(admin, image);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var created = await service.CreateDraftAsync(
-            editor.Id,
+            admin.Id,
             CreateRequestWithMedia(image),
             TestContext.Current.CancellationToken);
 
         var updated = await service.UpdateAsync(
             created.Id,
-            editor.Id,
+            admin.Id,
             new UpdateArticleRequest
             {
                 Title = "Updated",
@@ -247,39 +247,38 @@ public sealed class ArticleServiceTests
     }
 
     /// <summary>
-    /// Verifies a new media resource owned by another editor cannot be attached.
+    /// Verifies an administrator can attach active media uploaded by another administrator.
     /// </summary>
     [Fact]
-    public async Task CreateDraftShouldRejectMediaUploadedByAnotherUser()
+    public async Task CreateDraftShouldAllowActiveMediaUploadedByAnotherAdmin()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
+        var admin = CreateUser("admin@example.com");
         var owner = CreateUser("owner@example.com");
         var media = CreateMedia(owner, ResourceStatus.Active);
-        db.AddRange(editor, owner, media);
+        db.AddRange(admin, owner, media);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
-        var action = () => service.CreateDraftAsync(
-            editor.Id,
+        var response = await service.CreateDraftAsync(
+            admin.Id,
             CreateRequestWithMedia(media),
             TestContext.Current.CancellationToken);
 
-        await action.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage(ErrorCodes.ArticleMediaOwnershipMismatch.GetMessage());
+        response.BodyMedia.Should().ContainSingle().Which.Id.Should().Be(media.Id);
     }
 
     /// <summary>
-    /// Verifies another editor can retain a managed resource already associated with the article.
+    /// Verifies another admin can retain a managed resource already associated with the article.
     /// </summary>
     [Fact]
-    public async Task UpdateShouldAllowAnotherEditorToReuseExistingBodyMedia()
+    public async Task UpdateShouldAllowAnotherAdminToReuseExistingBodyMedia()
     {
         await using var db = CreateDbContext();
         var author = CreateUser("author@example.com");
-        var editor = CreateUser("editor@example.com");
+        var admin = CreateUser("admin@example.com");
         var media = CreateMedia(author, ResourceStatus.Active);
-        db.AddRange(author, editor, media);
+        db.AddRange(author, admin, media);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var article = CreateArticle(author);
         article.ContentMarkdown = $"Body\n\n![Image]({media.Url})";
@@ -291,7 +290,7 @@ public sealed class ArticleServiceTests
 
         var response = await service.UpdateAsync(
             article.Id,
-            editor.Id,
+            admin.Id,
             new UpdateArticleRequest
             {
                 Title = "Updated",
@@ -301,7 +300,7 @@ public sealed class ArticleServiceTests
             },
             TestContext.Current.CancellationToken);
 
-        response.LastEditor.Id.Should().Be(editor.Id);
+        response.LastEditor.Id.Should().Be(admin.Id);
         response.BodyMedia.Should().ContainSingle().Which.Id.Should().Be(media.Id);
     }
 
@@ -312,14 +311,14 @@ public sealed class ArticleServiceTests
     public async Task CreateDraftShouldRejectPendingMedia()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
-        var media = CreateMedia(editor, ResourceStatus.Pending);
-        db.AddRange(editor, media);
+        var admin = CreateUser("admin@example.com");
+        var media = CreateMedia(admin, ResourceStatus.Pending);
+        db.AddRange(admin, media);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
         var action = () => service.CreateDraftAsync(
-            editor.Id,
+            admin.Id,
             CreateRequestWithMedia(media),
             TestContext.Current.CancellationToken);
 
@@ -334,11 +333,11 @@ public sealed class ArticleServiceTests
     public async Task CreateDraftShouldRejectUndeclaredOrAmbiguousBodyImages()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
-        var first = CreateMedia(editor, ResourceStatus.Active);
-        var second = CreateMedia(editor, ResourceStatus.Active);
+        var admin = CreateUser("admin@example.com");
+        var first = CreateMedia(admin, ResourceStatus.Active);
+        var second = CreateMedia(admin, ResourceStatus.Active);
         second.Url = first.Url;
-        db.AddRange(editor, first, second);
+        db.AddRange(admin, first, second);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var undeclared = CreateRequestWithMedia(first) with { BodyMediaResourceIds = [] };
@@ -348,9 +347,9 @@ public sealed class ArticleServiceTests
         };
 
         var undeclaredAction = () => service.CreateDraftAsync(
-            editor.Id, undeclared, TestContext.Current.CancellationToken);
+            admin.Id, undeclared, TestContext.Current.CancellationToken);
         var ambiguousAction = () => service.CreateDraftAsync(
-            editor.Id, ambiguous, TestContext.Current.CancellationToken);
+            admin.Id, ambiguous, TestContext.Current.CancellationToken);
 
         await undeclaredAction.Should().ThrowAsync<ConflictException>();
         await ambiguousAction.Should().ThrowAsync<ConflictException>();
@@ -363,10 +362,10 @@ public sealed class ArticleServiceTests
     public async Task PublishAndUnpublishShouldReRenderAndApplyStatusMachine()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
-        db.Users.Add(editor);
+        var admin = CreateUser("admin@example.com");
+        db.Users.Add(admin);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var article = CreateArticle(editor);
+        var article = CreateArticle(admin);
         article.ContentMarkdown = "# Canonical";
         article.ContentHtml = "<script>stale()</script>";
         db.Articles.Add(article);
@@ -375,9 +374,9 @@ public sealed class ArticleServiceTests
         var originalStamp = article.ConcurrencyStamp;
 
         var published = await service.PublishAsync(
-            article.Id, editor.Id, TestContext.Current.CancellationToken);
+            article.Id, admin.Id, TestContext.Current.CancellationToken);
         var unpublished = await service.UnpublishAsync(
-            article.Id, editor.Id, TestContext.Current.CancellationToken);
+            article.Id, admin.Id, TestContext.Current.CancellationToken);
 
         published.Status.Should().Be(ArticleStatus.Published);
         published.ContentHtml.Should().Contain("<h1>Canonical</h1>").And.NotContain("script");
@@ -394,25 +393,25 @@ public sealed class ArticleServiceTests
     public async Task PublishShouldRejectInactiveCategory()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
+        var admin = CreateUser("admin@example.com");
         var category = new ArticleCategory
         {
             Name = "Inactive",
             Slug = "inactive",
             IsActive = false
         };
-        var article = CreateArticle(editor);
+        var article = CreateArticle(admin);
         article.CategoryAssignments.Add(new ArticleCategoryAssignment
         {
             ArticleCategory = category,
             ArticleCategoryId = category.Id
         });
-        db.AddRange(editor, category, article);
+        db.AddRange(admin, category, article);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
         var action = () => service.PublishAsync(
-            article.Id, editor.Id, TestContext.Current.CancellationToken);
+            article.Id, admin.Id, TestContext.Current.CancellationToken);
 
         await action.Should().ThrowAsync<ConflictException>()
             .WithMessage(ErrorCodes.ArticleCategoryInactive.GetMessage());
@@ -426,17 +425,17 @@ public sealed class ArticleServiceTests
     public async Task ArchiveShouldMakeDraftTerminal()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
-        db.Users.Add(editor);
+        var admin = CreateUser("admin@example.com");
+        db.Users.Add(admin);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var article = CreateArticle(editor);
+        var article = CreateArticle(admin);
         db.Articles.Add(article);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var originalStamp = article.ConcurrencyStamp;
 
         await service.ArchiveAsync(
-            article.Id, editor.Id, TestContext.Current.CancellationToken);
+            article.Id, admin.Id, TestContext.Current.CancellationToken);
 
         article.Status.Should().Be(ArticleStatus.Archived);
         article.ConcurrencyStamp.Should().NotBe(originalStamp);
@@ -447,13 +446,13 @@ public sealed class ArticleServiceTests
             ConcurrencyStamp = article.ConcurrencyStamp
         };
         var update = () => service.UpdateAsync(
-            article.Id, editor.Id, request, TestContext.Current.CancellationToken);
+            article.Id, admin.Id, request, TestContext.Current.CancellationToken);
         var publish = () => service.PublishAsync(
-            article.Id, editor.Id, TestContext.Current.CancellationToken);
+            article.Id, admin.Id, TestContext.Current.CancellationToken);
         var unpublish = () => service.UnpublishAsync(
-            article.Id, editor.Id, TestContext.Current.CancellationToken);
+            article.Id, admin.Id, TestContext.Current.CancellationToken);
         var archive = () => service.ArchiveAsync(
-            article.Id, editor.Id, TestContext.Current.CancellationToken);
+            article.Id, admin.Id, TestContext.Current.CancellationToken);
 
         await update.Should().ThrowAsync<ConflictException>();
         await publish.Should().ThrowAsync<ConflictException>();
@@ -468,11 +467,11 @@ public sealed class ArticleServiceTests
     public async Task PublishedAndArchivedArticlesShouldEnforceWriteBoundaries()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
-        db.Users.Add(editor);
+        var admin = CreateUser("admin@example.com");
+        db.Users.Add(admin);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var published = CreateArticle(editor, status: ArticleStatus.Published);
-        var archived = CreateArticle(editor, status: ArticleStatus.Archived);
+        var published = CreateArticle(admin, status: ArticleStatus.Published);
+        var archived = CreateArticle(admin, status: ArticleStatus.Archived);
         db.Articles.AddRange(published, archived);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -484,11 +483,11 @@ public sealed class ArticleServiceTests
         };
 
         var updatePublished = () => service.UpdateAsync(
-            published.Id, editor.Id, request, TestContext.Current.CancellationToken);
+            published.Id, admin.Id, request, TestContext.Current.CancellationToken);
         var archivePublished = () => service.ArchiveAsync(
-            published.Id, editor.Id, TestContext.Current.CancellationToken);
+            published.Id, admin.Id, TestContext.Current.CancellationToken);
         var archiveArchived = () => service.ArchiveAsync(
-            archived.Id, editor.Id, TestContext.Current.CancellationToken);
+            archived.Id, admin.Id, TestContext.Current.CancellationToken);
 
         await updatePublished.Should().ThrowAsync<ConflictException>();
         await archivePublished.Should().ThrowAsync<ConflictException>();
@@ -502,11 +501,11 @@ public sealed class ArticleServiceTests
     public async Task PublicQueriesShouldOnlyReturnPublishedArticles()
     {
         await using var db = CreateDbContext();
-        var editor = CreateUser("editor@example.com");
-        db.Users.Add(editor);
+        var admin = CreateUser("admin@example.com");
+        db.Users.Add(admin);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var published = CreateArticle(editor, status: ArticleStatus.Published);
-        var draft = CreateArticle(editor);
+        var published = CreateArticle(admin, status: ArticleStatus.Published);
+        var draft = CreateArticle(admin);
         db.Articles.AddRange(published, draft);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -546,7 +545,7 @@ public sealed class ArticleServiceTests
             Username = email,
             Email = email,
             PasswordHash = "hash",
-            Role = UserRole.Editor
+            Role = UserRole.Admin
         };
 
     private static MediaResource CreateMedia(User uploader, ResourceStatus status)
@@ -573,7 +572,7 @@ public sealed class ArticleServiceTests
         };
 
     private static Article CreateArticle(
-        User editor,
+        User admin,
         ArticleCategory? category = null,
         ArticleStatus status = ArticleStatus.Draft)
     {
@@ -582,13 +581,13 @@ public sealed class ArticleServiceTests
             Title = $"Article {Guid.NewGuid():N}",
             ContentMarkdown = "Body",
             ContentHtml = "<p>Body</p>",
-            Author = editor,
-            AuthorId = editor.Id,
-            LastEditor = editor,
-            LastEditorId = editor.Id,
+            Author = admin,
+            AuthorId = admin.Id,
+            LastEditor = admin,
+            LastEditorId = admin.Id,
             Status = status,
             PublishedAt = status == ArticleStatus.Published ? DateTimeOffset.UtcNow : null,
-            PublishedById = status == ArticleStatus.Published ? editor.Id : null
+            PublishedById = status == ArticleStatus.Published ? admin.Id : null
         };
         if (category is not null)
         {

@@ -36,7 +36,7 @@ public sealed record AdminUserListRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
-    public UserRole? Role { get; init; }
+    public string? Role { get; init; }
     public AdminUserStatus? Status { get; init; }
 }
 

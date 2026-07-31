@@ -103,7 +103,7 @@ public sealed class UserManagementDatabaseIntegrationTests
         Guid userId;
         await using (var setupDb = new ApplicationDbContext(options))
         {
-            var user = CreateUser("query-editor", UserRole.Editor);
+            var user = CreateUser("query-admin", UserRole.Admin);
             user.RefreshTokens.Add(CreateRefreshToken(user, "query-1", Now.AddHours(-2)));
             user.RefreshTokens.Add(CreateRefreshToken(user, "query-2", Now.AddHours(-1)));
             setupDb.Users.Add(user);
@@ -122,8 +122,8 @@ public sealed class UserManagementDatabaseIntegrationTests
             var list = await userService.GetAdminListAsync(
                 new AdminUserListRequest
                 {
-                    Keyword = "QUERY-EDITOR@EXAMPLE.TEST",
-                    Role = UserRole.Editor,
+                    Keyword = "QUERY-ADMIN@EXAMPLE.TEST",
+                    Role = "Admin",
                     Status = AdminUserStatus.Active
                 },
                 TestContext.Current.CancellationToken);

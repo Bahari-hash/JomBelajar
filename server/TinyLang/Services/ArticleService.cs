@@ -22,21 +22,21 @@ public sealed class ArticleService(
     ILogger<ArticleService> logger) : IArticleService
 {
     /// <inheritdoc />
-    public async Task<EditorArticleResponse> CreateDraftAsync(
-        Guid editorId,
+    public async Task<AdminArticleResponse> CreateDraftAsync(
+        Guid adminId,
         CreateArticleRequest request,
         CancellationToken cancellationToken = default)
     {
         var rendered = await ValidateDraftInputAsync(
-            editorId, request, existingArticle: null, cancellationToken);
+            request, cancellationToken);
         var article = new Article
         {
             Title = NormalizeRequired(request.Title),
             Summary = NormalizeOptional(request.Summary),
             ContentMarkdown = request.ContentMarkdown,
             ContentHtml = rendered.Html,
-            AuthorId = editorId,
-            LastEditorId = editorId,
+            AuthorId = adminId,
+            LastEditorId = adminId,
             CoverMediaResourceId = request.CoverMediaResourceId
         };
         SynchronizeBodyMedia(article, request.BodyMediaResourceIds);
@@ -44,13 +44,13 @@ public sealed class ArticleService(
 
         db.Articles.Add(article);
         await SaveArticleChangesAsync(cancellationToken);
-        return await GetEditorByIdAsync(article.Id, cancellationToken);
+        return await GetAdminByIdAsync(article.Id, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorArticleResponse> UpdateAsync(
+    public async Task<AdminArticleResponse> UpdateAsync(
         Guid articleId,
-        Guid editorId,
+        Guid adminId,
         UpdateArticleRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -65,25 +65,25 @@ public sealed class ArticleService(
         }
 
         var rendered = await ValidateDraftInputAsync(
-            editorId, request, article, cancellationToken);
+            request, cancellationToken);
         article.Title = NormalizeRequired(request.Title);
         article.Summary = NormalizeOptional(request.Summary);
         article.ContentMarkdown = request.ContentMarkdown;
         article.ContentHtml = rendered.Html;
         article.CoverMediaResourceId = request.CoverMediaResourceId;
-        article.LastEditorId = editorId;
+        article.LastEditorId = adminId;
         article.ConcurrencyStamp = Guid.NewGuid();
         SynchronizeBodyMedia(article, request.BodyMediaResourceIds);
         SynchronizeCategories(article, request.CategoryIds);
 
         await SaveArticleChangesAsync(cancellationToken);
-        return await GetEditorByIdAsync(article.Id, cancellationToken);
+        return await GetAdminByIdAsync(article.Id, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorArticleResponse> PublishAsync(
+    public async Task<AdminArticleResponse> PublishAsync(
         Guid articleId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
         var article = await FindArticleForEditAsync(articleId, cancellationToken);
@@ -101,17 +101,17 @@ public sealed class ArticleService(
         article.ContentHtml = rendered.Html;
         article.Status = ArticleStatus.Published;
         article.PublishedAt = DateTimeOffset.UtcNow;
-        article.PublishedById = editorId;
-        article.LastEditorId = editorId;
+        article.PublishedById = adminId;
+        article.LastEditorId = adminId;
         article.ConcurrencyStamp = Guid.NewGuid();
         await SaveArticleChangesAsync(cancellationToken);
-        return await GetEditorByIdAsync(article.Id, cancellationToken);
+        return await GetAdminByIdAsync(article.Id, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorArticleResponse> UnpublishAsync(
+    public async Task<AdminArticleResponse> UnpublishAsync(
         Guid articleId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
         var article = await FindArticleForEditAsync(articleId, cancellationToken);
@@ -123,16 +123,16 @@ public sealed class ArticleService(
         article.Status = ArticleStatus.Draft;
         article.PublishedAt = null;
         article.PublishedById = null;
-        article.LastEditorId = editorId;
+        article.LastEditorId = adminId;
         article.ConcurrencyStamp = Guid.NewGuid();
         await SaveArticleChangesAsync(cancellationToken);
-        return await GetEditorByIdAsync(article.Id, cancellationToken);
+        return await GetAdminByIdAsync(article.Id, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task ArchiveAsync(
         Guid articleId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
         var article = await FindArticleForEditAsync(articleId, cancellationToken);
@@ -142,24 +142,24 @@ public sealed class ArticleService(
         }
 
         article.Status = ArticleStatus.Archived;
-        article.LastEditorId = editorId;
+        article.LastEditorId = adminId;
         article.ConcurrencyStamp = Guid.NewGuid();
         await SaveArticleChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorArticleResponse> GetEditorByIdAsync(
+    public async Task<AdminArticleResponse> GetAdminByIdAsync(
         Guid articleId,
         CancellationToken cancellationToken = default)
     {
         var article = await DetailsQuery()
             .SingleOrDefaultAsync(value => value.Id == articleId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.ArticleNotFound);
-        return ToEditorResponse(article);
+        return ToAdminResponse(article);
     }
 
     /// <inheritdoc />
-    public async Task<PagedResponse<ArticleListItemResponse>> GetEditorListAsync(
+    public async Task<PagedResponse<ArticleListItemResponse>> GetAdminListAsync(
         ArticleListRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -218,23 +218,19 @@ public sealed class ArticleService(
     }
 
     /// <summary>
-    /// Renders content and validates categories, managed media, ownership and body URL declarations.
+    /// Renders content and validates categories, managed media and body URL declarations.
     /// </summary>
-    /// <param name="editorId">The editor performing the write.</param>
     /// <param name="request">The article write request.</param>
-    /// <param name="existingArticle">The tracked article being updated, or null when creating.</param>
     /// <param name="cancellationToken">The token used to cancel database queries.</param>
     /// <returns>The canonical render result.</returns>
     private async Task<ArticleContentRenderResult> ValidateDraftInputAsync(
-        Guid editorId,
         ArticleUpsertRequest request,
-        Article? existingArticle,
         CancellationToken cancellationToken)
     {
         await EnsureCategoriesUsableAsync(request.CategoryIds, cancellationToken);
         var rendered = markdownRenderer.Render(request.ContentMarkdown);
         await ValidateRequestedMediaAsync(
-            editorId, existingArticle, request, rendered, cancellationToken);
+            request, rendered, cancellationToken);
         return rendered;
     }
 
@@ -275,16 +271,12 @@ public sealed class ArticleService(
     }
 
     /// <summary>
-    /// Validates requested cover and body resources, body URL mappings and editor ownership.
+    /// Validates requested cover and body resources and their body URL mappings.
     /// </summary>
-    /// <param name="editorId">The editor performing the write.</param>
-    /// <param name="existingArticle">The tracked article being updated, or null when creating.</param>
     /// <param name="request">The article write request.</param>
     /// <param name="rendered">The canonical render result.</param>
     /// <param name="cancellationToken">The token used to cancel the query.</param>
     private async Task ValidateRequestedMediaAsync(
-        Guid editorId,
-        Article? existingArticle,
         ArticleUpsertRequest request,
         ArticleContentRenderResult rendered,
         CancellationToken cancellationToken)
@@ -311,17 +303,6 @@ public sealed class ArticleService(
         var resources = await LoadAndValidateMediaAsync(requestedIds, cancellationToken);
         EnsureBodyMediaMatches(rendered, resources.Where(value => bodyIds.Contains(value.Id)).ToArray());
 
-        var existingIds = existingArticle?.MediaResources
-            .Select(value => value.MediaResourceId)
-            .ToHashSet() ?? [];
-        if (existingArticle?.CoverMediaResourceId is { } existingCoverId)
-        {
-            existingIds.Add(existingCoverId);
-        }
-        if (resources.Any(value => !existingIds.Contains(value.Id) && value.UploaderId != editorId))
-        {
-            throw ForbiddenException.Create(ErrorCodes.ArticleMediaOwnershipMismatch);
-        }
     }
 
     /// <summary>
@@ -481,7 +462,7 @@ public sealed class ArticleService(
             ?? throw NotFoundException.Create(ErrorCodes.ArticleNotFound);
 
     /// <summary>
-    /// Creates the no-tracking query used by public and editor detail projections.
+    /// Creates the no-tracking query used by public and administrator detail projections.
     /// </summary>
     /// <returns>The article detail query.</returns>
     private IQueryable<Article> DetailsQuery()
@@ -525,7 +506,7 @@ public sealed class ArticleService(
     }
 
     /// <summary>
-    /// Creates the translatable projection used by public and editor article lists.
+    /// Creates the translatable projection used by public and administrator article lists.
     /// </summary>
     /// <returns>The article list item projection.</returns>
     private static Expression<Func<Article, ArticleListItemResponse>> ToListItemProjection()
@@ -553,8 +534,8 @@ public sealed class ArticleService(
     /// Maps a fully loaded article to the internal editing contract.
     /// </summary>
     /// <param name="article">The fully loaded article.</param>
-    /// <returns>The editor response.</returns>
-    private static EditorArticleResponse ToEditorResponse(Article article)
+    /// <returns>The administrator response.</returns>
+    private static AdminArticleResponse ToAdminResponse(Article article)
         => new(
             article.Id,
             article.Title,

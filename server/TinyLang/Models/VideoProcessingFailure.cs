@@ -1,7 +1,7 @@
 namespace TinyLang.Models;
 
 /// <summary>
-/// 定义可持久化和向编辑者展示的稳定视频处理失败分类。
+/// 定义可持久化和向管理员展示的稳定视频处理失败分类。
 /// </summary>
 public enum VideoProcessingFailureCode
 {

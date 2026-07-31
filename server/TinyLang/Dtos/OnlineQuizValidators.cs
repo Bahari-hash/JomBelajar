@@ -398,15 +398,15 @@ public sealed class FillBlankAcceptedAnswerInputValidator
 }
 
 /// <summary>
-/// 校验编辑者试卷列表的分页和筛选条件。
+/// 校验管理员试卷列表的分页和筛选条件。
 /// </summary>
-public sealed class EditorPaperListRequestValidator
-    : AbstractValidator<EditorPaperListRequest>
+public sealed class AdminPaperListRequestValidator
+    : AbstractValidator<AdminPaperListRequest>
 {
     /// <summary>
-    /// 初始化编辑者列表的有界筛选规则。
+    /// 初始化管理员列表的有界筛选规则。
     /// </summary>
-    public EditorPaperListRequestValidator()
+    public AdminPaperListRequestValidator()
     {
         OnlineQuizListValidationRules.Add(
             this,

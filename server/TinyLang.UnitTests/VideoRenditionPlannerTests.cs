@@ -16,13 +16,13 @@ public sealed class VideoRenditionPlannerTests
     {
         var planner = CreatePlanner();
 
-        var result = planner.CreatePlan(1980, 1080);
+        var result = planner.CreatePlan(1920, 1080);
 
         result.Select(value => value.TargetHeight).Should().Equal(480, 720, 1080);
         result.Select(value => (value.Width, value.Height)).Should().Equal(
-            (880, 480),
-            (1320, 720),
-            (1980, 1080));
+            (854, 480),
+            (1280, 720),
+            (1920, 1080));
         result.Select(value => value.VideoBitrateKbps).Should().Equal(1200, 2500, 4500);
     }
 

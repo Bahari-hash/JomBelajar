@@ -2,13 +2,17 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
 using TinyLang.Constants;
 using TinyLang.Dtos;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
 using TinyLang.Models;
+using TinyLang.Policies;
 using TinyLang.Services;
+using TinyLang.Settings;
 
 namespace TinyLang.Endpoints;
 
@@ -30,15 +34,18 @@ public static class UploadEndpoints
             .RequireAuthorization(AuthorizationPolicies.RequireUser)
             .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
 
-        group.MapPost("/editor/media/presign", CreateEditorMediaPresignAsync)
-            .RequireAuthorization(AuthorizationPolicies.RequireEditor)
+        group.MapPost("/admin/media/presign", CreateAdminMediaPresignAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin)
             .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
+
+        group.MapGet("/admin/media/capabilities", GetAdminMediaCapabilityAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
         group.MapPut("/resources/{id:guid}/confirm", ConfirmUploadAsync)
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        group.MapPost("/editor/media/multipart", CreateMultipartUploadAsync)
-            .RequireAuthorization(AuthorizationPolicies.RequireEditor)
+        group.MapPost("/admin/media/multipart", CreateMultipartUploadAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin)
             .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
 
         group.MapPost("/multipart/{sessionId:guid}/parts/presign", PresignMultipartPartsAsync)
@@ -88,15 +95,15 @@ public static class UploadEndpoints
     }
 
     /// <summary>
-    /// 为当前编辑者创建指定模块的媒体上传资源和预签名地址。
+    /// 为当前管理员创建指定模块的媒体上传资源和预签名地址。
     /// </summary>
     /// <param name="request">媒体模块和文件元数据。</param>
-    /// <param name="principal">当前已认证编辑者。</param>
+    /// <param name="principal">当前已认证管理员。</param>
     /// <param name="mediaResourceService">媒体资源业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>资源标识、对象名称和预签名地址。</returns>
-    public static async Task<Ok<PresignResponse>> CreateEditorMediaPresignAsync(
-        EditorMediaPresignRequest request,
+    public static async Task<Ok<PresignResponse>> CreateAdminMediaPresignAsync(
+        AdminMediaPresignRequest request,
         ClaimsPrincipal principal,
         IMediaResourceService mediaResourceService,
         CancellationToken cancellationToken)
@@ -113,6 +120,28 @@ public static class UploadEndpoints
             response.ResourceId,
             response.PresignedUrl,
             response.ObjectName));
+    }
+
+    /// <summary>
+    /// 返回指定管理员媒体模块的公开上传限制。
+    /// </summary>
+    public static Ok<AdminMediaUploadCapabilityResponse> GetAdminMediaCapabilityAsync(
+        [AsParameters] AdminMediaCapabilityRequest request,
+        [FromServices] MediaUploadPolicy policy,
+        [FromServices] IOptions<MultipartUploadSettings> multipartOptions)
+    {
+        var multipart = multipartOptions.Value;
+        var allowedTypes = policy.GetAllowedTypes(request.Module)
+            .Select(pair => new AdminMediaAllowedTypeResponse(pair.Key, pair.Value))
+            .ToArray();
+        return TypedResults.Ok(new AdminMediaUploadCapabilityResponse(
+            request.Module,
+            policy.GetMaxSizeBytes(request.Module),
+            allowedTypes,
+            Megabytes(multipart.ThresholdMB),
+            Megabytes(multipart.PartSizeMB),
+            multipart.MaxPartCount,
+            multipart.PartPresignBatchLimit));
     }
 
     /// <summary>
@@ -137,7 +166,7 @@ public static class UploadEndpoints
     }
 
     /// <summary>
-    /// 为当前编辑者创建大文件 Multipart Upload 会话。
+    /// 为当前管理员创建大文件 Multipart Upload 会话。
     /// </summary>
     public static async Task<Created<MultipartUploadCreateResponse>> CreateMultipartUploadAsync(
         MultipartUploadRequest request,
@@ -277,4 +306,6 @@ public static class UploadEndpoints
                 part.PartNumber,
                 part.ETag,
                 part.Size)).ToArray());
+
+    private static long Megabytes(int value) => (long)value * 1024 * 1024;
 }

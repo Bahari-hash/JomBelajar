@@ -30,8 +30,10 @@ public sealed class User : BaseAuditableEntity
     public ICollection<Article> AuthoredArticles { get; set; } = [];
     public ICollection<Article> EditedArticles { get; set; } = [];
     public ICollection<Article> PublishedArticles { get; set; } = [];
-    public ICollection<Video> OwnedVideos { get; set; } = [];
-    public ICollection<AudioClip> OwnedAudioClips { get; set; } = [];
+    public ICollection<Video> CreatedVideos { get; set; } = [];
+    public ICollection<Video> EditedVideos { get; set; } = [];
+    public ICollection<AudioClip> CreatedAudioClips { get; set; } = [];
+    public ICollection<AudioClip> EditedAudioClips { get; set; } = [];
     public ICollection<UserVideoProgress> VideoProgress { get; set; } = [];
     public ICollection<UserWordProgress> WordProgress { get; set; } = [];
     public ICollection<WordStudySession> WordStudySessions { get; set; } = [];

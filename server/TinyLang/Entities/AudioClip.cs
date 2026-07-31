@@ -16,8 +16,10 @@ public sealed class AudioClip : BaseAuditableEntity
         Id = Guid.NewGuid();
     }
 
-    public Guid OwnerId { get; set; }
-    public User? Owner { get; set; }
+    public Guid CreatedById { get; set; }
+    public User CreatedBy { get; set; } = null!;
+    public Guid LastEditorId { get; set; }
+    public User LastEditor { get; set; } = null!;
     public Guid SourceMediaResourceId { get; set; }
     public required MediaResource SourceMediaResource { get; set; }
     public required string Title { get; set; }

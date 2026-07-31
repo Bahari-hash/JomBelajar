@@ -118,6 +118,61 @@ public sealed class VideoProcessingServiceTests
     }
 
     [Fact]
+    public async Task RenewLeaseShouldExtendOnlyActiveLeaseOwnedByWorker()
+    {
+        await using var db = CreateDbContext();
+        var (_, job) = AddQueuedVideo(db);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var clock = new TestTimeProvider(Now);
+        var service = CreateService(db, timeProvider: clock);
+        var workerId = Guid.NewGuid();
+        (await service.TryClaimAsync(
+            job.Id,
+            workerId,
+            TestContext.Current.CancellationToken)).Should().BeTrue();
+        clock.Advance(TimeSpan.FromMinutes(1));
+
+        var wrongOwner = await service.RenewLeaseAsync(
+            job.Id,
+            Guid.NewGuid(),
+            TestContext.Current.CancellationToken);
+        var renewed = await service.RenewLeaseAsync(
+            job.Id,
+            workerId,
+            TestContext.Current.CancellationToken);
+
+        wrongOwner.Should().BeFalse();
+        renewed.Should().BeTrue();
+        var storedJob = await db.VideoProcessingJobs.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        storedJob.LeaseExpiresAt.Should().Be(
+            clock.GetUtcNow().AddSeconds(new VideoProcessingSettings().LeaseSeconds));
+    }
+
+    [Fact]
+    public async Task RenewLeaseShouldRejectExpiredLease()
+    {
+        await using var db = CreateDbContext();
+        var (_, job) = AddQueuedVideo(db);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var clock = new TestTimeProvider(Now);
+        var service = CreateService(db, timeProvider: clock);
+        var workerId = Guid.NewGuid();
+        (await service.TryClaimAsync(
+            job.Id,
+            workerId,
+            TestContext.Current.CancellationToken)).Should().BeTrue();
+        clock.Advance(TimeSpan.FromHours(4));
+
+        var renewed = await service.RenewLeaseAsync(
+            job.Id,
+            workerId,
+            TestContext.Current.CancellationToken);
+
+        renewed.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task PermanentProbeFailureShouldNotAutomaticallyRetry()
     {
         await using var db = CreateDbContext();
@@ -225,11 +280,119 @@ public sealed class VideoProcessingServiceTests
             .SingleAsync(TestContext.Current.CancellationToken)).Height.Should().Be(480);
     }
 
+    [Fact]
+    public async Task ExpiredLeaseShouldPreventStaleReadyCommit()
+    {
+        await using var db = CreateDbContext();
+        var (video, job) = AddQueuedVideo(db);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var clock = new TestTimeProvider(Now);
+        var workerId = Guid.NewGuid();
+        var storage = new Mock<IObjectStorageService>();
+        storage.Setup(value => value.DownloadObjectAsync(
+                It.IsAny<string>(),
+                It.IsAny<Stream>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        storage.Setup(value => value.UploadObjectAsync(
+                It.IsAny<string>(),
+                It.IsAny<Stream>(),
+                It.IsAny<long>(),
+                It.IsAny<ObjectStorageUploadOptions>(),
+                It.IsAny<CancellationToken>()))
+            .Callback(() => clock.Advance(TimeSpan.FromHours(4)))
+            .Returns(Task.CompletedTask);
+        storage.Setup(value => value.GetObjectMetadataAsync(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ObjectStorageMetadata(
+                128,
+                "application/vnd.apple.mpegurl"));
+        var probe = new Mock<IMediaProbe>();
+        probe.Setup(value => value.ProbeAsync(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaProbeResult(60, 1280, 720, "mp4", "h264", "aac"));
+        var service = CreateService(
+            db,
+            storage.Object,
+            probe.Object,
+            new FakeVideoTranscoder(),
+            clock);
+        (await service.TryClaimAsync(
+            job.Id,
+            workerId,
+            TestContext.Current.CancellationToken)).Should().BeTrue();
+
+        await service.ProcessClaimedAsync(
+            job.Id,
+            workerId,
+            TestContext.Current.CancellationToken);
+
+        var storedJob = await db.VideoProcessingJobs.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var storedVideo = await db.Videos.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        storedJob.Status.Should().Be(VideoProcessingJobStatus.Processing);
+        storedVideo.ProcessingStatus.Should().Be(VideoProcessingStatus.Processing);
+        storedVideo.CurrentOutputVersion.Should().BeNull();
+        (await db.VideoRenditions.CountAsync(
+            TestContext.Current.CancellationToken)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ExpiredLeaseShouldPreventStaleFailureCommit()
+    {
+        await using var db = CreateDbContext();
+        var (_, job) = AddQueuedVideo(db);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var clock = new TestTimeProvider(Now);
+        var workerId = Guid.NewGuid();
+        var probe = new Mock<IMediaProbe>();
+        probe.Setup(value => value.ProbeAsync(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Callback(() => clock.Advance(TimeSpan.FromHours(4)))
+            .ThrowsAsync(new VideoProcessingException(
+                VideoProcessingFailureCode.AudioStreamMissing,
+                isTransient: false));
+        var storage = new Mock<IObjectStorageService>();
+        storage.Setup(value => value.DownloadObjectAsync(
+                It.IsAny<string>(),
+                It.IsAny<Stream>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var service = CreateService(
+            db,
+            storage.Object,
+            probe.Object,
+            timeProvider: clock);
+        (await service.TryClaimAsync(
+            job.Id,
+            workerId,
+            TestContext.Current.CancellationToken)).Should().BeTrue();
+
+        await service.ProcessClaimedAsync(
+            job.Id,
+            workerId,
+            TestContext.Current.CancellationToken);
+
+        var storedJob = await db.VideoProcessingJobs.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var storedVideo = await db.Videos.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        storedJob.Status.Should().Be(VideoProcessingJobStatus.Processing);
+        storedJob.FailureCode.Should().BeNull();
+        storedVideo.ProcessingStatus.Should().Be(VideoProcessingStatus.Processing);
+        storedVideo.LastFailureCode.Should().BeNull();
+    }
+
     private static VideoProcessingService CreateService(
         ApplicationDbContext db,
         IObjectStorageService? storage = null,
         IMediaProbe? probe = null,
-        IVideoTranscoder? transcoder = null)
+        IVideoTranscoder? transcoder = null,
+        TimeProvider? timeProvider = null)
         => new(
             db,
             storage ?? Mock.Of<IObjectStorageService>(),
@@ -242,7 +405,7 @@ public sealed class VideoProcessingServiceTests
                     "tiny-lang-video-tests"),
                 MinimumFreeDiskMB = 1
             }),
-            new TestTimeProvider(Now),
+            timeProvider ?? new TestTimeProvider(Now),
             NullLogger<VideoProcessingService>.Instance);
 
     private static (Video Video, VideoProcessingJob Job) AddQueuedVideo(
@@ -261,7 +424,7 @@ public sealed class VideoProcessingServiceTests
         };
         var video = new Video
         {
-            OwnerId = resource.UploaderId,
+            CreatedById = resource.UploaderId,
             SourceMediaResourceId = resource.Id,
             SourceMediaResource = resource,
             Title = "Video",

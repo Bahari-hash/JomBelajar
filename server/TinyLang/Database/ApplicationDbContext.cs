@@ -23,7 +23,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.Video> Videos => Set<Entities.Video>();
     public DbSet<Entities.VideoProcessingJob> VideoProcessingJobs => Set<Entities.VideoProcessingJob>();
     public DbSet<Entities.VideoRendition> VideoRenditions => Set<Entities.VideoRendition>();
-    public DbSet<Entities.VideoSubtitle> VideoSubtitles => Set<Entities.VideoSubtitle>();
     public DbSet<Entities.VideoCategory> VideoCategories => Set<Entities.VideoCategory>();
     public DbSet<Entities.VideoCategoryAssignment> VideoCategoryAssignments => Set<Entities.VideoCategoryAssignment>();
     public DbSet<Entities.UserVideoProgress> UserVideoProgress => Set<Entities.UserVideoProgress>();

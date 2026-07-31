@@ -15,8 +15,8 @@ public sealed class MinimumRoleHandler : AuthorizationHandler<MinimumRoleRequire
         AuthorizationHandlerContext context, MinimumRoleRequirement requirement)
     {
         var userRoleClaim = context.User.FindFirstValue(JwtClaimNamesExtension.Role);
-        if (string.IsNullOrWhiteSpace(userRoleClaim) ||
-            !Enum.TryParse<UserRole>(userRoleClaim, out var userRole))
+        if (!UserRoleParser.TryParse(userRoleClaim, out var userRole) ||
+            !Enum.IsDefined(requirement.MinimumRole))
         {
             return Task.CompletedTask;
         }

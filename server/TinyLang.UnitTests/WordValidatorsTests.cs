@@ -141,8 +141,8 @@ public sealed class WordValidatorsTests
     [Fact]
     public async Task ListsShouldRejectInvalidPagingLanguageAndStatus()
     {
-        var editorResult = await new EditorWordListRequestValidator().ValidateAsync(
-            new EditorWordListRequest
+        var adminResult = await new AdminWordListRequestValidator().ValidateAsync(
+            new AdminWordListRequest
             {
                 Page = 0,
                 PageSize = 101,
@@ -154,7 +154,7 @@ public sealed class WordValidatorsTests
             new WordListRequest { Page = 0, PageSize = 101, Language = "bad_tag" },
             TestContext.Current.CancellationToken);
 
-        editorResult.IsValid.Should().BeFalse();
+        adminResult.IsValid.Should().BeFalse();
         userResult.IsValid.Should().BeFalse();
     }
 

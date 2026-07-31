@@ -5,7 +5,7 @@ using TinyLang.Entities;
 namespace TinyLang.Database.Configurations;
 
 /// <summary>
-/// 配置音频字段、状态、查询索引和 owner/source 关系。
+/// 配置音频字段、状态、查询索引和审计/source 关系。
 /// </summary>
 public sealed class AudioClipConfiguration : IEntityTypeConfiguration<AudioClip>
 {
@@ -32,7 +32,7 @@ public sealed class AudioClipConfiguration : IEntityTypeConfiguration<AudioClip>
         builder.HasIndex(value => value.SourceMediaResourceId).IsUnique();
         builder.HasIndex(value => new
         {
-            value.OwnerId,
+            value.CreatedById,
             value.ProcessingStatus,
             value.PublicationStatus,
             value.UpdatedAt,
@@ -45,9 +45,15 @@ public sealed class AudioClipConfiguration : IEntityTypeConfiguration<AudioClip>
             value.Id
         });
 
-        builder.HasOne(value => value.Owner)
-            .WithMany(value => value.OwnedAudioClips)
-            .HasForeignKey(value => value.OwnerId)
+        builder.HasIndex(value => value.LastEditorId);
+
+        builder.HasOne(value => value.CreatedBy)
+            .WithMany(value => value.CreatedAudioClips)
+            .HasForeignKey(value => value.CreatedById)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(value => value.LastEditor)
+            .WithMany(value => value.EditedAudioClips)
+            .HasForeignKey(value => value.LastEditorId)
             .OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(value => value.SourceMediaResource)
             .WithOne(value => value.SourceAudioClip)

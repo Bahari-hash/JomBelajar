@@ -10,34 +10,34 @@ public interface IWordService
     /// <summary>
     /// 创建可不完整的词条草稿及其当前子项集合。
     /// </summary>
-    Task<EditorWordResponse> CreateDraftAsync(
-        Guid editorId,
+    Task<AdminWordResponse> CreateDraftAsync(
+        Guid adminId,
         CreateWordRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 使用完整目标集合和并发标识更新可编辑词条。
     /// </summary>
-    Task<EditorWordResponse> UpdateAsync(
+    Task<AdminWordResponse> UpdateAsync(
         Guid wordId,
-        Guid editorId,
+        Guid adminId,
         UpdateWordRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 完整校验词条内容和音频后幂等发布词条。
     /// </summary>
-    Task<EditorWordResponse> PublishAsync(
+    Task<AdminWordResponse> PublishAsync(
         Guid wordId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 幂等下架已发布词条并保留其内容和首次发布时间。
     /// </summary>
-    Task<EditorWordResponse> UnpublishAsync(
+    Task<AdminWordResponse> UnpublishAsync(
         Guid wordId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -45,21 +45,21 @@ public interface IWordService
     /// </summary>
     Task DeleteAsync(
         Guid wordId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 获取编辑者可见的词条管理详情。
+    /// 获取管理员可见的词条管理详情。
     /// </summary>
-    Task<EditorWordResponse> GetEditorByIdAsync(
+    Task<AdminWordResponse> GetAdminByIdAsync(
         Guid wordId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 获取所有编辑者共享的词条管理分页列表。
+    /// 获取所有管理员共享的词条管理分页列表。
     /// </summary>
-    Task<PagedResponse<EditorWordListItemResponse>> GetEditorListAsync(
-        EditorWordListRequest request,
+    Task<PagedResponse<AdminWordListItemResponse>> GetAdminListAsync(
+        AdminWordListRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>

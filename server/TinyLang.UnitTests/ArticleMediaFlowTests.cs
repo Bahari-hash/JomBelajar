@@ -21,14 +21,14 @@ public sealed class ArticleMediaFlowTests
     public async Task ConfirmedArticlePictureShouldBeAcceptedByArticleService()
     {
         await using var db = CreateDbContext();
-        var editor = new User
+        var admin = new User
         {
-            Username = "editor@example.com",
-            Email = "editor@example.com",
+            Username = "admin@example.com",
+            Email = "admin@example.com",
             PasswordHash = "hash",
-            Role = UserRole.Editor
+            Role = UserRole.Admin
         };
-        db.Users.Add(editor);
+        db.Users.Add(admin);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var storage = new Mock<IObjectStorageService>();
@@ -49,7 +49,7 @@ public sealed class ArticleMediaFlowTests
             Options.Create(TestMultipartUploadSettings.Create()),
             TimeProvider.System);
         var presign = await mediaService.CreatePendingResourceAndPresignAsync(
-            editor.Id,
+            admin.Id,
             "lesson.png",
             ".png",
             1024,
@@ -59,7 +59,7 @@ public sealed class ArticleMediaFlowTests
 
         var confirmed = await mediaService.ConfirmAsync(
             presign.ResourceId,
-            editor.Id,
+            admin.Id,
             TestContext.Current.CancellationToken);
         var articleService = new ArticleService(
             db,
@@ -67,7 +67,7 @@ public sealed class ArticleMediaFlowTests
             NullLogger<ArticleService>.Instance);
 
         var article = await articleService.CreateDraftAsync(
-            editor.Id,
+            admin.Id,
             new CreateArticleRequest
             {
                 Title = "Lesson",

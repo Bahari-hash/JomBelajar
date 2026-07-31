@@ -79,19 +79,36 @@ public sealed class UpdateVideoRequestValidator : AbstractValidator<UpdateVideoR
             .WithErrKey(ErrorCodes.VideoCategoryIdsInvalid)
             .Must(ids => ids.Count == ids.Distinct().Count())
             .WithErrKey(ErrorCodes.VideoCategoryDuplicate);
+        RuleFor(x => x.ConcurrencyStamp)
+            .NotEmpty().WithErrKey(ErrorCodes.VideoConcurrencyConflict);
     }
 }
 
 /// <summary>
-/// 校验编辑者视频列表分页和关键词边界。
+/// 校验视频状态 mutation 的并发前置条件。
 /// </summary>
-public sealed class EditorVideoListRequestValidator
-    : AbstractValidator<EditorVideoListRequest>
+public sealed class VideoMutationRequestValidator : AbstractValidator<VideoMutationRequest>
+{
+    /// <summary>
+    /// 要求客户端提交非空并发戳。
+    /// </summary>
+    public VideoMutationRequestValidator()
+    {
+        RuleFor(x => x.ConcurrencyStamp)
+            .NotEmpty().WithErrKey(ErrorCodes.VideoConcurrencyConflict);
+    }
+}
+
+/// <summary>
+/// 校验管理员视频列表分页和关键词边界。
+/// </summary>
+public sealed class AdminVideoListRequestValidator
+    : AbstractValidator<AdminVideoListRequest>
 {
     /// <summary>
     /// 创建通用分页和有界关键词规则。
     /// </summary>
-    public EditorVideoListRequestValidator()
+    public AdminVideoListRequestValidator()
     {
         RuleFor(x => x.Page).GreaterThanOrEqualTo(1).WithErrKey(ErrorCodes.PageInvalid);
         RuleFor(x => x.PageSize).InclusiveBetween(1, 100).WithErrKey(ErrorCodes.PageSizeInvalid);
@@ -99,6 +116,15 @@ public sealed class EditorVideoListRequestValidator
         RuleFor(x => x.CategoryId)
             .Must(value => value is null || value != Guid.Empty)
             .WithErrKey(ErrorCodes.VideoCategoryIdsInvalid);
+        RuleFor(x => x.CreatedById)
+            .Must(value => value is null || value != Guid.Empty)
+            .WithErrKey(ErrorCodes.VideoCreatedByInvalid);
+        RuleFor(x => x.ProcessingStatus)
+            .Must(value => value is null || Enum.IsDefined(value.Value))
+            .WithErrKey(ErrorCodes.VideoStatusConflict);
+        RuleFor(x => x.PublicationStatus)
+            .Must(value => value is null || Enum.IsDefined(value.Value))
+            .WithErrKey(ErrorCodes.VideoStatusConflict);
     }
 }
 
@@ -118,33 +144,6 @@ public sealed class VideoCatalogRequestValidator : AbstractValidator<VideoCatalo
         RuleFor(x => x.CategoryId)
             .Must(value => value is null || value != Guid.Empty)
             .WithErrKey(ErrorCodes.VideoCategoryIdsInvalid);
-    }
-}
-
-/// <summary>
-/// 校验 WebVTT 字幕关联的资源、语言、显示名称和排序。
-/// </summary>
-public sealed class AddVideoSubtitleRequestValidator
-    : AbstractValidator<AddVideoSubtitleRequest>
-{
-    /// <summary>
-    /// 创建字幕资源和 BCP 47 风格语言标签规则。
-    /// </summary>
-    public AddVideoSubtitleRequestValidator()
-    {
-        RuleFor(x => x.MediaResourceId)
-            .NotEmpty().WithErrKey(ErrorCodes.VideoSubtitleInvalid);
-        RuleFor(x => x.LanguageTag)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty().WithErrKey(ErrorCodes.VideoLanguageInvalid)
-            .MaximumLength(35).WithErrKey(ErrorCodes.VideoLanguageInvalid)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .WithErrKey(ErrorCodes.VideoLanguageInvalid);
-        RuleFor(x => x.DisplayName)
-            .NotEmpty().WithErrKey(ErrorCodes.VideoSubtitleInvalid)
-            .MaximumLength(100).WithErrKey(ErrorCodes.VideoSubtitleInvalid);
-        RuleFor(x => x.SortOrder)
-            .InclusiveBetween(0, 1000).WithErrKey(ErrorCodes.VideoSubtitleInvalid);
     }
 }
 

@@ -28,11 +28,11 @@ public sealed class PaperServiceTests
     public async Task CreateDraftShouldNormalizeAndCalculateServerTotal()
     {
         await using var db = CreateDbContext();
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var service = CreateService(db);
 
         var response = await service.CreateDraftAsync(
-            editorId,
+            adminId,
             CreateCompleteRequest() with
             {
                 Title = "  Quiz  ",
@@ -44,8 +44,8 @@ public sealed class PaperServiceTests
         response.LanguageTag.Should().Be("en-us");
         response.TotalScore.Should().Be(9);
         response.PassingScore.Should().Be(6);
-        response.CreatedById.Should().Be(editorId);
-        response.LastEditorId.Should().Be(editorId);
+        response.CreatedById.Should().Be(adminId);
+        response.LastEditorId.Should().Be(adminId);
         response.Questions.Should().HaveCount(3);
         response.Questions.Select(value => value.SortOrder)
             .Should().ContainInOrder(0, 1, 2);
@@ -58,11 +58,11 @@ public sealed class PaperServiceTests
     public async Task UpdateShouldSynchronizeTargetAndPreserveExistingIds()
     {
         await using var db = CreateDbContext();
-        var firstEditorId = Guid.NewGuid();
-        var secondEditorId = Guid.NewGuid();
+        var firstAdminId = Guid.NewGuid();
+        var secondAdminId = Guid.NewGuid();
         var service = CreateService(db);
         var created = await service.CreateDraftAsync(
-            firstEditorId,
+            firstAdminId,
             CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
         var single = created.Questions.Single(value =>
@@ -117,13 +117,13 @@ public sealed class PaperServiceTests
 
         var updated = await service.UpdateAsync(
             created.Id,
-            secondEditorId,
+            secondAdminId,
             request,
             TestContext.Current.CancellationToken);
 
         updated.Title.Should().Be("Updated");
         updated.TotalScore.Should().Be(6);
-        updated.LastEditorId.Should().Be(secondEditorId);
+        updated.LastEditorId.Should().Be(secondAdminId);
         updated.Questions.Should().HaveCount(2);
         updated.Questions.First().Id.Should().Be(trueFalse.Id);
         updated.Questions.Last().Options.Should().Contain(value =>
@@ -182,16 +182,16 @@ public sealed class PaperServiceTests
     public async Task PublicationLifecycleShouldBeIdempotentAndDriveCatalogVisibility()
     {
         await using var db = CreateDbContext();
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var service = CreateService(db);
         var draft = await service.CreateDraftAsync(
-            editorId,
+            adminId,
             CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
 
         var published = await service.PublishAsync(
             draft.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
         var repeated = await service.PublishAsync(
             draft.Id,
@@ -208,7 +208,7 @@ public sealed class PaperServiceTests
 
         var unpublished = await service.UnpublishAsync(
             draft.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
         var repeatedUnpublish = await service.UnpublishAsync(
             draft.Id,
@@ -263,19 +263,19 @@ public sealed class PaperServiceTests
     public async Task AttemptHistoryShouldLockContentAndDeletionButAllowRepublish()
     {
         await using var db = CreateDbContext();
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var service = CreateService(db);
         var draft = await service.CreateDraftAsync(
-            editorId,
+            adminId,
             CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
         var published = await service.PublishAsync(
             draft.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
         var unpublished = await service.UnpublishAsync(
             draft.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
         db.PaperAttempts.Add(new PaperAttempt
         {
@@ -290,19 +290,19 @@ public sealed class PaperServiceTests
 
         var update = async () => await service.UpdateAsync(
             draft.Id,
-            editorId,
+            adminId,
             ToUpdateRequest(unpublished),
             TestContext.Current.CancellationToken);
         var delete = async () => await service.DeleteAsync(
             draft.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
 
         await update.Should().ThrowAsync<ConflictException>();
         await delete.Should().ThrowAsync<ConflictException>();
         (await service.PublishAsync(
             draft.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken)).Status
             .Should().Be(PaperPublicationStatus.Published);
     }
@@ -374,7 +374,7 @@ public sealed class PaperServiceTests
     /// <summary>
     /// 将编辑详情转换为保持全部稳定子项标识的更新请求。
     /// </summary>
-    internal static UpdatePaperRequest ToUpdateRequest(EditorPaperResponse response)
+    internal static UpdatePaperRequest ToUpdateRequest(AdminPaperResponse response)
         => new()
         {
             Title = response.Title,
@@ -390,7 +390,7 @@ public sealed class PaperServiceTests
     /// 将编辑题目详情转换为完整题目输入。
     /// </summary>
     private static PaperQuestionInput ToQuestionInput(
-        EditorPaperQuestionResponse question)
+        AdminPaperQuestionResponse question)
         => new()
         {
             Id = question.Id,

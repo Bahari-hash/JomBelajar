@@ -8,7 +8,7 @@ using TinyLang.Settings;
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证视频 delivery HMAC 固定向量、路径边界和开发直连。
+/// 验证视频 delivery HMAC 固定向量、路径边界和对象存储直连。
 /// </summary>
 public sealed class VideoDeliveryUrlServiceTests
 {
@@ -57,7 +57,7 @@ public sealed class VideoDeliveryUrlServiceTests
     }
 
     [Fact]
-    public void DirectDevelopmentShouldUseObjectStorageUrl()
+    public void DirectObjectStorageShouldUsePermanentObjectStorageUrl()
     {
         var storage = new Mock<IObjectStorageService>();
         storage.Setup(value => value.GetPublicUrl("videos/id/poster.jpg"))
@@ -72,6 +72,22 @@ public sealed class VideoDeliveryUrlServiceTests
             "videos/id/");
 
         result.Url.Should().Be("https://localhost/media/videos/id/poster.jpg");
+        result.ExpiresAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void UnknownDeliveryModeShouldBeRejectedByRuntimeGuard()
+    {
+        var service = new VideoDeliveryUrlService(
+            Mock.Of<IObjectStorageService>(),
+            Options.Create(new VideoDeliverySettings { Mode = "Unknown" }),
+            new TestTimeProvider(Now));
+
+        var action = () => service.CreateUrl(
+            "videos/id/poster.jpg",
+            "videos/id/");
+
+        action.Should().Throw<InvalidOperationException>();
     }
 
     /// <summary>

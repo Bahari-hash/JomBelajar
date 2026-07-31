@@ -24,7 +24,7 @@ namespace TinyLang.UnitTests;
 public sealed class WordEndpointTests
 {
     /// <summary>
-    /// 验证全部编辑路由使用 RequireEditor，用户查询使用 RequireUser。
+    /// 验证全部管理路由使用 RequireAdmin，用户查询使用 RequireUser。
     /// </summary>
     [Fact]
     public async Task RoutesShouldUseExpectedAuthorizationPolicies()
@@ -33,11 +33,11 @@ public sealed class WordEndpointTests
         var routes = GetRoutes(app);
 
         routes.Where(value => value.RoutePattern.RawText!.StartsWith(
-                "/api/editor/words",
+                "/api/admin/words",
                 StringComparison.Ordinal))
             .Should().OnlyContain(endpoint => endpoint.Metadata
                 .GetOrderedMetadata<IAuthorizeData>()
-                .Any(value => value.Policy == AuthorizationPolicies.RequireEditor));
+                .Any(value => value.Policy == AuthorizationPolicies.RequireAdmin));
         routes.Where(value => value.RoutePattern.RawText!.StartsWith(
                 "/api/words",
                 StringComparison.Ordinal))
@@ -51,27 +51,27 @@ public sealed class WordEndpointTests
     /// 验证创建使用 authenticated user ID 并返回正确的 201 Location。
     /// </summary>
     [Fact]
-    public async Task CreateShouldUseAuthenticatedEditorAndReturnLocation()
+    public async Task CreateShouldUseAuthenticatedAdminAndReturnLocation()
     {
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var wordId = Guid.NewGuid();
         var service = new Mock<IWordService>();
         service.Setup(value => value.CreateDraftAsync(
-                editorId,
+                adminId,
                 It.IsAny<CreateWordRequest>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateEditorResponse(wordId, editorId));
-        await using var app = await CreateHttpAppAsync(service.Object, editorId);
+            .ReturnsAsync(CreateAdminResponse(wordId, adminId));
+        await using var app = await CreateHttpAppAsync(service.Object, adminId);
 
         var response = await app.GetTestClient().PostAsJsonAsync(
-            "/api/editor/words",
+            "/api/admin/words",
             new CreateWordRequest { Headword = "hello", LanguageTag = "en" },
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
-        response.Headers.Location.Should().Be($"/api/editor/words/{wordId}");
+        response.Headers.Location.Should().Be($"/api/admin/words/{wordId}");
         service.Verify(value => value.CreateDraftAsync(
-            editorId,
+            adminId,
             It.Is<CreateWordRequest>(request => request.Headword == "hello"),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -104,24 +104,24 @@ public sealed class WordEndpointTests
     }
 
     /// <summary>
-    /// 验证删除 endpoint 返回 204 并传递当前编辑者身份。
+    /// 验证删除 endpoint 返回 204 并传递当前管理员身份。
     /// </summary>
     [Fact]
     public async Task DeleteShouldReturnNoContent()
     {
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var wordId = Guid.NewGuid();
         var service = new Mock<IWordService>();
-        await using var app = await CreateHttpAppAsync(service.Object, editorId);
+        await using var app = await CreateHttpAppAsync(service.Object, adminId);
 
         var response = await app.GetTestClient().DeleteAsync(
-            $"/api/editor/words/{wordId}",
+            $"/api/admin/words/{wordId}",
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
         service.Verify(value => value.DeleteAsync(
             wordId,
-            editorId,
+            adminId,
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -150,7 +150,7 @@ public sealed class WordEndpointTests
         {
             options.AddPolicy(AuthorizationPolicies.RequireUser, policy =>
                 policy.RequireAssertion(_ => true));
-            options.AddPolicy(AuthorizationPolicies.RequireEditor, policy =>
+            options.AddPolicy(AuthorizationPolicies.RequireAdmin, policy =>
                 policy.RequireAssertion(_ => true));
         });
         builder.Services.AddSingleton(wordService);
@@ -179,16 +179,16 @@ public sealed class WordEndpointTests
             .ToArray();
 
     /// <summary>
-    /// 创建 endpoint mock 使用的最小编辑者词条响应。
+    /// 创建 endpoint mock 使用的最小管理员词条响应。
     /// </summary>
-    private static EditorWordResponse CreateEditorResponse(Guid wordId, Guid editorId)
+    private static AdminWordResponse CreateAdminResponse(Guid wordId, Guid adminId)
         => new(
             wordId,
             "en",
             "hello",
             WordPublicationStatus.Draft,
-            editorId,
-            editorId,
+            adminId,
+            adminId,
             null,
             Guid.NewGuid(),
             [],

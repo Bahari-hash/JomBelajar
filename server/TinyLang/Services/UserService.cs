@@ -225,8 +225,7 @@ public sealed class UserService(
         {
             throw ForbiddenException.Create(ErrorCodes.CannotChangeOwnRole);
         }
-        if (!Enum.TryParse<UserRole>(request.Role, ignoreCase: true, out var role) ||
-            !Enum.IsDefined(role))
+        if (!UserRoleParser.TryParse(request.Role, out var role))
         {
             throw new RequestValidationException(ErrorCodes.RoleInvalid);
         }
@@ -266,8 +265,13 @@ public sealed class UserService(
             _ => query.Where(user => !user.IsDeleted)
         };
 
-        if (request.Role is { } role)
+        if (request.Role is { } roleName)
         {
+            if (!UserRoleParser.TryParse(roleName, out var role))
+            {
+                throw new RequestValidationException(ErrorCodes.RoleInvalid);
+            }
+
             query = query.Where(user => user.Role == role);
         }
 

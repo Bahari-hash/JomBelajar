@@ -80,11 +80,11 @@ public sealed class AudioValidatorsTests
     /// 验证分页和可空枚举筛选仍拒绝越界值。
     /// </summary>
     [Fact]
-    public async Task EditorAudioListShouldRejectInvalidPagingAndEnums()
+    public async Task AdminAudioListShouldRejectInvalidPagingAndEnums()
     {
-        var validator = new EditorAudioClipListRequestValidator();
+        var validator = new AdminAudioClipListRequestValidator();
 
-        var result = await validator.ValidateAsync(new EditorAudioClipListRequest
+        var result = await validator.ValidateAsync(new AdminAudioClipListRequest
         {
             Page = 0,
             PageSize = 101,

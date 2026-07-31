@@ -28,16 +28,16 @@ public sealed class ArticleEndpointTests
         "/api/article-categories"
     ];
 
-    private static readonly string[] EditorRoutes =
+    private static readonly string[] ContentAdminRoutes =
     [
-        "/api/editor/articles",
-        "/api/editor/articles/preview",
-        "/api/editor/articles/{id:guid}",
-        "/api/editor/articles/{id:guid}/publish",
-        "/api/editor/articles/{id:guid}/unpublish",
+        "/api/admin/articles",
+        "/api/admin/articles/preview",
+        "/api/admin/articles/{id:guid}",
+        "/api/admin/articles/{id:guid}/publish",
+        "/api/admin/articles/{id:guid}/unpublish",
     ];
 
-    private static readonly string[] AdminRoutes =
+    private static readonly string[] CategoryAdminRoutes =
     [
         "/api/admin/article-categories",
         "/api/admin/article-categories/{id:guid}",
@@ -56,15 +56,15 @@ public sealed class ArticleEndpointTests
             matching.Should().NotBeEmpty("available routes: {0}", string.Join(", ", routes.Select(x => x.RoutePattern.RawText)));
             matching.Should().OnlyContain(endpoint => endpoint.Metadata.GetMetadata<IAuthorizeData>() == null);
         }
-        foreach (var pattern in EditorRoutes)
+        foreach (var pattern in ContentAdminRoutes)
         {
             var matching = routes.Where(x => x.RoutePattern.RawText == pattern).ToArray();
             matching.Should().NotBeEmpty("available routes: {0}", string.Join(", ", routes.Select(x => x.RoutePattern.RawText)));
             matching.Should().OnlyContain(endpoint => endpoint.Metadata
                     .GetOrderedMetadata<IAuthorizeData>()
-                    .Any(data => data.Policy == AuthorizationPolicies.RequireEditor));
+                    .Any(data => data.Policy == AuthorizationPolicies.RequireAdmin));
         }
-        foreach (var pattern in AdminRoutes)
+        foreach (var pattern in CategoryAdminRoutes)
         {
             var matching = routes.Where(x => x.RoutePattern.RawText == pattern).ToArray();
             matching.Should().NotBeEmpty("available routes: {0}", string.Join(", ", routes.Select(x => x.RoutePattern.RawText)));
@@ -115,12 +115,12 @@ public sealed class ArticleEndpointTests
         await using var app = await CreateHttpAppAsync(articleService.Object, userId: userId);
 
         var response = await app.GetTestClient().PostAsJsonAsync(
-            "/api/editor/articles",
+            "/api/admin/articles",
             new CreateArticleRequest { Title = "Article", ContentMarkdown = "Body" },
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
-        response.Headers.Location.Should().Be($"/api/editor/articles/{articleId}");
+        response.Headers.Location.Should().Be($"/api/admin/articles/{articleId}");
         articleService.Verify(x => x.CreateDraftAsync(
             userId,
             It.Is<CreateArticleRequest>(request => request.Title == "Article"),
@@ -138,7 +138,7 @@ public sealed class ArticleEndpointTests
         await using var app = await CreateHttpAppAsync(articleService.Object);
 
         var response = await app.GetTestClient().PostAsJsonAsync(
-            "/api/editor/articles/preview",
+            "/api/admin/articles/preview",
             new ArticlePreviewRequest { ContentMarkdown = "# Preview" },
             TestContext.Current.CancellationToken);
 
@@ -159,7 +159,7 @@ public sealed class ArticleEndpointTests
         await using var app = await CreateHttpAppAsync(articleService.Object, userId: userId);
 
         var response = await app.GetTestClient().DeleteAsync(
-            $"/api/editor/articles/{articleId}",
+            $"/api/admin/articles/{articleId}",
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -178,7 +178,7 @@ public sealed class ArticleEndpointTests
                 It.IsAny<CreateArticleCategoryRequest>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ArticleCategoryResponse(
-                categoryId, "Grammar", "grammar", null, true, 0));
+                categoryId, "Grammar", "grammar", null, true, 0, DateTimeOffset.UtcNow));
         await using var app = await CreateHttpAppAsync(
             Mock.Of<IArticleService>(), categoryService.Object);
 
@@ -214,7 +214,7 @@ public sealed class ArticleEndpointTests
     }
 
     [Fact]
-    public async Task PublicDetailShouldNotSerializeEditorOnlyFields()
+    public async Task PublicDetailShouldNotSerializeAdminOnlyFields()
     {
         var articleId = Guid.NewGuid();
         var userId = Guid.NewGuid();
@@ -268,7 +268,7 @@ public sealed class ArticleEndpointTests
         {
             options.AddPolicy(AuthorizationPolicies.RequireUser, policy =>
                 policy.RequireAssertion(_ => true));
-            options.AddPolicy(AuthorizationPolicies.RequireEditor, policy =>
+            options.AddPolicy(AuthorizationPolicies.RequireAdmin, policy =>
                 policy.RequireAssertion(_ => true));
             options.AddPolicy(AuthorizationPolicies.RequireAdmin, policy =>
                 policy.RequireAssertion(_ => true));
@@ -296,7 +296,7 @@ public sealed class ArticleEndpointTests
             .OfType<RouteEndpoint>()
             .ToArray();
 
-    private static EditorArticleResponse CreateArticleResponse(Guid articleId, Guid userId)
+    private static AdminArticleResponse CreateArticleResponse(Guid articleId, Guid userId)
         => new(
             articleId,
             "Article",

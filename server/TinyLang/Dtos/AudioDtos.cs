@@ -15,7 +15,7 @@ public sealed record CreateAudioClipRequest
 }
 
 /// <summary>
-/// 描述编辑者允许修改的音频展示元数据。
+/// 描述管理员允许修改的音频展示元数据。
 /// </summary>
 public sealed record UpdateAudioClipRequest
 {
@@ -26,9 +26,9 @@ public sealed record UpdateAudioClipRequest
 }
 
 /// <summary>
-/// 描述编辑者音频列表的分页、关键词和状态筛选。
+/// 描述管理员音频列表的分页、关键词和状态筛选。
 /// </summary>
-public sealed record EditorAudioClipListRequest
+public sealed record AdminAudioClipListRequest
 {
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
@@ -39,9 +39,9 @@ public sealed record EditorAudioClipListRequest
 }
 
 /// <summary>
-/// 返回编辑者音频列表中的处理和发布状态摘要。
+/// 返回管理员音频列表中的处理和发布状态摘要。
 /// </summary>
-public sealed record EditorAudioClipListItemResponse(
+public sealed record AdminAudioClipListItemResponse(
     Guid Id,
     string Title,
     string LanguageTag,
@@ -53,9 +53,9 @@ public sealed record EditorAudioClipListItemResponse(
     DateTimeOffset UpdatedAt);
 
 /// <summary>
-/// 返回编辑者管理音频所需的完整业务状态，不包含内部对象路径。
+/// 返回管理员管理音频所需的完整业务状态，不包含内部对象路径。
 /// </summary>
-public sealed record EditorAudioClipResponse(
+public sealed record AdminAudioClipResponse(
     Guid Id,
     Guid SourceMediaResourceId,
     string Title,
@@ -75,11 +75,11 @@ public sealed record EditorAudioClipResponse(
     DateTimeOffset UpdatedAt);
 
 /// <summary>
-/// 返回登录用户播放短音频所需的短期地址和安全元数据。
+/// 返回登录用户播放短音频所需的交付地址和安全元数据。
 /// </summary>
 public sealed record AudioPlaybackResponse(
     string Url,
-    DateTimeOffset ExpiresAt,
+    DateTimeOffset? ExpiresAt,
     double DurationSeconds,
     string LanguageTag,
     AudioClipKind AudioClipKind);

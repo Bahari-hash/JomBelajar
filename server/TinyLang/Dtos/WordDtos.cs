@@ -68,9 +68,9 @@ public sealed record WordPronunciationInput
 }
 
 /// <summary>
-/// 描述编辑者词条列表的筛选和分页条件。
+/// 描述管理员词条列表的筛选和分页条件。
 /// </summary>
-public sealed record EditorWordListRequest
+public sealed record AdminWordListRequest
 {
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
@@ -91,9 +91,9 @@ public sealed record WordListRequest
 }
 
 /// <summary>
-/// 返回编辑者管理词条时所需的例句内容和服务端标识。
+/// 返回管理员管理词条时所需的例句内容和服务端标识。
 /// </summary>
-public sealed record EditorExampleSentenceResponse(
+public sealed record AdminExampleSentenceResponse(
     Guid Id,
     string Sentence,
     string LanguageTag,
@@ -103,21 +103,21 @@ public sealed record EditorExampleSentenceResponse(
     int SortOrder);
 
 /// <summary>
-/// 返回编辑者管理词条时所需的释义及其例句。
+/// 返回管理员管理词条时所需的释义及其例句。
 /// </summary>
-public sealed record EditorWordSenseResponse(
+public sealed record AdminWordSenseResponse(
     Guid Id,
     PartOfSpeech PartOfSpeech,
     string Definition,
     string DefinitionLanguageTag,
     string? UsageNote,
     int SortOrder,
-    IReadOnlyList<EditorExampleSentenceResponse> Examples);
+    IReadOnlyList<AdminExampleSentenceResponse> Examples);
 
 /// <summary>
-/// 返回编辑者管理词条时所需的发音关联。
+/// 返回管理员管理词条时所需的发音关联。
 /// </summary>
-public sealed record EditorWordPronunciationResponse(
+public sealed record AdminWordPronunciationResponse(
     Guid Id,
     Guid AudioClipId,
     string? AccentTag,
@@ -128,7 +128,7 @@ public sealed record EditorWordPronunciationResponse(
 /// <summary>
 /// 返回词条的完整编辑状态、审计信息和嵌套内容。
 /// </summary>
-public sealed record EditorWordResponse(
+public sealed record AdminWordResponse(
     Guid Id,
     string LanguageTag,
     string Headword,
@@ -137,15 +137,15 @@ public sealed record EditorWordResponse(
     Guid LastEditorId,
     DateTimeOffset? PublishedAt,
     Guid ConcurrencyStamp,
-    IReadOnlyList<EditorWordSenseResponse> Senses,
-    IReadOnlyList<EditorWordPronunciationResponse> Pronunciations,
+    IReadOnlyList<AdminWordSenseResponse> Senses,
+    IReadOnlyList<AdminWordPronunciationResponse> Pronunciations,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
 /// <summary>
-/// 返回编辑者词条列表中的管理摘要。
+/// 返回管理员词条列表中的管理摘要。
 /// </summary>
-public sealed record EditorWordListItemResponse(
+public sealed record AdminWordListItemResponse(
     Guid Id,
     string LanguageTag,
     string Headword,

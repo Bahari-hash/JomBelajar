@@ -55,23 +55,32 @@ public sealed class UserValidatorsTests
         result.Errors.Should().HaveCount(3);
     }
 
-    [Fact]
-    public async Task RoleShouldAcceptKnownRoleNamesCaseInsensitively()
+    [Theory]
+    [InlineData("User")]
+    [InlineData("Admin")]
+    public async Task RoleShouldAcceptExactSupportedRoleNames(string role)
     {
         var validator = new UpdateRoleRequestValidator();
         var result = await validator.ValidateAsync(
-            new UpdateRoleRequest { Role = "editor" },
+            new UpdateRoleRequest { Role = role },
             TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeTrue();
     }
 
-    [Fact]
-    public async Task RoleShouldRejectUnknownRoleNames()
+    [Theory]
+    [InlineData("user")]
+    [InlineData("admin")]
+    [InlineData("Editor")]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("2")]
+    [InlineData("SuperAdmin")]
+    public async Task RoleShouldRejectNonCanonicalRoleNames(string role)
     {
         var validator = new UpdateRoleRequestValidator();
         var result = await validator.ValidateAsync(
-            new UpdateRoleRequest { Role = "SuperAdmin" },
+            new UpdateRoleRequest { Role = role },
             TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeFalse();
@@ -106,7 +115,7 @@ public sealed class UserValidatorsTests
                 Page = 2,
                 PageSize = 100,
                 Keyword = " user@example.test ",
-                Role = UserRole.Editor,
+                Role = "Admin",
                 Status = AdminUserStatus.Banned
             },
             TestContext.Current.CancellationToken);
@@ -147,14 +156,14 @@ public sealed class UserValidatorsTests
     }
 
     [Fact]
-    public async Task AdminListShouldRejectUndefinedEnumFilters()
+    public async Task AdminListShouldRejectInvalidRoleAndStatusFilters()
     {
         var validator = new AdminUserListRequestValidator();
 
         var result = await validator.ValidateAsync(
             new AdminUserListRequest
             {
-                Role = (UserRole)999,
+                Role = "1",
                 Status = (AdminUserStatus)999
             },
             TestContext.Current.CancellationToken);

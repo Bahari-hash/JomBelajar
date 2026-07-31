@@ -46,7 +46,7 @@ public sealed class FfprobeMediaProbeTests
             {
               "streams": [
                 { "codec_type": "video", "codec_name": "h264", "width": 1080,
-                  "height": 1980, "side_data_list": [{ "rotation": -90 }] },
+                  "height": 1920, "side_data_list": [{ "rotation": -90 }] },
                 { "codec_type": "audio", "codec_name": "aac", "width": 0, "height": 0 }
               ],
               "format": { "duration": "60.5", "format_name": "mov,mp4" }
@@ -60,7 +60,7 @@ public sealed class FfprobeMediaProbeTests
             "source.media",
             TestContext.Current.CancellationToken);
 
-        result.DisplayWidth.Should().Be(1980);
+        result.DisplayWidth.Should().Be(1920);
         result.DisplayHeight.Should().Be(1080);
         result.DurationSeconds.Should().Be(60.5);
         result.ContainerFormat.Should().Be("mov");
@@ -117,13 +117,13 @@ public sealed class FfprobeMediaProbeTests
     }
 
     [Fact]
-    public async Task RotatedDisplayAbove1980By1080ShouldBeRejected()
+    public async Task RotatedDisplayAbove1920By1080ShouldBeRejected()
     {
         var runner = CreateRunner("""
             {
               "streams": [
                 { "codec_type": "video", "codec_name": "h264", "width": 1081,
-                  "height": 1981, "tags": { "rotate": "90" } },
+                  "height": 1921, "tags": { "rotate": "90" } },
                 { "codec_type": "audio", "codec_name": "aac", "width": 0, "height": 0 }
               ],
               "format": { "duration": "12", "format_name": "mp4" }
@@ -140,6 +140,111 @@ public sealed class FfprobeMediaProbeTests
         var exception = await action.Should().ThrowAsync<VideoProcessingException>();
         exception.Which.FailureCode.Should().Be(
             VideoProcessingFailureCode.SourceResolutionExceeded);
+    }
+
+    [Fact]
+    public async Task AnamorphicSarShouldProduceDisplayDimensionsWithoutUpscaling()
+    {
+        var runner = CreateRunner("""
+            {
+              "streams": [
+                { "codec_type": "video", "codec_name": "h264", "width": 1440,
+                  "height": 1080, "sample_aspect_ratio": "4:3",
+                  "display_aspect_ratio": "16:9" },
+                { "codec_type": "audio", "codec_name": "aac", "width": 0, "height": 0 }
+              ],
+              "format": { "duration": "12", "format_name": "mp4" }
+            }
+            """);
+        var probe = new FfprobeMediaProbe(
+            runner.Object,
+            Options.Create(new VideoProcessingSettings()));
+
+        var result = await probe.ProbeAsync(
+            "source.media",
+            TestContext.Current.CancellationToken);
+
+        result.DisplayWidth.Should().Be(1920);
+        result.DisplayHeight.Should().Be(1080);
+    }
+
+    [Fact]
+    public async Task DarShouldProvideFallbackWhenSarIsUnavailable()
+    {
+        var runner = CreateRunner("""
+            {
+              "streams": [
+                { "codec_type": "video", "codec_name": "h264", "width": 1440,
+                  "height": 1080, "sample_aspect_ratio": "N/A",
+                  "display_aspect_ratio": "16:9" },
+                { "codec_type": "audio", "codec_name": "aac", "width": 0, "height": 0 }
+              ],
+              "format": { "duration": "12", "format_name": "mp4" }
+            }
+            """);
+        var probe = new FfprobeMediaProbe(
+            runner.Object,
+            Options.Create(new VideoProcessingSettings()));
+
+        var result = await probe.ProbeAsync(
+            "source.media",
+            TestContext.Current.CancellationToken);
+
+        result.DisplayWidth.Should().Be(1920);
+        result.DisplayHeight.Should().Be(1080);
+    }
+
+    [Fact]
+    public async Task FractionalDisplayWidthAboveLimitShouldRoundUpAndBeRejected()
+    {
+        var runner = CreateRunner("""
+            {
+              "streams": [
+                { "codec_type": "video", "codec_name": "h264", "width": 1441,
+                  "height": 1080, "sample_aspect_ratio": "4:3" },
+                { "codec_type": "audio", "codec_name": "aac", "width": 0, "height": 0 }
+              ],
+              "format": { "duration": "12", "format_name": "mp4" }
+            }
+            """);
+        var probe = new FfprobeMediaProbe(
+            runner.Object,
+            Options.Create(new VideoProcessingSettings()));
+
+        var action = () => probe.ProbeAsync(
+            "source.media",
+            TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<VideoProcessingException>();
+        exception.Which.FailureCode.Should().Be(
+            VideoProcessingFailureCode.SourceResolutionExceeded);
+    }
+
+    [Fact]
+    public async Task InconsistentSarAndDarShouldBeRejected()
+    {
+        var runner = CreateRunner("""
+            {
+              "streams": [
+                { "codec_type": "video", "codec_name": "h264", "width": 1440,
+                  "height": 1080, "sample_aspect_ratio": "4:3",
+                  "display_aspect_ratio": "4:3" },
+                { "codec_type": "audio", "codec_name": "aac", "width": 0, "height": 0 }
+              ],
+              "format": { "duration": "12", "format_name": "mp4" }
+            }
+            """);
+        var probe = new FfprobeMediaProbe(
+            runner.Object,
+            Options.Create(new VideoProcessingSettings()));
+
+        var action = () => probe.ProbeAsync(
+            "source.media",
+            TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<VideoProcessingException>();
+        exception.Which.FailureCode.Should().Be(
+            VideoProcessingFailureCode.DisplayDimensionsInvalid);
     }
 
     private static Mock<IMediaProcessRunner> CreateRunner(string json)

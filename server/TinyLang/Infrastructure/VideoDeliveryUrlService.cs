@@ -8,7 +8,7 @@ using TinyLang.Settings;
 namespace TinyLang.Infrastructure;
 
 /// <summary>
-/// 使用开发直连或供应商无关 HMAC-SHA256 auth path 生成视频对象地址。
+/// 使用对象存储公共直链或供应商无关 HMAC-SHA256 auth path 生成媒体地址。
 /// </summary>
 public sealed class VideoDeliveryUrlService : IVideoDeliveryUrlService
 {
@@ -41,15 +41,19 @@ public sealed class VideoDeliveryUrlService : IVideoDeliveryUrlService
                 nameof(objectName));
         }
 
-        var expiresAt = _timeProvider.GetUtcNow()
-            .AddSeconds(_settings.TokenTtlSeconds);
-        if (_settings.Mode == "DirectDevelopment")
+        if (_settings.Mode == "DirectObjectStorage")
         {
             return new VideoDeliveryUrl(
                 _objectStorage.GetPublicUrl(normalizedObjectName),
-                expiresAt);
+                ExpiresAt: null);
+        }
+        if (_settings.Mode != "SignedCdn")
+        {
+            throw new InvalidOperationException("Unsupported media delivery mode.");
         }
 
+        var expiresAt = _timeProvider.GetUtcNow()
+            .AddSeconds(_settings.TokenTtlSeconds);
         var expiry = expiresAt.ToUnixTimeSeconds();
         var keyId = _settings.KeyId!;
         var payload = $"v1\n{keyId}\n{expiry}\n/{normalizedPrefix}";

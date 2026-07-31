@@ -1,3 +1,4 @@
+using System.Linq;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -13,7 +14,7 @@ using TinyLang.Services;
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证音频 source 绑定、管理状态机、owner 隔离和播放可见性。
+/// 验证音频 source 绑定、全局管理状态机和播放可见性。
 /// </summary>
 public sealed class AudioClipServiceTests
 {
@@ -21,19 +22,19 @@ public sealed class AudioClipServiceTests
         2026, 7, 28, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>
-    /// 验证当前 editor 的 Active Audio source 原子创建音频和首个 job。
+    /// 验证管理员可用其他管理员上传的 Active Audio source 原子创建音频和首个 job。
     /// </summary>
     [Fact]
-    public async Task ActiveOwnedAudioSourceShouldCreateClipAndJobTogether()
+    public async Task ActiveAudioSourceShouldCreateClipAndJobAcrossAdmins()
     {
         await using var db = CreateDbContext();
-        var ownerId = Guid.NewGuid();
-        var source = CreateResource(ownerId, ResourceModule.Audio, ResourceStatus.Active);
+        var adminId = Guid.NewGuid();
+        var source = CreateResource(Guid.NewGuid(), ResourceModule.Audio, ResourceStatus.Active);
         db.MediaResources.Add(source);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
-        var response = await service.CreateAsync(ownerId, new CreateAudioClipRequest
+        var response = await service.CreateAsync(adminId, new CreateAudioClipRequest
         {
             SourceMediaResourceId = source.Id,
             Title = "  Hello  ",
@@ -50,29 +51,28 @@ public sealed class AudioClipServiceTests
             TestContext.Current.CancellationToken);
         job.AudioClipId.Should().Be(response.Id);
         job.OutputVersion.Should().NotBeEmpty();
+        var audioClip = await db.AudioClips.SingleAsync(TestContext.Current.CancellationToken);
+        audioClip.CreatedById.Should().Be(adminId);
+        audioClip.LastEditorId.Should().Be(adminId);
     }
 
     /// <summary>
-    /// 验证非 owner 或非 Audio 模块 source 统一按无效 source 隐藏。
+    /// 验证非 Audio 模块 source 按无效 source 隐藏。
     /// </summary>
-    [Theory]
-    [InlineData(true, ResourceModule.CourseVideo)]
-    [InlineData(false, ResourceModule.Audio)]
-    public async Task InvalidSourceBoundaryShouldBeRejected(
-        bool sameOwner,
-        ResourceModule module)
+    [Fact]
+    public async Task InvalidSourceModuleShouldBeRejected()
     {
         await using var db = CreateDbContext();
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var source = CreateResource(
-            sameOwner ? editorId : Guid.NewGuid(),
-            module,
+            Guid.NewGuid(),
+            ResourceModule.CourseVideo,
             ResourceStatus.Active);
         db.MediaResources.Add(source);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
-        var action = () => service.CreateAsync(editorId, new CreateAudioClipRequest
+        var action = () => service.CreateAsync(adminId, new CreateAudioClipRequest
         {
             SourceMediaResourceId = source.Id,
             Title = "Audio",
@@ -136,10 +136,10 @@ public sealed class AudioClipServiceTests
     }
 
     /// <summary>
-    /// 验证编辑者列表按 owner 和用途隔离并返回确定筛选结果。
+    /// 验证管理员列表跨创建者应用用途筛选并返回确定结果。
     /// </summary>
     [Fact]
-    public async Task EditorListShouldIsolateOwnerAndApplyKindFilter()
+    public async Task AdminListShouldIncludeAllCreatorsAndApplyKindFilter()
     {
         await using var db = CreateDbContext();
         var ownerId = Guid.NewGuid();
@@ -153,13 +153,36 @@ public sealed class AudioClipServiceTests
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
-        var response = await service.GetEditorListAsync(
-            ownerId,
-            new EditorAudioClipListRequest { Kind = AudioClipKind.Dialogue },
+        var response = await service.GetAdminListAsync(
+            new AdminAudioClipListRequest { Kind = AudioClipKind.Dialogue },
             TestContext.Current.CancellationToken);
 
-        response.Items.Should().ContainSingle().Which.Id.Should().Be(expected.Id);
-        response.TotalCount.Should().Be(1);
+        response.Items.Select(value => value.Id)
+            .Should().BeEquivalentTo([expected.Id, otherOwner.Id]);
+        response.TotalCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task AnotherAdminShouldUpdateGlobalAudioAndBecomeLastEditor()
+    {
+        await using var db = CreateDbContext();
+        var creatorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var audioClip = CreateAudioClip(creatorId);
+        db.AudioClips.Add(audioClip);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        await service.UpdateAsync(audioClip.Id, adminId, new UpdateAudioClipRequest
+        {
+            Title = "Updated",
+            LanguageTag = "en",
+            Kind = AudioClipKind.Dialogue
+        }, TestContext.Current.CancellationToken);
+
+        audioClip.CreatedById.Should().Be(creatorId);
+        audioClip.LastEditorId.Should().Be(adminId);
+        audioClip.Title.Should().Be("Updated");
     }
 
     /// <summary>
@@ -331,7 +354,8 @@ public sealed class AudioClipServiceTests
             ResourceStatus.Active);
         return new AudioClip
         {
-            OwnerId = ownerId,
+            CreatedById = ownerId,
+            LastEditorId = ownerId,
             SourceMediaResourceId = source.Id,
             SourceMediaResource = source,
             Title = "Audio",

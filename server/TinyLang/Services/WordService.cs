@@ -54,8 +54,8 @@ public sealed class WordService : IWordService
     }
 
     /// <inheritdoc />
-    public async Task<EditorWordResponse> CreateDraftAsync(
-        Guid editorId,
+    public async Task<AdminWordResponse> CreateDraftAsync(
+        Guid adminId,
         CreateWordRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -77,24 +77,24 @@ public sealed class WordService : IWordService
             LanguageTag = identity.LanguageTag,
             Headword = identity.Headword,
             NormalizedHeadword = identity.NormalizedHeadword,
-            CreatedById = editorId,
-            LastEditorId = editorId
+            CreatedById = adminId,
+            LastEditorId = adminId
         };
         ApplyNewTarget(word, request);
         _db.Words.Add(word);
         await SaveWordChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Created word draft {WordId} by editor {EditorId}",
+            "Created word draft {WordId} by administrator {AdminId}",
             word.Id,
-            editorId);
-        return await GetEditorByIdAsync(word.Id, cancellationToken);
+            adminId);
+        return await GetAdminByIdAsync(word.Id, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorWordResponse> UpdateAsync(
+    public async Task<AdminWordResponse> UpdateAsync(
         Guid wordId,
-        Guid editorId,
+        Guid adminId,
         UpdateWordRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -126,7 +126,7 @@ public sealed class WordService : IWordService
         word.LanguageTag = identity.LanguageTag;
         word.Headword = identity.Headword;
         word.NormalizedHeadword = identity.NormalizedHeadword;
-        word.LastEditorId = editorId;
+        word.LastEditorId = adminId;
         word.ConcurrencyStamp = Guid.NewGuid();
         StageExistingChildren(word, request);
         await SaveWordChangesAsync(cancellationToken);
@@ -136,22 +136,22 @@ public sealed class WordService : IWordService
         await transaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Updated word {WordId} by editor {EditorId}",
+            "Updated word {WordId} by administrator {AdminId}",
             word.Id,
-            editorId);
-        return await GetEditorByIdAsync(word.Id, cancellationToken);
+            adminId);
+        return await GetAdminByIdAsync(word.Id, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorWordResponse> PublishAsync(
+    public async Task<AdminWordResponse> PublishAsync(
         Guid wordId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
         var word = await FindWordForEditAsync(wordId, cancellationToken);
         if (word.Status == WordPublicationStatus.Published)
         {
-            return await GetEditorByIdAsync(wordId, cancellationToken);
+            return await GetAdminByIdAsync(wordId, cancellationToken);
         }
         if (word.Status is not (WordPublicationStatus.Draft or WordPublicationStatus.Unpublished))
         {
@@ -162,27 +162,27 @@ public sealed class WordService : IWordService
         await ValidateStoredAudioAsync(word, cancellationToken);
         word.Status = WordPublicationStatus.Published;
         word.PublishedAt ??= _timeProvider.GetUtcNow();
-        word.LastEditorId = editorId;
+        word.LastEditorId = adminId;
         word.ConcurrencyStamp = Guid.NewGuid();
         await SaveWordChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Published word {WordId} by editor {EditorId}",
+            "Published word {WordId} by administrator {AdminId}",
             word.Id,
-            editorId);
-        return await GetEditorByIdAsync(word.Id, cancellationToken);
+            adminId);
+        return await GetAdminByIdAsync(word.Id, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorWordResponse> UnpublishAsync(
+    public async Task<AdminWordResponse> UnpublishAsync(
         Guid wordId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
         var word = await FindWordForEditAsync(wordId, cancellationToken);
         if (word.Status == WordPublicationStatus.Unpublished)
         {
-            return await GetEditorByIdAsync(wordId, cancellationToken);
+            return await GetAdminByIdAsync(wordId, cancellationToken);
         }
         if (word.Status != WordPublicationStatus.Published)
         {
@@ -190,21 +190,21 @@ public sealed class WordService : IWordService
         }
 
         word.Status = WordPublicationStatus.Unpublished;
-        word.LastEditorId = editorId;
+        word.LastEditorId = adminId;
         word.ConcurrencyStamp = Guid.NewGuid();
         await SaveWordChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Unpublished word {WordId} by editor {EditorId}",
+            "Unpublished word {WordId} by administrator {AdminId}",
             word.Id,
-            editorId);
-        return await GetEditorByIdAsync(word.Id, cancellationToken);
+            adminId);
+        return await GetAdminByIdAsync(word.Id, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task DeleteAsync(
         Guid wordId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
         var word = await FindWordForEditAsync(wordId, cancellationToken);
@@ -225,24 +225,24 @@ public sealed class WordService : IWordService
         _db.Words.Remove(word);
         await SaveWordChangesAsync(cancellationToken);
         _logger.LogInformation(
-            "Deleted word {WordId} by editor {EditorId}",
+            "Deleted word {WordId} by administrator {AdminId}",
             wordId,
-            editorId);
+            adminId);
     }
 
     /// <inheritdoc />
-    public async Task<EditorWordResponse> GetEditorByIdAsync(
+    public async Task<AdminWordResponse> GetAdminByIdAsync(
         Guid wordId,
         CancellationToken cancellationToken = default)
         => await _db.Words.AsNoTracking()
             .Where(value => value.Id == wordId)
-            .Select(ToEditorResponseProjection())
+            .Select(ToAdminResponseProjection())
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.WordNotFound);
 
     /// <inheritdoc />
-    public async Task<PagedResponse<EditorWordListItemResponse>> GetEditorListAsync(
-        EditorWordListRequest request,
+    public async Task<PagedResponse<AdminWordListItemResponse>> GetAdminListAsync(
+        AdminWordListRequest request,
         CancellationToken cancellationToken = default)
     {
         var query = _db.Words.AsNoTracking();
@@ -267,7 +267,7 @@ public sealed class WordService : IWordService
             .ThenByDescending(value => value.Id)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(value => new EditorWordListItemResponse(
+            .Select(value => new AdminWordListItemResponse(
                 value.Id,
                 value.LanguageTag,
                 value.Headword,
@@ -878,10 +878,10 @@ public sealed class WordService : IWordService
     }
 
     /// <summary>
-    /// 创建可由 EF Core 翻译的编辑者详情 projection。
+    /// 创建可由 EF Core 翻译的管理员详情 projection。
     /// </summary>
-    private static Expression<Func<Word, EditorWordResponse>> ToEditorResponseProjection()
-        => word => new EditorWordResponse(
+    private static Expression<Func<Word, AdminWordResponse>> ToAdminResponseProjection()
+        => word => new AdminWordResponse(
             word.Id,
             word.LanguageTag,
             word.Headword,
@@ -892,7 +892,7 @@ public sealed class WordService : IWordService
             word.ConcurrencyStamp,
             word.Senses.OrderBy(sense => sense.SortOrder)
                 .ThenBy(sense => sense.Id)
-                .Select(sense => new EditorWordSenseResponse(
+                .Select(sense => new AdminWordSenseResponse(
                     sense.Id,
                     sense.PartOfSpeech,
                     sense.Definition,
@@ -901,7 +901,7 @@ public sealed class WordService : IWordService
                     sense.SortOrder,
                     sense.Examples.OrderBy(example => example.SortOrder)
                         .ThenBy(example => example.Id)
-                        .Select(example => new EditorExampleSentenceResponse(
+                        .Select(example => new AdminExampleSentenceResponse(
                             example.Id,
                             example.Sentence,
                             example.LanguageTag,
@@ -913,7 +913,7 @@ public sealed class WordService : IWordService
                 .ToList(),
             word.Pronunciations.OrderBy(pronunciation => pronunciation.SortOrder)
                 .ThenBy(pronunciation => pronunciation.Id)
-                .Select(pronunciation => new EditorWordPronunciationResponse(
+                .Select(pronunciation => new AdminWordPronunciationResponse(
                     pronunciation.Id,
                     pronunciation.AudioClipId,
                     pronunciation.AccentTag,

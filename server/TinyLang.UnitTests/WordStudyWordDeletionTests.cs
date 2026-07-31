@@ -26,10 +26,10 @@ public sealed class WordStudyWordDeletionTests
             new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options);
-        var editorId = Guid.NewGuid();
-        var progressWord = CreateDraft("progress", editorId);
-        var itemWord = CreateDraft("item", editorId);
-        var unreferencedWord = CreateDraft("free", editorId);
+        var adminId = Guid.NewGuid();
+        var progressWord = CreateDraft("progress", adminId);
+        var itemWord = CreateDraft("item", adminId);
+        var unreferencedWord = CreateDraft("free", adminId);
         db.Words.AddRange(progressWord, itemWord, unreferencedWord);
         db.UserWordProgress.Add(new UserWordProgress
         {
@@ -65,17 +65,17 @@ public sealed class WordStudyWordDeletionTests
 
         var deleteProgressWord = async () => await service.DeleteAsync(
             progressWord.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
         var deleteItemWord = async () => await service.DeleteAsync(
             itemWord.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
         await deleteProgressWord.Should().ThrowAsync<ConflictException>();
         await deleteItemWord.Should().ThrowAsync<ConflictException>();
         await service.DeleteAsync(
             unreferencedWord.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
 
         (await db.Words.AnyAsync(
@@ -92,13 +92,13 @@ public sealed class WordStudyWordDeletionTests
     /// <summary>
     /// 创建没有私有子项的可删除词条草稿。
     /// </summary>
-    private static Word CreateDraft(string headword, Guid editorId)
+    private static Word CreateDraft(string headword, Guid adminId)
         => new()
         {
             LanguageTag = "en",
             Headword = headword,
             NormalizedHeadword = headword.ToUpperInvariant(),
-            CreatedById = editorId,
-            LastEditorId = editorId
+            CreatedById = adminId,
+            LastEditorId = adminId
         };
 }

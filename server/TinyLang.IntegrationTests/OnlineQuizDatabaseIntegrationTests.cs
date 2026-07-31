@@ -60,22 +60,22 @@ public sealed class OnlineQuizDatabaseIntegrationTests
             Guid trueFalseQuestionId;
             await using (var db = new ApplicationDbContext(options))
             {
-                var editor = await CreateUserAsync(db, UserRole.Editor);
+                var admin = await CreateUserAsync(db, UserRole.Admin);
                 var user = await CreateUserAsync(db, UserRole.User);
                 userId = user.Id;
                 var paperService = CreatePaperService(db);
                 var draft = await paperService.CreateDraftAsync(
-                    editor.Id,
+                    admin.Id,
                     CreateCompleteRequest(),
                     TestContext.Current.CancellationToken);
                 var reordered = await paperService.UpdateAsync(
                     draft.Id,
-                    editor.Id,
+                    admin.Id,
                     CreateReorderedUpdate(draft),
                     TestContext.Current.CancellationToken);
                 var published = await paperService.PublishAsync(
                     reordered.Id,
-                    editor.Id,
+                    admin.Id,
                     TestContext.Current.CancellationToken);
                 paperId = published.Id;
                 trueFalseQuestionId = published.Questions.Single(value =>
@@ -406,7 +406,7 @@ public sealed class OnlineQuizDatabaseIntegrationTests
     /// 创建会交换现有题目和选项顺序的完整更新请求。
     /// </summary>
     private static UpdatePaperRequest CreateReorderedUpdate(
-        EditorPaperResponse draft)
+        AdminPaperResponse draft)
         => new()
         {
             Title = draft.Title,

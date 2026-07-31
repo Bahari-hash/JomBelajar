@@ -5,7 +5,7 @@ using TinyLang.Dtos;
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证视频元数据、字幕语言和播放位置 DTO 边界。
+/// 验证视频元数据和播放位置 DTO 边界。
 /// </summary>
 public sealed class VideoValidatorsTests
 {
@@ -79,10 +79,10 @@ public sealed class VideoValidatorsTests
     [Fact]
     public async Task VideoCategoryListShouldRejectEmptyCategoryFilter()
     {
-        var validator = new EditorVideoListRequestValidator();
+        var validator = new AdminVideoListRequestValidator();
 
         var result = await validator.ValidateAsync(
-            new EditorVideoListRequest { CategoryId = Guid.Empty },
+            new AdminVideoListRequest { CategoryId = Guid.Empty },
             TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeFalse();
@@ -100,22 +100,23 @@ public sealed class VideoValidatorsTests
         result.IsValid.Should().BeFalse();
     }
 
-    [Theory]
-    [InlineData("en")]
-    [InlineData("zh-Hans")]
-    [InlineData("en-US")]
-    public async Task SubtitleShouldAcceptBcp47StyleLanguage(string language)
+    [Fact]
+    public async Task VideoMutationsShouldRequireConcurrencyStamp()
     {
-        var validator = new AddVideoSubtitleRequestValidator();
+        var mutationValidator = new VideoMutationRequestValidator();
+        var updateValidator = new UpdateVideoRequestValidator();
 
-        var result = await validator.ValidateAsync(new AddVideoSubtitleRequest
+        var mutation = await mutationValidator.ValidateAsync(
+            new VideoMutationRequest(),
+            TestContext.Current.CancellationToken);
+        var update = await updateValidator.ValidateAsync(new UpdateVideoRequest
         {
-            MediaResourceId = Guid.NewGuid(),
-            LanguageTag = language,
-            DisplayName = "Subtitle"
+            Title = "Video",
+            OriginalLanguage = "en"
         }, TestContext.Current.CancellationToken);
 
-        result.IsValid.Should().BeTrue();
+        mutation.IsValid.Should().BeFalse();
+        update.IsValid.Should().BeFalse();
     }
 
     [Theory]

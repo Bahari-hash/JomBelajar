@@ -33,8 +33,11 @@ public static class DependencyInjection
     public static IServiceCollection AddApiJsonSerialization(this IServiceCollection services)
     {
         services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.Converters.Add(new UserRoleJsonConverter());
             options.SerializerOptions.Converters.Add(
-                new JsonStringEnumConverter(allowIntegerValues: false)));
+                new JsonStringEnumConverter(allowIntegerValues: false));
+        });
         return services;
     }
 
@@ -137,11 +140,6 @@ public static class DependencyInjection
             {
                 var minimumAdmin = new MinimumRoleRequirement(UserRole.Admin);
                 policy.Requirements.Add(minimumAdmin);
-            })
-            .AddPolicy(AuthorizationPolicies.RequireEditor, policy =>
-            {
-                var minimumEditor = new MinimumRoleRequirement(UserRole.Editor);
-                policy.Requirements.Add(minimumEditor);
             });
 
         return services;

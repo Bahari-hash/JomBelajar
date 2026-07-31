@@ -158,14 +158,14 @@ public sealed record PublicArticleResponse(
 /// <param name="Status">The current article status.</param>
 /// <param name="Categories">The associated category summaries.</param>
 /// <param name="Author">The author summary.</param>
-/// <param name="LastEditor">The last editor summary.</param>
+/// <param name="LastEditor">The last administrator summary.</param>
 /// <param name="PublishedAt">The publication timestamp.</param>
 /// <param name="CoverMedia">The optional cover media mapping.</param>
 /// <param name="BodyMedia">The body image mappings referenced by Markdown.</param>
 /// <param name="ConcurrencyStamp">The optimistic concurrency token required by updates.</param>
 /// <param name="CreatedAt">The creation timestamp.</param>
 /// <param name="UpdatedAt">The last update timestamp.</param>
-public sealed record EditorArticleResponse(
+public sealed record AdminArticleResponse(
     Guid Id,
     string Title,
     string? Summary,

@@ -32,11 +32,11 @@ public sealed class WordServiceTests
         var exampleAudio = CreateAudio(AudioClipKind.ExampleSentence, "en");
         db.AudioClips.AddRange(pronunciation, exampleAudio);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var service = CreateService(db);
 
         var response = await service.CreateDraftAsync(
-            editorId,
+            adminId,
             CreateCompleteRequest(pronunciation.Id, exampleAudio.Id) with
             {
                 Headword = "  Cafe\u0301  ",
@@ -46,8 +46,8 @@ public sealed class WordServiceTests
 
         response.Headword.Should().Be("Caf\u00e9");
         response.LanguageTag.Should().Be("en-us");
-        response.CreatedById.Should().Be(editorId);
-        response.LastEditorId.Should().Be(editorId);
+        response.CreatedById.Should().Be(adminId);
+        response.LastEditorId.Should().Be(adminId);
         response.Senses.Should().ContainSingle();
         response.Senses.Single().Examples.Should().ContainSingle();
         response.Pronunciations.Should().ContainSingle();
@@ -66,20 +66,20 @@ public sealed class WordServiceTests
     {
         await using var db = CreateDbContext();
         var service = CreateService(db);
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         await service.CreateDraftAsync(
-            editorId,
+            adminId,
             new CreateWordRequest { Headword = " Hello ", LanguageTag = "en" },
             TestContext.Current.CancellationToken);
 
         var duplicate = async () => await service.CreateDraftAsync(
-            editorId,
+            adminId,
             new CreateWordRequest { Headword = "hello", LanguageTag = "EN" },
             TestContext.Current.CancellationToken);
         await duplicate.Should().ThrowAsync<ConflictException>();
 
         var otherLanguage = await service.CreateDraftAsync(
-            editorId,
+            adminId,
             new CreateWordRequest { Headword = "hello", LanguageTag = "fr" },
             TestContext.Current.CancellationToken);
         otherLanguage.LanguageTag.Should().Be("fr");
@@ -286,24 +286,24 @@ public sealed class WordServiceTests
         db.AudioClips.Add(pronunciation);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var created = await service.CreateDraftAsync(
-            editorId,
+            adminId,
             CreateCompleteRequest(pronunciation.Id, null),
             TestContext.Current.CancellationToken);
 
         var published = await service.PublishAsync(
-            created.Id, editorId, TestContext.Current.CancellationToken);
+            created.Id, adminId, TestContext.Current.CancellationToken);
         var repeatedPublish = await service.PublishAsync(
-            created.Id, editorId, TestContext.Current.CancellationToken);
+            created.Id, adminId, TestContext.Current.CancellationToken);
         var userDetail = await service.GetUserByIdAsync(
             created.Id, TestContext.Current.CancellationToken);
         var unpublished = await service.UnpublishAsync(
-            created.Id, editorId, TestContext.Current.CancellationToken);
+            created.Id, adminId, TestContext.Current.CancellationToken);
         var repeatedUnpublish = await service.UnpublishAsync(
-            created.Id, editorId, TestContext.Current.CancellationToken);
+            created.Id, adminId, TestContext.Current.CancellationToken);
         var republished = await service.PublishAsync(
-            created.Id, editorId, TestContext.Current.CancellationToken);
+            created.Id, adminId, TestContext.Current.CancellationToken);
 
         published.Status.Should().Be(WordPublicationStatus.Published);
         published.PublishedAt.Should().Be(Now);
@@ -315,7 +315,7 @@ public sealed class WordServiceTests
     }
 
     /// <summary>
-    /// 验证关联音频后续失效时用户查询隐藏词条而编辑者仍可查看。
+    /// 验证关联音频后续失效时用户查询隐藏词条而管理员仍可查看。
     /// </summary>
     [Fact]
     public async Task UnavailableLinkedAudioShouldHidePublishedWordFromUsers()
@@ -338,12 +338,12 @@ public sealed class WordServiceTests
             new WordListRequest(), TestContext.Current.CancellationToken);
         var detail = async () => await service.GetUserByIdAsync(
             created.Id, TestContext.Current.CancellationToken);
-        var editorDetail = await service.GetEditorByIdAsync(
+        var adminDetail = await service.GetAdminByIdAsync(
             created.Id, TestContext.Current.CancellationToken);
 
         list.Items.Should().BeEmpty();
         await detail.Should().ThrowAsync<NotFoundException>();
-        editorDetail.Status.Should().Be(WordPublicationStatus.Published);
+        adminDetail.Status.Should().Be(WordPublicationStatus.Published);
     }
 
     /// <summary>
@@ -422,7 +422,7 @@ public sealed class WordServiceTests
         };
         return new AudioClip
         {
-            OwnerId = source.UploaderId,
+            CreatedById = source.UploaderId,
             SourceMediaResourceId = source.Id,
             SourceMediaResource = source,
             Title = "Audio",

@@ -27,8 +27,8 @@ public sealed class RateLimitEndpointTests
 
     [Theory]
     [InlineData("/api/uploads/users/avatar/presign")]
-    [InlineData("/api/uploads/editor/media/presign")]
-    [InlineData("/api/uploads/editor/media/multipart")]
+    [InlineData("/api/uploads/admin/media/presign")]
+    [InlineData("/api/uploads/admin/media/multipart")]
     [InlineData("/api/uploads/multipart/{sessionId:guid}/parts/presign")]
     public async Task PresignEndpointsShouldUseUploadPresignLimit(string routePattern)
     {

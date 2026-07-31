@@ -13,6 +13,9 @@ namespace TinyLang.Infrastructure;
 /// </summary>
 public sealed class FfprobeMediaProbe : IMediaProbe
 {
+    private const long MaxRationalComponent = 1_000_000;
+    private const double AspectRatioTolerance = 0.01;
+
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -103,10 +106,28 @@ public sealed class FfprobeMediaProbe : IMediaProbe
                 isTransient: false);
         }
 
+        var displayDimensions = GetDisplayDimensions(video);
         var rotation = GetRotation(video);
         var swapsDimensions = Math.Abs(rotation) % 180 == 90;
-        var displayWidth = swapsDimensions ? video.Height : video.Width;
-        var displayHeight = swapsDimensions ? video.Width : video.Height;
+        var displayWidthValue = swapsDimensions
+            ? displayDimensions.Height
+            : displayDimensions.Width;
+        var displayHeightValue = swapsDimensions
+            ? displayDimensions.Width
+            : displayDimensions.Height;
+        if (!double.IsFinite(displayWidthValue) ||
+            !double.IsFinite(displayHeightValue) ||
+            displayWidthValue <= 0 ||
+            displayHeightValue <= 0 ||
+            displayWidthValue > int.MaxValue ||
+            displayHeightValue > int.MaxValue)
+        {
+            throw new VideoProcessingException(
+                VideoProcessingFailureCode.DisplayDimensionsInvalid,
+                isTransient: false);
+        }
+        var displayWidth = (int)Math.Ceiling(displayWidthValue);
+        var displayHeight = (int)Math.Ceiling(displayHeightValue);
         if (displayWidth <= 0 || displayHeight <= 0)
         {
             throw new VideoProcessingException(
@@ -143,6 +164,67 @@ public sealed class FfprobeMediaProbe : IMediaProbe
             : null;
 
     /// <summary>
+    /// 使用 SAR 计算显示尺寸，并用 DAR 校验或补足缺失的像素宽高比。
+    /// </summary>
+    private static (double Width, double Height) GetDisplayDimensions(FfprobeStream stream)
+    {
+        var sampleAspectRatio = ParseRational(stream.SampleAspectRatio);
+        var displayAspectRatio = ParseRational(stream.DisplayAspectRatio);
+        var width = (double)stream.Width;
+        var height = (double)stream.Height;
+
+        if (sampleAspectRatio is { } sar)
+        {
+            width *= sar;
+            if (displayAspectRatio is { } dar)
+            {
+                var calculatedDar = width / height;
+                var relativeDifference = Math.Abs(calculatedDar - dar) / dar;
+                if (!double.IsFinite(relativeDifference) ||
+                    relativeDifference > AspectRatioTolerance)
+                {
+                    throw new VideoProcessingException(
+                        VideoProcessingFailureCode.DisplayDimensionsInvalid,
+                        isTransient: false);
+                }
+            }
+        }
+        else if (displayAspectRatio is { } dar)
+        {
+            width = height * dar;
+        }
+
+        return (width, height);
+    }
+
+    /// <summary>
+    /// 解析 ffprobe 的有界正 rational；N/A、零值和畸形输入视为缺失。
+    /// </summary>
+    private static double? ParseRational(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) ||
+            string.Equals(value, "N/A", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var parts = value.Split([':', '/'], StringSplitOptions.TrimEntries);
+        if (parts.Length != 2 ||
+            !long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var numerator) ||
+            !long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var denominator) ||
+            numerator <= 0 ||
+            denominator <= 0 ||
+            numerator > MaxRationalComponent ||
+            denominator > MaxRationalComponent)
+        {
+            return null;
+        }
+
+        var result = (double)numerator / denominator;
+        return double.IsFinite(result) && result > 0 ? result : null;
+    }
+
+    /// <summary>
     /// 优先读取 side data rotation，并兼容常见 rotate tag。
     /// </summary>
     private static int GetRotation(FfprobeStream stream)
@@ -175,6 +257,8 @@ public sealed class FfprobeMediaProbe : IMediaProbe
         [property: JsonPropertyName("codec_name")] string? CodecName,
         [property: JsonPropertyName("width")] int Width,
         [property: JsonPropertyName("height")] int Height,
+        [property: JsonPropertyName("sample_aspect_ratio")] string? SampleAspectRatio,
+        [property: JsonPropertyName("display_aspect_ratio")] string? DisplayAspectRatio,
         [property: JsonPropertyName("duration")] string? Duration,
         [property: JsonPropertyName("tags")] IReadOnlyDictionary<string, string>? Tags,
         [property: JsonPropertyName("disposition")] FfprobeDisposition? Disposition,

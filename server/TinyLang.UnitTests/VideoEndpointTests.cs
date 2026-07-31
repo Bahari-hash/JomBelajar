@@ -18,16 +18,16 @@ namespace TinyLang.UnitTests;
 public sealed class VideoEndpointTests
 {
     [Fact]
-    public async Task EditorAndUserRoutesShouldUseExpectedPolicies()
+    public async Task AdminAndUserRoutesShouldUseExpectedPolicies()
     {
         await using var app = CreateApp();
         var routes = GetRoutes(app);
 
         foreach (var endpoint in routes.Where(value =>
-            value.RoutePattern.RawText!.StartsWith("/api/editor/videos", StringComparison.Ordinal)))
+            value.RoutePattern.RawText!.StartsWith("/api/admin/videos", StringComparison.Ordinal)))
         {
             endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()
-                .Should().Contain(value => value.Policy == AuthorizationPolicies.RequireEditor);
+                .Should().Contain(value => value.Policy == AuthorizationPolicies.RequireAdmin);
         }
         foreach (var endpoint in routes.Where(value =>
             value.RoutePattern.RawText!.StartsWith("/api/videos", StringComparison.Ordinal)))
@@ -54,6 +54,19 @@ public sealed class VideoEndpointTests
     }
 
     [Fact]
+    public async Task SubtitleRoutesShouldNotBeRegistered()
+    {
+        await using var app = CreateApp();
+        var routes = GetRoutes(app);
+
+        routes.Should().NotContain(value =>
+            value.RoutePattern.RawText!.Contains("subtitles", StringComparison.Ordinal));
+        GetRoute(routes, "/api/admin/videos/{id:guid}/archive", "POST")
+            .Metadata.GetOrderedMetadata<IAuthorizeData>()
+            .Should().Contain(value => value.Policy == AuthorizationPolicies.RequireAdmin);
+    }
+
+    [Fact]
     public async Task VideoCategoryRoutesShouldUseUserAndAdminPolicies()
     {
         await using var app = CreateApp();
@@ -68,6 +81,9 @@ public sealed class VideoEndpointTests
             route.Metadata.GetOrderedMetadata<IAuthorizeData>()
                 .Should().Contain(value => value.Policy == AuthorizationPolicies.RequireAdmin);
         }
+        GetRoute(routes, "/api/admin/video-categories/{id:guid}/videos", "DELETE")
+            .Metadata.GetOrderedMetadata<IAuthorizeData>()
+            .Should().Contain(value => value.Policy == AuthorizationPolicies.RequireAdmin);
     }
 
     private static WebApplication CreateApp()

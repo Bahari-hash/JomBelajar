@@ -529,8 +529,10 @@ public sealed class WordStudyDatabaseIntegrationTests
         };
         var audio = new AudioClip
         {
-            OwnerId = owner.Id,
-            Owner = owner,
+            CreatedById = owner.Id,
+            CreatedBy = owner,
+            LastEditorId = owner.Id,
+            LastEditor = owner,
             SourceMediaResourceId = source.Id,
             SourceMediaResource = source,
             Title = headword,

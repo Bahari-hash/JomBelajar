@@ -21,7 +21,7 @@ namespace TinyLang.UnitTests;
 public sealed class UserEndpointTests
 {
     [Fact]
-    public async Task AdminListShouldBindPaginationAndEnumFilters()
+    public async Task AdminListShouldBindPaginationAndStrictStringFilters()
     {
         var userService = new Mock<IUserService>();
         userService.Setup(value => value.GetAdminListAsync(
@@ -31,7 +31,7 @@ public sealed class UserEndpointTests
         await using var app = await CreateHttpAppAsync(userService.Object);
 
         var response = await app.GetTestClient().GetAsync(
-            "/api/admin/users?page=2&pageSize=5&keyword=alice&role=Editor&status=Banned",
+            "/api/admin/users?page=2&pageSize=5&keyword=alice&role=Admin&status=Banned",
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -40,7 +40,7 @@ public sealed class UserEndpointTests
                 request.Page == 2 &&
                 request.PageSize == 5 &&
                 request.Keyword == "alice" &&
-                request.Role == UserRole.Editor &&
+                request.Role == "Admin" &&
                 request.Status == AdminUserStatus.Banned),
             It.IsAny<CancellationToken>()), Times.Once);
     }

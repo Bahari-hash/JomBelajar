@@ -16,8 +16,10 @@ public sealed class Video : BaseAuditableEntity
         Id = Guid.NewGuid();
     }
 
-    public Guid OwnerId { get; set; }
-    public User Owner { get; set; } = null!;
+    public Guid CreatedById { get; set; }
+    public User CreatedBy { get; set; } = null!;
+    public Guid LastEditorId { get; set; }
+    public User LastEditor { get; set; } = null!;
     public Guid SourceMediaResourceId { get; set; }
     public MediaResource SourceMediaResource { get; set; } = null!;
     public required string Title { get; set; }
@@ -36,11 +38,11 @@ public sealed class Video : BaseAuditableEntity
     public string? PosterObjectName { get; set; }
     public string? LastFailureCode { get; set; }
     public DateTimeOffset? PublishedAt { get; set; }
+    public DateTimeOffset? ArchivedAt { get; set; }
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 
     public ICollection<VideoProcessingJob> ProcessingJobs { get; set; } = [];
     public ICollection<VideoRendition> Renditions { get; set; } = [];
-    public ICollection<VideoSubtitle> Subtitles { get; set; } = [];
     public ICollection<VideoCategoryAssignment> CategoryAssignments { get; set; } = [];
     public ICollection<UserVideoProgress> UserProgress { get; set; } = [];
 }

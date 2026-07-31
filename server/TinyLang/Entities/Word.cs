@@ -4,7 +4,7 @@ using TinyLang.Entities.Enums;
 namespace TinyLang.Entities;
 
 /// <summary>
-/// 表示由编辑者维护、包含释义和发音的全局词条聚合根。
+/// 表示由管理员维护、包含释义和发音的全局词条聚合根。
 /// </summary>
 public sealed class Word : BaseAuditableEntity
 {

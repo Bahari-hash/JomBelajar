@@ -70,16 +70,19 @@ public sealed class AvatarPresignRequestValidator : AbstractValidator<AvatarPres
 }
 
 /// <summary>
-/// 根据编辑者媒体模块及上传策略校验文件元数据。
+/// 根据管理员媒体模块及上传策略校验文件元数据。
 /// </summary>
-public sealed class EditorMediaPresignRequestValidator : AbstractValidator<EditorMediaPresignRequest>
+public sealed class AdminMediaPresignRequestValidator : AbstractValidator<AdminMediaPresignRequest>
 {
     /// <summary>
-    /// 使用指定上传策略初始化编辑者媒体预签名请求的校验规则。
+    /// 使用指定上传策略初始化管理员媒体预签名请求的校验规则。
     /// </summary>
     /// <param name="policy">媒体上传限制策略。</param>
-    public EditorMediaPresignRequestValidator(MediaUploadPolicy policy)
+    public AdminMediaPresignRequestValidator(
+        MediaUploadPolicy policy,
+        IOptions<MultipartUploadSettings> multipartOptions)
     {
+        var threshold = (long)multipartOptions.Value.ThresholdMB * 1024 * 1024;
         RuleFor(x => x.OriginalName)
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithErrKey(ErrorCodes.MediaOriginalNameRequired)
@@ -88,7 +91,7 @@ public sealed class EditorMediaPresignRequestValidator : AbstractValidator<Edito
             .WithErrKey(ErrorCodes.MediaOriginalNameInvalid);
 
         RuleFor(x => x.Module)
-            .Must(policy.IsEditorModule)
+            .Must(policy.IsAdminModule)
             .WithErrKey(ErrorCodes.ResourceModuleInvalid);
 
         RuleFor(x => x.Extension)
@@ -121,6 +124,7 @@ public sealed class EditorMediaPresignRequestValidator : AbstractValidator<Edito
         RuleFor(x => x.Size)
             .Cascade(CascadeMode.Stop)
             .GreaterThan(0).WithErrKey(ErrorCodes.MediaSizeInvalid)
+            .LessThan(threshold).WithErrKey(ErrorCodes.MultipartUploadRequired)
             .Must((request, size) =>
                 !policy.IsSupportedModule(request.Module) ||
                 policy.IsSizeAllowed(request.Module, size))
@@ -129,7 +133,24 @@ public sealed class EditorMediaPresignRequestValidator : AbstractValidator<Edito
 }
 
 /// <summary>
-/// 校验编辑者 Multipart Upload 初始化请求的媒体元数据和阈值。
+/// 校验上传 capability 只允许已定义的管理员媒体模块。
+/// </summary>
+public sealed class AdminMediaCapabilityRequestValidator
+    : AbstractValidator<AdminMediaCapabilityRequest>
+{
+    /// <summary>
+    /// 使用统一媒体策略建立模块白名单规则。
+    /// </summary>
+    public AdminMediaCapabilityRequestValidator(MediaUploadPolicy policy)
+    {
+        RuleFor(x => x.Module)
+            .Must(policy.IsAdminModule)
+            .WithErrKey(ErrorCodes.ResourceModuleInvalid);
+    }
+}
+
+/// <summary>
+/// 校验管理员 Multipart Upload 初始化请求的媒体元数据和阈值。
 /// </summary>
 public sealed class MultipartUploadRequestValidator : AbstractValidator<MultipartUploadRequest>
 {
@@ -150,7 +171,7 @@ public sealed class MultipartUploadRequestValidator : AbstractValidator<Multipar
             .WithErrKey(ErrorCodes.MediaOriginalNameInvalid);
 
         RuleFor(x => x.Module)
-            .Must(policy.IsEditorModule)
+            .Must(policy.IsAdminModule)
             .WithErrKey(ErrorCodes.ResourceModuleInvalid);
 
         RuleFor(x => x.Extension)

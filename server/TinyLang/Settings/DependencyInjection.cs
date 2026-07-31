@@ -53,11 +53,6 @@ public static class DependencyInjection
         services.AddOptions<UploadSettings>()
             .Bind(uploadSettings)
             .ValidateDataAnnotations()
-            .Validate(
-                settings => settings.SubtitleAllowedTypes.Any(pair =>
-                    string.Equals(pair.Key, ".vtt", StringComparison.OrdinalIgnoreCase) &&
-                    pair.Value.Contains("text/vtt", StringComparer.OrdinalIgnoreCase)),
-                "Subtitle uploads must allow .vtt with text/vtt.")
             .ValidateOnStart();
 
         var multipartUploadSettings = configuration.GetSection(
@@ -91,18 +86,22 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(VideoProcessingSettings.SectionName))
             .ValidateDataAnnotations()
             .Validate(
-                settings => settings.MaxSourceWidth == 1980 &&
+                settings => settings.MaxSourceWidth == 1920 &&
                     settings.MaxSourceHeight == 1080,
-                "Video source dimensions must use the product limit 1980x1080.")
+                "Video source dimensions must use the product limit 1920x1080.")
             .Validate(
                 settings => settings.VideoBitrate480Kbps < settings.VideoBitrate720Kbps &&
                     settings.VideoBitrate720Kbps < settings.VideoBitrate1080Kbps,
                 "Video rendition bitrates must increase from 480p through 1080p.")
             .Validate(
-                settings => settings.LeaseSeconds > settings.TranscodeTimeoutSeconds &&
+                settings => settings.LeaseSeconds >=
+                        (long)settings.HeartbeatIntervalSeconds * 3 &&
                     settings.BatchSize >= settings.MaxConcurrency &&
                     settings.DispatchThrottleSeconds >= settings.PollingIntervalSeconds,
-                "Video worker lease and batch settings are inconsistent.")
+                "Video worker heartbeat, lease and batch settings are inconsistent.")
+            .Validate(
+                settings => IsSafeTemporaryDirectory(settings.TemporaryDirectory),
+                "Video temporary directory must not resolve to a filesystem root.")
             .ValidateOnStart();
 
         services.AddOptions<AudioProcessingSettings>()
@@ -135,8 +134,8 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(VideoDeliverySettings.SectionName))
             .ValidateDataAnnotations()
             .Validate(
-                settings => settings.Mode is "SignedCdn" or "DirectDevelopment",
-                "Video delivery mode must be SignedCdn or DirectDevelopment.")
+                settings => settings.Mode is "SignedCdn" or "DirectObjectStorage",
+                "Video delivery mode must be SignedCdn or DirectObjectStorage.")
             .Validate(
                 settings => settings.Mode != "SignedCdn" ||
                     (Uri.TryCreate(settings.CdnBaseUrl, UriKind.Absolute, out var baseUri) &&
@@ -144,10 +143,6 @@ public static class DependencyInjection
                         !string.IsNullOrWhiteSpace(settings.KeyId) &&
                         settings.SigningSecret?.Length >= 32),
                 "SignedCdn requires an HTTPS base URL, key identifier, and 32-character secret.")
-            .Validate(
-                settings => settings.Mode != "DirectDevelopment" ||
-                    environment is null || environment.IsDevelopment(),
-                "DirectDevelopment video delivery is only allowed in Development.")
             .ValidateOnStart();
 
         services.AddOptions<VideoProgressSettings>()

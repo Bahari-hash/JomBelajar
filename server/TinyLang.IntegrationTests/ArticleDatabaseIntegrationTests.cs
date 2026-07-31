@@ -126,10 +126,10 @@ public sealed class ArticleDatabaseIntegrationTests
     {
         var user = new User
         {
-            Username = $"editor-{Guid.NewGuid():N}",
-            Email = $"editor-{Guid.NewGuid():N}@example.com",
+            Username = $"admin-{Guid.NewGuid():N}",
+            Email = $"admin-{Guid.NewGuid():N}@example.com",
             PasswordHash = "hash",
-            Role = UserRole.Editor
+            Role = UserRole.Admin
         };
         var category = new ArticleCategory { Name = "Grammar", Slug = "grammar" };
         var media = new MediaResource

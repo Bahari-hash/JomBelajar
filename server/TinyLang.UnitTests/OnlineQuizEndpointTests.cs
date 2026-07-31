@@ -23,48 +23,48 @@ namespace TinyLang.UnitTests;
 public sealed class OnlineQuizEndpointTests
 {
     /// <summary>
-    /// 验证七条编辑路由使用 RequireEditor，八条用户路由使用 RequireUser。
+    /// 验证七条管理路由使用 RequireAdmin，八条用户路由使用 RequireUser。
     /// </summary>
     [Fact]
-    public void RoutesShouldApplyEditorAndUserPolicies()
+    public void RoutesShouldApplyAdminAndUserPolicies()
     {
         using var app = CreateMetadataApp();
         var routes = GetRoutes(app);
-        var editorRoutes = routes.Where(value =>
-            value.RoutePattern.RawText!.StartsWith("/api/editor/papers"));
+        var adminRoutes = routes.Where(value =>
+            value.RoutePattern.RawText!.StartsWith("/api/admin/papers"));
         var userRoutes = routes.Where(value =>
-            !value.RoutePattern.RawText!.StartsWith("/api/editor/papers"));
+            !value.RoutePattern.RawText!.StartsWith("/api/admin/papers"));
 
         routes.Should().HaveCount(15);
-        editorRoutes.Should().HaveCount(7).And.OnlyContain(endpoint => endpoint.Metadata
+        adminRoutes.Should().HaveCount(7).And.OnlyContain(endpoint => endpoint.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
-            .Any(value => value.Policy == AuthorizationPolicies.RequireEditor));
+            .Any(value => value.Policy == AuthorizationPolicies.RequireAdmin));
         userRoutes.Should().HaveCount(8).And.OnlyContain(endpoint => endpoint.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
             .Any(value => value.Policy == AuthorizationPolicies.RequireUser));
     }
 
     /// <summary>
-    /// 验证创建试卷从 principal 读取 editor 并返回正确 Location。
+    /// 验证创建试卷从 principal 读取 admin 并返回正确 Location。
     /// </summary>
     [Fact]
     public async Task CreatePaperShouldUsePrincipalAndReturnCreatedLocation()
     {
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var paperId = Guid.NewGuid();
         var paperService = new Mock<IPaperService>();
         paperService.Setup(value => value.CreateDraftAsync(
-                editorId,
+                adminId,
                 It.IsAny<CreatePaperRequest>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateEditorPaperResponse(paperId));
+            .ReturnsAsync(CreateAdminPaperResponse(paperId));
         await using var app = await CreateHttpAppAsync(
             paperService.Object,
             Mock.Of<IPaperAttemptService>(),
-            editorId);
+            adminId);
 
         var response = await app.GetTestClient().PostAsJsonAsync(
-            "/api/editor/papers",
+            "/api/admin/papers",
             new CreatePaperRequest
             {
                 Title = "Quiz",
@@ -73,9 +73,9 @@ public sealed class OnlineQuizEndpointTests
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
-        response.Headers.Location.Should().Be($"/api/editor/papers/{paperId}");
+        response.Headers.Location.Should().Be($"/api/admin/papers/{paperId}");
         paperService.Verify(value => value.CreateDraftAsync(
-            editorId,
+            adminId,
             It.IsAny<CreatePaperRequest>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -232,7 +232,7 @@ public sealed class OnlineQuizEndpointTests
         {
             options.AddPolicy(AuthorizationPolicies.RequireUser, policy =>
                 policy.RequireAssertion(_ => true));
-            options.AddPolicy(AuthorizationPolicies.RequireEditor, policy =>
+            options.AddPolicy(AuthorizationPolicies.RequireAdmin, policy =>
                 policy.RequireAssertion(_ => true));
         });
         builder.Services.AddSingleton(paperService);
@@ -262,9 +262,9 @@ public sealed class OnlineQuizEndpointTests
             .ToArray();
 
     /// <summary>
-    /// 创建 endpoint mock 使用的最小编辑者试卷响应。
+    /// 创建 endpoint mock 使用的最小管理员试卷响应。
     /// </summary>
-    private static EditorPaperResponse CreateEditorPaperResponse(Guid paperId)
+    private static AdminPaperResponse CreateAdminPaperResponse(Guid paperId)
         => new(
             paperId,
             "Quiz",

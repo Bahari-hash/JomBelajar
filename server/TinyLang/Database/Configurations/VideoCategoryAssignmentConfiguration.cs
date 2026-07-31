@@ -5,7 +5,7 @@ using TinyLang.Entities;
 namespace TinyLang.Database.Configurations;
 
 /// <summary>
-/// 配置视频分类关联的复合键、反向索引和级联删除关系。
+/// 配置视频分类关联的复合键、反向索引和显式分类删除关系。
 /// </summary>
 public sealed class VideoCategoryAssignmentConfiguration
     : IEntityTypeConfiguration<VideoCategoryAssignment>
@@ -23,6 +23,7 @@ public sealed class VideoCategoryAssignmentConfiguration
         builder.HasOne(value => value.VideoCategory)
             .WithMany(value => value.VideoAssignments)
             .HasForeignKey(value => value.VideoCategoryId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .HasConstraintName("FK_video_category_assignments_video_categories")
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

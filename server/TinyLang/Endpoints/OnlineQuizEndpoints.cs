@@ -10,7 +10,7 @@ using TinyLang.Services;
 namespace TinyLang.Endpoints;
 
 /// <summary>
-/// 定义编辑者试卷管理和登录用户在线测验 HTTP endpoints。
+/// 定义管理员试卷管理和登录用户在线测验 HTTP endpoints。
 /// </summary>
 public static class OnlineQuizEndpoints
 {
@@ -21,15 +21,15 @@ public static class OnlineQuizEndpoints
     /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapOnlineQuizApi(this RouteGroupBuilder endpoints)
     {
-        var editor = endpoints.MapGroup("/editor/papers")
-            .RequireAuthorization(AuthorizationPolicies.RequireEditor);
-        editor.MapPost("", CreatePaperAsync);
-        editor.MapGet("", GetEditorPapersAsync);
-        editor.MapGet("/{paperId:guid}", GetEditorPaperAsync);
-        editor.MapPut("/{paperId:guid}", UpdatePaperAsync);
-        editor.MapPost("/{paperId:guid}/publish", PublishPaperAsync);
-        editor.MapPost("/{paperId:guid}/unpublish", UnpublishPaperAsync);
-        editor.MapDelete("/{paperId:guid}", DeletePaperAsync);
+        var admin = endpoints.MapGroup("/admin/papers")
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+        admin.MapPost("", CreatePaperAsync);
+        admin.MapGet("", GetAdminPapersAsync);
+        admin.MapGet("/{paperId:guid}", GetAdminPaperAsync);
+        admin.MapPut("/{paperId:guid}", UpdatePaperAsync);
+        admin.MapPost("/{paperId:guid}/publish", PublishPaperAsync);
+        admin.MapPost("/{paperId:guid}/unpublish", UnpublishPaperAsync);
+        admin.MapDelete("/{paperId:guid}", DeletePaperAsync);
 
         var papers = endpoints.MapGroup("/papers")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
@@ -50,9 +50,9 @@ public static class OnlineQuizEndpoints
     }
 
     /// <summary>
-    /// 以当前编辑者身份创建试卷草稿。
+    /// 以当前管理员身份创建试卷草稿。
     /// </summary>
-    public static async Task<Created<EditorPaperResponse>> CreatePaperAsync(
+    public static async Task<Created<AdminPaperResponse>> CreatePaperAsync(
         CreatePaperRequest request,
         ClaimsPrincipal principal,
         IPaperService paperService,
@@ -63,37 +63,37 @@ public static class OnlineQuizEndpoints
             request,
             cancellationToken);
         return TypedResults.Created(
-            $"/api/editor/papers/{response.Id}",
+            $"/api/admin/papers/{response.Id}",
             response);
     }
 
     /// <summary>
-    /// 获取编辑者可见的全局试卷分页列表。
+    /// 获取管理员可见的全局试卷分页列表。
     /// </summary>
-    public static async Task<Ok<PagedResponse<EditorPaperListItemResponse>>>
-        GetEditorPapersAsync(
-            [AsParameters] EditorPaperListRequest request,
+    public static async Task<Ok<PagedResponse<AdminPaperListItemResponse>>>
+        GetAdminPapersAsync(
+            [AsParameters] AdminPaperListRequest request,
             IPaperService paperService,
             CancellationToken cancellationToken)
-        => TypedResults.Ok(await paperService.GetEditorListAsync(
+        => TypedResults.Ok(await paperService.GetAdminListAsync(
             request,
             cancellationToken));
 
     /// <summary>
-    /// 获取编辑者可见的完整试卷及标准答案。
+    /// 获取管理员可见的完整试卷及标准答案。
     /// </summary>
-    public static async Task<Ok<EditorPaperResponse>> GetEditorPaperAsync(
+    public static async Task<Ok<AdminPaperResponse>> GetAdminPaperAsync(
         Guid paperId,
         IPaperService paperService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await paperService.GetEditorByIdAsync(
+        => TypedResults.Ok(await paperService.GetAdminByIdAsync(
             paperId,
             cancellationToken));
 
     /// <summary>
     /// 以完整目标集合和并发标识更新试卷。
     /// </summary>
-    public static async Task<Ok<EditorPaperResponse>> UpdatePaperAsync(
+    public static async Task<Ok<AdminPaperResponse>> UpdatePaperAsync(
         Guid paperId,
         UpdatePaperRequest request,
         ClaimsPrincipal principal,
@@ -106,9 +106,9 @@ public static class OnlineQuizEndpoints
             cancellationToken));
 
     /// <summary>
-    /// 以当前编辑者身份幂等发布试卷。
+    /// 以当前管理员身份幂等发布试卷。
     /// </summary>
-    public static async Task<Ok<EditorPaperResponse>> PublishPaperAsync(
+    public static async Task<Ok<AdminPaperResponse>> PublishPaperAsync(
         Guid paperId,
         ClaimsPrincipal principal,
         IPaperService paperService,
@@ -119,9 +119,9 @@ public static class OnlineQuizEndpoints
             cancellationToken));
 
     /// <summary>
-    /// 以当前编辑者身份幂等下架试卷。
+    /// 以当前管理员身份幂等下架试卷。
     /// </summary>
-    public static async Task<Ok<EditorPaperResponse>> UnpublishPaperAsync(
+    public static async Task<Ok<AdminPaperResponse>> UnpublishPaperAsync(
         Guid paperId,
         ClaimsPrincipal principal,
         IPaperService paperService,

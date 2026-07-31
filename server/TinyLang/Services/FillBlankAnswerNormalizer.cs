@@ -10,7 +10,7 @@ public static class FillBlankAnswerNormalizer
     /// <summary>
     /// 规范化填空文本并按题目大小写策略生成 ordinal 比较键。
     /// </summary>
-    /// <param name="value">编辑者或用户提交的原始文本。</param>
+    /// <param name="value">管理员或用户提交的原始文本。</param>
     /// <param name="caseSensitive">是否保留原始大小写参与比较。</param>
     /// <returns>完成兼容规范化和空白折叠的比较键。</returns>
     public static string Normalize(string value, bool caseSensitive)
@@ -22,7 +22,7 @@ public static class FillBlankAnswerNormalizer
     /// <summary>
     /// 生成保留大小写、适合展示和持久化的规范化文本。
     /// </summary>
-    /// <param name="value">编辑者输入的标准答案文本。</param>
+    /// <param name="value">管理员输入的标准答案文本。</param>
     /// <returns>完成 Form KC 和 Unicode 空白折叠的展示文本。</returns>
     public static string NormalizeForDisplay(string value)
         => CollapseWhitespace(value.Normalize(NormalizationForm.FormKC));

@@ -19,7 +19,6 @@ public interface IApplicationDbContext
     DbSet<Video> Videos { get; }
     DbSet<VideoProcessingJob> VideoProcessingJobs { get; }
     DbSet<VideoRendition> VideoRenditions { get; }
-    DbSet<VideoSubtitle> VideoSubtitles { get; }
     DbSet<VideoCategory> VideoCategories { get; }
     DbSet<VideoCategoryAssignment> VideoCategoryAssignments { get; }
     DbSet<UserVideoProgress> UserVideoProgress { get; }

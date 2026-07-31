@@ -10,7 +10,7 @@ using TinyLang.Services;
 namespace TinyLang.Endpoints;
 
 /// <summary>
-/// 定义编辑者音频管理和登录用户播放授权 HTTP endpoints。
+/// 定义管理员音频管理和登录用户播放授权 HTTP endpoints。
 /// </summary>
 public static class AudioEndpoints
 {
@@ -19,15 +19,15 @@ public static class AudioEndpoints
     /// </summary>
     public static RouteGroupBuilder MapAudioApi(this RouteGroupBuilder endpoints)
     {
-        var editor = endpoints.MapGroup("/editor/audio")
-            .RequireAuthorization(AuthorizationPolicies.RequireEditor);
-        editor.MapPost("", CreateAudioAsync);
-        editor.MapGet("", GetEditorAudioAsync);
-        editor.MapGet("/{id:guid}", GetEditorAudioByIdAsync);
-        editor.MapPut("/{id:guid}", UpdateAudioAsync);
-        editor.MapPost("/{id:guid}/publish", PublishAudioAsync);
-        editor.MapPost("/{id:guid}/unpublish", UnpublishAudioAsync);
-        editor.MapPost("/{id:guid}/retry", RetryAudioAsync);
+        var admin = endpoints.MapGroup("/admin/audio")
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+        admin.MapPost("", CreateAudioAsync);
+        admin.MapGet("", GetAdminAudioAsync);
+        admin.MapGet("/{id:guid}", GetAdminAudioByIdAsync);
+        admin.MapPut("/{id:guid}", UpdateAudioAsync);
+        admin.MapPost("/{id:guid}/publish", PublishAudioAsync);
+        admin.MapPost("/{id:guid}/unpublish", UnpublishAudioAsync);
+        admin.MapPost("/{id:guid}/retry", RetryAudioAsync);
 
         endpoints.MapGroup("/audio")
             .RequireAuthorization(AuthorizationPolicies.RequireUser)
@@ -39,7 +39,7 @@ public static class AudioEndpoints
     /// <summary>
     /// 创建音频草稿和首个持久化处理任务。
     /// </summary>
-    public static async Task<Created<EditorAudioClipResponse>> CreateAudioAsync(
+    public static async Task<Created<AdminAudioClipResponse>> CreateAudioAsync(
         CreateAudioClipRequest request,
         ClaimsPrincipal principal,
         IAudioClipService audioService,
@@ -49,40 +49,36 @@ public static class AudioEndpoints
             EndpointIdentity.GetUserId(principal),
             request,
             cancellationToken);
-        return TypedResults.Created($"/api/editor/audio/{response.Id}", response);
+        return TypedResults.Created($"/api/admin/audio/{response.Id}", response);
     }
 
     /// <summary>
-    /// 返回当前编辑者的音频管理分页列表。
+    /// 返回当前管理员的音频管理分页列表。
     /// </summary>
-    public static async Task<Ok<PagedResponse<EditorAudioClipListItemResponse>>>
-        GetEditorAudioAsync(
-            [AsParameters] EditorAudioClipListRequest request,
-            ClaimsPrincipal principal,
+    public static async Task<Ok<PagedResponse<AdminAudioClipListItemResponse>>>
+        GetAdminAudioAsync(
+            [AsParameters] AdminAudioClipListRequest request,
             IAudioClipService audioService,
             CancellationToken cancellationToken)
-        => TypedResults.Ok(await audioService.GetEditorListAsync(
-            EndpointIdentity.GetUserId(principal),
+        => TypedResults.Ok(await audioService.GetAdminListAsync(
             request,
             cancellationToken));
 
     /// <summary>
-    /// 返回当前编辑者拥有的音频管理详情。
+    /// 返回当前管理员拥有的音频管理详情。
     /// </summary>
-    public static async Task<Ok<EditorAudioClipResponse>> GetEditorAudioByIdAsync(
+    public static async Task<Ok<AdminAudioClipResponse>> GetAdminAudioByIdAsync(
         Guid id,
-        ClaimsPrincipal principal,
         IAudioClipService audioService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await audioService.GetEditorByIdAsync(
+        => TypedResults.Ok(await audioService.GetAdminByIdAsync(
             id,
-            EndpointIdentity.GetUserId(principal),
             cancellationToken));
 
     /// <summary>
-    /// 更新当前编辑者音频的展示元数据。
+    /// 更新当前管理员音频的展示元数据。
     /// </summary>
-    public static async Task<Ok<EditorAudioClipResponse>> UpdateAudioAsync(
+    public static async Task<Ok<AdminAudioClipResponse>> UpdateAudioAsync(
         Guid id,
         UpdateAudioClipRequest request,
         ClaimsPrincipal principal,
@@ -97,7 +93,7 @@ public static class AudioEndpoints
     /// <summary>
     /// 幂等发布一个处理就绪的音频。
     /// </summary>
-    public static async Task<Ok<EditorAudioClipResponse>> PublishAudioAsync(
+    public static async Task<Ok<AdminAudioClipResponse>> PublishAudioAsync(
         Guid id,
         ClaimsPrincipal principal,
         IAudioClipService audioService,
@@ -110,7 +106,7 @@ public static class AudioEndpoints
     /// <summary>
     /// 幂等下架一个已经发布的音频。
     /// </summary>
-    public static async Task<Ok<EditorAudioClipResponse>> UnpublishAudioAsync(
+    public static async Task<Ok<AdminAudioClipResponse>> UnpublishAudioAsync(
         Guid id,
         ClaimsPrincipal principal,
         IAudioClipService audioService,
@@ -123,7 +119,7 @@ public static class AudioEndpoints
     /// <summary>
     /// 为失败音频创建新的不可变输出版本任务。
     /// </summary>
-    public static async Task<Ok<EditorAudioClipResponse>> RetryAudioAsync(
+    public static async Task<Ok<AdminAudioClipResponse>> RetryAudioAsync(
         Guid id,
         ClaimsPrincipal principal,
         IAudioClipService audioService,

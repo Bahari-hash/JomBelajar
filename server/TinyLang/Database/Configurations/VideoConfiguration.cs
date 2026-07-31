@@ -32,7 +32,7 @@ public sealed class VideoConfiguration : IEntityTypeConfiguration<Video>
         builder.HasIndex(x => x.SourceMediaResourceId).IsUnique();
         builder.HasIndex(x => new
         {
-            x.OwnerId,
+            x.CreatedById,
             x.ProcessingStatus,
             x.PublicationStatus,
             x.UpdatedAt,
@@ -45,10 +45,22 @@ public sealed class VideoConfiguration : IEntityTypeConfiguration<Video>
             x.PublishedAt,
             x.Id
         });
+        builder.HasIndex(x => new
+        {
+            x.PublicationStatus,
+            x.UpdatedAt,
+            x.Id
+        });
 
-        builder.HasOne(x => x.Owner)
-            .WithMany(x => x.OwnedVideos)
-            .HasForeignKey(x => x.OwnerId)
+        builder.HasIndex(x => x.LastEditorId);
+
+        builder.HasOne(x => x.CreatedBy)
+            .WithMany(x => x.CreatedVideos)
+            .HasForeignKey(x => x.CreatedById)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.LastEditor)
+            .WithMany(x => x.EditedVideos)
+            .HasForeignKey(x => x.LastEditorId)
             .OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.SourceMediaResource)
             .WithOne(x => x.SourceVideo)

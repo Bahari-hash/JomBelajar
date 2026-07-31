@@ -64,8 +64,7 @@ public sealed class UpdateRoleRequestValidator : AbstractValidator<UpdateRoleReq
     /// <param name="role">待解析的角色名称。</param>
     /// <returns>角色名称有效时返回 <see langword="true"/>。</returns>
     private static bool BeValidRole(string role)
-        => Enum.TryParse<UserRole>(role, ignoreCase: true, out var parsed) &&
-            Enum.IsDefined(parsed);
+        => UserRoleParser.TryParse(role, out _);
 }
 
 /// <summary>
@@ -89,7 +88,7 @@ public sealed class AdminUserListRequestValidator
             .Must(value => string.IsNullOrEmpty(value) || !value.Any(char.IsControl))
             .WithErrKey(ErrorCodes.KeywordInvalid);
         RuleFor(x => x.Role)
-            .Must(value => value is null || Enum.IsDefined(value.Value))
+            .Must(value => value is null || UserRoleParser.TryParse(value, out _))
             .WithErrKey(ErrorCodes.RoleInvalid);
         RuleFor(x => x.Status)
             .Must(value => value is null || Enum.IsDefined(value.Value))

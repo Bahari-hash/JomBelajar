@@ -14,9 +14,9 @@ public sealed record AvatarPresignRequest
 }
 
 /// <summary>
-/// 描述编辑者申请业务媒体上传预签名地址时提交的文件元数据。
+/// 描述管理员申请业务媒体上传预签名地址时提交的文件元数据。
 /// </summary>
-public sealed record EditorMediaPresignRequest
+public sealed record AdminMediaPresignRequest
 {
     public required string OriginalName { get; init; }
     public required string Extension { get; init; }
@@ -26,7 +26,7 @@ public sealed record EditorMediaPresignRequest
 }
 
 /// <summary>
-/// 描述编辑者创建 Multipart Upload 会话时提交的媒体元数据。
+/// 描述管理员创建 Multipart Upload 会话时提交的媒体元数据。
 /// </summary>
 public sealed record MultipartUploadRequest
 {
@@ -36,6 +36,33 @@ public sealed record MultipartUploadRequest
     public long Size { get; init; }
     public ResourceModule Module { get; init; }
 }
+
+/// <summary>
+/// 描述管理员查询单个媒体模块上传能力的条件。
+/// </summary>
+public sealed record AdminMediaCapabilityRequest
+{
+    public ResourceModule Module { get; init; }
+}
+
+/// <summary>
+/// 返回一个允许扩展名及其媒体类型集合。
+/// </summary>
+public sealed record AdminMediaAllowedTypeResponse(
+    string Extension,
+    IReadOnlyList<string> ContentTypes);
+
+/// <summary>
+/// 返回管理员媒体上传的公开限制，不包含存储或 provider 信息。
+/// </summary>
+public sealed record AdminMediaUploadCapabilityResponse(
+    ResourceModule Module,
+    long MaxSizeBytes,
+    IReadOnlyList<AdminMediaAllowedTypeResponse> AllowedTypes,
+    long MultipartThresholdBytes,
+    long PartSizeBytes,
+    int MaxPartCount,
+    int PartPresignBatchLimit);
 
 /// <summary>
 /// 描述一次批量 part 预签名请求。

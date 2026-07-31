@@ -36,6 +36,18 @@ public interface IVideoProcessingService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 为当前 worker 持有且尚未过期的 Processing 任务续租。
+    /// </summary>
+    /// <param name="jobId">需要续租的视频处理任务标识。</param>
+    /// <param name="workerId">必须与当前租约 owner 一致的 worker 标识。</param>
+    /// <param name="cancellationToken">用于停止续租写入的令牌。</param>
+    /// <returns>当前 worker 是否仍持有任务并成功延长租约。</returns>
+    Task<bool> RenewLeaseAsync(
+        Guid jobId,
+        Guid workerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 处理一个由当前 worker 持有有效租约的任务并收敛到成功或重试状态。
     /// </summary>
     /// <param name="jobId">已领取的视频处理任务标识。</param>

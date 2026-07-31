@@ -10,12 +10,12 @@ using TinyLang.Services;
 namespace TinyLang.Endpoints;
 
 /// <summary>
-/// 定义公开文章、编辑者文章和管理员分类管理的 HTTP endpoints。
+/// 定义公开文章和管理员文章、分类管理的 HTTP endpoints。
 /// </summary>
 public static class ArticleEndpoints
 {
     /// <summary>
-    /// 注册文章和分类路由，并按公开、编辑者和管理员权限分组。
+    /// 注册文章和分类路由，并按公开和管理员权限分组。
     /// </summary>
     /// <param name="endpoints">应用顶层 API 路由组。</param>
     /// <returns>完成注册后的同一路由组。</returns>
@@ -27,28 +27,25 @@ public static class ArticleEndpoints
 
         endpoints.MapGet("/article-categories", GetPublicArticleCategoriesAsync);
 
-        var editorGroup = endpoints.MapGroup("/editor")
-            .RequireAuthorization(AuthorizationPolicies.RequireEditor);
-        editorGroup.MapPost("/articles", CreateArticleDraftAsync);
-
-        editorGroup.MapPost("/articles/preview", PreviewArticleAsync);
-
-        editorGroup.MapGet("/articles", GetEditorArticlesAsync);
-
-        editorGroup.MapGet("/articles/{id:guid}", GetEditorArticleAsync);
-
-        editorGroup.MapPut("/articles/{id:guid}", UpdateArticleAsync);
-
-        editorGroup.MapPost("/articles/{id:guid}/publish", PublishArticleAsync);
-
-        editorGroup.MapPost("/articles/{id:guid}/unpublish", UnpublishArticleAsync);
-
-        editorGroup.MapDelete("/articles/{id:guid}", ArchiveArticleAsync);
-
         var adminGroup = endpoints.MapGroup("/admin")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+        adminGroup.MapPost("/articles", CreateArticleDraftAsync);
 
-        adminGroup.MapGet("/article-categories", GetEditorArticleCategoriesAsync);
+        adminGroup.MapPost("/articles/preview", PreviewArticleAsync);
+
+        adminGroup.MapGet("/articles", GetAdminArticlesAsync);
+
+        adminGroup.MapGet("/articles/{id:guid}", GetAdminArticleAsync);
+
+        adminGroup.MapPut("/articles/{id:guid}", UpdateArticleAsync);
+
+        adminGroup.MapPost("/articles/{id:guid}/publish", PublishArticleAsync);
+
+        adminGroup.MapPost("/articles/{id:guid}/unpublish", UnpublishArticleAsync);
+
+        adminGroup.MapDelete("/articles/{id:guid}", ArchiveArticleAsync);
+
+        adminGroup.MapGet("/article-categories", GetAdminArticleCategoriesAsync);
 
         adminGroup.MapPost("/article-categories", CreateArticleCategoryAsync);
 
@@ -90,14 +87,14 @@ public static class ArticleEndpoints
         => TypedResults.Ok(await articleService.GetPublicByIdAsync(id, cancellationToken));
 
     /// <summary>
-    /// 以当前编辑者身份创建文章草稿。
+    /// 以当前管理员身份创建文章草稿。
     /// </summary>
     /// <param name="request">文章草稿内容。</param>
-    /// <param name="principal">当前已认证编辑者。</param>
+    /// <param name="principal">当前已认证管理员。</param>
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>包含新资源位置的创建响应。</returns>
-    public static async Task<Created<EditorArticleResponse>> CreateArticleDraftAsync(
+    public static async Task<Created<AdminArticleResponse>> CreateArticleDraftAsync(
         CreateArticleRequest request,
         ClaimsPrincipal principal,
         IArticleService articleService,
@@ -105,11 +102,11 @@ public static class ArticleEndpoints
     {
         var response = await articleService.CreateDraftAsync(
             EndpointIdentity.GetUserId(principal), request, cancellationToken);
-        return TypedResults.Created($"/api/editor/articles/{response.Id}", response);
+        return TypedResults.Created($"/api/admin/articles/{response.Id}", response);
     }
 
     /// <summary>
-    /// Renders an authenticated editor's Markdown with the canonical article pipeline without persisting it.
+    /// Renders an authenticated administrator's Markdown with the canonical article pipeline without persisting it.
     /// </summary>
     /// <param name="request">The Markdown preview request.</param>
     /// <param name="articleService">The article business service.</param>
@@ -122,41 +119,41 @@ public static class ArticleEndpoints
         => TypedResults.Ok(await articleService.PreviewAsync(request, cancellationToken));
 
     /// <summary>
-    /// 获取编辑者可见的文章分页列表。
+    /// 获取管理员可见的文章分页列表。
     /// </summary>
     /// <param name="request">分页和筛选条件。</param>
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>文章分页成功响应。</returns>
-    public static async Task<Ok<PagedResponse<ArticleListItemResponse>>> GetEditorArticlesAsync(
+    public static async Task<Ok<PagedResponse<ArticleListItemResponse>>> GetAdminArticlesAsync(
         [AsParameters] ArticleListRequest request,
         IArticleService articleService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await articleService.GetEditorListAsync(request, cancellationToken));
+        => TypedResults.Ok(await articleService.GetAdminListAsync(request, cancellationToken));
 
     /// <summary>
-    /// 获取编辑者可见的文章详情。
+    /// 获取管理员可见的文章详情。
     /// </summary>
     /// <param name="id">文章标识。</param>
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>文章编辑详情成功响应。</returns>
-    public static async Task<Ok<EditorArticleResponse>> GetEditorArticleAsync(
+    public static async Task<Ok<AdminArticleResponse>> GetAdminArticleAsync(
         Guid id,
         IArticleService articleService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await articleService.GetEditorByIdAsync(id, cancellationToken));
+        => TypedResults.Ok(await articleService.GetAdminByIdAsync(id, cancellationToken));
 
     /// <summary>
-    /// 以当前编辑者身份更新文章。
+    /// 以当前管理员身份更新文章。
     /// </summary>
     /// <param name="id">文章标识。</param>
     /// <param name="request">文章更新内容。</param>
-    /// <param name="principal">当前已认证编辑者。</param>
+    /// <param name="principal">当前已认证管理员。</param>
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>更新后的文章成功响应。</returns>
-    public static async Task<Ok<EditorArticleResponse>> UpdateArticleAsync(
+    public static async Task<Ok<AdminArticleResponse>> UpdateArticleAsync(
         Guid id,
         UpdateArticleRequest request,
         ClaimsPrincipal principal,
@@ -166,14 +163,14 @@ public static class ArticleEndpoints
             id, EndpointIdentity.GetUserId(principal), request, cancellationToken));
 
     /// <summary>
-    /// 以当前编辑者身份发布文章草稿。
+    /// 以当前管理员身份发布文章草稿。
     /// </summary>
     /// <param name="id">文章标识。</param>
-    /// <param name="principal">当前已认证编辑者。</param>
+    /// <param name="principal">当前已认证管理员。</param>
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>发布后的文章成功响应。</returns>
-    public static async Task<Ok<EditorArticleResponse>> PublishArticleAsync(
+    public static async Task<Ok<AdminArticleResponse>> PublishArticleAsync(
         Guid id,
         ClaimsPrincipal principal,
         IArticleService articleService,
@@ -182,14 +179,14 @@ public static class ArticleEndpoints
             id, EndpointIdentity.GetUserId(principal), cancellationToken));
 
     /// <summary>
-    /// 以当前编辑者身份将已发布文章恢复为草稿。
+    /// 以当前管理员身份将已发布文章恢复为草稿。
     /// </summary>
     /// <param name="id">文章标识。</param>
-    /// <param name="principal">当前已认证编辑者。</param>
+    /// <param name="principal">当前已认证管理员。</param>
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>下架后的文章成功响应。</returns>
-    public static async Task<Ok<EditorArticleResponse>> UnpublishArticleAsync(
+    public static async Task<Ok<AdminArticleResponse>> UnpublishArticleAsync(
         Guid id,
         ClaimsPrincipal principal,
         IArticleService articleService,
@@ -198,10 +195,10 @@ public static class ArticleEndpoints
             id, EndpointIdentity.GetUserId(principal), cancellationToken));
 
     /// <summary>
-    /// 以当前编辑者身份归档文章。
+    /// 以当前管理员身份归档文章。
     /// </summary>
     /// <param name="id">文章标识。</param>
-    /// <param name="principal">当前已认证编辑者。</param>
+    /// <param name="principal">当前已认证管理员。</param>
     /// <param name="articleService">文章业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>无响应体的成功结果。</returns>
@@ -236,7 +233,7 @@ public static class ArticleEndpoints
     /// <param name="categoryService">文章分类业务服务。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>分类分页成功响应。</returns>
-    public static async Task<Ok<PagedResponse<ArticleCategoryResponse>>> GetEditorArticleCategoriesAsync(
+    public static async Task<Ok<PagedResponse<ArticleCategoryResponse>>> GetAdminArticleCategoriesAsync(
         [AsParameters] AdminArticleCategoryListRequest request,
         IArticleCategoryService categoryService,
         CancellationToken cancellationToken)

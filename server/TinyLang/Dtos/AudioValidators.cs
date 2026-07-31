@@ -65,15 +65,15 @@ public sealed class UpdateAudioClipRequestValidator
 }
 
 /// <summary>
-/// 校验编辑者音频列表的分页、关键词和枚举筛选。
+/// 校验管理员音频列表的分页、关键词和枚举筛选。
 /// </summary>
-public sealed class EditorAudioClipListRequestValidator
-    : AbstractValidator<EditorAudioClipListRequest>
+public sealed class AdminAudioClipListRequestValidator
+    : AbstractValidator<AdminAudioClipListRequest>
 {
     /// <summary>
     /// 创建有界分页、关键词和显式枚举规则。
     /// </summary>
-    public EditorAudioClipListRequestValidator()
+    public AdminAudioClipListRequestValidator()
     {
         RuleFor(value => value.Page)
             .GreaterThanOrEqualTo(1).WithErrKey(ErrorCodes.PageInvalid);

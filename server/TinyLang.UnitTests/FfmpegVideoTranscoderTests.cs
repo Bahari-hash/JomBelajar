@@ -33,7 +33,7 @@ public sealed class FfmpegVideoTranscoderTests
             var result = await transcoder.TranscodeAsync(
                 inputPath,
                 outputPath,
-                new MediaProbeResult(60, 1980, 1080, "mp4", "h264", "aac"),
+                new MediaProbeResult(60, 1920, 1080, "mp4", "h264", "aac"),
                 TestContext.Current.CancellationToken);
 
             result.Renditions.Select(value => value.Plan.TargetHeight)

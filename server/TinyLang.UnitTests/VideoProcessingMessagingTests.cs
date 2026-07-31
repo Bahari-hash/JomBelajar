@@ -1,11 +1,14 @@
 using FluentAssertions;
 using MassTransit;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using TinyLang.Infrastructure;
 using TinyLang.Interfaces;
 using TinyLang.Models;
 using TinyLang.Services;
+using TinyLang.Settings;
 using TinyLang.Workers;
 
 namespace TinyLang.UnitTests;
@@ -114,9 +117,7 @@ public sealed class VideoProcessingMessagingTests
                 message.Id,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        var worker = new VideoProcessingWorker(
-            processingService.Object,
-            NullLogger<VideoProcessingWorker>.Instance);
+        var worker = CreateWorker(processingService.Object);
 
         await worker.Consume(CreateContext(message).Object);
 
@@ -136,9 +137,7 @@ public sealed class VideoProcessingMessagingTests
                 message.Id,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        var worker = new VideoProcessingWorker(
-            processingService.Object,
-            NullLogger<VideoProcessingWorker>.Instance);
+        var worker = CreateWorker(processingService.Object);
 
         await worker.Consume(CreateContext(message).Object);
 
@@ -146,6 +145,43 @@ public sealed class VideoProcessingMessagingTests
             It.IsAny<Guid>(),
             It.IsAny<Guid>(),
             It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ConsumerShouldCancelProcessingWhenHeartbeatLosesLease()
+    {
+        var message = CreateMessage();
+        var processingService = new Mock<IVideoProcessingService>();
+        processingService.Setup(value => value.TryClaimAsync(
+                message.JobId,
+                message.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        processingService.Setup(value => value.ProcessClaimedAsync(
+                message.JobId,
+                message.Id,
+                It.IsAny<CancellationToken>()))
+            .Returns<Guid, Guid, CancellationToken>(async (_, _, cancellationToken) =>
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken));
+        var leaseService = new Mock<IVideoProcessingService>();
+        leaseService.Setup(value => value.RenewLeaseAsync(
+                message.JobId,
+                message.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var scopeFactory = CreateScopeFactory(leaseService.Object);
+        var worker = CreateWorker(processingService.Object, scopeFactory.Object);
+
+        await worker.Consume(CreateContext(message).Object);
+
+        leaseService.Verify(value => value.RenewLeaseAsync(
+            message.JobId,
+            message.Id,
+            It.IsAny<CancellationToken>()), Times.Once);
+        processingService.Verify(value => value.ProcessClaimedAsync(
+            message.JobId,
+            message.Id,
+            It.Is<CancellationToken>(token => token.IsCancellationRequested)), Times.Once);
     }
 
     /// <summary>
@@ -170,5 +206,37 @@ public sealed class VideoProcessingMessagingTests
         context.SetupGet(value => value.CancellationToken)
             .Returns(TestContext.Current.CancellationToken);
         return context;
+    }
+
+    /// <summary>
+    /// 创建使用独立 heartbeat scope 的视频 consumer。
+    /// </summary>
+    private static VideoProcessingWorker CreateWorker(
+        IVideoProcessingService processingService,
+        IServiceScopeFactory? scopeFactory = null)
+        => new(
+            processingService,
+            scopeFactory ?? CreateScopeFactory(processingService).Object,
+            Options.Create(new VideoProcessingSettings
+            {
+                HeartbeatIntervalSeconds = 1
+            }),
+            TimeProvider.System,
+            NullLogger<VideoProcessingWorker>.Instance);
+
+    /// <summary>
+    /// 创建每次续租都解析指定处理服务的独立作用域工厂。
+    /// </summary>
+    private static Mock<IServiceScopeFactory> CreateScopeFactory(
+        IVideoProcessingService processingService)
+    {
+        var provider = new Mock<IServiceProvider>();
+        provider.Setup(value => value.GetService(typeof(IVideoProcessingService)))
+            .Returns(processingService);
+        var scope = new Mock<IServiceScope>();
+        scope.SetupGet(value => value.ServiceProvider).Returns(provider.Object);
+        var scopeFactory = new Mock<IServiceScopeFactory>();
+        scopeFactory.Setup(value => value.CreateScope()).Returns(scope.Object);
+        return scopeFactory;
     }
 }

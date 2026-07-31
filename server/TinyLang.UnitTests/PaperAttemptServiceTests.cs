@@ -61,15 +61,15 @@ public sealed class PaperAttemptServiceTests
     public async Task UnpublishShouldBlockNewAttemptButAllowActiveResume()
     {
         await using var db = PaperServiceTests.CreateDbContext();
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var paperService = PaperServiceTests.CreateService(db);
         var draft = await paperService.CreateDraftAsync(
-            editorId,
+            adminId,
             PaperServiceTests.CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
         var paper = await paperService.PublishAsync(
             draft.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var firstUserId = Guid.NewGuid();
@@ -79,7 +79,7 @@ public sealed class PaperAttemptServiceTests
             TestContext.Current.CancellationToken);
         await paperService.UnpublishAsync(
             paper.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
 
         var resumed = await service.StartAsync(
@@ -315,7 +315,7 @@ public sealed class PaperAttemptServiceTests
     public async Task SubmitShouldRespectFillBlankCaseSensitivity()
     {
         await using var db = PaperServiceTests.CreateDbContext();
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var paperService = PaperServiceTests.CreateService(db);
         var request = PaperServiceTests.CreateCompleteRequest();
         var fillInput = request.Questions.Single(value =>
@@ -333,12 +333,12 @@ public sealed class PaperAttemptServiceTests
                 value.Type == PaperQuestionType.FillBlank ? fillInput : value).ToArray()
         };
         var draft = await paperService.CreateDraftAsync(
-            editorId,
+            adminId,
             request,
             TestContext.Current.CancellationToken);
         var paper = await paperService.PublishAsync(
             draft.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var userId = Guid.NewGuid();
@@ -371,15 +371,15 @@ public sealed class PaperAttemptServiceTests
     public async Task HistoryShouldRemainAvailableAfterUnpublishOnlyToOwner()
     {
         await using var db = PaperServiceTests.CreateDbContext();
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var paperService = PaperServiceTests.CreateService(db);
         var draft = await paperService.CreateDraftAsync(
-            editorId,
+            adminId,
             PaperServiceTests.CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
         var paper = await paperService.PublishAsync(
             draft.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
         var userId = Guid.NewGuid();
         var service = CreateService(db);
@@ -389,7 +389,7 @@ public sealed class PaperAttemptServiceTests
             TestContext.Current.CancellationToken);
         await paperService.UnpublishAsync(
             paper.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
 
         var history = await service.GetHistoryAsync(
@@ -410,18 +410,18 @@ public sealed class PaperAttemptServiceTests
     /// <summary>
     /// 创建并发布包含三类完整题目的试卷。
     /// </summary>
-    private static async Task<EditorPaperResponse> CreatePublishedPaperAsync(
+    private static async Task<AdminPaperResponse> CreatePublishedPaperAsync(
         ApplicationDbContext db)
     {
         var paperService = PaperServiceTests.CreateService(db);
-        var editorId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
         var draft = await paperService.CreateDraftAsync(
-            editorId,
+            adminId,
             PaperServiceTests.CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
         return await paperService.PublishAsync(
             draft.Id,
-            editorId,
+            adminId,
             TestContext.Current.CancellationToken);
     }
 

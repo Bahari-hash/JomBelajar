@@ -51,7 +51,7 @@ public sealed class HttpJsonContractTests
               "resourceModule": "ArticlePicture",
               "resourceStatus": "Pending",
               "multipartStatus": "Completed",
-              "userRole": "Editor"
+              "userRole": "Admin"
             }
             """);
         using var numericContent = CreateJsonContent("""
@@ -80,8 +80,61 @@ public sealed class HttpJsonContractTests
         acceptedJson.RootElement.GetProperty("resourceModule").GetString().Should().Be("ArticlePicture");
         acceptedJson.RootElement.GetProperty("resourceStatus").GetString().Should().Be("Pending");
         acceptedJson.RootElement.GetProperty("multipartStatus").GetString().Should().Be("Completed");
-        acceptedJson.RootElement.GetProperty("userRole").GetString().Should().Be("Editor");
+        acceptedJson.RootElement.GetProperty("userRole").GetString().Should().Be("Admin");
         rejected.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// Verifies UserRole alone rejects non-canonical names that generic enum parsing can accept.
+    /// </summary>
+    [Theory]
+    [InlineData("user")]
+    [InlineData("admin")]
+    [InlineData("Editor")]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("2")]
+    public async Task UserRoleShouldRejectNonCanonicalStrings(string role)
+    {
+        await using var app = await CreateAppAsync();
+        using var content = CreateJsonContent($$"""
+            {
+              "articleStatus": "Draft",
+              "resourceModule": "CourseVideo",
+              "resourceStatus": "Active",
+              "multipartStatus": "Finalizing",
+              "userRole": "{{role}}"
+            }
+            """);
+
+        var response = await app.GetTestClient().PostAsync(
+            "/enum-contract",
+            content,
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task RemovedVideoSubtitleModuleShouldBeRejected()
+    {
+        await using var app = await CreateAppAsync();
+        using var content = CreateJsonContent("""
+            {
+              "articleStatus": "Draft",
+              "resourceModule": "VideoSubtitle",
+              "resourceStatus": "Active",
+              "multipartStatus": "Finalizing",
+              "userRole": "Admin"
+            }
+            """);
+
+        var response = await app.GetTestClient().PostAsync(
+            "/enum-contract",
+            content,
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     /// <summary>

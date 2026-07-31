@@ -383,7 +383,7 @@ public sealed class AudioProcessingServiceTests
         };
         var audioClip = new AudioClip
         {
-            OwnerId = resource.UploaderId,
+            CreatedById = resource.UploaderId,
             SourceMediaResourceId = resource.Id,
             SourceMediaResource = resource,
             Title = "Audio",

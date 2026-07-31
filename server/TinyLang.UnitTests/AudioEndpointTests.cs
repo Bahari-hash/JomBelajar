@@ -21,22 +21,22 @@ namespace TinyLang.UnitTests;
 public sealed class AudioEndpointTests
 {
     /// <summary>
-    /// 验证编辑者管理路由和普通播放路由使用各自授权策略。
+    /// 验证管理员管理路由和普通播放路由使用各自授权策略。
     /// </summary>
     [Fact]
-    public async Task EditorAndPlaybackRoutesShouldUseExpectedPolicies()
+    public async Task AdminAndPlaybackRoutesShouldUseExpectedPolicies()
     {
         await using var app = CreateApp();
         var routes = GetRoutes(app);
 
         foreach (var endpoint in routes.Where(value =>
             value.RoutePattern.RawText!.StartsWith(
-                "/api/editor/audio",
+                "/api/admin/audio",
                 StringComparison.Ordinal)))
         {
             endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()
                 .Should().Contain(value =>
-                    value.Policy == AuthorizationPolicies.RequireEditor);
+                    value.Policy == AuthorizationPolicies.RequireAdmin);
         }
         GetRoute(routes, "/api/audio/{id:guid}/playback", "POST")
             .Metadata.GetOrderedMetadata<IAuthorizeData>()

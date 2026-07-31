@@ -30,11 +30,21 @@ public interface IVideoCategoryService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 删除分类并由数据库级联解除视频关联。
+    /// 删除一个没有视频关联的分类。
     /// </summary>
     /// <param name="categoryId">分类标识。</param>
     /// <param name="cancellationToken">用于取消数据库操作的令牌。</param>
     Task DeleteAsync(Guid categoryId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 显式清除分类与所有状态视频的关联。
+    /// </summary>
+    /// <param name="categoryId">分类标识。</param>
+    /// <param name="cancellationToken">用于取消数据库操作的令牌。</param>
+    /// <returns>分类标识及删除的关联数量。</returns>
+    Task<ClearVideoCategoryResponse> ClearVideosAsync(
+        Guid categoryId,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 获取仅包含启用分类且计数限定为可播放视频的列表。
@@ -47,7 +57,7 @@ public interface IVideoCategoryService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 获取管理员可见的分类列表及所有关联视频计数。
+    /// 获取管理员可见的分类列表及非归档视频关联计数。
     /// </summary>
     /// <param name="request">分页、关键词和停用筛选条件。</param>
     /// <param name="cancellationToken">用于取消查询的令牌。</param>

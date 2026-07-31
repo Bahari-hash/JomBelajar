@@ -10,34 +10,34 @@ public interface IPaperService
     /// <summary>
     /// 创建可暂时不满足发布数量要求的试卷草稿。
     /// </summary>
-    Task<EditorPaperResponse> CreateDraftAsync(
-        Guid editorId,
+    Task<AdminPaperResponse> CreateDraftAsync(
+        Guid adminId,
         CreatePaperRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 使用完整目标集合和并发标识更新未被测验历史锁定的试卷。
     /// </summary>
-    Task<EditorPaperResponse> UpdateAsync(
+    Task<AdminPaperResponse> UpdateAsync(
         Guid paperId,
-        Guid editorId,
+        Guid adminId,
         UpdatePaperRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 完整校验试卷题型、答案和评分后幂等发布。
     /// </summary>
-    Task<EditorPaperResponse> PublishAsync(
+    Task<AdminPaperResponse> PublishAsync(
         Guid paperId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 幂等下架已发布试卷并保留首次发布时间和历史测验。
     /// </summary>
-    Task<EditorPaperResponse> UnpublishAsync(
+    Task<AdminPaperResponse> UnpublishAsync(
         Guid paperId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -45,21 +45,21 @@ public interface IPaperService
     /// </summary>
     Task DeleteAsync(
         Guid paperId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 获取编辑者可见的完整试卷和标准答案。
+    /// 获取管理员可见的完整试卷和标准答案。
     /// </summary>
-    Task<EditorPaperResponse> GetEditorByIdAsync(
+    Task<AdminPaperResponse> GetAdminByIdAsync(
         Guid paperId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 获取所有编辑者共享的试卷管理分页列表。
+    /// 获取所有管理员共享的试卷管理分页列表。
     /// </summary>
-    Task<PagedResponse<EditorPaperListItemResponse>> GetEditorListAsync(
-        EditorPaperListRequest request,
+    Task<PagedResponse<AdminPaperListItemResponse>> GetAdminListAsync(
+        AdminPaperListRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>

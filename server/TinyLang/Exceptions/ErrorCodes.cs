@@ -222,17 +222,20 @@ public enum ErrorCodes
     [Description("视频源媒体资源已被其他视频占用.")]
     VideoSourceAlreadyUsed,
 
+    [Description("视频创建人筛选标识无效.")]
+    VideoCreatedByInvalid,
+
     [Description("视频当前状态不允许执行该操作.")]
     VideoStatusConflict,
 
+    [Description("视频已被其他管理员修改，请刷新后重试.")]
+    VideoConcurrencyConflict,
+
+    [Description("视频当前状态或处理任务不允许归档.")]
+    VideoArchiveConflict,
+
     [Description("视频处理任务当前状态不允许重试.")]
     VideoRetryConflict,
-
-    [Description("视频字幕资源无效或内容不是受支持的 WebVTT.")]
-    VideoSubtitleInvalid,
-
-    [Description("视频字幕语言已经存在.")]
-    VideoSubtitleLanguageConflict,
 
     [Description("播放位置无效.")]
     VideoProgressInvalid,
@@ -248,6 +251,9 @@ public enum ErrorCodes
 
     [Description("视频分类不存在.")]
     VideoCategoryNotFound,
+
+    [Description("视频分类仍被视频使用，请先清空关联.")]
+    VideoCategoryInUse,
 
     [Description("视频分类已停用.")]
     VideoCategoryInactive,
@@ -355,7 +361,7 @@ public enum ErrorCodes
     [Description("文章状态无效.")]
     ArticleStatusInvalid,
 
-    [Description("文章已被其他编辑者修改，请刷新后重试.")]
+    [Description("文章已被其他管理员修改，请刷新后重试.")]
     ArticleConcurrencyConflict,
 
     [Description("发布文章前必须选择分类.")]
@@ -518,7 +524,7 @@ public enum ErrorCodes
     [Description("词条当前状态不允许执行该操作.")]
     WordStatusConflict,
 
-    [Description("词条已被其他编辑者修改，请刷新后重试.")]
+    [Description("词条已被其他管理员修改，请刷新后重试.")]
     WordConcurrencyConflict,
 
     [Description("已发布词条必须先下架才能删除.")]

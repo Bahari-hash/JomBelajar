@@ -16,7 +16,7 @@ public sealed record VideoProcessingSettings
     public string FfmpegPath { get; init; } = "ffmpeg";
 
     [Range(1, 8192)]
-    public int MaxSourceWidth { get; init; } = 1980;
+    public int MaxSourceWidth { get; init; } = 1920;
 
     [Range(1, 8192)]
     public int MaxSourceHeight { get; init; } = 1080;
@@ -35,6 +35,9 @@ public sealed record VideoProcessingSettings
 
     [Range(60, 86400)]
     public int LeaseSeconds { get; init; } = 10800;
+
+    [Range(1, 3600)]
+    public int HeartbeatIntervalSeconds { get; init; } = 60;
 
     [Range(1, 100)]
     public int BatchSize { get; init; } = 4;

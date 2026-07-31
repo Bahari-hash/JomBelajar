@@ -5,6 +5,7 @@ using TinyLang.Database;
 using TinyLang.Dtos;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
+using TinyLang.Exceptions;
 using TinyLang.Interfaces;
 using TinyLang.Services;
 
@@ -69,7 +70,7 @@ public sealed class VideoCategoryServiceTests
     }
 
     [Fact]
-    public async Task AdminListShouldIncludeInactiveAndCountAllAssignments()
+    public async Task AdminListShouldIncludeInactiveAndExcludeArchivedFromCount()
     {
         await using var db = CreateDbContext();
         var category = new VideoCategory
@@ -79,6 +80,9 @@ public sealed class VideoCategoryServiceTests
             IsActive = false
         };
         var video = CreateVideo(VideoProcessingStatus.Queued, VideoPublicationStatus.Draft);
+        var archived = CreateVideo(
+            VideoProcessingStatus.Ready,
+            VideoPublicationStatus.Archived);
         video.CategoryAssignments.Add(new VideoCategoryAssignment
         {
             Video = video,
@@ -86,7 +90,14 @@ public sealed class VideoCategoryServiceTests
             VideoId = video.Id,
             VideoCategoryId = category.Id
         });
-        db.AddRange(category, video);
+        archived.CategoryAssignments.Add(new VideoCategoryAssignment
+        {
+            Video = archived,
+            VideoCategory = category,
+            VideoId = archived.Id,
+            VideoCategoryId = category.Id
+        });
+        db.AddRange(category, video, archived);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
@@ -99,7 +110,7 @@ public sealed class VideoCategoryServiceTests
     }
 
     [Fact]
-    public async Task DeleteShouldKeepVideoAndClearAssignments()
+    public async Task DeleteShouldRejectCategoryInUseWithoutClearingAssignments()
     {
         await using var db = CreateDbContext();
         var category = new VideoCategory { Name = "Grammar", Slug = "grammar" };
@@ -115,17 +126,34 @@ public sealed class VideoCategoryServiceTests
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
-        await service.DeleteAsync(category.Id, TestContext.Current.CancellationToken);
+        var action = () => service.DeleteAsync(
+            category.Id,
+            TestContext.Current.CancellationToken);
 
+        var exception = await action.Should().ThrowAsync<ConflictException>();
+        exception.Which.ErrorCode.Should().Be(ErrorCodes.VideoCategoryInUse);
         (await db.VideoCategories.AnyAsync(
             value => value.Id == category.Id,
-            TestContext.Current.CancellationToken)).Should().BeFalse();
+            TestContext.Current.CancellationToken)).Should().BeTrue();
         (await db.VideoCategoryAssignments.AnyAsync(
             value => value.VideoId == video.Id,
-            TestContext.Current.CancellationToken)).Should().BeFalse();
+            TestContext.Current.CancellationToken)).Should().BeTrue();
         (await db.Videos.AnyAsync(
             value => value.Id == video.Id,
             TestContext.Current.CancellationToken)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ClearShouldRejectMissingCategoryBeforeBulkDelete()
+    {
+        await using var db = CreateDbContext();
+        var service = CreateService(db);
+
+        var action = () => service.ClearVideosAsync(
+            Guid.NewGuid(),
+            TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<NotFoundException>();
     }
 
     private static VideoCategoryService CreateService(ApplicationDbContext db)
@@ -141,7 +169,7 @@ public sealed class VideoCategoryServiceTests
         VideoPublicationStatus publicationStatus)
         => new()
         {
-            OwnerId = Guid.NewGuid(),
+            CreatedById = Guid.NewGuid(),
             SourceMediaResourceId = Guid.NewGuid(),
             Title = "Video",
             OriginalLanguage = "en",

@@ -5,7 +5,6 @@ namespace TinyLang.Entities.Enums;
 /// </summary>
 public enum UserRole
 {
-    User,
-    Editor,
-    Admin,
+    User = 0,
+    Admin = 1,
 }

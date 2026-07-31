@@ -679,7 +679,7 @@ public sealed class WordStudyServiceTests
         };
         var audio = new AudioClip
         {
-            OwnerId = source.UploaderId,
+            CreatedById = source.UploaderId,
             SourceMediaResourceId = source.Id,
             SourceMediaResource = source,
             Title = headword,

@@ -46,8 +46,8 @@ public sealed class PaperService : IPaperService
     }
 
     /// <inheritdoc />
-    public async Task<EditorPaperResponse> CreateDraftAsync(
-        Guid editorId,
+    public async Task<AdminPaperResponse> CreateDraftAsync(
+        Guid adminId,
         CreatePaperRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -59,8 +59,8 @@ public sealed class PaperService : IPaperService
             Instructions = NormalizeOptional(request.Instructions),
             LanguageTag = WordTextNormalizer.NormalizeLanguageTag(request.LanguageTag),
             PassingScore = request.PassingScore,
-            CreatedById = editorId,
-            LastEditorId = editorId
+            CreatedById = adminId,
+            LastEditorId = adminId
         };
         ApplyNewTarget(paper, request);
         paper.TotalScore = CalculateTotalScore(request.Questions);
@@ -68,16 +68,16 @@ public sealed class PaperService : IPaperService
         await SavePaperChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Created paper draft {PaperId} by editor {EditorId}",
+            "Created paper draft {PaperId} by administrator {AdminId}",
             paper.Id,
-            editorId);
-        return await GetEditorByIdAsync(paper.Id, cancellationToken);
+            adminId);
+        return await GetAdminByIdAsync(paper.Id, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorPaperResponse> UpdateAsync(
+    public async Task<AdminPaperResponse> UpdateAsync(
         Guid paperId,
-        Guid editorId,
+        Guid adminId,
         UpdatePaperRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -104,7 +104,7 @@ public sealed class PaperService : IPaperService
         paper.LanguageTag = WordTextNormalizer.NormalizeLanguageTag(request.LanguageTag);
         paper.PassingScore = request.PassingScore;
         paper.TotalScore = CalculateTotalScore(request.Questions);
-        paper.LastEditorId = editorId;
+        paper.LastEditorId = adminId;
         paper.ConcurrencyStamp = Guid.NewGuid();
 
         StageExistingChildren(paper, request);
@@ -114,22 +114,22 @@ public sealed class PaperService : IPaperService
         await transaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Updated paper {PaperId} by editor {EditorId}",
+            "Updated paper {PaperId} by administrator {AdminId}",
             paperId,
-            editorId);
-        return await GetEditorByIdAsync(paperId, cancellationToken);
+            adminId);
+        return await GetAdminByIdAsync(paperId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorPaperResponse> PublishAsync(
+    public async Task<AdminPaperResponse> PublishAsync(
         Guid paperId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
         var paper = await FindPaperForEditAsync(paperId, cancellationToken);
         if (paper.Status == PaperPublicationStatus.Published)
         {
-            return await GetEditorByIdAsync(paperId, cancellationToken);
+            return await GetAdminByIdAsync(paperId, cancellationToken);
         }
         if (paper.Status is not (PaperPublicationStatus.Draft or
             PaperPublicationStatus.Unpublished))
@@ -141,27 +141,27 @@ public sealed class PaperService : IPaperService
         paper.TotalScore = paper.Questions.Sum(value => value.Points);
         paper.Status = PaperPublicationStatus.Published;
         paper.PublishedAt ??= _timeProvider.GetUtcNow();
-        paper.LastEditorId = editorId;
+        paper.LastEditorId = adminId;
         paper.ConcurrencyStamp = Guid.NewGuid();
         await SavePaperChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Published paper {PaperId} by editor {EditorId}",
+            "Published paper {PaperId} by administrator {AdminId}",
             paperId,
-            editorId);
-        return await GetEditorByIdAsync(paperId, cancellationToken);
+            adminId);
+        return await GetAdminByIdAsync(paperId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<EditorPaperResponse> UnpublishAsync(
+    public async Task<AdminPaperResponse> UnpublishAsync(
         Guid paperId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
         var paper = await FindPaperForEditAsync(paperId, cancellationToken);
         if (paper.Status == PaperPublicationStatus.Unpublished)
         {
-            return await GetEditorByIdAsync(paperId, cancellationToken);
+            return await GetAdminByIdAsync(paperId, cancellationToken);
         }
         if (paper.Status != PaperPublicationStatus.Published)
         {
@@ -169,21 +169,21 @@ public sealed class PaperService : IPaperService
         }
 
         paper.Status = PaperPublicationStatus.Unpublished;
-        paper.LastEditorId = editorId;
+        paper.LastEditorId = adminId;
         paper.ConcurrencyStamp = Guid.NewGuid();
         await SavePaperChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Unpublished paper {PaperId} by editor {EditorId}",
+            "Unpublished paper {PaperId} by administrator {AdminId}",
             paperId,
-            editorId);
-        return await GetEditorByIdAsync(paperId, cancellationToken);
+            adminId);
+        return await GetAdminByIdAsync(paperId, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task DeleteAsync(
         Guid paperId,
-        Guid editorId,
+        Guid adminId,
         CancellationToken cancellationToken = default)
     {
         var paper = await FindPaperForEditAsync(paperId, cancellationToken);
@@ -199,27 +199,27 @@ public sealed class PaperService : IPaperService
         _db.Papers.Remove(paper);
         await SavePaperChangesAsync(cancellationToken);
         _logger.LogInformation(
-            "Deleted paper {PaperId} by editor {EditorId}",
+            "Deleted paper {PaperId} by administrator {AdminId}",
             paperId,
-            editorId);
+            adminId);
     }
 
     /// <inheritdoc />
-    public async Task<EditorPaperResponse> GetEditorByIdAsync(
+    public async Task<AdminPaperResponse> GetAdminByIdAsync(
         Guid paperId,
         CancellationToken cancellationToken = default)
         => await _db.Papers.AsNoTracking()
             .Where(value => value.Id == paperId)
-            .Select(ToEditorResponseProjection())
+            .Select(ToAdminResponseProjection())
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.PaperNotFound);
 
     /// <inheritdoc />
-    public async Task<PagedResponse<EditorPaperListItemResponse>> GetEditorListAsync(
-        EditorPaperListRequest request,
+    public async Task<PagedResponse<AdminPaperListItemResponse>> GetAdminListAsync(
+        AdminPaperListRequest request,
         CancellationToken cancellationToken = default)
     {
-        ServiceRequestValidator.Validate(request, new EditorPaperListRequestValidator());
+        ServiceRequestValidator.Validate(request, new AdminPaperListRequestValidator());
         var query = _db.Papers.AsNoTracking();
         if (request.Status is { } status)
         {
@@ -242,7 +242,7 @@ public sealed class PaperService : IPaperService
             .ThenByDescending(value => value.Id)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(value => new EditorPaperListItemResponse(
+            .Select(value => new AdminPaperListItemResponse(
                 value.Id,
                 value.Title,
                 value.LanguageTag,
@@ -702,11 +702,11 @@ public sealed class PaperService : IPaperService
     }
 
     /// <summary>
-    /// 创建可由 EF Core 翻译的编辑者完整详情 projection。
+    /// 创建可由 EF Core 翻译的管理员完整详情 projection。
     /// </summary>
-    private static Expression<Func<Paper, EditorPaperResponse>>
-        ToEditorResponseProjection()
-        => paper => new EditorPaperResponse(
+    private static Expression<Func<Paper, AdminPaperResponse>>
+        ToAdminResponseProjection()
+        => paper => new AdminPaperResponse(
             paper.Id,
             paper.Title,
             paper.Description,
@@ -721,7 +721,7 @@ public sealed class PaperService : IPaperService
             paper.ConcurrencyStamp,
             paper.Questions.OrderBy(question => question.SortOrder)
                 .ThenBy(question => question.Id)
-                .Select(question => new EditorPaperQuestionResponse(
+                .Select(question => new AdminPaperQuestionResponse(
                     question.Id,
                     question.Type,
                     question.Prompt,
@@ -732,7 +732,7 @@ public sealed class PaperService : IPaperService
                     question.FillBlankCaseSensitive,
                     question.Options.OrderBy(option => option.SortOrder)
                         .ThenBy(option => option.Id)
-                        .Select(option => new EditorPaperQuestionOptionResponse(
+                        .Select(option => new AdminPaperQuestionOptionResponse(
                             option.Id,
                             option.Text,
                             option.IsCorrect,
@@ -740,7 +740,7 @@ public sealed class PaperService : IPaperService
                         .ToList(),
                     question.AcceptedAnswers.OrderBy(answer => answer.SortOrder)
                         .ThenBy(answer => answer.Id)
-                        .Select(answer => new EditorFillBlankAcceptedAnswerResponse(
+                        .Select(answer => new AdminFillBlankAcceptedAnswerResponse(
                             answer.Id,
                             answer.Text,
                             answer.SortOrder))

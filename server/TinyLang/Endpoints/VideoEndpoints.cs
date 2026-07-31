@@ -10,7 +10,7 @@ using TinyLang.Services;
 namespace TinyLang.Endpoints;
 
 /// <summary>
-/// 定义编辑者视频管理和登录用户目录、播放、进度 HTTP endpoints。
+/// 定义管理员视频管理和登录用户目录、播放、进度 HTTP endpoints。
 /// </summary>
 public static class VideoEndpoints
 {
@@ -21,17 +21,16 @@ public static class VideoEndpoints
     /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapVideosApi(this RouteGroupBuilder endpoints)
     {
-        var editor = endpoints.MapGroup("/editor/videos")
-            .RequireAuthorization(AuthorizationPolicies.RequireEditor);
-        editor.MapPost("", CreateVideoAsync);
-        editor.MapGet("", GetEditorVideosAsync);
-        editor.MapGet("/{id:guid}", GetEditorVideoAsync);
-        editor.MapPut("/{id:guid}", UpdateVideoAsync);
-        editor.MapPost("/{id:guid}/publish", PublishVideoAsync);
-        editor.MapPost("/{id:guid}/unpublish", UnpublishVideoAsync);
-        editor.MapPost("/{id:guid}/retry", RetryVideoAsync);
-        editor.MapPost("/{id:guid}/subtitles", AddSubtitleAsync);
-        editor.MapDelete("/{id:guid}/subtitles/{subtitleId:guid}", RemoveSubtitleAsync);
+        var admin = endpoints.MapGroup("/admin/videos")
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+        admin.MapPost("", CreateVideoAsync);
+        admin.MapGet("", GetAdminVideosAsync);
+        admin.MapGet("/{id:guid}", GetAdminVideoAsync);
+        admin.MapPut("/{id:guid}", UpdateVideoAsync);
+        admin.MapPost("/{id:guid}/publish", PublishVideoAsync);
+        admin.MapPost("/{id:guid}/unpublish", UnpublishVideoAsync);
+        admin.MapPost("/{id:guid}/retry", RetryVideoAsync);
+        admin.MapPost("/{id:guid}/archive", ArchiveVideoAsync);
 
         var videos = endpoints.MapGroup("/videos")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
@@ -47,7 +46,7 @@ public static class VideoEndpoints
     /// <summary>
     /// 创建视频草稿和首个持久化处理任务。
     /// </summary>
-    public static async Task<Created<EditorVideoResponse>> CreateVideoAsync(
+    public static async Task<Created<AdminVideoResponse>> CreateVideoAsync(
         CreateVideoRequest request,
         ClaimsPrincipal principal,
         IVideoService videoService,
@@ -57,35 +56,33 @@ public static class VideoEndpoints
             EndpointIdentity.GetUserId(principal),
             request,
             cancellationToken);
-        return TypedResults.Created($"/api/editor/videos/{response.Id}", response);
+        return TypedResults.Created($"/api/admin/videos/{response.Id}", response);
     }
 
     /// <summary>
-    /// 返回当前编辑者的视频管理分页列表。
+    /// 返回所有管理员协作维护的视频管理分页列表。
     /// </summary>
-    public static async Task<Ok<PagedResponse<EditorVideoListItemResponse>>> GetEditorVideosAsync(
-        [AsParameters] EditorVideoListRequest request,
-        ClaimsPrincipal principal,
+    public static async Task<Ok<PagedResponse<AdminVideoListItemResponse>>> GetAdminVideosAsync(
+        [AsParameters] AdminVideoListRequest request,
         IVideoService videoService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await videoService.GetEditorListAsync(
-            EndpointIdentity.GetUserId(principal), request, cancellationToken));
+        => TypedResults.Ok(await videoService.GetAdminListAsync(
+            request, cancellationToken));
 
     /// <summary>
-    /// 返回当前编辑者拥有的视频管理详情。
+    /// 返回全局视频管理详情。
     /// </summary>
-    public static async Task<Ok<EditorVideoResponse>> GetEditorVideoAsync(
+    public static async Task<Ok<AdminVideoResponse>> GetAdminVideoAsync(
         Guid id,
-        ClaimsPrincipal principal,
         IVideoService videoService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await videoService.GetEditorByIdAsync(
-            id, EndpointIdentity.GetUserId(principal), cancellationToken));
+        => TypedResults.Ok(await videoService.GetAdminByIdAsync(
+            id, cancellationToken));
 
     /// <summary>
-    /// 更新当前编辑者视频的展示元数据。
+    /// 更新当前管理员视频的展示元数据。
     /// </summary>
-    public static async Task<Ok<EditorVideoResponse>> UpdateVideoAsync(
+    public static async Task<Ok<AdminVideoResponse>> UpdateVideoAsync(
         Guid id,
         UpdateVideoRequest request,
         ClaimsPrincipal principal,
@@ -97,73 +94,50 @@ public static class VideoEndpoints
     /// <summary>
     /// 幂等发布一个处理就绪的视频。
     /// </summary>
-    public static async Task<Ok<EditorVideoResponse>> PublishVideoAsync(
+    public static async Task<Ok<AdminVideoResponse>> PublishVideoAsync(
         Guid id,
+        VideoMutationRequest request,
         ClaimsPrincipal principal,
         IVideoService videoService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await videoService.PublishAsync(
-            id, EndpointIdentity.GetUserId(principal), cancellationToken));
+            id, EndpointIdentity.GetUserId(principal), request, cancellationToken));
 
     /// <summary>
     /// 幂等下架一个已经发布的视频。
     /// </summary>
-    public static async Task<Ok<EditorVideoResponse>> UnpublishVideoAsync(
+    public static async Task<Ok<AdminVideoResponse>> UnpublishVideoAsync(
         Guid id,
+        VideoMutationRequest request,
         ClaimsPrincipal principal,
         IVideoService videoService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await videoService.UnpublishAsync(
-            id, EndpointIdentity.GetUserId(principal), cancellationToken));
+            id, EndpointIdentity.GetUserId(principal), request, cancellationToken));
 
     /// <summary>
     /// 为失败视频创建新的不可变输出版本任务。
     /// </summary>
-    public static async Task<Ok<EditorVideoResponse>> RetryVideoAsync(
+    public static async Task<Ok<AdminVideoResponse>> RetryVideoAsync(
         Guid id,
+        VideoMutationRequest request,
         ClaimsPrincipal principal,
         IVideoService videoService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await videoService.RetryAsync(
-            id, EndpointIdentity.GetUserId(principal), cancellationToken));
+            id, EndpointIdentity.GetUserId(principal), request, cancellationToken));
 
     /// <summary>
-    /// 关联一条经过基础内容验证的 WebVTT 字幕。
+    /// 软归档一个未发布且没有活动处理任务的视频。
     /// </summary>
-    public static async Task<Created<EditorVideoSubtitleResponse>> AddSubtitleAsync(
+    public static async Task<Ok<AdminVideoResponse>> ArchiveVideoAsync(
         Guid id,
-        AddVideoSubtitleRequest request,
+        VideoMutationRequest request,
         ClaimsPrincipal principal,
         IVideoService videoService,
         CancellationToken cancellationToken)
-    {
-        var response = await videoService.AddSubtitleAsync(
-            id,
-            EndpointIdentity.GetUserId(principal),
-            request,
-            cancellationToken);
-        return TypedResults.Created(
-            $"/api/editor/videos/{id}/subtitles/{response.Id}",
-            response);
-    }
-
-    /// <summary>
-    /// 删除一条当前编辑者视频的字幕关联。
-    /// </summary>
-    public static async Task<NoContent> RemoveSubtitleAsync(
-        Guid id,
-        Guid subtitleId,
-        ClaimsPrincipal principal,
-        IVideoService videoService,
-        CancellationToken cancellationToken)
-    {
-        await videoService.RemoveSubtitleAsync(
-            id,
-            subtitleId,
-            EndpointIdentity.GetUserId(principal),
-            cancellationToken);
-        return TypedResults.NoContent();
-    }
+        => TypedResults.Ok(await videoService.ArchiveAsync(
+            id, EndpointIdentity.GetUserId(principal), request, cancellationToken));
 
     /// <summary>
     /// 返回登录用户可见的已发布视频目录。

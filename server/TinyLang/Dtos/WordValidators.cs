@@ -305,15 +305,15 @@ public sealed class WordPronunciationInputValidator
 }
 
 /// <summary>
-/// 校验编辑者词条列表的分页和筛选条件。
+/// 校验管理员词条列表的分页和筛选条件。
 /// </summary>
-public sealed class EditorWordListRequestValidator
-    : AbstractValidator<EditorWordListRequest>
+public sealed class AdminWordListRequestValidator
+    : AbstractValidator<AdminWordListRequest>
 {
     /// <summary>
     /// 初始化有界分页、关键词、语言和状态筛选规则。
     /// </summary>
-    public EditorWordListRequestValidator()
+    public AdminWordListRequestValidator()
     {
         WordListValidationRules.Add(
             this,

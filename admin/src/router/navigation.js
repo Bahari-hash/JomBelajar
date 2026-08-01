@@ -3,6 +3,7 @@ import {
   FileText,
   FolderTree,
   LayoutDashboard,
+  Languages,
   Tags,
   Users,
 } from "lucide-react";
@@ -23,6 +24,7 @@ export const NAVIGATION_GROUPS = Object.freeze([
       { label: "文章分类", href: "/article-categories", icon: FolderTree },
       { label: "视频管理", href: "/videos", icon: Clapperboard },
       { label: "视频分类", href: "/video-categories", icon: Tags },
+      { label: "单词管理", href: "/words", icon: Languages },
     ],
   },
 ]);

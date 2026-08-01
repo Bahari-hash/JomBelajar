@@ -59,6 +59,8 @@ export const baseApi = createApi({
     "ArticleCategory",
     "Video",
     "VideoCategory",
+    "Word",
+    "AudioClip",
   ],
   endpoints: () => ({}),
 });

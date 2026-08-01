@@ -52,5 +52,6 @@ describe("admin routes", () => {
     expect(screen.getByRole("link", { name: "文章分类" })).toBeVisible();
     expect(screen.getByRole("link", { name: "视频管理" })).toBeVisible();
     expect(screen.getByRole("link", { name: "视频分类" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "单词管理" })).toBeVisible();
   });
 });

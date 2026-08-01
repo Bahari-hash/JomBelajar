@@ -84,6 +84,22 @@ export const routes = [
                 ),
               },
               {
+                path: "words",
+                lazy: lazyComponent(() => import("@/pages/Words.jsx")),
+              },
+              {
+                path: "words/new",
+                lazy: lazyComponent(() => import("@/pages/WordEditor.jsx")),
+              },
+              {
+                path: "words/batch",
+                lazy: lazyComponent(() => import("@/pages/WordBatchImport.jsx")),
+              },
+              {
+                path: "words/:wordId",
+                lazy: lazyComponent(() => import("@/pages/WordEditor.jsx")),
+              },
+              {
                 path: "*",
                 lazy: lazyComponent(() => import("@/pages/NotFound.jsx")),
               },

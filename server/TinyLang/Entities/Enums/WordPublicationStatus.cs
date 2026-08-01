@@ -7,5 +7,6 @@ public enum WordPublicationStatus
 {
     Draft,
     Published,
-    Unpublished
+    Unpublished,
+    Archived
 }

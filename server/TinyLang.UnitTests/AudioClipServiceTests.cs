@@ -162,6 +162,38 @@ public sealed class AudioClipServiceTests
         response.TotalCount.Should().Be(2);
     }
 
+    /// <summary>
+    /// 验证管理员音频列表按规范化语言标签精确筛选并可与用途组合。
+    /// </summary>
+    [Fact]
+    public async Task AdminListShouldFilterByNormalizedLanguage()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var expected = CreateAudioClip(ownerId);
+        expected.LanguageTag = "en-us";
+        expected.Kind = AudioClipKind.WordPronunciation;
+        var otherLanguage = CreateAudioClip(ownerId);
+        otherLanguage.LanguageTag = "en-gb";
+        otherLanguage.Kind = AudioClipKind.WordPronunciation;
+        var otherKind = CreateAudioClip(ownerId);
+        otherKind.LanguageTag = "en-us";
+        otherKind.Kind = AudioClipKind.ExampleSentence;
+        db.AudioClips.AddRange(expected, otherLanguage, otherKind);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var response = await service.GetAdminListAsync(
+            new AdminAudioClipListRequest
+            {
+                Language = "EN-US",
+                Kind = AudioClipKind.WordPronunciation
+            },
+            TestContext.Current.CancellationToken);
+
+        response.Items.Should().ContainSingle(value => value.Id == expected.Id);
+    }
+
     [Fact]
     public async Task AnotherAdminShouldUpdateGlobalAudioAndBecomeLastEditor()
     {

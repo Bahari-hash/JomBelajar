@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using TinyLang.Database;
 using TinyLang.Entities;
+using TinyLang.Entities.Enums;
 
 namespace TinyLang.UnitTests;
 
@@ -39,8 +40,27 @@ public sealed class WordModelTests
                 }));
         sense!.GetIndexes().Should().Contain(index => index.IsUnique &&
             index.Properties.Select(value => value.Name).Contains(nameof(WordSense.SortOrder)));
+        sense.GetIndexes().Should().Contain(index =>
+            index.Properties.Select(value => value.Name).SequenceEqual(
+                new[] { nameof(WordSense.PartOfSpeech), nameof(WordSense.WordId) }));
         example!.GetIndexes().Should().Contain(index => index.IsUnique &&
             index.Properties.Select(value => value.Name).Contains(nameof(ExampleSentence.SortOrder)));
+    }
+
+    /// <summary>
+    /// 验证归档状态和归档时间进入可空实体模型且状态枚举包含终态。
+    /// </summary>
+    [Fact]
+    public void ModelShouldContainArchivedStateAndTimestamp()
+    {
+        using var db = CreateDbContext();
+        var word = db.Model.FindEntityType(typeof(Word));
+
+        Enum.IsDefined(WordPublicationStatus.Archived).Should().BeTrue();
+        word.Should().NotBeNull();
+        var archivedAt = word!.FindProperty(nameof(Word.ArchivedAt));
+        archivedAt.Should().NotBeNull();
+        archivedAt!.IsNullable.Should().BeTrue();
     }
 
     /// <summary>

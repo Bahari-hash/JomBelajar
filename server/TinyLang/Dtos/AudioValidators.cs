@@ -90,5 +90,14 @@ public sealed class AdminAudioClipListRequestValidator
         RuleFor(value => value.Kind)
             .Must(value => value is null || Enum.IsDefined(value.Value))
             .WithErrKey(ErrorCodes.AudioKindInvalid);
+        RuleFor(value => value.Language)
+            .Cascade(CascadeMode.Stop)
+            .MaximumLength(35).WithErrKey(ErrorCodes.AudioLanguageInvalid)
+            .Must(value => value is null || !string.IsNullOrWhiteSpace(value))
+            .WithErrKey(ErrorCodes.AudioLanguageInvalid);
+        RuleFor(value => value.Language)
+            .Matches(MediaValidationPatterns.LanguageTag())
+            .When(value => !string.IsNullOrWhiteSpace(value.Language))
+            .WithErrKey(ErrorCodes.AudioLanguageInvalid);
     }
 }

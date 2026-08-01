@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using TinyLang.Constants;
 using TinyLang.Dtos;
@@ -24,11 +25,14 @@ public static class WordEndpoints
         var admin = endpoints.MapGroup("/admin/words")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
         admin.MapPost("", CreateWordAsync);
+        admin.MapPost("/batch/validate", ValidateBatchAsync);
+        admin.MapPost("/batch", ImportBatchAsync);
         admin.MapGet("", GetAdminWordsAsync);
         admin.MapGet("/{id:guid}", GetAdminWordAsync);
         admin.MapPut("/{id:guid}", UpdateWordAsync);
         admin.MapPost("/{id:guid}/publish", PublishWordAsync);
         admin.MapPost("/{id:guid}/unpublish", UnpublishWordAsync);
+        admin.MapPost("/{id:guid}/archive", ArchiveWordAsync);
         admin.MapDelete("/{id:guid}", DeleteWordAsync);
 
         var user = endpoints.MapGroup("/words")
@@ -95,12 +99,14 @@ public static class WordEndpoints
     /// </summary>
     public static async Task<Ok<AdminWordResponse>> PublishWordAsync(
         Guid id,
+        WordMutationRequest request,
         ClaimsPrincipal principal,
         IWordService wordService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await wordService.PublishAsync(
             id,
             EndpointIdentity.GetUserId(principal),
+            request,
             cancellationToken));
 
     /// <summary>
@@ -108,12 +114,29 @@ public static class WordEndpoints
     /// </summary>
     public static async Task<Ok<AdminWordResponse>> UnpublishWordAsync(
         Guid id,
+        WordMutationRequest request,
         ClaimsPrincipal principal,
         IWordService wordService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await wordService.UnpublishAsync(
             id,
             EndpointIdentity.GetUserId(principal),
+            request,
+            cancellationToken));
+
+    /// <summary>
+    /// 以当前管理员身份将可归档词条迁移到不可恢复终态。
+    /// </summary>
+    public static async Task<Ok<AdminWordResponse>> ArchiveWordAsync(
+        Guid id,
+        WordMutationRequest request,
+        ClaimsPrincipal principal,
+        IWordService wordService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await wordService.ArchiveAsync(
+            id,
+            EndpointIdentity.GetUserId(principal),
+            request,
             cancellationToken));
 
     /// <summary>
@@ -121,6 +144,7 @@ public static class WordEndpoints
     /// </summary>
     public static async Task<NoContent> DeleteWordAsync(
         Guid id,
+        [FromBody] WordMutationRequest request,
         ClaimsPrincipal principal,
         IWordService wordService,
         CancellationToken cancellationToken)
@@ -128,9 +152,34 @@ public static class WordEndpoints
         await wordService.DeleteAsync(
             id,
             EndpointIdentity.GetUserId(principal),
+            request,
             cancellationToken);
         return TypedResults.NoContent();
     }
+
+    /// <summary>
+    /// 返回批量新词条的规范化预览和逐行字段错误，不执行写入。
+    /// </summary>
+    [RequestSizeLimit(WordConstraints.MaxBatchRequestBodyBytes)]
+    public static async Task<Ok<BatchWordValidationResponse>> ValidateBatchAsync(
+        BatchWordRequest request,
+        IWordService wordService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await wordService.ValidateBatchAsync(request, cancellationToken));
+
+    /// <summary>
+    /// 以当前管理员身份原子创建一组词条草稿。
+    /// </summary>
+    [RequestSizeLimit(WordConstraints.MaxBatchRequestBodyBytes)]
+    public static async Task<Ok<BatchWordImportResponse>> ImportBatchAsync(
+        BatchWordRequest request,
+        ClaimsPrincipal principal,
+        IWordService wordService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await wordService.ImportBatchAsync(
+            EndpointIdentity.GetUserId(principal),
+            request,
+            cancellationToken));
 
     /// <summary>
     /// 获取当前可用的已发布词条分页列表。

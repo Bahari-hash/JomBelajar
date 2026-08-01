@@ -12,12 +12,12 @@ using TinyLang.Services;
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证运行时 OpenAPI 冻结 Admin 视频、上传和播放的 breaking HTTP 契约。
+/// 验证运行时 OpenAPI 冻结 Admin 内容、上传和播放的 breaking HTTP 契约。
 /// </summary>
 public sealed class OpenApiContractTests
 {
     /// <summary>
-    /// 验证 OpenAPI 只公开 Admin 路径、并发前置条件和当前媒体响应字段。
+    /// 验证 OpenAPI 公开词条批量与归档路径、并发前置条件和当前媒体响应字段。
     /// </summary>
     [Fact]
     public async Task OpenApiShouldExposeCurrentAdminVideoContract()
@@ -34,6 +34,13 @@ public sealed class OpenApiContractTests
         paths.TryGetProperty("/api/admin/videos/{id}/playback", out _).Should().BeTrue();
         paths.TryGetProperty("/api/admin/video-categories/{id}/videos", out _)
             .Should().BeTrue();
+        paths.TryGetProperty("/api/admin/words", out _).Should().BeTrue();
+        paths.TryGetProperty("/api/admin/words/batch/validate", out _)
+            .Should().BeTrue();
+        paths.TryGetProperty("/api/admin/words/batch", out _).Should().BeTrue();
+        paths.TryGetProperty("/api/admin/words/{id}/archive", out _)
+            .Should().BeTrue();
+        paths.TryGetProperty("/api/words", out _).Should().BeTrue();
         paths.TryGetProperty("/api/uploads/admin/media/capabilities", out _)
             .Should().BeTrue();
         foreach (var path in new[]
@@ -58,6 +65,22 @@ public sealed class OpenApiContractTests
         var mutationRequest = GetSchema(schemas, "VideoMutationRequest");
         GetRequiredProperties(updateRequest).Should().Contain("concurrencyStamp");
         GetRequiredProperties(mutationRequest).Should().Contain("concurrencyStamp");
+
+        var wordMutationRequest = GetSchema(schemas, "WordMutationRequest");
+        GetRequiredProperties(wordMutationRequest).Should().Contain("concurrencyStamp");
+        var wordStatus = GetSchema(schemas, "WordPublicationStatus");
+        wordStatus.GetProperty("enum").EnumerateArray()
+            .Select(value => value.GetString())
+            .Should().Contain("Archived");
+        var adminWord = GetSchema(schemas, "AdminWordResponse");
+        adminWord.GetProperty("properties").TryGetProperty("archivedAt", out _)
+            .Should().BeTrue();
+        adminWord.GetProperty("properties").TryGetProperty("concurrencyStamp", out _)
+            .Should().BeTrue();
+        GetSchema(schemas, "BatchWordRequest").GetProperty("properties")
+            .TryGetProperty("rows", out _).Should().BeTrue();
+        GetSchema(schemas, "BatchWordImportResponse").GetProperty("properties")
+            .TryGetProperty("items", out _).Should().BeTrue();
 
         var adminVideo = GetSchema(schemas, "AdminVideoResponse");
         var videoPlayback = GetSchema(schemas, "VideoPlaybackResponse");
@@ -92,6 +115,7 @@ public sealed class OpenApiContractTests
         builder.Services.AddSingleton(Mock.Of<IVideoService>());
         builder.Services.AddSingleton(Mock.Of<IVideoCategoryService>());
         builder.Services.AddSingleton(Mock.Of<IAudioClipService>());
+        builder.Services.AddSingleton(Mock.Of<IWordService>());
         builder.Services.AddSingleton(Mock.Of<IMediaResourceService>());
         var app = builder.Build();
         app.MapOpenApi();
@@ -99,7 +123,8 @@ public sealed class OpenApiContractTests
             .MapUploadsApi()
             .MapVideoCategoriesApi()
             .MapVideosApi()
-            .MapAudioApi();
+            .MapAudioApi()
+            .MapWordsApi();
         await app.StartAsync(TestContext.Current.CancellationToken);
         return app;
     }

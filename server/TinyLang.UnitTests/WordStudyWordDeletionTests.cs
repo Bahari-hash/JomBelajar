@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
+using TinyLang.Dtos;
 using TinyLang.Database;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
@@ -66,16 +67,25 @@ public sealed class WordStudyWordDeletionTests
         var deleteProgressWord = async () => await service.DeleteAsync(
             progressWord.Id,
             adminId,
+            new WordMutationRequest
+            {
+                ConcurrencyStamp = progressWord.ConcurrencyStamp
+            },
             TestContext.Current.CancellationToken);
         var deleteItemWord = async () => await service.DeleteAsync(
             itemWord.Id,
             adminId,
+            new WordMutationRequest { ConcurrencyStamp = itemWord.ConcurrencyStamp },
             TestContext.Current.CancellationToken);
         await deleteProgressWord.Should().ThrowAsync<ConflictException>();
         await deleteItemWord.Should().ThrowAsync<ConflictException>();
         await service.DeleteAsync(
             unreferencedWord.Id,
             adminId,
+            new WordMutationRequest
+            {
+                ConcurrencyStamp = unreferencedWord.ConcurrencyStamp
+            },
             TestContext.Current.CancellationToken);
 
         (await db.Words.AnyAsync(

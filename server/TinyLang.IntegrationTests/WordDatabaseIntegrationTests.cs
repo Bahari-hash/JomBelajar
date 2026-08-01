@@ -6,6 +6,7 @@ using TinyLang.Database;
 using TinyLang.Dtos;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
+using TinyLang.Exceptions;
 using TinyLang.Infrastructure;
 using TinyLang.Services;
 
@@ -75,6 +76,10 @@ public sealed class WordDatabaseIntegrationTests
                 var published = await service.PublishAsync(
                     draft.Id,
                     user.Id,
+                    new WordMutationRequest
+                    {
+                        ConcurrencyStamp = draft.ConcurrencyStamp
+                    },
                     TestContext.Current.CancellationToken);
                 var page = await service.GetUserListAsync(
                     new WordListRequest { Language = "EN" },
@@ -84,6 +89,10 @@ public sealed class WordDatabaseIntegrationTests
                 var unpublished = await service.UnpublishAsync(
                     draft.Id,
                     user.Id,
+                    new WordMutationRequest
+                    {
+                        ConcurrencyStamp = published.ConcurrencyStamp
+                    },
                     TestContext.Current.CancellationToken);
                 var updated = await service.UpdateAsync(
                     draft.Id,
@@ -97,10 +106,71 @@ public sealed class WordDatabaseIntegrationTests
                     .IsDefault.Should().BeTrue();
                 updated.Pronunciations.Single(value => value.AudioClipId == secondAudio.Id)
                     .SortOrder.Should().Be(0);
-                await service.PublishAsync(
+                var republished = await service.PublishAsync(
                     draft.Id,
                     user.Id,
+                    new WordMutationRequest
+                    {
+                        ConcurrencyStamp = updated.ConcurrencyStamp
+                    },
                     TestContext.Current.CancellationToken);
+                var finalUnpublished = await service.UnpublishAsync(
+                    draft.Id,
+                    user.Id,
+                    new WordMutationRequest
+                    {
+                        ConcurrencyStamp = republished.ConcurrencyStamp
+                    },
+                    TestContext.Current.CancellationToken);
+                var archived = await service.ArchiveAsync(
+                    draft.Id,
+                    user.Id,
+                    new WordMutationRequest
+                    {
+                        ConcurrencyStamp = finalUnpublished.ConcurrencyStamp
+                    },
+                    TestContext.Current.CancellationToken);
+                var defaultAdminPage = await service.GetAdminListAsync(
+                    new AdminWordListRequest(),
+                    TestContext.Current.CancellationToken);
+                var archivedAdminPage = await service.GetAdminListAsync(
+                    new AdminWordListRequest
+                    {
+                        Status = WordPublicationStatus.Archived
+                    },
+                    TestContext.Current.CancellationToken);
+                var archivedUserPage = await service.GetUserListAsync(
+                    new WordListRequest(),
+                    TestContext.Current.CancellationToken);
+                var wordsBeforeFailedBatch = await db.Words.CountAsync(
+                    TestContext.Current.CancellationToken);
+                var failedBatch = () => service.ImportBatchAsync(
+                    user.Id,
+                    new BatchWordRequest
+                    {
+                        Rows =
+                        [
+                            new BatchWordRowRequest
+                            {
+                                LanguageTag = "en",
+                                Headword = "new-word"
+                            },
+                            new BatchWordRowRequest
+                            {
+                                LanguageTag = "EN",
+                                Headword = " hello "
+                            }
+                        ]
+                    },
+                    TestContext.Current.CancellationToken);
+                await failedBatch.Should().ThrowAsync<RequestValidationException>();
+                (await db.Words.CountAsync(TestContext.Current.CancellationToken))
+                    .Should().Be(wordsBeforeFailedBatch);
+                archived.Status.Should().Be(WordPublicationStatus.Archived);
+                archived.ArchivedAt.Should().NotBeNull();
+                defaultAdminPage.Items.Should().NotContain(value => value.Id == draft.Id);
+                archivedAdminPage.Items.Should().ContainSingle(value => value.Id == draft.Id);
+                archivedUserPage.Items.Should().BeEmpty();
                 published.PublishedAt.Should().Be(updated.PublishedAt);
                 wordId = draft.Id;
                 firstAudioId = firstAudio.Id;
@@ -239,6 +309,7 @@ public sealed class WordDatabaseIntegrationTests
             await service.DeleteAsync(
                 draft.Id,
                 userId,
+                new WordMutationRequest { ConcurrencyStamp = draft.ConcurrencyStamp },
                 TestContext.Current.CancellationToken);
         }
 

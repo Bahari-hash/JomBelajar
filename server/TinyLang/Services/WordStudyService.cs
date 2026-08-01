@@ -149,32 +149,58 @@ public sealed class WordStudyService : IWordStudyService
             .OrderBy(value => value.Position)
             .ThenBy(value => value.Id)
             .ToListAsync(cancellationToken);
-        var pendingWordIds = pendingItems.Select(value => value.WordId).ToArray();
-        var visibleWordIds = pendingWordIds.Length == 0
-            ? []
-            : await WordVisibilityPolicy.Apply(_db.Words.AsNoTracking())
-                .Where(value => pendingWordIds.Contains(value.Id))
-                .Select(value => value.Id)
-                .ToListAsync(cancellationToken);
-        var visibleSet = visibleWordIds.ToHashSet();
+        var response = await (
+            from item in _db.WordStudySessionItems.AsNoTracking()
+            join word in WordVisibilityPolicy.Apply(_db.Words.AsNoTracking())
+                on item.WordId equals word.Id
+            where item.SessionId == sessionId &&
+                item.Status == WordStudySessionItemStatus.Pending
+            orderby item.Position, item.Id
+            select new WordStudyNextItemResponse(
+                session.Id,
+                item.Id,
+                item.Position,
+                session.ActualCount,
+                word.Id,
+                word.Headword,
+                word.LanguageTag,
+                word.Senses.OrderBy(sense => sense.SortOrder)
+                    .ThenBy(sense => sense.Id)
+                    .Select(sense => new WordSenseResponse(
+                        sense.PartOfSpeech,
+                        sense.Definition,
+                        sense.DefinitionLanguageTag,
+                        sense.UsageNote,
+                        sense.SortOrder,
+                        sense.Examples.OrderBy(example => example.SortOrder)
+                            .ThenBy(example => example.Id)
+                            .Select(example => new ExampleSentenceResponse(
+                                example.Sentence,
+                                example.LanguageTag,
+                                example.Translation,
+                                example.TranslationLanguageTag,
+                                example.AudioClipId,
+                                example.SortOrder))
+                            .ToList()))
+                    .ToList(),
+                word.Pronunciations.OrderBy(value => value.SortOrder)
+                    .ThenBy(value => value.Id)
+                    .Select(value => new WordPronunciationResponse(
+                        value.AudioClipId,
+                        value.AccentTag,
+                        value.Ipa,
+                        value.IsDefault,
+                        value.SortOrder))
+                    .ToList()))
+            .FirstOrDefaultAsync(cancellationToken);
         var now = _timeProvider.GetUtcNow();
         var changed = false;
 
-        foreach (var item in pendingItems.Where(value => !visibleSet.Contains(value.WordId)))
+        foreach (var item in pendingItems.Where(item => response is null ||
+                     item.Position < response.Position ||
+                     (item.Position == response.Position &&
+                      item.Id.CompareTo(response.ItemId) < 0)))
         {
-            MarkContentUnavailable(item, now);
-            changed = true;
-        }
-
-        WordStudyNextItemResponse? response = null;
-        foreach (var item in pendingItems.Where(value => visibleSet.Contains(value.WordId)))
-        {
-            response = await GetNextItemResponseAsync(session, item, cancellationToken);
-            if (response is not null)
-            {
-                break;
-            }
-
             MarkContentUnavailable(item, now);
             changed = true;
         }
@@ -367,53 +393,6 @@ public sealed class WordStudyService : IWordStudyService
             .ToListAsync(cancellationToken);
         return [.. newWordIds, .. studiedWordIds];
     }
-
-    /// <summary>
-    /// 将仍可见的一个固定 item 投影为背诵展示所需的安全内容。
-    /// </summary>
-    private async Task<WordStudyNextItemResponse?> GetNextItemResponseAsync(
-        WordStudySession session,
-        WordStudySessionItem item,
-        CancellationToken cancellationToken)
-        => await WordVisibilityPolicy.Apply(_db.Words.AsNoTracking())
-            .Where(word => word.Id == item.WordId)
-            .Select(word => new WordStudyNextItemResponse(
-                session.Id,
-                item.Id,
-                item.Position,
-                session.ActualCount,
-                word.Id,
-                word.Headword,
-                word.LanguageTag,
-                word.Senses.OrderBy(sense => sense.SortOrder)
-                    .ThenBy(sense => sense.Id)
-                    .Select(sense => new WordSenseResponse(
-                        sense.PartOfSpeech,
-                        sense.Definition,
-                        sense.DefinitionLanguageTag,
-                        sense.UsageNote,
-                        sense.SortOrder,
-                        sense.Examples.OrderBy(example => example.SortOrder)
-                            .ThenBy(example => example.Id)
-                            .Select(example => new ExampleSentenceResponse(
-                                example.Sentence,
-                                example.LanguageTag,
-                                example.Translation,
-                                example.TranslationLanguageTag,
-                                example.AudioClipId,
-                                example.SortOrder))
-                            .ToList()))
-                    .ToList(),
-                word.Pronunciations.OrderBy(value => value.SortOrder)
-                    .ThenBy(value => value.Id)
-                    .Select(value => new WordPronunciationResponse(
-                        value.AudioClipId,
-                        value.AccentTag,
-                        value.Ipa,
-                        value.IsDefault,
-                        value.SortOrder))
-                    .ToList()))
-            .SingleOrDefaultAsync(cancellationToken);
 
     /// <summary>
     /// 在一个事务中首次处理 item、累计 progress 并按需完成 session。

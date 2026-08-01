@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using FluentAssertions;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Moq;
 using TinyLang.Constants;
 using TinyLang.Dtos;
@@ -44,7 +46,7 @@ public sealed class WordEndpointTests
             .Should().OnlyContain(endpoint => endpoint.Metadata
                 .GetOrderedMetadata<IAuthorizeData>()
                 .Any(value => value.Policy == AuthorizationPolicies.RequireUser));
-        routes.Should().HaveCount(9);
+        routes.Should().HaveCount(12);
     }
 
     /// <summary>
@@ -114,14 +116,66 @@ public sealed class WordEndpointTests
         var service = new Mock<IWordService>();
         await using var app = await CreateHttpAppAsync(service.Object, adminId);
 
-        var response = await app.GetTestClient().DeleteAsync(
-            $"/api/admin/words/{wordId}",
+        var concurrencyStamp = Guid.NewGuid();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Delete,
+            $"/api/admin/words/{wordId}")
+        {
+            Content = JsonContent.Create(new WordMutationRequest
+            {
+                ConcurrencyStamp = concurrencyStamp
+            })
+        };
+        var response = await app.GetTestClient().SendAsync(
+            request,
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
         service.Verify(value => value.DeleteAsync(
             wordId,
             adminId,
+            It.Is<WordMutationRequest>(value =>
+                value.ConcurrencyStamp == concurrencyStamp),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// 验证批量校验和导入路由返回 typed 200 并传递当前管理员身份。
+    /// </summary>
+    [Fact]
+    public async Task BatchEndpointsShouldUseAuthenticatedAdmin()
+    {
+        var adminId = Guid.NewGuid();
+        var service = new Mock<IWordService>();
+        service.Setup(value => value.ValidateBatchAsync(
+                It.IsAny<BatchWordRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BatchWordValidationResponse(true, [], []));
+        service.Setup(value => value.ImportBatchAsync(
+                adminId,
+                It.IsAny<BatchWordRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BatchWordImportResponse(Guid.NewGuid(), 0, []));
+        await using var app = await CreateHttpAppAsync(service.Object, adminId);
+        var request = new BatchWordRequest { Rows = [] };
+
+        var validateResponse = await app.GetTestClient().PostAsJsonAsync(
+            "/api/admin/words/batch/validate",
+            request,
+            TestContext.Current.CancellationToken);
+        var importResponse = await app.GetTestClient().PostAsJsonAsync(
+            "/api/admin/words/batch",
+            request,
+            TestContext.Current.CancellationToken);
+
+        validateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        importResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        service.Verify(value => value.ValidateBatchAsync(
+            It.IsAny<BatchWordRequest>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        service.Verify(value => value.ImportBatchAsync(
+            adminId,
+            It.IsAny<BatchWordRequest>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -146,6 +200,7 @@ public sealed class WordEndpointTests
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
+        builder.Logging.ClearProviders();
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy(AuthorizationPolicies.RequireUser, policy =>
@@ -187,8 +242,9 @@ public sealed class WordEndpointTests
             "en",
             "hello",
             WordPublicationStatus.Draft,
-            adminId,
-            adminId,
+            new ContentAuditUserResponse(adminId, null, null),
+            new ContentAuditUserResponse(adminId, null, null),
+            null,
             null,
             Guid.NewGuid(),
             [],

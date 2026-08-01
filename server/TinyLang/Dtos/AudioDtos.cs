@@ -33,6 +33,7 @@ public sealed record AdminAudioClipListRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
+    public string? Language { get; init; }
     public AudioProcessingStatus? ProcessingStatus { get; init; }
     public AudioPublicationStatus? PublicationStatus { get; init; }
     public AudioClipKind? Kind { get; init; }

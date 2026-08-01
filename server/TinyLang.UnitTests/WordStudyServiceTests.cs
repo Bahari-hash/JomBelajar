@@ -238,13 +238,18 @@ public sealed class WordStudyServiceTests
             "unavailable-audio",
             "en",
             Now.AddMinutes(-3));
+        var archived = CreateVisibleWord(
+            "archived",
+            "en",
+            Now.AddMinutes(-4));
         draft.Status = WordPublicationStatus.Draft;
         draft.PublishedAt = null;
         unpublished.Status = WordPublicationStatus.Unpublished;
+        archived.Status = WordPublicationStatus.Archived;
         var unavailableAudio = unavailable.Pronunciations.Single().AudioClip
             ?? throw new InvalidOperationException("Expected pronunciation audio.");
         unavailableAudio.ProcessingStatus = AudioProcessingStatus.Failed;
-        db.Words.AddRange(valid, draft, unpublished, unavailable);
+        db.Words.AddRange(valid, draft, unpublished, unavailable, archived);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 

@@ -527,8 +527,23 @@ public enum ErrorCodes
     [Description("词条已被其他管理员修改，请刷新后重试.")]
     WordConcurrencyConflict,
 
+    [Description("词条当前状态不允许归档.")]
+    WordArchiveConflict,
+
     [Description("已发布词条必须先下架才能删除.")]
     WordPublishedDeleteConflict,
+
+    [Description("批量词条行数必须介于1到100之间.")]
+    WordBatchRowCountInvalid,
+
+    [Description("批量词条子项总数超过限制.")]
+    WordBatchChildCountLimit,
+
+    [Description("批量词条文本总量超过限制.")]
+    WordBatchTextLengthLimit,
+
+    [Description("批量词条校验失败.")]
+    WordBatchValidationFailed,
 
     // --** Word Study Errors **--
 

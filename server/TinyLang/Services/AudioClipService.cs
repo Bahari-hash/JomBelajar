@@ -107,6 +107,11 @@ public sealed class AudioClipService : IAudioClipService
         {
             query = query.Where(value => value.Kind == kind);
         }
+        if (!string.IsNullOrWhiteSpace(request.Language))
+        {
+            var language = NormalizeLanguageTag(request.Language);
+            query = query.Where(value => value.LanguageTag == language);
+        }
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = request.Keyword.Trim().ToUpperInvariant();

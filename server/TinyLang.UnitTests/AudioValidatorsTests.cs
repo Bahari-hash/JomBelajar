@@ -96,4 +96,23 @@ public sealed class AudioValidatorsTests
         result.IsValid.Should().BeFalse();
         result.Errors.Should().HaveCount(5);
     }
+
+    /// <summary>
+    /// 验证管理员音频语言筛选遵循 BCP-47 格式并允许合法大小写输入。
+    /// </summary>
+    [Fact]
+    public async Task AdminAudioListShouldValidateLanguageFilter()
+    {
+        var validator = new AdminAudioClipListRequestValidator();
+
+        var valid = await validator.ValidateAsync(
+            new AdminAudioClipListRequest { Language = "EN-us" },
+            TestContext.Current.CancellationToken);
+        var invalid = await validator.ValidateAsync(
+            new AdminAudioClipListRequest { Language = "bad_tag" },
+            TestContext.Current.CancellationToken);
+
+        valid.IsValid.Should().BeTrue();
+        invalid.IsValid.Should().BeFalse();
+    }
 }

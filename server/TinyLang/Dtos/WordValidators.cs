@@ -170,6 +170,21 @@ public sealed class UpdateWordRequestValidator : AbstractValidator<UpdateWordReq
 }
 
 /// <summary>
+/// 校验词条状态动作和硬删除使用的并发标识。
+/// </summary>
+public sealed class WordMutationRequestValidator : AbstractValidator<WordMutationRequest>
+{
+    /// <summary>
+    /// 要求客户端提供非空并发标识。
+    /// </summary>
+    public WordMutationRequestValidator()
+    {
+        RuleFor(value => value.ConcurrencyStamp)
+            .NotEmpty().WithErrKey(ErrorCodes.WordConcurrencyConflict);
+    }
+}
+
+/// <summary>
 /// 校验释义字段、排序和完整例句集合。
 /// </summary>
 public sealed class WordSenseInputValidator : AbstractValidator<WordSenseInput>
@@ -324,6 +339,16 @@ public sealed class AdminWordListRequestValidator
         RuleFor(value => value.Status)
             .Must(value => value is null || Enum.IsDefined(value.Value))
             .WithErrKey(ErrorCodes.WordStatusInvalid);
+        RuleFor(value => value.PartOfSpeech)
+            .Must(value => value is null || Enum.IsDefined(value.Value))
+            .WithErrKey(ErrorCodes.WordPartOfSpeechInvalid);
+        RuleFor(value => value.Definition)
+            .MaximumLength(WordConstraints.MaxTextLength)
+            .WithErrKey(ErrorCodes.WordDefinitionLengthLimit)
+            .Must(value => value is null || !string.IsNullOrWhiteSpace(value))
+            .WithErrKey(ErrorCodes.WordDefinitionRequired)
+            .Must(value => value is null || !value.Any(char.IsControl))
+            .WithErrKey(ErrorCodes.KeywordInvalid);
     }
 
 }

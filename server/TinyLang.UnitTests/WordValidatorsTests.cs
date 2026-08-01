@@ -159,6 +159,48 @@ public sealed class WordValidatorsTests
     }
 
     /// <summary>
+    /// 验证管理员定义筛选拒绝空白和控制字符，并接受合法词性。
+    /// </summary>
+    [Fact]
+    public async Task AdminListShouldValidateDefinitionFilter()
+    {
+        var validator = new AdminWordListRequestValidator();
+
+        var blank = await validator.ValidateAsync(
+            new AdminWordListRequest { Definition = "   " },
+            TestContext.Current.CancellationToken);
+        var control = await validator.ValidateAsync(
+            new AdminWordListRequest { Definition = "meaning\n" },
+            TestContext.Current.CancellationToken);
+        var valid = await validator.ValidateAsync(
+            new AdminWordListRequest
+            {
+                Definition = "meaning",
+                PartOfSpeech = PartOfSpeech.Noun
+            },
+            TestContext.Current.CancellationToken);
+
+        blank.IsValid.Should().BeFalse();
+        control.IsValid.Should().BeFalse();
+        valid.IsValid.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// 验证状态动作请求必须携带非空并发标识。
+    /// </summary>
+    [Fact]
+    public async Task MutationShouldRequireConcurrencyStamp()
+    {
+        var result = await new WordMutationRequestValidator().ValidateAsync(
+            new WordMutationRequest(),
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(error =>
+            error.PropertyName == nameof(WordMutationRequest.ConcurrencyStamp));
+    }
+
+    /// <summary>
     /// 创建包含一个释义、例句和默认发音的有效请求。
     /// </summary>
     private static CreateWordRequest CreateValidRequest()

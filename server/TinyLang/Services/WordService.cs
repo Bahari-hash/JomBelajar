@@ -100,13 +100,11 @@ public sealed class WordService : IWordService
     {
         ValidateTargetCollections(request, allowExistingIds: true);
         var word = await FindWordForEditAsync(wordId, cancellationToken);
-        if (word.Status == WordPublicationStatus.Published)
+        EnsureExpectedStamp(word, request.ConcurrencyStamp);
+        if (word.Status is WordPublicationStatus.Published or
+            WordPublicationStatus.Archived)
         {
             throw ConflictException.Create(ErrorCodes.WordStatusConflict);
-        }
-        if (word.ConcurrencyStamp != request.ConcurrencyStamp)
-        {
-            throw ConflictException.Create(ErrorCodes.WordConcurrencyConflict);
         }
 
         ValidateChildOwnership(word, request);
@@ -146,9 +144,11 @@ public sealed class WordService : IWordService
     public async Task<AdminWordResponse> PublishAsync(
         Guid wordId,
         Guid adminId,
+        WordMutationRequest request,
         CancellationToken cancellationToken = default)
     {
         var word = await FindWordForEditAsync(wordId, cancellationToken);
+        EnsureExpectedStamp(word, request.ConcurrencyStamp);
         if (word.Status == WordPublicationStatus.Published)
         {
             return await GetAdminByIdAsync(wordId, cancellationToken);
@@ -177,9 +177,11 @@ public sealed class WordService : IWordService
     public async Task<AdminWordResponse> UnpublishAsync(
         Guid wordId,
         Guid adminId,
+        WordMutationRequest request,
         CancellationToken cancellationToken = default)
     {
         var word = await FindWordForEditAsync(wordId, cancellationToken);
+        EnsureExpectedStamp(word, request.ConcurrencyStamp);
         if (word.Status == WordPublicationStatus.Unpublished)
         {
             return await GetAdminByIdAsync(wordId, cancellationToken);
@@ -202,15 +204,49 @@ public sealed class WordService : IWordService
     }
 
     /// <inheritdoc />
-    public async Task DeleteAsync(
+    public async Task<AdminWordResponse> ArchiveAsync(
         Guid wordId,
         Guid adminId,
+        WordMutationRequest request,
         CancellationToken cancellationToken = default)
     {
         var word = await FindWordForEditAsync(wordId, cancellationToken);
+        EnsureExpectedStamp(word, request.ConcurrencyStamp);
+        if (word.Status is not (WordPublicationStatus.Draft or
+            WordPublicationStatus.Unpublished))
+        {
+            throw ConflictException.Create(ErrorCodes.WordArchiveConflict);
+        }
+
+        word.Status = WordPublicationStatus.Archived;
+        word.ArchivedAt = _timeProvider.GetUtcNow();
+        word.LastEditorId = adminId;
+        word.ConcurrencyStamp = Guid.NewGuid();
+        await SaveWordChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Archived word {WordId} by administrator {AdminId}",
+            word.Id,
+            adminId);
+        return await GetAdminByIdAsync(word.Id, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteAsync(
+        Guid wordId,
+        Guid adminId,
+        WordMutationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var word = await FindWordForEditAsync(wordId, cancellationToken);
+        EnsureExpectedStamp(word, request.ConcurrencyStamp);
         if (word.Status == WordPublicationStatus.Published)
         {
             throw ConflictException.Create(ErrorCodes.WordPublishedDeleteConflict);
+        }
+        if (word.Status == WordPublicationStatus.Archived)
+        {
+            throw ConflictException.Create(ErrorCodes.WordStatusConflict);
         }
         if (await _db.UserWordProgress.AsNoTracking().AnyAsync(
                 value => value.WordId == wordId,
@@ -231,14 +267,73 @@ public sealed class WordService : IWordService
     }
 
     /// <inheritdoc />
+    public async Task<BatchWordValidationResponse> ValidateBatchAsync(
+        BatchWordRequest request,
+        CancellationToken cancellationToken = default)
+        => (await BuildBatchValidationAsync(request, cancellationToken)).Response;
+
+    /// <inheritdoc />
+    public async Task<BatchWordImportResponse> ImportBatchAsync(
+        Guid adminId,
+        BatchWordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var validation = await BuildBatchValidationAsync(request, cancellationToken);
+        if (!validation.Response.IsValid)
+        {
+            throw new RequestValidationException(
+                ErrorCodes.WordBatchValidationFailed,
+                ToBatchErrorDictionary(validation.Response));
+        }
+
+        var words = validation.Rows.Select(row =>
+        {
+            var word = new Word
+            {
+                LanguageTag = row.Identity.LanguageTag,
+                Headword = row.Identity.Headword,
+                NormalizedHeadword = row.Identity.NormalizedHeadword,
+                CreatedById = adminId,
+                LastEditorId = adminId
+            };
+            ApplyNewTarget(word, row.Request);
+            return (row.RowIndex, Word: word);
+        }).ToArray();
+
+        await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        _db.Words.AddRange(words.Select(value => value.Word));
+        await SaveWordChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        var batchId = Guid.NewGuid();
+        _logger.LogInformation(
+            "Imported word batch {BatchId} with {WordCount} drafts by administrator {AdminId}",
+            batchId,
+            words.Length,
+            adminId);
+        return new BatchWordImportResponse(
+            batchId,
+            words.Length,
+            words.Select(value => new BatchWordCreatedItemResponse(
+                value.RowIndex,
+                value.Word.Id)).ToArray());
+    }
+
+    /// <inheritdoc />
     public async Task<AdminWordResponse> GetAdminByIdAsync(
         Guid wordId,
         CancellationToken cancellationToken = default)
-        => await _db.Words.AsNoTracking()
+    {
+        var response = await _db.Words.AsNoTracking()
             .Where(value => value.Id == wordId)
             .Select(ToAdminResponseProjection())
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.WordNotFound);
+        var users = await LoadAuditUsersAsync(
+            [response.CreatedBy.Id, response.LastEditor.Id],
+            cancellationToken);
+        return EnrichAuditUsers(response, users);
+    }
 
     /// <inheritdoc />
     public async Task<PagedResponse<AdminWordListItemResponse>> GetAdminListAsync(
@@ -250,6 +345,10 @@ public sealed class WordService : IWordService
         {
             query = query.Where(value => value.Status == status);
         }
+        else
+        {
+            query = query.Where(value => value.Status != WordPublicationStatus.Archived);
+        }
         if (!string.IsNullOrWhiteSpace(request.Language))
         {
             var language = WordTextNormalizer.NormalizeLanguageTag(request.Language);
@@ -259,6 +358,17 @@ public sealed class WordService : IWordService
         {
             var keyword = WordTextNormalizer.CreateHeadwordComparisonKey(request.Keyword);
             query = query.Where(value => value.NormalizedHeadword.Contains(keyword));
+        }
+        if (request.PartOfSpeech is { } partOfSpeech)
+        {
+            query = query.Where(value => value.Senses.Any(sense =>
+                sense.PartOfSpeech == partOfSpeech));
+        }
+        if (!string.IsNullOrWhiteSpace(request.Definition))
+        {
+            var definition = request.Definition.Trim().ToUpperInvariant();
+            query = query.Where(value => value.Senses.Any(sense =>
+                sense.Definition.ToUpper().Contains(definition)));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -272,13 +382,39 @@ public sealed class WordService : IWordService
                 value.LanguageTag,
                 value.Headword,
                 value.Status,
+                value.Senses.OrderBy(sense => sense.SortOrder)
+                    .ThenBy(sense => sense.Id)
+                    .Select(sense => (PartOfSpeech?)sense.PartOfSpeech)
+                    .FirstOrDefault(),
+                value.Senses.OrderBy(sense => sense.SortOrder)
+                    .ThenBy(sense => sense.Id)
+                    .Select(sense => sense.Definition)
+                    .FirstOrDefault(),
                 value.Senses.Count,
+                value.Senses.SelectMany(sense => sense.Examples).Count(),
                 value.Pronunciations.Count,
+                new ContentAuditUserResponse(value.CreatedById, null, null),
+                new ContentAuditUserResponse(value.LastEditorId, null, null),
                 value.PublishedAt,
+                value.ArchivedAt,
+                value.CreatedAt,
                 value.UpdatedAt,
                 value.ConcurrencyStamp))
             .ToListAsync(cancellationToken);
-        return CreatePage(items, request.Page, request.PageSize, totalCount);
+        var auditUserIds = items.SelectMany(value => new[]
+            {
+                value.CreatedBy.Id,
+                value.LastEditor.Id
+            })
+            .Distinct()
+            .ToArray();
+        var auditUsers = await LoadAuditUsersAsync(auditUserIds, cancellationToken);
+        var enrichedItems = items.Select(value => value with
+        {
+            CreatedBy = GetAuditUser(value.CreatedBy.Id, auditUsers),
+            LastEditor = GetAuditUser(value.LastEditor.Id, auditUsers)
+        }).ToArray();
+        return CreatePage(enrichedItems, request.Page, request.PageSize, totalCount);
     }
 
     /// <inheritdoc />
@@ -357,6 +493,261 @@ public sealed class WordService : IWordService
             .Include(value => value.Pronunciations)
             .SingleOrDefaultAsync(value => value.Id == wordId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.WordNotFound);
+
+    /// <summary>
+    /// 对批量请求执行有界结构、单行规则、重复词头和音频引用校验。
+    /// </summary>
+    private async Task<BatchValidationResult> BuildBatchValidationAsync(
+        BatchWordRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Rows is null || request.Rows.Count is < 1 or
+            > WordConstraints.MaxBatchRowCount)
+        {
+            var error = CreateBatchError("rows", ErrorCodes.WordBatchRowCountInvalid);
+            return new BatchValidationResult(
+                new BatchWordValidationResponse(false, [error], []),
+                []);
+        }
+
+        var rows = request.Rows.ToArray();
+        if (rows.Any(row => row is null))
+        {
+            var error = CreateBatchError("rows", ErrorCodes.WordChildCollectionInvalid);
+            return new BatchValidationResult(
+                new BatchWordValidationResponse(false, [error], []),
+                []);
+        }
+
+        var totalSenseCount = rows.Sum(row => row.Senses?.Count ?? 0);
+        var totalExampleCount = rows.Sum(row => row.Senses?.Sum(sense =>
+            sense?.Examples?.Count ?? 0) ?? 0);
+        var totalPronunciationCount = rows.Sum(row => row.Pronunciations?.Count ?? 0);
+        var topLevelErrors = new List<BatchWordFieldErrorResponse>();
+        if (totalSenseCount > WordConstraints.MaxBatchSenseCount ||
+            totalExampleCount > WordConstraints.MaxBatchExampleCount ||
+            totalPronunciationCount > WordConstraints.MaxBatchPronunciationCount)
+        {
+            topLevelErrors.Add(CreateBatchError(
+                "rows",
+                ErrorCodes.WordBatchChildCountLimit));
+        }
+        if (CountBatchCharacters(rows) > WordConstraints.MaxBatchTextCharacterCount)
+        {
+            topLevelErrors.Add(CreateBatchError(
+                "rows",
+                ErrorCodes.WordBatchTextLengthLimit));
+        }
+        if (topLevelErrors.Count > 0)
+        {
+            return new BatchValidationResult(
+                new BatchWordValidationResponse(false, topLevelErrors, []),
+                []);
+        }
+
+        var validator = new CreateWordRequestValidator();
+        var normalizedRows = new List<BatchNormalizedRow>(rows.Length);
+        var errorsByRow = Enumerable.Range(0, rows.Length)
+            .ToDictionary(index => index, _ => new List<BatchError>());
+        for (var rowIndex = 0; rowIndex < rows.Length; rowIndex++)
+        {
+            if (rows[rowIndex].Senses is null ||
+                rows[rowIndex].Pronunciations is null ||
+                rows[rowIndex].Senses.Any(sense =>
+                    sense is null || sense.Examples is null ||
+                    sense.Examples.Any(example => example is null)) ||
+                rows[rowIndex].Pronunciations.Any(pronunciation =>
+                    pronunciation is null))
+            {
+                AddBatchError(
+                    errorsByRow[rowIndex],
+                    "content",
+                    ErrorCodes.WordChildCollectionInvalid);
+                continue;
+            }
+            var candidate = ToCreateRequest(rows[rowIndex]);
+            var result = await validator.ValidateAsync(candidate, cancellationToken);
+            foreach (var failure in result.Errors)
+            {
+                var code = Enum.TryParse<ErrorCodes>(failure.ErrorCode, out var parsed)
+                    ? parsed
+                    : ErrorCodes.RequestValidationFailed;
+                AddBatchError(
+                    errorsByRow[rowIndex],
+                    ToBatchFieldPath(failure.PropertyName),
+                    code);
+            }
+            if (!result.IsValid)
+            {
+                continue;
+            }
+
+            try
+            {
+                var identity = NormalizeIdentity(candidate.Headword, candidate.LanguageTag);
+                var normalized = NormalizeCreateRequest(candidate, identity);
+                normalizedRows.Add(new BatchNormalizedRow(rowIndex, normalized, identity));
+            }
+            catch (BaseAppException exception)
+            {
+                AddBatchError(errorsByRow[rowIndex], "headword", exception.ErrorCode);
+            }
+        }
+
+        if (normalizedRows.Sum(row => CountRequestCharacters(row.Request)) >
+            WordConstraints.MaxBatchTextCharacterCount)
+        {
+            topLevelErrors.Add(CreateBatchError(
+                "rows",
+                ErrorCodes.WordBatchTextLengthLimit));
+        }
+
+        foreach (var duplicateGroup in normalizedRows.GroupBy(row => new
+        {
+            row.Identity.LanguageTag,
+            row.Identity.NormalizedHeadword
+        }).Where(group => group.Count() > 1))
+        {
+            foreach (var row in duplicateGroup)
+            {
+                AddBatchError(errorsByRow[row.RowIndex], "headword", ErrorCodes.WordDuplicate);
+            }
+        }
+
+        if (normalizedRows.Count > 0)
+        {
+            var languages = normalizedRows.Select(row => row.Identity.LanguageTag)
+                .Distinct().ToArray();
+            var headwords = normalizedRows.Select(row => row.Identity.NormalizedHeadword)
+                .Distinct().ToArray();
+            var existingKeys = await _db.Words.AsNoTracking()
+                .Where(word => languages.Contains(word.LanguageTag) &&
+                    headwords.Contains(word.NormalizedHeadword))
+                .Select(word => new { word.LanguageTag, word.NormalizedHeadword })
+                .ToListAsync(cancellationToken);
+            var existingSet = existingKeys.Select(value =>
+                    $"{value.LanguageTag}\u001f{value.NormalizedHeadword}")
+                .ToHashSet(StringComparer.Ordinal);
+            foreach (var row in normalizedRows.Where(row => existingSet.Contains(
+                         $"{row.Identity.LanguageTag}\u001f{row.Identity.NormalizedHeadword}")))
+            {
+                AddBatchError(errorsByRow[row.RowIndex], "headword", ErrorCodes.WordDuplicate);
+            }
+
+            await ValidateBatchAudioAsync(normalizedRows, errorsByRow, cancellationToken);
+        }
+
+        var rowResponses = rows.Select((_, rowIndex) =>
+        {
+            var normalized = normalizedRows.SingleOrDefault(row => row.RowIndex == rowIndex);
+            return new BatchWordRowValidationResponse(
+                rowIndex,
+                normalized?.Request,
+                ToBatchErrorResponses(errorsByRow[rowIndex]));
+        }).ToArray();
+        var isValid = topLevelErrors.Count == 0 &&
+            rowResponses.All(row => row.Errors.Count == 0);
+        return new BatchValidationResult(
+            new BatchWordValidationResponse(isValid, topLevelErrors, rowResponses),
+            normalizedRows);
+    }
+
+    /// <summary>
+    /// 一次加载批量请求引用的全部音频并将错误定位到具体嵌套字段。
+    /// </summary>
+    private async Task ValidateBatchAudioAsync(
+        IReadOnlyCollection<BatchNormalizedRow> rows,
+        IDictionary<int, List<BatchError>> errorsByRow,
+        CancellationToken cancellationToken)
+    {
+        var audioIds = rows.SelectMany(row => row.Request.Pronunciations
+                .Select(value => value.AudioClipId)
+                .Concat(row.Request.Senses.SelectMany(value => value.Examples)
+                    .Where(value => value.AudioClipId.HasValue)
+                    .Select(value => value.AudioClipId.GetValueOrDefault())))
+            .Distinct().ToArray();
+        var audioById = audioIds.Length == 0
+            ? new Dictionary<Guid, AudioClip>()
+            : await _db.AudioClips.AsNoTracking()
+                .Where(value => audioIds.Contains(value.Id))
+                .ToDictionaryAsync(value => value.Id, cancellationToken);
+
+        foreach (var row in rows)
+        {
+            var pronunciations = row.Request.Pronunciations.ToArray();
+            for (var index = 0; index < pronunciations.Length; index++)
+            {
+                var pronunciation = pronunciations[index];
+                var code = GetAudioErrorCode(
+                    audioById,
+                    pronunciation.AudioClipId,
+                    AudioClipKind.WordPronunciation,
+                    row.Identity.LanguageTag);
+                if (code.HasValue)
+                {
+                    AddBatchError(
+                        errorsByRow[row.RowIndex],
+                        $"pronunciations[{index}].audioClipId",
+                        code.Value);
+                }
+            }
+
+            var senses = row.Request.Senses.ToArray();
+            for (var senseIndex = 0; senseIndex < senses.Length; senseIndex++)
+            {
+                var examples = senses[senseIndex].Examples.ToArray();
+                for (var exampleIndex = 0; exampleIndex < examples.Length; exampleIndex++)
+                {
+                    var example = examples[exampleIndex];
+                    if (!example.AudioClipId.HasValue)
+                    {
+                        continue;
+                    }
+                    var code = GetAudioErrorCode(
+                        audioById,
+                        example.AudioClipId.Value,
+                        AudioClipKind.ExampleSentence,
+                        example.LanguageTag);
+                    if (code.HasValue)
+                    {
+                        AddBatchError(
+                            errorsByRow[row.RowIndex],
+                            $"senses[{senseIndex}].examples[{exampleIndex}].audioClipId",
+                            code.Value);
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 返回一个批量音频引用的首个稳定业务错误码。
+    /// </summary>
+    private static ErrorCodes? GetAudioErrorCode(
+        IReadOnlyDictionary<Guid, AudioClip> audioById,
+        Guid audioId,
+        AudioClipKind expectedKind,
+        string expectedLanguageTag)
+    {
+        if (!audioById.TryGetValue(audioId, out var audio))
+        {
+            return ErrorCodes.WordAudioNotFound;
+        }
+        if (audio.ProcessingStatus != AudioProcessingStatus.Ready ||
+            audio.PublicationStatus != AudioPublicationStatus.Published)
+        {
+            return ErrorCodes.WordAudioUnavailable;
+        }
+        if (audio.Kind != expectedKind)
+        {
+            return ErrorCodes.WordAudioKindMismatch;
+        }
+        return WordTextNormalizer.AreLanguageTagsCompatible(
+            audio.LanguageTag,
+            expectedLanguageTag)
+            ? null
+            : ErrorCodes.WordAudioLanguageMismatch;
+    }
 
     /// <summary>
     /// 规范化并验证词头及语言唯一键的持久化形态。
@@ -886,9 +1277,10 @@ public sealed class WordService : IWordService
             word.LanguageTag,
             word.Headword,
             word.Status,
-            word.CreatedById,
-            word.LastEditorId,
+            new ContentAuditUserResponse(word.CreatedById, null, null),
+            new ContentAuditUserResponse(word.LastEditorId, null, null),
             word.PublishedAt,
+            word.ArchivedAt,
             word.ConcurrencyStamp,
             word.Senses.OrderBy(sense => sense.SortOrder)
                 .ThenBy(sense => sense.Id)
@@ -923,6 +1315,54 @@ public sealed class WordService : IWordService
                 .ToList(),
             word.CreatedAt,
             word.UpdatedAt);
+
+    /// <summary>
+    /// 一次性加载管理响应所需的最小审计用户资料。
+    /// </summary>
+    private async Task<IReadOnlyDictionary<Guid, ContentAuditUserResponse>>
+        LoadAuditUsersAsync(
+            IReadOnlyCollection<Guid> userIds,
+            CancellationToken cancellationToken)
+        => await _db.Users.AsNoTracking()
+            .Where(user => userIds.Contains(user.Id))
+            .Select(user => new ContentAuditUserResponse(
+                user.Id,
+                user.Nickname,
+                user.AvatarUrl))
+            .ToDictionaryAsync(user => user.Id, cancellationToken);
+
+    /// <summary>
+    /// 将详情 projection 中的审计标识替换为安全用户摘要。
+    /// </summary>
+    private static AdminWordResponse EnrichAuditUsers(
+        AdminWordResponse response,
+        IReadOnlyDictionary<Guid, ContentAuditUserResponse> users)
+        => response with
+        {
+            CreatedBy = GetAuditUser(response.CreatedBy.Id, users),
+            LastEditor = GetAuditUser(response.LastEditor.Id, users)
+        };
+
+    /// <summary>
+    /// 返回审计用户摘要；历史测试或异常孤立数据仅保留稳定标识。
+    /// </summary>
+    private static ContentAuditUserResponse GetAuditUser(
+        Guid userId,
+        IReadOnlyDictionary<Guid, ContentAuditUserResponse> users)
+        => users.TryGetValue(userId, out var user)
+            ? user
+            : new ContentAuditUserResponse(userId, null, null);
+
+    /// <summary>
+    /// 在任何幂等或状态判断之前验证客户端看到的并发版本。
+    /// </summary>
+    private static void EnsureExpectedStamp(Word word, Guid expectedStamp)
+    {
+        if (word.ConcurrencyStamp != expectedStamp)
+        {
+            throw ConflictException.Create(ErrorCodes.WordConcurrencyConflict);
+        }
+    }
 
     /// <summary>
     /// 创建可由 EF Core 翻译的用户详情 projection。
@@ -1016,6 +1456,182 @@ public sealed class WordService : IWordService
     }
 
     /// <summary>
+    /// 将不含标识的批量行转换为单条创建规则可校验的请求。
+    /// </summary>
+    private static CreateWordRequest ToCreateRequest(BatchWordRowRequest row)
+        => new()
+        {
+            LanguageTag = row.LanguageTag,
+            Headword = row.Headword,
+            Senses = row.Senses.Select(sense => new WordSenseInput
+            {
+                PartOfSpeech = sense.PartOfSpeech,
+                Definition = sense.Definition,
+                DefinitionLanguageTag = sense.DefinitionLanguageTag,
+                UsageNote = sense.UsageNote,
+                SortOrder = sense.SortOrder,
+                Examples = sense.Examples.Select(example => new ExampleSentenceInput
+                {
+                    Sentence = example.Sentence,
+                    LanguageTag = example.LanguageTag,
+                    Translation = example.Translation,
+                    TranslationLanguageTag = example.TranslationLanguageTag,
+                    AudioClipId = example.AudioClipId,
+                    SortOrder = example.SortOrder
+                }).ToArray()
+            }).ToArray(),
+            Pronunciations = row.Pronunciations.Select(pronunciation =>
+                new WordPronunciationInput
+                {
+                    AudioClipId = pronunciation.AudioClipId,
+                    AccentTag = pronunciation.AccentTag,
+                    Ipa = pronunciation.Ipa,
+                    IsDefault = pronunciation.IsDefault,
+                    SortOrder = pronunciation.SortOrder
+                }).ToArray()
+        };
+
+    /// <summary>
+    /// 生成与最终持久化完全一致的批量规范化预览。
+    /// </summary>
+    private static CreateWordRequest NormalizeCreateRequest(
+        CreateWordRequest request,
+        WordIdentity identity)
+        => new()
+        {
+            LanguageTag = identity.LanguageTag,
+            Headword = identity.Headword,
+            Senses = request.Senses.Select(sense => sense with
+            {
+                Definition = WordTextNormalizer.NormalizeRequiredText(sense.Definition),
+                DefinitionLanguageTag = WordTextNormalizer.NormalizeLanguageTag(
+                    sense.DefinitionLanguageTag),
+                UsageNote = WordTextNormalizer.NormalizeOptionalText(sense.UsageNote),
+                Examples = sense.Examples.Select(example => example with
+                {
+                    Sentence = WordTextNormalizer.NormalizeRequiredText(example.Sentence),
+                    LanguageTag = WordTextNormalizer.NormalizeLanguageTag(
+                        example.LanguageTag),
+                    Translation = WordTextNormalizer.NormalizeRequiredText(
+                        example.Translation),
+                    TranslationLanguageTag = WordTextNormalizer.NormalizeLanguageTag(
+                        example.TranslationLanguageTag)
+                }).ToArray()
+            }).ToArray(),
+            Pronunciations = request.Pronunciations.Select(pronunciation =>
+                pronunciation with
+                {
+                    AccentTag = WordTextNormalizer.NormalizeOptionalText(
+                        pronunciation.AccentTag),
+                    Ipa = WordTextNormalizer.NormalizeOptionalText(pronunciation.Ipa)
+                }).ToArray()
+        };
+
+    /// <summary>
+    /// 统计批量原始请求中所有会持久化的文本字符数。
+    /// </summary>
+    private static int CountBatchCharacters(IEnumerable<BatchWordRowRequest> rows)
+        => rows.Sum(row =>
+            TextLength(row.LanguageTag) +
+            TextLength(row.Headword) +
+            (row.Senses?.Sum(sense =>
+                TextLength(sense?.Definition) +
+                TextLength(sense?.DefinitionLanguageTag) +
+                TextLength(sense?.UsageNote) +
+                (sense?.Examples?.Sum(example =>
+                    TextLength(example?.Sentence) +
+                    TextLength(example?.LanguageTag) +
+                    TextLength(example?.Translation) +
+                    TextLength(example?.TranslationLanguageTag)) ?? 0)) ?? 0) +
+            (row.Pronunciations?.Sum(pronunciation =>
+                TextLength(pronunciation?.AccentTag) +
+                TextLength(pronunciation?.Ipa)) ?? 0));
+
+    /// <summary>
+    /// 统计规范化单条请求中所有会持久化的文本字符数。
+    /// </summary>
+    private static int CountRequestCharacters(CreateWordRequest request)
+        => TextLength(request.LanguageTag) +
+            TextLength(request.Headword) +
+            request.Senses.Sum(sense =>
+                TextLength(sense.Definition) +
+                TextLength(sense.DefinitionLanguageTag) +
+                TextLength(sense.UsageNote) +
+                sense.Examples.Sum(example =>
+                    TextLength(example.Sentence) +
+                    TextLength(example.LanguageTag) +
+                    TextLength(example.Translation) +
+                    TextLength(example.TranslationLanguageTag))) +
+            request.Pronunciations.Sum(pronunciation =>
+                TextLength(pronunciation.AccentTag) + TextLength(pronunciation.Ipa));
+
+    /// <summary>
+    /// 返回可空字符串的安全字符数。
+    /// </summary>
+    private static int TextLength(string? value) => value?.Length ?? 0;
+
+    /// <summary>
+    /// 将 FluentValidation 属性路径规范化为 JSON camelCase 字段路径。
+    /// </summary>
+    private static string ToBatchFieldPath(string propertyName)
+        => string.Join(
+            ".",
+            propertyName.Split('.').Select(segment => segment.Length == 0
+                ? segment
+                : char.ToLowerInvariant(segment[0]) + segment[1..]));
+
+    /// <summary>
+    /// 向行错误集合加入一个不重复的字段错误。
+    /// </summary>
+    private static void AddBatchError(
+        ICollection<BatchError> errors,
+        string field,
+        ErrorCodes errorCode)
+    {
+        if (!errors.Any(error => error.Field == field && error.ErrorCode == errorCode))
+        {
+            errors.Add(new BatchError(field, errorCode));
+        }
+    }
+
+    /// <summary>
+    /// 将内部字段错误按字段分组为公开响应。
+    /// </summary>
+    private static IReadOnlyList<BatchWordFieldErrorResponse> ToBatchErrorResponses(
+        IEnumerable<BatchError> errors)
+        => errors.GroupBy(error => error.Field, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => new BatchWordFieldErrorResponse(
+                group.Key,
+                group.Select(error => error.ErrorCode).Distinct().ToArray(),
+                group.Select(error => error.ErrorCode.GetMessage()).Distinct().ToArray()))
+            .ToArray();
+
+    /// <summary>
+    /// 创建只有一个稳定错误码的公开批量字段错误。
+    /// </summary>
+    private static BatchWordFieldErrorResponse CreateBatchError(
+        string field,
+        ErrorCodes errorCode)
+        => new(field, [errorCode], [errorCode.GetMessage()]);
+
+    /// <summary>
+    /// 将批量验证响应转换为 Problem Details 的稳定字段错误字典。
+    /// </summary>
+    private static IDictionary<string, string[]> ToBatchErrorDictionary(
+        BatchWordValidationResponse response)
+    {
+        var errors = response.Errors.Select(error => (error.Field, error.Messages))
+            .Concat(response.Rows.SelectMany(row => row.Errors.Select(error =>
+                ($"rows[{row.RowIndex}].{error.Field}", error.Messages))));
+        return errors.GroupBy(error => error.Item1, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.SelectMany(error => error.Messages).Distinct().ToArray(),
+                StringComparer.Ordinal);
+    }
+
+    /// <summary>
     /// 判断排序值是否位于请求允许范围。
     /// </summary>
     private static bool IsValidSortOrder(int value)
@@ -1043,4 +1659,24 @@ public sealed class WordService : IWordService
         string LanguageTag,
         string Headword,
         string NormalizedHeadword);
+
+    /// <summary>
+    /// 保存一个已规范化批量行及其规范化唯一身份。
+    /// </summary>
+    private sealed record BatchNormalizedRow(
+        int RowIndex,
+        CreateWordRequest Request,
+        WordIdentity Identity);
+
+    /// <summary>
+    /// 保存批量校验的公开响应和可用于原子写入的规范化行。
+    /// </summary>
+    private sealed record BatchValidationResult(
+        BatchWordValidationResponse Response,
+        IReadOnlyList<BatchNormalizedRow> Rows);
+
+    /// <summary>
+    /// 表示批量校验内部的一个字段错误。
+    /// </summary>
+    private sealed record BatchError(string Field, ErrorCodes ErrorCode);
 }

@@ -20,6 +20,7 @@ public sealed class WordSenseConfiguration : IEntityTypeConfiguration<WordSense>
         builder.Property(value => value.DefinitionLanguageTag).HasMaxLength(35).IsRequired();
         builder.Property(value => value.UsageNote).HasMaxLength(1000);
         builder.HasIndex(value => new { value.WordId, value.SortOrder }).IsUnique();
+        builder.HasIndex(value => new { value.PartOfSpeech, value.WordId });
         builder.HasOne(value => value.Word)
             .WithMany(value => value.Senses)
             .HasForeignKey(value => value.WordId)

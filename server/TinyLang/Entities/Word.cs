@@ -25,6 +25,7 @@ public sealed class Word : BaseAuditableEntity
     public Guid LastEditorId { get; set; }
     public User? LastEditor { get; set; }
     public DateTimeOffset? PublishedAt { get; set; }
+    public DateTimeOffset? ArchivedAt { get; set; }
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
     public ICollection<WordSense> Senses { get; set; } = [];
     public ICollection<WordPronunciation> Pronunciations { get; set; } = [];

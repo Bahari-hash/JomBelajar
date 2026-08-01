@@ -20,7 +20,9 @@ function DetailRow({ label, children }) {
   return (
     <div className="grid gap-1 border-b py-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
       <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 wrap-break-word text-sm">{children ?? "未设置"}</dd>
+      <dd className="min-w-0 wrap-break-word text-sm">
+        {children ?? "未设置"}
+      </dd>
     </div>
   );
 }

@@ -53,6 +53,7 @@
     "editor.tabSize": 2,
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
+  "js/ts.experimental.useTsgo": true,
   "[typescript]": {
     "editor.tabSize": 2,
     "editor.defaultFormatter": "esbenp.prettier-vscode"
@@ -74,5 +75,5 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
 
-  "cSpell.words": ["serilog", "scriban", "xunit", "npgsql"]
+  "cSpell.words": ["serilog", "scriban", "xunit", "npgsql"],
 }

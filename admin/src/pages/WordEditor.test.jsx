@@ -149,4 +149,86 @@ describe("WordEditor", () => {
       pronunciations: [{ id: saved.pronunciations[0].id, sortOrder: 0 }],
     });
   });
+
+  it("stores a selected published AudioClip id in a new pronunciation", async () => {
+    tokenVault.install("access", "refresh");
+    const audioId = "77777777-7777-4777-8777-777777777777";
+    const requestMock = mockHttpClient((config) => {
+      if (config.url.includes("/capabilities"))
+        return Promise.resolve(
+          axiosResponse({
+            module: "Audio",
+            maxSizeBytes: 20 * 1024 * 1024,
+            allowedTypes: [{ extension: ".wav", contentTypes: ["audio/wav"] }],
+            multipartThresholdBytes: 256 * 1024 * 1024,
+            partSizeBytes: 16 * 1024 * 1024,
+            maxPartCount: 10000,
+            partPresignBatchLimit: 20,
+          }),
+        );
+      if (config.url.startsWith("/admin/audio?"))
+        return Promise.resolve(
+          axiosResponse({
+            items: [
+              {
+                id: audioId,
+                title: "bonjour 发音",
+                languageTag: "fr",
+                kind: "WordPronunciation",
+                processingStatus: "Ready",
+                publicationStatus: "Published",
+                durationSeconds: 1.2,
+                failureCode: null,
+                updatedAt: "2026-08-01T10:00:00Z",
+              },
+            ],
+            page: 1,
+            pageSize: 20,
+            totalCount: 1,
+            totalPages: 1,
+          }),
+        );
+      return Promise.resolve(
+        axiosResponse(
+          {
+            ...createdWord(),
+            pronunciations: [
+              {
+                id: "66666666-6666-4666-8666-666666666666",
+                audioClipId: audioId,
+                accentTag: null,
+                ipa: null,
+                isDefault: false,
+                sortOrder: 0,
+              },
+            ],
+          },
+          201,
+        ),
+      );
+    });
+    const user = userEvent.setup();
+    renderAppAt("/words/new");
+    await user.type(await screen.findByLabelText("语言标签 *"), "fr");
+    await user.type(screen.getByLabelText("词头 *"), "bonjour");
+    await user.click(screen.getByRole("button", { name: "添加发音" }));
+    await user.click(screen.getByRole("button", { name: "选择" }));
+    expect(await screen.findByText("bonjour 发音")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "选择" }));
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await screen.findByText("单词草稿已创建。");
+
+    const createRequest = requestMock.mock.calls
+      .map(([config]) => config)
+      .find((config) => config.url === "/admin/words");
+    expect(createRequest.data.pronunciations).toEqual([
+      {
+        audioClipId: audioId,
+        accentTag: null,
+        ipa: null,
+        isDefault: false,
+        sortOrder: 0,
+      },
+    ]);
+  });
 });

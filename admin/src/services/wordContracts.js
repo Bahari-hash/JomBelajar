@@ -6,13 +6,13 @@ export const AUDIO_KINDS = Object.freeze([
   "ExampleSentence",
 ]);
 
-const AUDIO_PROCESSING_STATUSES = Object.freeze([
+export const AUDIO_PROCESSING_STATUSES = Object.freeze([
   "Queued",
   "Processing",
   "Ready",
   "Failed",
 ]);
-const AUDIO_PUBLICATION_STATUSES = Object.freeze([
+export const AUDIO_PUBLICATION_STATUSES = Object.freeze([
   "Draft",
   "Published",
   "Unpublished",
@@ -50,7 +50,8 @@ function number(value, name, options = {}) {
   if (
     !Number.isFinite(value) ||
     value < 0 ||
-    (options.integer && !Number.isInteger(value))
+    (options.integer && !Number.isInteger(value)) ||
+    (options.positive && value <= 0)
   )
     invalid(name);
   return value;
@@ -252,6 +253,108 @@ function audioOption(value) {
     }),
     failureCode: string(source.failureCode, "audio failure code", true),
     updatedAt: date(source.updatedAt, "audio updated at"),
+  };
+}
+
+export function normalizeAdminAudioClip(value) {
+  const source = object(value, "audio details");
+  return {
+    id: uuid(source.id, "audio id"),
+    sourceMediaResourceId: uuid(
+      source.sourceMediaResourceId,
+      "audio source media resource id",
+    ),
+    title: string(source.title, "audio title"),
+    description: string(source.description, "audio description", true),
+    languageTag: string(source.languageTag, "audio language"),
+    kind: enumeration(source.kind, AUDIO_KINDS, "audio kind"),
+    processingStatus: enumeration(
+      source.processingStatus,
+      AUDIO_PROCESSING_STATUSES,
+      "audio processing status",
+    ),
+    publicationStatus: enumeration(
+      source.publicationStatus,
+      AUDIO_PUBLICATION_STATUSES,
+      "audio publication status",
+    ),
+    durationSeconds: number(source.durationSeconds, "audio duration", {
+      nullable: true,
+    }),
+    sampleRate: number(source.sampleRate, "audio sample rate", {
+      nullable: true,
+      integer: true,
+    }),
+    channels: number(source.channels, "audio channels", {
+      nullable: true,
+      integer: true,
+    }),
+    containerFormat: string(
+      source.containerFormat,
+      "audio container format",
+      true,
+    ),
+    sourceCodec: string(source.sourceCodec, "audio source codec", true),
+    failureCode: string(source.failureCode, "audio failure code", true),
+    publishedAt: date(source.publishedAt, "audio published at", true),
+    createdAt: date(source.createdAt, "audio created at"),
+    updatedAt: date(source.updatedAt, "audio updated at"),
+  };
+}
+
+export function normalizeAudioUploadCapability(value) {
+  const source = object(value, "Audio upload capability");
+  if (source.module !== "Audio") invalid("Audio upload capability module");
+  return {
+    module: source.module,
+    maxSizeBytes: number(source.maxSizeBytes, "Audio maximum upload size", {
+      integer: true,
+      positive: true,
+    }),
+    allowedTypes: array(
+      source.allowedTypes,
+      (item) => {
+        const allowed = object(item, "Audio allowed media type");
+        return {
+          extension: string(allowed.extension, "Audio allowed extension"),
+          contentTypes: array(
+            allowed.contentTypes,
+            (contentType) => string(contentType, "Audio allowed content type"),
+            "Audio allowed content types",
+          ),
+        };
+      },
+      "Audio allowed types",
+    ),
+    multipartThresholdBytes: number(
+      source.multipartThresholdBytes,
+      "Audio multipart threshold",
+      { integer: true, positive: true },
+    ),
+  };
+}
+
+export function normalizeAudioPresign(value) {
+  const source = object(value, "Audio upload presign");
+  return {
+    resourceId: uuid(source.resourceId, "Audio media resource id"),
+    presignedUrl: httpUrl(source.presignedUrl, "Audio presigned URL"),
+  };
+}
+
+export function normalizeConfirmedAudioResource(value) {
+  const source = object(value, "confirmed Audio media resource");
+  if (source.module !== "Audio" || source.status !== "Active")
+    invalid("active Audio media resource");
+  return {
+    id: uuid(source.id, "Audio media resource id"),
+    originalName: string(source.originalName, "Audio original name"),
+    size: number(source.size, "Audio media size", {
+      integer: true,
+      positive: true,
+    }),
+    extension: string(source.extension, "Audio media extension"),
+    contentType: string(source.contentType, "Audio media content type"),
   };
 }
 

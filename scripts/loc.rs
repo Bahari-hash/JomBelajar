@@ -48,7 +48,6 @@ fn main() {
 
     let mut builder = WalkBuilder::from_iter(dirs.iter());
     let ext_counts = Arc::new(Mutex::new(HashMap::<String, usize>::new()));
-    // let total_lines = Arc::new(AtomicUsize::from(0));
 
     let walker = builder
         .threads(
@@ -115,7 +114,7 @@ fn count_lines(path: &Path) -> usize {
     let mut reader = BufReader::with_capacity(BUF_SIZE, file);
     let mut buffer = [0; BUF_SIZE];
     let mut count = 0_usize;
-    let mut is_first_chunck = true;
+    let mut is_first_chunk = true;
     while let Ok(bytes_read) = reader.read(&mut buffer) {
         if bytes_read == 0 {
             break;
@@ -123,10 +122,10 @@ fn count_lines(path: &Path) -> usize {
 
         let chunk = &buffer[..bytes_read];
         // skip binary files such as .exe, .jpg and .etc.
-        if is_first_chunck && chunk.contains(&0) {
+        if is_first_chunk && chunk.contains(&0) {
             return 0;
         }
-        is_first_chunck = false;
+        is_first_chunk = false;
 
         count += chunk.iter().filter(|&&b| b == b'\n').count();
     }

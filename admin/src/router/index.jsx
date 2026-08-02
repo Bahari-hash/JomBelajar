@@ -100,6 +100,18 @@ export const routes = [
                 lazy: lazyComponent(() => import("@/pages/WordEditor.jsx")),
               },
               {
+                path: "papers",
+                lazy: lazyComponent(() => import("@/pages/Papers.jsx")),
+              },
+              {
+                path: "papers/new",
+                lazy: lazyComponent(() => import("@/pages/PaperEditor.jsx")),
+              },
+              {
+                path: "papers/:paperId",
+                lazy: lazyComponent(() => import("@/pages/PaperEditor.jsx")),
+              },
+              {
                 path: "*",
                 lazy: lazyComponent(() => import("@/pages/NotFound.jsx")),
               },

@@ -10,38 +10,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.jsx";
-import {
-  PART_OF_SPEECH_OPTIONS,
-  WORD_STATUS_OPTIONS,
-} from "@/constants/wordStatus.js";
+import { PAPER_STATUS_OPTIONS } from "@/constants/paperStatus.js";
 
 const ALL = "all";
 const PAGE_SIZES = [20, 50, 100];
 
-/** Edits word filters while the applied state remains shareable in the URL. */
-export function WordFilters({ filters, onApply, onReset }) {
+/** Edits paper list filters before applying them to shareable URL state. */
+export function PaperFilters({ filters, onApply, onReset }) {
   const [draft, setDraft] = useState(filters);
-  const {
-    definition,
-    keyword,
-    language,
-    page,
-    pageSize,
-    partOfSpeech,
-    status,
-  } = filters;
+  const { keyword, language, page, pageSize, status } = filters;
   useEffect(
-    () =>
-      setDraft({
-        definition,
-        keyword,
-        language,
-        page,
-        pageSize,
-        partOfSpeech,
-        status,
-      }),
-    [definition, keyword, language, page, pageSize, partOfSpeech, status],
+    () => setDraft({ keyword, language, page, pageSize, status }),
+    [keyword, language, page, pageSize, status],
   );
   const update = (key, value) =>
     setDraft((current) => ({ ...current, [key]: value }));
@@ -52,65 +32,41 @@ export function WordFilters({ filters, onApply, onReset }) {
       ...draft,
       keyword: draft.keyword.trim(),
       language: draft.language.trim(),
-      definition: draft.definition.trim(),
       status: draft.status === ALL ? "" : draft.status,
-      partOfSpeech: draft.partOfSpeech === ALL ? "" : draft.partOfSpeech,
       pageSize: Number(draft.pageSize),
     });
   };
 
   const handleReset = () => {
-    setDraft({
-      page: 1,
-      pageSize: 20,
-      keyword: "",
-      language: "",
-      status: "",
-      partOfSpeech: "",
-      definition: "",
-    });
+    setDraft({ page: 1, pageSize: 20, keyword: "", language: "", status: "" });
     onReset();
   };
 
   return (
     <form onSubmit={handleSubmit} className="border-y py-4">
-      <div className="grid items-start gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-[16rem_repeat(3,8rem)_10rem_6rem_auto]">
+      <div className="grid items-start gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-[16rem_repeat(2,8rem)_6rem_auto]">
         <TextFilter
-          id="word-keyword"
+          id="paper-keyword"
           label="关键词"
           value={draft.keyword}
           maxLength={200}
-          placeholder="词头关键词"
+          placeholder="试卷标题"
           onChange={(value) => update("keyword", value)}
         />
         <TextFilter
-          id="word-language"
+          id="paper-language"
           label="语言"
           value={draft.language}
           maxLength={35}
-          placeholder="例如 jp"
+          placeholder="例如 en"
           onChange={(value) => update("language", value)}
         />
         <FilterSelect
           label="状态"
           value={draft.status || ALL}
-          options={WORD_STATUS_OPTIONS}
+          options={PAPER_STATUS_OPTIONS}
           allLabel="全部状态"
           onChange={(value) => update("status", value)}
-        />
-        <FilterSelect
-          label="词性"
-          value={draft.partOfSpeech || ALL}
-          options={PART_OF_SPEECH_OPTIONS}
-          allLabel="全部词性"
-          onChange={(value) => update("partOfSpeech", value)}
-        />
-        <TextFilter
-          id="word-definition"
-          label="释义关键词"
-          value={draft.definition}
-          maxLength={200}
-          onChange={(value) => update("definition", value)}
         />
         <FilterSelect
           label="每页"
@@ -160,7 +116,7 @@ function TextFilter({ id, label, value, onChange, ...props }) {
 }
 
 function FilterSelect({ label, value, options, allLabel, onChange }) {
-  const id = `word-${label}`;
+  const id = `paper-${label}`;
   return (
     <div className="min-w-0 space-y-1.5">
       <Label id={`${id}-label`}>{label}</Label>

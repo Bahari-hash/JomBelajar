@@ -112,6 +112,44 @@ public sealed class OnlineQuizValidatorsTests
     }
 
     /// <summary>
+    /// 验证状态动作必须提供非空并发标识。
+    /// </summary>
+    [Fact]
+    public void MutationValidatorShouldRequireConcurrencyStamp()
+    {
+        var validator = new PaperMutationRequestValidator();
+
+        validator.Validate(new PaperMutationRequest()).IsValid.Should().BeFalse();
+        validator.Validate(new PaperMutationRequest
+        {
+            ConcurrencyStamp = Guid.NewGuid()
+        }).IsValid.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// 验证保存答案不能使用空 PUT 隐式表达清除。
+    /// </summary>
+    [Fact]
+    public void SaveAnswerValidatorShouldRequireExactlyOneAnswer()
+    {
+        new SavePaperAttemptAnswerRequestValidator()
+            .Validate(new SavePaperAttemptAnswerRequest())
+            .IsValid.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// 验证管理员列表可显式筛选归档状态。
+    /// </summary>
+    [Fact]
+    public void AdminListValidatorShouldAcceptArchivedStatus()
+    {
+        new AdminPaperListRequestValidator().Validate(new AdminPaperListRequest
+        {
+            Status = PaperPublicationStatus.Archived
+        }).IsValid.Should().BeTrue();
+    }
+
+    /// <summary>
     /// 创建包含单选、判断和填空题的有效请求。
     /// </summary>
     private static CreatePaperRequest CreateCompleteRequest()

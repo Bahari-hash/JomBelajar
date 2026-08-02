@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using TinyLang.Constants;
 using TinyLang.Dtos;
@@ -27,8 +28,10 @@ public static class OnlineQuizEndpoints
         admin.MapGet("", GetAdminPapersAsync);
         admin.MapGet("/{paperId:guid}", GetAdminPaperAsync);
         admin.MapPut("/{paperId:guid}", UpdatePaperAsync);
+        admin.MapPost("/{paperId:guid}/validate", ValidatePaperAsync);
         admin.MapPost("/{paperId:guid}/publish", PublishPaperAsync);
         admin.MapPost("/{paperId:guid}/unpublish", UnpublishPaperAsync);
+        admin.MapPost("/{paperId:guid}/archive", ArchivePaperAsync);
         admin.MapDelete("/{paperId:guid}", DeletePaperAsync);
 
         var papers = endpoints.MapGroup("/papers")
@@ -44,6 +47,9 @@ public static class OnlineQuizEndpoints
         attempts.MapPut(
             "/{attemptId:guid}/answers/{questionId:guid}",
             SaveAnswerAsync);
+        attempts.MapDelete(
+            "/{attemptId:guid}/answers/{questionId:guid}",
+            ClearAnswerAsync);
         attempts.MapPost("/{attemptId:guid}/submit", SubmitAttemptAsync);
         attempts.MapGet("/{attemptId:guid}/result", GetAttemptResultAsync);
         return endpoints;
@@ -106,16 +112,31 @@ public static class OnlineQuizEndpoints
             cancellationToken));
 
     /// <summary>
+    /// 使用当前客户端版本只读检查试卷发布要求。
+    /// </summary>
+    public static async Task<Ok<PaperValidationResponse>> ValidatePaperAsync(
+        Guid paperId,
+        PaperMutationRequest request,
+        IPaperService paperService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await paperService.ValidateAsync(
+            paperId,
+            request,
+            cancellationToken));
+
+    /// <summary>
     /// 以当前管理员身份幂等发布试卷。
     /// </summary>
     public static async Task<Ok<AdminPaperResponse>> PublishPaperAsync(
         Guid paperId,
+        PaperMutationRequest request,
         ClaimsPrincipal principal,
         IPaperService paperService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await paperService.PublishAsync(
             paperId,
             EndpointIdentity.GetUserId(principal),
+            request,
             cancellationToken));
 
     /// <summary>
@@ -123,12 +144,29 @@ public static class OnlineQuizEndpoints
     /// </summary>
     public static async Task<Ok<AdminPaperResponse>> UnpublishPaperAsync(
         Guid paperId,
+        PaperMutationRequest request,
         ClaimsPrincipal principal,
         IPaperService paperService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await paperService.UnpublishAsync(
             paperId,
             EndpointIdentity.GetUserId(principal),
+            request,
+            cancellationToken));
+
+    /// <summary>
+    /// 以当前管理员身份将可退出试卷迁移到不可恢复终态。
+    /// </summary>
+    public static async Task<Ok<AdminPaperResponse>> ArchivePaperAsync(
+        Guid paperId,
+        PaperMutationRequest request,
+        ClaimsPrincipal principal,
+        IPaperService paperService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await paperService.ArchiveAsync(
+            paperId,
+            EndpointIdentity.GetUserId(principal),
+            request,
             cancellationToken));
 
     /// <summary>
@@ -136,6 +174,7 @@ public static class OnlineQuizEndpoints
     /// </summary>
     public static async Task<NoContent> DeletePaperAsync(
         Guid paperId,
+        [FromBody] PaperMutationRequest request,
         ClaimsPrincipal principal,
         IPaperService paperService,
         CancellationToken cancellationToken)
@@ -143,6 +182,7 @@ public static class OnlineQuizEndpoints
         await paperService.DeleteAsync(
             paperId,
             EndpointIdentity.GetUserId(principal),
+            request,
             cancellationToken);
         return TypedResults.NoContent();
     }
@@ -235,6 +275,24 @@ public static class OnlineQuizEndpoints
             attemptId,
             questionId,
             request,
+            cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// 幂等清除活动测验中一道题的已保存答案。
+    /// </summary>
+    public static async Task<NoContent> ClearAnswerAsync(
+        Guid attemptId,
+        Guid questionId,
+        ClaimsPrincipal principal,
+        IPaperAttemptService attemptService,
+        CancellationToken cancellationToken)
+    {
+        await attemptService.ClearAnswerAsync(
+            EndpointIdentity.GetUserId(principal),
+            attemptId,
+            questionId,
             cancellationToken);
         return TypedResults.NoContent();
     }

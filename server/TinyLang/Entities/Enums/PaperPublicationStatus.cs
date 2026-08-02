@@ -7,5 +7,6 @@ public enum PaperPublicationStatus
 {
     Draft,
     Published,
-    Unpublished
+    Unpublished,
+    Archived
 }

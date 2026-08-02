@@ -6,6 +6,7 @@ using TinyLang.Database;
 using TinyLang.Dtos;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
+using TinyLang.Exceptions;
 using TinyLang.Infrastructure;
 using TinyLang.Services;
 
@@ -56,12 +57,14 @@ public sealed class OnlineQuizDatabaseIntegrationTests
 
             Guid paperId;
             Guid userId;
+            Guid adminId;
             Guid activeAttemptId;
             Guid trueFalseQuestionId;
             await using (var db = new ApplicationDbContext(options))
             {
                 var admin = await CreateUserAsync(db, UserRole.Admin);
                 var user = await CreateUserAsync(db, UserRole.User);
+                adminId = admin.Id;
                 userId = user.Id;
                 var paperService = CreatePaperService(db);
                 var draft = await paperService.CreateDraftAsync(
@@ -76,6 +79,10 @@ public sealed class OnlineQuizDatabaseIntegrationTests
                 var published = await paperService.PublishAsync(
                     reordered.Id,
                     admin.Id,
+                    new PaperMutationRequest
+                    {
+                        ConcurrencyStamp = reordered.ConcurrencyStamp
+                    },
                     TestContext.Current.CancellationToken);
                 paperId = published.Id;
                 trueFalseQuestionId = published.Questions.Single(value =>
@@ -124,6 +131,7 @@ public sealed class OnlineQuizDatabaseIntegrationTests
             await VerifyConcurrentSubmitAsync(options, userId, activeAttemptId);
             await VerifyAttemptConcurrencyAsync(options, activeAttemptId);
             await VerifyPaperDeleteRestrictedAsync(options, paperId);
+            await VerifyArchivedLifecycleAsync(options, adminId, userId);
         }
         finally
         {
@@ -307,6 +315,143 @@ public sealed class OnlineQuizDatabaseIntegrationTests
         var action = async () => await db.SaveChangesAsync(
             TestContext.Current.CancellationToken);
         await action.Should().ThrowAsync<DbUpdateException>();
+    }
+
+    /// <summary>
+    /// 验证 Start 写入 Paper stamp 后旧管理页面不能下架，并验证归档后的历史 Attempt 仍可用。
+    /// </summary>
+    private static async Task VerifyArchivedLifecycleAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        Guid adminId,
+        Guid userId)
+    {
+        Guid paperId;
+        Guid attemptId;
+        Guid trueFalseQuestionId;
+        AdminPaperResponse published;
+        await using (var db = new ApplicationDbContext(options))
+        {
+            var paperService = CreatePaperService(db);
+            var draft = await paperService.CreateDraftAsync(
+                adminId,
+                CreateCompleteRequest(),
+                TestContext.Current.CancellationToken);
+            published = await paperService.PublishAsync(
+                draft.Id,
+                adminId,
+                new PaperMutationRequest
+                {
+                    ConcurrencyStamp = draft.ConcurrencyStamp
+                },
+                TestContext.Current.CancellationToken);
+            paperId = published.Id;
+            trueFalseQuestionId = published.Questions.Single(value =>
+                value.Type == PaperQuestionType.TrueFalse).Id;
+        }
+
+        await using (var startDb = new ApplicationDbContext(options))
+        {
+            var attempt = await CreateAttemptService(startDb).StartAsync(
+                userId,
+                paperId,
+                TestContext.Current.CancellationToken);
+            attemptId = attempt.Attempt.Id;
+        }
+
+        await using (var staleDb = new ApplicationDbContext(options))
+        {
+            var paperService = CreatePaperService(staleDb);
+            var staleAction = async () => await paperService.UnpublishAsync(
+                paperId,
+                adminId,
+                new PaperMutationRequest
+                {
+                    ConcurrencyStamp = published.ConcurrencyStamp
+                },
+                TestContext.Current.CancellationToken);
+            var staleException = await staleAction.Should()
+                .ThrowAsync<ConflictException>();
+            staleException.Which.ErrorCode.Should()
+                .Be(ErrorCodes.PaperConcurrencyConflict);
+
+            var current = await paperService.GetAdminByIdAsync(
+                paperId,
+                TestContext.Current.CancellationToken);
+            var unpublished = await paperService.UnpublishAsync(
+                paperId,
+                adminId,
+                new PaperMutationRequest
+                {
+                    ConcurrencyStamp = current.ConcurrencyStamp
+                },
+                TestContext.Current.CancellationToken);
+            await paperService.ArchiveAsync(
+                paperId,
+                adminId,
+                new PaperMutationRequest
+                {
+                    ConcurrencyStamp = unpublished.ConcurrencyStamp
+                },
+                TestContext.Current.CancellationToken);
+        }
+
+        await using (var attemptDb = new ApplicationDbContext(options))
+        {
+            var attemptService = CreateAttemptService(attemptDb);
+            var resumed = await attemptService.StartAsync(
+                userId,
+                paperId,
+                TestContext.Current.CancellationToken);
+            resumed.WasCreated.Should().BeFalse();
+            resumed.Attempt.Id.Should().Be(attemptId);
+            await attemptService.SaveAnswerAsync(
+                userId,
+                attemptId,
+                trueFalseQuestionId,
+                new SavePaperAttemptAnswerRequest { BooleanAnswer = true },
+                TestContext.Current.CancellationToken);
+            await attemptService.ClearAnswerAsync(
+                userId,
+                attemptId,
+                trueFalseQuestionId,
+                TestContext.Current.CancellationToken);
+            var result = await attemptService.SubmitAsync(
+                userId,
+                attemptId,
+                TestContext.Current.CancellationToken);
+            result.Questions.Should().HaveCount(3);
+        }
+
+        await using (var verificationDb = new ApplicationDbContext(options))
+        {
+            var paperService = CreatePaperService(verificationDb);
+            var defaultList = await paperService.GetAdminListAsync(
+                new AdminPaperListRequest(),
+                TestContext.Current.CancellationToken);
+            var archivedList = await paperService.GetAdminListAsync(
+                new AdminPaperListRequest
+                {
+                    Status = PaperPublicationStatus.Archived
+                },
+                TestContext.Current.CancellationToken);
+            defaultList.Items.Should().NotContain(value => value.Id == paperId);
+            archivedList.Items.Should().ContainSingle(value =>
+                value.Id == paperId && value.AttemptCount == 1);
+            var catalog = await paperService.GetCatalogAsync(
+                new PaperCatalogRequest(),
+                TestContext.Current.CancellationToken);
+            catalog.Items.Should().NotContain(value => value.Id == paperId);
+        }
+
+        await using (var newAttemptDb = new ApplicationDbContext(options))
+        {
+            var newAttempt = async () => await CreateAttemptService(newAttemptDb)
+                .StartAsync(
+                    Guid.NewGuid(),
+                    paperId,
+                    TestContext.Current.CancellationToken);
+            await newAttempt.Should().ThrowAsync<NotFoundException>();
+        }
     }
 
     /// <summary>

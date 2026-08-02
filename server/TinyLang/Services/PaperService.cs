@@ -83,7 +83,9 @@ public sealed class PaperService : IPaperService
     {
         ServiceRequestValidator.Validate(request, new UpdatePaperRequestValidator());
         var paper = await FindPaperForEditAsync(paperId, cancellationToken);
-        if (paper.Status == PaperPublicationStatus.Published)
+        EnsureExpectedStamp(paper, request.ConcurrencyStamp);
+        if (paper.Status is PaperPublicationStatus.Published or
+            PaperPublicationStatus.Archived)
         {
             throw ConflictException.Create(ErrorCodes.PaperStatusConflict);
         }
@@ -91,11 +93,6 @@ public sealed class PaperService : IPaperService
         {
             throw ConflictException.Create(ErrorCodes.PaperContentLocked);
         }
-        if (paper.ConcurrencyStamp != request.ConcurrencyStamp)
-        {
-            throw ConflictException.Create(ErrorCodes.PaperConcurrencyConflict);
-        }
-
         ValidateChildOwnership(paper, request);
         await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
         paper.Title = NormalizeRequired(request.Title);
@@ -121,12 +118,34 @@ public sealed class PaperService : IPaperService
     }
 
     /// <inheritdoc />
+    public async Task<PaperValidationResponse> ValidateAsync(
+        Guid paperId,
+        PaperMutationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ServiceRequestValidator.Validate(request, new PaperMutationRequestValidator());
+        var paper = await FindPaperForEditAsync(paperId, cancellationToken);
+        EnsureExpectedStamp(paper, request.ConcurrencyStamp);
+        if (paper.Status is not (PaperPublicationStatus.Draft or
+            PaperPublicationStatus.Unpublished))
+        {
+            throw ConflictException.Create(ErrorCodes.PaperValidationStateConflict);
+        }
+
+        var issues = BuildPublishValidationIssues(paper);
+        return new PaperValidationResponse(issues.Count == 0, issues);
+    }
+
+    /// <inheritdoc />
     public async Task<AdminPaperResponse> PublishAsync(
         Guid paperId,
         Guid adminId,
+        PaperMutationRequest request,
         CancellationToken cancellationToken = default)
     {
+        ServiceRequestValidator.Validate(request, new PaperMutationRequestValidator());
         var paper = await FindPaperForEditAsync(paperId, cancellationToken);
+        EnsureExpectedStamp(paper, request.ConcurrencyStamp);
         if (paper.Status == PaperPublicationStatus.Published)
         {
             return await GetAdminByIdAsync(paperId, cancellationToken);
@@ -137,7 +156,10 @@ public sealed class PaperService : IPaperService
             throw ConflictException.Create(ErrorCodes.PaperStatusConflict);
         }
 
-        EnsurePublishable(paper);
+        if (BuildPublishValidationIssues(paper).Count > 0)
+        {
+            throw ConflictException.Create(ErrorCodes.PaperPublishRequirementsNotMet);
+        }
         paper.TotalScore = paper.Questions.Sum(value => value.Points);
         paper.Status = PaperPublicationStatus.Published;
         paper.PublishedAt ??= _timeProvider.GetUtcNow();
@@ -156,9 +178,12 @@ public sealed class PaperService : IPaperService
     public async Task<AdminPaperResponse> UnpublishAsync(
         Guid paperId,
         Guid adminId,
+        PaperMutationRequest request,
         CancellationToken cancellationToken = default)
     {
+        ServiceRequestValidator.Validate(request, new PaperMutationRequestValidator());
         var paper = await FindPaperForEditAsync(paperId, cancellationToken);
+        EnsureExpectedStamp(paper, request.ConcurrencyStamp);
         if (paper.Status == PaperPublicationStatus.Unpublished)
         {
             return await GetAdminByIdAsync(paperId, cancellationToken);
@@ -181,15 +206,51 @@ public sealed class PaperService : IPaperService
     }
 
     /// <inheritdoc />
+    public async Task<AdminPaperResponse> ArchiveAsync(
+        Guid paperId,
+        Guid adminId,
+        PaperMutationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ServiceRequestValidator.Validate(request, new PaperMutationRequestValidator());
+        var paper = await FindPaperForEditAsync(paperId, cancellationToken);
+        EnsureExpectedStamp(paper, request.ConcurrencyStamp);
+        if (paper.Status is not (PaperPublicationStatus.Draft or
+            PaperPublicationStatus.Unpublished))
+        {
+            throw ConflictException.Create(ErrorCodes.PaperArchiveConflict);
+        }
+
+        paper.Status = PaperPublicationStatus.Archived;
+        paper.ArchivedAt = _timeProvider.GetUtcNow();
+        paper.LastEditorId = adminId;
+        paper.ConcurrencyStamp = Guid.NewGuid();
+        await SavePaperChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Archived paper {PaperId} by administrator {AdminId}",
+            paperId,
+            adminId);
+        return await GetAdminByIdAsync(paperId, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task DeleteAsync(
         Guid paperId,
         Guid adminId,
+        PaperMutationRequest request,
         CancellationToken cancellationToken = default)
     {
+        ServiceRequestValidator.Validate(request, new PaperMutationRequestValidator());
         var paper = await FindPaperForEditAsync(paperId, cancellationToken);
+        EnsureExpectedStamp(paper, request.ConcurrencyStamp);
         if (paper.Status == PaperPublicationStatus.Published)
         {
             throw ConflictException.Create(ErrorCodes.PaperPublishedDeleteConflict);
+        }
+        if (paper.Status == PaperPublicationStatus.Archived)
+        {
+            throw ConflictException.Create(ErrorCodes.PaperStatusConflict);
         }
         if (await HasAttemptsAsync(paperId, cancellationToken))
         {
@@ -208,11 +269,17 @@ public sealed class PaperService : IPaperService
     public async Task<AdminPaperResponse> GetAdminByIdAsync(
         Guid paperId,
         CancellationToken cancellationToken = default)
-        => await _db.Papers.AsNoTracking()
+    {
+        var response = await _db.Papers.AsNoTracking()
             .Where(value => value.Id == paperId)
             .Select(ToAdminResponseProjection())
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.PaperNotFound);
+        var auditUsers = await LoadAuditUsersAsync(
+            [response.CreatedBy.Id, response.LastEditor.Id],
+            cancellationToken);
+        return EnrichAuditUsers(response, auditUsers);
+    }
 
     /// <inheritdoc />
     public async Task<PagedResponse<AdminPaperListItemResponse>> GetAdminListAsync(
@@ -224,6 +291,10 @@ public sealed class PaperService : IPaperService
         if (request.Status is { } status)
         {
             query = query.Where(value => value.Status == status);
+        }
+        else
+        {
+            query = query.Where(value => value.Status != PaperPublicationStatus.Archived);
         }
         if (!string.IsNullOrWhiteSpace(request.Language))
         {
@@ -237,7 +308,7 @@ public sealed class PaperService : IPaperService
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query
+        var projectedItems = await query
             .OrderByDescending(value => value.UpdatedAt)
             .ThenByDescending(value => value.Id)
             .Skip((request.Page - 1) * request.PageSize)
@@ -250,10 +321,26 @@ public sealed class PaperService : IPaperService
                 value.Questions.Count,
                 value.TotalScore,
                 value.PassingScore,
+                value.Attempts.Count,
+                new ContentAuditUserResponse(value.CreatedById, null, null),
+                new ContentAuditUserResponse(value.LastEditorId, null, null),
                 value.PublishedAt,
+                value.ArchivedAt,
+                value.CreatedAt,
                 value.UpdatedAt,
                 value.ConcurrencyStamp))
             .ToListAsync(cancellationToken);
+        var auditUserIds = projectedItems.SelectMany(value => new[]
+        {
+            value.CreatedBy.Id,
+            value.LastEditor.Id
+        }).Distinct().ToArray();
+        var auditUsers = await LoadAuditUsersAsync(auditUserIds, cancellationToken);
+        var items = projectedItems.Select(value => value with
+        {
+            CreatedBy = GetAuditUser(value.CreatedBy.Id, auditUsers),
+            LastEditor = GetAuditUser(value.LastEditor.Id, auditUsers)
+        }).ToArray();
         return CreatePage(items, request.Page, request.PageSize, totalCount);
     }
 
@@ -641,64 +728,282 @@ public sealed class PaperService : IPaperService
     }
 
     /// <summary>
-    /// 验证试卷聚合满足进入 Published 的全部结构和评分要求。
+    /// 构造发布和只读检查共享的稳定字段问题集合。
     /// </summary>
-    private static void EnsurePublishable(Paper paper)
+    private static IReadOnlyList<PaperValidationIssueResponse>
+        BuildPublishValidationIssues(Paper paper)
     {
-        var totalScore = paper.Questions.Sum(value => value.Points);
-        if (string.IsNullOrWhiteSpace(paper.Title) ||
-            string.IsNullOrWhiteSpace(paper.LanguageTag) ||
-            paper.Questions.Count is < 1 or > OnlineQuizConstraints.MaxQuestionCount ||
-            paper.Questions.Select(value => value.SortOrder).Distinct().Count() !=
-                paper.Questions.Count ||
-            totalScore is < 0 or > OnlineQuizConstraints.MaxTotalScore ||
-            paper.PassingScore < 0 || paper.PassingScore > totalScore ||
-            paper.Questions.Any(question => !IsPublishableQuestion(question)))
+        var issues = new List<PaperValidationIssueResponse>();
+        void Add(
+            string field,
+            ErrorCodes errorCode,
+            Guid? questionId = null,
+            Guid? childId = null)
         {
-            throw ConflictException.Create(ErrorCodes.PaperPublishRequirementsNotMet);
+            if (!issues.Any(value => value.Field == field &&
+                value.ErrorCode == errorCode && value.QuestionId == questionId &&
+                value.ChildId == childId))
+            {
+                issues.Add(new PaperValidationIssueResponse(
+                    field,
+                    errorCode,
+                    errorCode.GetMessage(),
+                    questionId,
+                    childId));
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(paper.Title))
+        {
+            Add("title", ErrorCodes.PaperTitleRequired);
+        }
+        else if (paper.Title.Length > OnlineQuizConstraints.MaxTitleLength)
+        {
+            Add("title", ErrorCodes.PaperTitleLengthLimit);
+        }
+        if (string.IsNullOrWhiteSpace(paper.LanguageTag) ||
+            paper.LanguageTag.Length > OnlineQuizConstraints.MaxLanguageTagLength)
+        {
+            Add("languageTag", ErrorCodes.PaperLanguageInvalid);
+        }
+
+        var questions = paper.Questions.OrderBy(value => value.SortOrder)
+            .ThenBy(value => value.Id).ToArray();
+        if (questions.Length is < 1 or > OnlineQuizConstraints.MaxQuestionCount)
+        {
+            Add("questions", ErrorCodes.PaperQuestionCollectionInvalid);
+        }
+        var duplicateQuestionSortOrders = questions.GroupBy(value => value.SortOrder)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet();
+        var totalScore = questions.Sum(value => (long)value.Points);
+        if (totalScore is < 0 or > OnlineQuizConstraints.MaxTotalScore)
+        {
+            Add("questions", ErrorCodes.PaperPointsInvalid);
+        }
+        if (paper.PassingScore < 0 || paper.PassingScore > totalScore)
+        {
+            Add("passingScore", ErrorCodes.PaperPassingScoreInvalid);
+        }
+
+        for (var questionIndex = 0; questionIndex < questions.Length; questionIndex++)
+        {
+            var question = questions[questionIndex];
+            var field = $"questions[{questionIndex}]";
+            if (string.IsNullOrWhiteSpace(question.Prompt))
+            {
+                Add($"{field}.prompt", ErrorCodes.PaperQuestionPromptRequired, question.Id);
+            }
+            else if (question.Prompt.Length > OnlineQuizConstraints.MaxPromptLength)
+            {
+                Add($"{field}.prompt", ErrorCodes.PaperQuestionPromptLengthLimit, question.Id);
+            }
+            if (question.Points is < OnlineQuizConstraints.MinPoints or
+                > OnlineQuizConstraints.MaxPoints)
+            {
+                Add($"{field}.points", ErrorCodes.PaperPointsInvalid, question.Id);
+            }
+            if (question.SortOrder is < 0 or > OnlineQuizConstraints.MaxSortOrder)
+            {
+                Add($"{field}.sortOrder", ErrorCodes.PaperSortOrderInvalid, question.Id);
+            }
+            else if (duplicateQuestionSortOrders.Contains(question.SortOrder))
+            {
+                Add($"{field}.sortOrder", ErrorCodes.PaperSortOrderConflict, question.Id);
+            }
+
+            switch (question.Type)
+            {
+                case PaperQuestionType.SingleChoice:
+                    AddSingleChoiceIssues(question, questionIndex, Add);
+                    break;
+                case PaperQuestionType.TrueFalse:
+                    AddTrueFalseIssues(question, questionIndex, Add);
+                    break;
+                case PaperQuestionType.FillBlank:
+                    AddFillBlankIssues(question, questionIndex, Add);
+                    break;
+                default:
+                    Add($"{field}.type", ErrorCodes.PaperQuestionTypeInvalid, question.Id);
+                    break;
+            }
+        }
+
+        return issues;
+    }
+
+    /// <summary>
+    /// 将单选题发布问题追加到共享问题集合。
+    /// </summary>
+    private static void AddSingleChoiceIssues(
+        PaperQuestion question,
+        int questionIndex,
+        Action<string, ErrorCodes, Guid?, Guid?> add)
+    {
+        var field = $"questions[{questionIndex}]";
+        var options = question.Options.OrderBy(value => value.SortOrder)
+            .ThenBy(value => value.Id).ToArray();
+        if (options.Length is < 2 or > OnlineQuizConstraints.MaxOptionCount ||
+            options.Count(value => value.IsCorrect) != 1)
+        {
+            add($"{field}.options", ErrorCodes.PaperQuestionShapeInvalid,
+                question.Id, null);
+        }
+        AddOptionIssues(question.Id, questionIndex, options, add);
+        if (question.CorrectBoolean.HasValue)
+        {
+            add($"{field}.correctBoolean", ErrorCodes.PaperQuestionShapeInvalid,
+                question.Id, null);
+        }
+        if (question.FillBlankCaseSensitive)
+        {
+            add($"{field}.fillBlankCaseSensitive",
+                ErrorCodes.PaperQuestionShapeInvalid, question.Id, null);
+        }
+        if (question.AcceptedAnswers.Count > 0)
+        {
+            add($"{field}.acceptedAnswers", ErrorCodes.PaperQuestionShapeInvalid,
+                question.Id, null);
         }
     }
 
     /// <summary>
-    /// 判断一道题目是否满足其题型对应的完整发布要求。
+    /// 将判断题发布问题追加到共享问题集合。
     /// </summary>
-    private static bool IsPublishableQuestion(PaperQuestion question)
+    private static void AddTrueFalseIssues(
+        PaperQuestion question,
+        int questionIndex,
+        Action<string, ErrorCodes, Guid?, Guid?> add)
     {
-        if (string.IsNullOrWhiteSpace(question.Prompt) ||
-            question.Points is < OnlineQuizConstraints.MinPoints or
-                > OnlineQuizConstraints.MaxPoints ||
-            question.SortOrder is < 0 or > OnlineQuizConstraints.MaxSortOrder)
+        var field = $"questions[{questionIndex}]";
+        if (!question.CorrectBoolean.HasValue)
         {
-            return false;
+            add($"{field}.correctBoolean", ErrorCodes.PaperQuestionShapeInvalid,
+                question.Id, null);
+        }
+        if (question.Options.Count > 0)
+        {
+            add($"{field}.options", ErrorCodes.PaperQuestionShapeInvalid,
+                question.Id, null);
+        }
+        if (question.AcceptedAnswers.Count > 0)
+        {
+            add($"{field}.acceptedAnswers", ErrorCodes.PaperQuestionShapeInvalid,
+                question.Id, null);
+        }
+        if (question.FillBlankCaseSensitive)
+        {
+            add($"{field}.fillBlankCaseSensitive",
+                ErrorCodes.PaperQuestionShapeInvalid, question.Id, null);
+        }
+    }
+
+    /// <summary>
+    /// 将填空题发布问题追加到共享问题集合。
+    /// </summary>
+    private static void AddFillBlankIssues(
+        PaperQuestion question,
+        int questionIndex,
+        Action<string, ErrorCodes, Guid?, Guid?> add)
+    {
+        var field = $"questions[{questionIndex}]";
+        if (question.Options.Count > 0)
+        {
+            add($"{field}.options", ErrorCodes.PaperQuestionShapeInvalid,
+                question.Id, null);
+        }
+        if (question.CorrectBoolean.HasValue)
+        {
+            add($"{field}.correctBoolean", ErrorCodes.PaperQuestionShapeInvalid,
+                question.Id, null);
         }
 
-        return question.Type switch
+        var answers = question.AcceptedAnswers.OrderBy(value => value.SortOrder)
+            .ThenBy(value => value.Id).ToArray();
+        if (answers.Length is < 1 or > OnlineQuizConstraints.MaxAcceptedAnswerCount)
         {
-            PaperQuestionType.SingleChoice =>
-                question.Options.Count is >= 2 and <= OnlineQuizConstraints.MaxOptionCount &&
-                question.Options.All(value => !string.IsNullOrWhiteSpace(value.Text)) &&
-                question.Options.Select(value => value.SortOrder).Distinct().Count() ==
-                    question.Options.Count &&
-                question.Options.Count(value => value.IsCorrect) == 1 &&
-                question.CorrectBoolean is null && !question.FillBlankCaseSensitive &&
-                question.AcceptedAnswers.Count == 0,
-            PaperQuestionType.TrueFalse =>
-                question.CorrectBoolean.HasValue && question.Options.Count == 0 &&
-                question.AcceptedAnswers.Count == 0 && !question.FillBlankCaseSensitive,
-            PaperQuestionType.FillBlank =>
-                question.Options.Count == 0 && question.CorrectBoolean is null &&
-                question.AcceptedAnswers.Count is >= 1 and <=
-                    OnlineQuizConstraints.MaxAcceptedAnswerCount &&
-                question.AcceptedAnswers.All(value =>
-                    !string.IsNullOrWhiteSpace(value.Text) &&
-                    !string.IsNullOrWhiteSpace(value.NormalizedText)) &&
-                question.AcceptedAnswers.Select(value => value.SortOrder)
-                    .Distinct().Count() == question.AcceptedAnswers.Count &&
-                question.AcceptedAnswers.Select(value => value.NormalizedText)
-                    .Distinct(StringComparer.Ordinal).Count() ==
-                    question.AcceptedAnswers.Count,
-            _ => false
-        };
+            add($"{field}.acceptedAnswers", ErrorCodes.PaperQuestionShapeInvalid,
+                question.Id, null);
+        }
+        var duplicateSortOrders = answers.GroupBy(value => value.SortOrder)
+            .Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet();
+        var duplicateNormalized = answers.GroupBy(
+                value => value.NormalizedText,
+                StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        for (var answerIndex = 0; answerIndex < answers.Length; answerIndex++)
+        {
+            var answer = answers[answerIndex];
+            var answerField = $"{field}.acceptedAnswers[{answerIndex}]";
+            if (string.IsNullOrWhiteSpace(answer.Text) ||
+                string.IsNullOrWhiteSpace(answer.NormalizedText))
+            {
+                add($"{answerField}.text", ErrorCodes.PaperAcceptedAnswerRequired,
+                    question.Id, answer.Id);
+            }
+            else if (answer.Text.Length > OnlineQuizConstraints.MaxAnswerTextLength ||
+                answer.NormalizedText.Length > OnlineQuizConstraints.MaxAnswerTextLength)
+            {
+                add($"{answerField}.text", ErrorCodes.PaperAnswerTextLengthLimit,
+                    question.Id, answer.Id);
+            }
+            if (answer.SortOrder is < 0 or > OnlineQuizConstraints.MaxSortOrder)
+            {
+                add($"{answerField}.sortOrder", ErrorCodes.PaperSortOrderInvalid,
+                    question.Id, answer.Id);
+            }
+            else if (duplicateSortOrders.Contains(answer.SortOrder))
+            {
+                add($"{answerField}.sortOrder", ErrorCodes.PaperSortOrderConflict,
+                    question.Id, answer.Id);
+            }
+            if (duplicateNormalized.Contains(answer.NormalizedText))
+            {
+                add($"{answerField}.text", ErrorCodes.PaperAcceptedAnswerDuplicate,
+                    question.Id, answer.Id);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 将单选题选项的文本和排序问题追加到共享问题集合。
+    /// </summary>
+    private static void AddOptionIssues(
+        Guid questionId,
+        int questionIndex,
+        IReadOnlyList<PaperQuestionOption> options,
+        Action<string, ErrorCodes, Guid?, Guid?> add)
+    {
+        var duplicateSortOrders = options.GroupBy(value => value.SortOrder)
+            .Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet();
+        for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
+        {
+            var option = options[optionIndex];
+            var field = $"questions[{questionIndex}].options[{optionIndex}]";
+            if (string.IsNullOrWhiteSpace(option.Text))
+            {
+                add($"{field}.text", ErrorCodes.PaperOptionTextRequired,
+                    questionId, option.Id);
+            }
+            else if (option.Text.Length > OnlineQuizConstraints.MaxOptionTextLength)
+            {
+                add($"{field}.text", ErrorCodes.PaperOptionTextLengthLimit,
+                    questionId, option.Id);
+            }
+            if (option.SortOrder is < 0 or > OnlineQuizConstraints.MaxSortOrder)
+            {
+                add($"{field}.sortOrder", ErrorCodes.PaperSortOrderInvalid,
+                    questionId, option.Id);
+            }
+            else if (duplicateSortOrders.Contains(option.SortOrder))
+            {
+                add($"{field}.sortOrder", ErrorCodes.PaperSortOrderConflict,
+                    questionId, option.Id);
+            }
+        }
     }
 
     /// <summary>
@@ -715,9 +1020,11 @@ public sealed class PaperService : IPaperService
             paper.Status,
             paper.PassingScore,
             paper.TotalScore,
-            paper.CreatedById,
-            paper.LastEditorId,
+            paper.Attempts.Count,
+            new ContentAuditUserResponse(paper.CreatedById, null, null),
+            new ContentAuditUserResponse(paper.LastEditorId, null, null),
             paper.PublishedAt,
+            paper.ArchivedAt,
             paper.ConcurrencyStamp,
             paper.Questions.OrderBy(question => question.SortOrder)
                 .ThenBy(question => question.Id)
@@ -748,6 +1055,54 @@ public sealed class PaperService : IPaperService
                 .ToList(),
             paper.CreatedAt,
             paper.UpdatedAt);
+
+    /// <summary>
+    /// 一次性加载管理响应所需的最小审计用户资料。
+    /// </summary>
+    private async Task<IReadOnlyDictionary<Guid, ContentAuditUserResponse>>
+        LoadAuditUsersAsync(
+            IReadOnlyCollection<Guid> userIds,
+            CancellationToken cancellationToken)
+        => await _db.Users.AsNoTracking()
+            .Where(user => userIds.Contains(user.Id))
+            .Select(user => new ContentAuditUserResponse(
+                user.Id,
+                user.Nickname,
+                user.AvatarUrl))
+            .ToDictionaryAsync(user => user.Id, cancellationToken);
+
+    /// <summary>
+    /// 将详情 projection 中的审计标识替换为安全用户摘要。
+    /// </summary>
+    private static AdminPaperResponse EnrichAuditUsers(
+        AdminPaperResponse response,
+        IReadOnlyDictionary<Guid, ContentAuditUserResponse> users)
+        => response with
+        {
+            CreatedBy = GetAuditUser(response.CreatedBy.Id, users),
+            LastEditor = GetAuditUser(response.LastEditor.Id, users)
+        };
+
+    /// <summary>
+    /// 返回审计用户摘要；异常孤立数据仅保留稳定标识。
+    /// </summary>
+    private static ContentAuditUserResponse GetAuditUser(
+        Guid userId,
+        IReadOnlyDictionary<Guid, ContentAuditUserResponse> users)
+        => users.TryGetValue(userId, out var user)
+            ? user
+            : new ContentAuditUserResponse(userId, null, null);
+
+    /// <summary>
+    /// 在任何幂等、状态或历史判断前校验客户端看到的试卷版本。
+    /// </summary>
+    private static void EnsureExpectedStamp(Paper paper, Guid expectedStamp)
+    {
+        if (paper.ConcurrencyStamp != expectedStamp)
+        {
+            throw ConflictException.Create(ErrorCodes.PaperConcurrencyConflict);
+        }
+    }
 
     /// <summary>
     /// 创建只包含可开始新测验的已发布试卷查询。

@@ -25,11 +25,20 @@ public interface IPaperService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 使用客户端并发标识检查试卷发布要求且不修改持久化状态。
+    /// </summary>
+    Task<PaperValidationResponse> ValidateAsync(
+        Guid paperId,
+        PaperMutationRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 完整校验试卷题型、答案和评分后幂等发布。
     /// </summary>
     Task<AdminPaperResponse> PublishAsync(
         Guid paperId,
         Guid adminId,
+        PaperMutationRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -38,6 +47,16 @@ public interface IPaperService
     Task<AdminPaperResponse> UnpublishAsync(
         Guid paperId,
         Guid adminId,
+        PaperMutationRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 将 Draft 或 Unpublished 试卷迁移到不可恢复的归档终态。
+    /// </summary>
+    Task<AdminPaperResponse> ArchiveAsync(
+        Guid paperId,
+        Guid adminId,
+        PaperMutationRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -46,6 +65,7 @@ public interface IPaperService
     Task DeleteAsync(
         Guid paperId,
         Guid adminId,
+        PaperMutationRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>

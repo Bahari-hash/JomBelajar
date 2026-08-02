@@ -672,6 +672,12 @@ public enum ErrorCodes
     [Description("试卷已被其他请求修改，请刷新后重试.")]
     PaperConcurrencyConflict,
 
+    [Description("试卷当前状态不允许归档.")]
+    PaperArchiveConflict,
+
+    [Description("试卷当前状态不允许执行发布前检查.")]
+    PaperValidationStateConflict,
+
     [Description("测验记录不存在.")]
     PaperAttemptNotFound,
 

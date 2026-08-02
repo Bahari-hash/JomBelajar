@@ -1,4 +1,6 @@
+using System.ComponentModel.DataAnnotations;
 using TinyLang.Entities.Enums;
+using TinyLang.Exceptions;
 
 namespace TinyLang.Dtos;
 
@@ -25,6 +27,15 @@ public sealed record CreatePaperRequest : PaperUpsertRequest;
 /// </summary>
 public sealed record UpdatePaperRequest : PaperUpsertRequest
 {
+    public Guid ConcurrencyStamp { get; init; }
+}
+
+/// <summary>
+/// 描述发布检查、状态动作和硬删除使用的并发前置条件。
+/// </summary>
+public sealed record PaperMutationRequest
+{
+    [Required]
     public Guid ConcurrencyStamp { get; init; }
 }
 
@@ -141,6 +152,23 @@ public sealed record AdminPaperQuestionResponse(
     IReadOnlyList<AdminFillBlankAcceptedAnswerResponse> AcceptedAnswers);
 
 /// <summary>
+/// 返回一个可映射到管理表单的稳定发布检查问题。
+/// </summary>
+public sealed record PaperValidationIssueResponse(
+    string Field,
+    ErrorCodes ErrorCode,
+    string Message,
+    Guid? QuestionId,
+    Guid? ChildId);
+
+/// <summary>
+/// 返回不修改试卷的发布前检查结果。
+/// </summary>
+public sealed record PaperValidationResponse(
+    bool IsValid,
+    IReadOnlyList<PaperValidationIssueResponse> Issues);
+
+/// <summary>
 /// 返回试卷完整编辑状态、审计信息、并发标识和标准答案。
 /// </summary>
 public sealed record AdminPaperResponse(
@@ -152,9 +180,11 @@ public sealed record AdminPaperResponse(
     PaperPublicationStatus Status,
     int PassingScore,
     int TotalScore,
-    Guid CreatedById,
-    Guid LastEditorId,
+    int AttemptCount,
+    ContentAuditUserResponse CreatedBy,
+    ContentAuditUserResponse LastEditor,
     DateTimeOffset? PublishedAt,
+    DateTimeOffset? ArchivedAt,
     Guid ConcurrencyStamp,
     IReadOnlyList<AdminPaperQuestionResponse> Questions,
     DateTimeOffset CreatedAt,
@@ -171,7 +201,12 @@ public sealed record AdminPaperListItemResponse(
     int QuestionCount,
     int TotalScore,
     int PassingScore,
+    int AttemptCount,
+    ContentAuditUserResponse CreatedBy,
+    ContentAuditUserResponse LastEditor,
     DateTimeOffset? PublishedAt,
+    DateTimeOffset? ArchivedAt,
+    DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     Guid ConcurrencyStamp);
 
@@ -226,6 +261,7 @@ public sealed record UserPaperAttemptQuestionResponse(
     Guid Id,
     PaperQuestionType Type,
     string Prompt,
+    int Points,
     int SortOrder,
     IReadOnlyList<UserPaperAttemptOptionResponse> Options,
     UserPaperAttemptSavedAnswerResponse? SavedAnswer);
@@ -243,6 +279,8 @@ public sealed record UserPaperAttemptResponse(
     string? Instructions,
     string LanguageTag,
     int QuestionCount,
+    int PaperTotalScore,
+    int PaperPassingScore,
     DateTimeOffset StartedAt,
     DateTimeOffset? SubmittedAt,
     IReadOnlyList<UserPaperAttemptQuestionResponse> Questions);

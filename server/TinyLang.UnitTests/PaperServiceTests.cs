@@ -44,8 +44,8 @@ public sealed class PaperServiceTests
         response.LanguageTag.Should().Be("en-us");
         response.TotalScore.Should().Be(9);
         response.PassingScore.Should().Be(6);
-        response.CreatedById.Should().Be(adminId);
-        response.LastEditorId.Should().Be(adminId);
+        response.CreatedBy.Id.Should().Be(adminId);
+        response.LastEditor.Id.Should().Be(adminId);
         response.Questions.Should().HaveCount(3);
         response.Questions.Select(value => value.SortOrder)
             .Should().ContainInOrder(0, 1, 2);
@@ -123,7 +123,7 @@ public sealed class PaperServiceTests
 
         updated.Title.Should().Be("Updated");
         updated.TotalScore.Should().Be(6);
-        updated.LastEditorId.Should().Be(secondAdminId);
+        updated.LastEditor.Id.Should().Be(secondAdminId);
         updated.Questions.Should().HaveCount(2);
         updated.Questions.First().Id.Should().Be(trueFalse.Id);
         updated.Questions.Last().Options.Should().Contain(value =>
@@ -192,10 +192,12 @@ public sealed class PaperServiceTests
         var published = await service.PublishAsync(
             draft.Id,
             adminId,
+            Mutation(draft),
             TestContext.Current.CancellationToken);
         var repeated = await service.PublishAsync(
             draft.Id,
             Guid.NewGuid(),
+            Mutation(published),
             TestContext.Current.CancellationToken);
         var catalog = await service.GetCatalogAsync(
             new PaperCatalogRequest(),
@@ -209,10 +211,12 @@ public sealed class PaperServiceTests
         var unpublished = await service.UnpublishAsync(
             draft.Id,
             adminId,
+            Mutation(published),
             TestContext.Current.CancellationToken);
         var repeatedUnpublish = await service.UnpublishAsync(
             draft.Id,
             Guid.NewGuid(),
+            Mutation(unpublished),
             TestContext.Current.CancellationToken);
         unpublished.PublishedAt.Should().Be(Now);
         repeatedUnpublish.ConcurrencyStamp.Should().Be(unpublished.ConcurrencyStamp);
@@ -251,6 +255,7 @@ public sealed class PaperServiceTests
         var action = async () => await service.PublishAsync(
             draft.Id,
             Guid.NewGuid(),
+            Mutation(draft),
             TestContext.Current.CancellationToken);
 
         await action.Should().ThrowAsync<ConflictException>();
@@ -272,10 +277,12 @@ public sealed class PaperServiceTests
         var published = await service.PublishAsync(
             draft.Id,
             adminId,
+            Mutation(draft),
             TestContext.Current.CancellationToken);
         var unpublished = await service.UnpublishAsync(
             draft.Id,
             adminId,
+            Mutation(published),
             TestContext.Current.CancellationToken);
         db.PaperAttempts.Add(new PaperAttempt
         {
@@ -296,6 +303,7 @@ public sealed class PaperServiceTests
         var delete = async () => await service.DeleteAsync(
             draft.Id,
             adminId,
+            Mutation(unpublished),
             TestContext.Current.CancellationToken);
 
         await update.Should().ThrowAsync<ConflictException>();
@@ -303,8 +311,187 @@ public sealed class PaperServiceTests
         (await service.PublishAsync(
             draft.Id,
             adminId,
+            Mutation(unpublished),
             TestContext.Current.CancellationToken)).Status
             .Should().Be(PaperPublicationStatus.Published);
+    }
+
+    /// <summary>
+    /// 验证发布检查返回稳定字段问题且不修改审计、时间或并发标识。
+    /// </summary>
+    [Fact]
+    public async Task ValidateShouldReturnStructuredIssuesWithoutMutation()
+    {
+        await using var db = CreateDbContext();
+        var service = CreateService(db);
+        var draft = await service.CreateDraftAsync(
+            Guid.NewGuid(),
+            new CreatePaperRequest
+            {
+                Title = "Incomplete",
+                LanguageTag = "en",
+                Questions =
+                [
+                    new PaperQuestionInput
+                    {
+                        Type = PaperQuestionType.SingleChoice,
+                        Prompt = "Missing options",
+                        Points = 1,
+                        SortOrder = 0
+                    },
+                    new PaperQuestionInput
+                    {
+                        Type = PaperQuestionType.TrueFalse,
+                        Prompt = "Missing answer",
+                        Points = 1,
+                        SortOrder = 1
+                    },
+                    new PaperQuestionInput
+                    {
+                        Type = PaperQuestionType.FillBlank,
+                        Prompt = "Missing answers",
+                        Points = 1,
+                        SortOrder = 2
+                    }
+                ]
+            },
+            TestContext.Current.CancellationToken);
+
+        var validation = await service.ValidateAsync(
+            draft.Id,
+            Mutation(draft),
+            TestContext.Current.CancellationToken);
+        var after = await service.GetAdminByIdAsync(
+            draft.Id,
+            TestContext.Current.CancellationToken);
+
+        validation.IsValid.Should().BeFalse();
+        validation.Issues.Select(value => value.Field).Should().ContainInOrder(
+            "questions[0].options",
+            "questions[1].correctBoolean",
+            "questions[2].acceptedAnswers");
+        validation.Issues.Should().OnlyContain(value =>
+            value.QuestionId.HasValue && value.Message.Length > 0);
+        after.ConcurrencyStamp.Should().Be(draft.ConcurrencyStamp);
+        after.LastEditor.Should().Be(draft.LastEditor);
+        after.UpdatedAt.Should().Be(draft.UpdatedAt);
+
+        var publish = async () => await service.PublishAsync(
+            draft.Id,
+            Guid.NewGuid(),
+            Mutation(draft),
+            TestContext.Current.CancellationToken);
+        (await publish.Should().ThrowAsync<ConflictException>())
+            .Which.ErrorCode.Should().Be(ErrorCodes.PaperPublishRequirementsNotMet);
+    }
+
+    /// <summary>
+    /// 验证归档是默认隐藏的终态并保留审计和测验历史摘要。
+    /// </summary>
+    [Fact]
+    public async Task ArchiveShouldPreserveHistoryAndDriveAdminListVisibility()
+    {
+        await using var db = CreateDbContext();
+        var admin = new User
+        {
+            Username = "paper-admin",
+            Email = "paper-admin@example.test",
+            PasswordHash = "not-used",
+            Nickname = "Paper Admin",
+            Role = UserRole.Admin
+        };
+        db.Users.Add(admin);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+        var draft = await service.CreateDraftAsync(
+            admin.Id,
+            CreateCompleteRequest(),
+            TestContext.Current.CancellationToken);
+        var published = await service.PublishAsync(
+            draft.Id,
+            admin.Id,
+            Mutation(draft),
+            TestContext.Current.CancellationToken);
+        var unpublished = await service.UnpublishAsync(
+            published.Id,
+            admin.Id,
+            Mutation(published),
+            TestContext.Current.CancellationToken);
+        db.PaperAttempts.Add(new PaperAttempt
+        {
+            PaperId = draft.Id,
+            UserId = Guid.NewGuid(),
+            AttemptNumber = 1,
+            PaperTotalScore = published.TotalScore,
+            PaperPassingScore = published.PassingScore,
+            StartedAt = Now
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var archived = await service.ArchiveAsync(
+            draft.Id,
+            admin.Id,
+            Mutation(unpublished),
+            TestContext.Current.CancellationToken);
+        var defaultList = await service.GetAdminListAsync(
+            new AdminPaperListRequest(),
+            TestContext.Current.CancellationToken);
+        var archivedList = await service.GetAdminListAsync(
+            new AdminPaperListRequest { Status = PaperPublicationStatus.Archived },
+            TestContext.Current.CancellationToken);
+
+        archived.Status.Should().Be(PaperPublicationStatus.Archived);
+        archived.ArchivedAt.Should().Be(Now);
+        archived.AttemptCount.Should().Be(1);
+        archived.CreatedBy.Nickname.Should().Be("Paper Admin");
+        defaultList.Items.Should().BeEmpty();
+        archivedList.Items.Should().ContainSingle(value =>
+            value.Id == draft.Id && value.AttemptCount == 1 &&
+            value.CreatedBy.Nickname == "Paper Admin");
+
+        var repeated = async () => await service.ArchiveAsync(
+            draft.Id,
+            admin.Id,
+            Mutation(archived),
+            TestContext.Current.CancellationToken);
+        (await repeated.Should().ThrowAsync<ConflictException>())
+            .Which.ErrorCode.Should().Be(ErrorCodes.PaperArchiveConflict);
+    }
+
+    /// <summary>
+    /// 验证过期 stamp 在状态和历史冲突之前统一返回并发冲突。
+    /// </summary>
+    [Fact]
+    public async Task MutationsShouldCheckStampBeforeStateAndHistory()
+    {
+        await using var db = CreateDbContext();
+        var service = CreateService(db);
+        var draft = await service.CreateDraftAsync(
+            Guid.NewGuid(),
+            CreateCompleteRequest(),
+            TestContext.Current.CancellationToken);
+        var published = await service.PublishAsync(
+            draft.Id,
+            Guid.NewGuid(),
+            Mutation(draft),
+            TestContext.Current.CancellationToken);
+
+        var staleUnpublish = async () => await service.UnpublishAsync(
+            draft.Id,
+            Guid.NewGuid(),
+            Mutation(draft),
+            TestContext.Current.CancellationToken);
+        var staleDelete = async () => await service.DeleteAsync(
+            draft.Id,
+            Guid.NewGuid(),
+            Mutation(draft),
+            TestContext.Current.CancellationToken);
+
+        (await staleUnpublish.Should().ThrowAsync<ConflictException>())
+            .Which.ErrorCode.Should().Be(ErrorCodes.PaperConcurrencyConflict);
+        (await staleDelete.Should().ThrowAsync<ConflictException>())
+            .Which.ErrorCode.Should().Be(ErrorCodes.PaperConcurrencyConflict);
+        published.Status.Should().Be(PaperPublicationStatus.Published);
     }
 
     /// <summary>
@@ -385,6 +572,12 @@ public sealed class PaperServiceTests
             ConcurrencyStamp = response.ConcurrencyStamp,
             Questions = response.Questions.Select(ToQuestionInput).ToArray()
         };
+
+    /// <summary>
+    /// 创建状态动作和硬删除使用的当前并发前置条件。
+    /// </summary>
+    internal static PaperMutationRequest Mutation(AdminPaperResponse response)
+        => new() { ConcurrencyStamp = response.ConcurrencyStamp };
 
     /// <summary>
     /// 将编辑题目详情转换为完整题目输入。

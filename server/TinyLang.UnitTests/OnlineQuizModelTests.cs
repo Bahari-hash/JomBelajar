@@ -63,6 +63,20 @@ public sealed class OnlineQuizModelTests
     }
 
     /// <summary>
+    /// 验证试卷模型包含可空归档时间且状态仍按字符串持久化。
+    /// </summary>
+    [Fact]
+    public void ModelShouldConfigureArchivedPaperState()
+    {
+        using var db = CreateDbContext();
+        var paperType = db.Model.FindEntityType(typeof(Paper))!;
+
+        paperType.FindProperty(nameof(Paper.ArchivedAt))!.IsNullable.Should().BeTrue();
+        paperType.FindProperty(nameof(Paper.Status))!.GetProviderClrType()
+            .Should().Be<string>();
+    }
+
+    /// <summary>
     /// 创建使用隔离 InMemory 数据库的应用上下文。
     /// </summary>
     private static ApplicationDbContext CreateDbContext()

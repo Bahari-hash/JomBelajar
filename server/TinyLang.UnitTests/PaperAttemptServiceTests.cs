@@ -70,6 +70,7 @@ public sealed class PaperAttemptServiceTests
         var paper = await paperService.PublishAsync(
             draft.Id,
             adminId,
+            PaperServiceTests.Mutation(draft),
             TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var firstUserId = Guid.NewGuid();
@@ -77,9 +78,13 @@ public sealed class PaperAttemptServiceTests
             firstUserId,
             paper.Id,
             TestContext.Current.CancellationToken);
+        var currentPaper = await paperService.GetAdminByIdAsync(
+            paper.Id,
+            TestContext.Current.CancellationToken);
         await paperService.UnpublishAsync(
             paper.Id,
             adminId,
+            PaperServiceTests.Mutation(currentPaper),
             TestContext.Current.CancellationToken);
 
         var resumed = await service.StartAsync(
@@ -339,6 +344,7 @@ public sealed class PaperAttemptServiceTests
         var paper = await paperService.PublishAsync(
             draft.Id,
             adminId,
+            PaperServiceTests.Mutation(draft),
             TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var userId = Guid.NewGuid();
@@ -380,6 +386,7 @@ public sealed class PaperAttemptServiceTests
         var paper = await paperService.PublishAsync(
             draft.Id,
             adminId,
+            PaperServiceTests.Mutation(draft),
             TestContext.Current.CancellationToken);
         var userId = Guid.NewGuid();
         var service = CreateService(db);
@@ -387,9 +394,13 @@ public sealed class PaperAttemptServiceTests
             userId,
             paper.Id,
             TestContext.Current.CancellationToken);
+        var currentPaper = await paperService.GetAdminByIdAsync(
+            paper.Id,
+            TestContext.Current.CancellationToken);
         await paperService.UnpublishAsync(
             paper.Id,
             adminId,
+            PaperServiceTests.Mutation(currentPaper),
             TestContext.Current.CancellationToken);
 
         var history = await service.GetHistoryAsync(
@@ -408,6 +419,169 @@ public sealed class PaperAttemptServiceTests
     }
 
     /// <summary>
+    /// 验证活动测验可以显式、幂等清除答案并保持刷新字段完整。
+    /// </summary>
+    [Fact]
+    public async Task ClearAnswerShouldBeIdempotentAndPreserveSafeAttemptFields()
+    {
+        await using var db = PaperServiceTests.CreateDbContext();
+        var paper = await CreatePublishedPaperAsync(db);
+        var userId = Guid.NewGuid();
+        var service = CreateService(db);
+        var started = await service.StartAsync(
+            userId,
+            paper.Id,
+            TestContext.Current.CancellationToken);
+        var question = paper.Questions.Single(value =>
+            value.Type == PaperQuestionType.TrueFalse);
+        await service.SaveAnswerAsync(
+            userId,
+            started.Attempt.Id,
+            question.Id,
+            new SavePaperAttemptAnswerRequest { BooleanAnswer = true },
+            TestContext.Current.CancellationToken);
+
+        await service.ClearAnswerAsync(
+            userId,
+            started.Attempt.Id,
+            question.Id,
+            TestContext.Current.CancellationToken);
+        await service.ClearAnswerAsync(
+            userId,
+            started.Attempt.Id,
+            question.Id,
+            TestContext.Current.CancellationToken);
+        var restored = await service.GetAttemptAsync(
+            userId,
+            started.Attempt.Id,
+            TestContext.Current.CancellationToken);
+
+        restored.PaperTotalScore.Should().Be(paper.TotalScore);
+        restored.PaperPassingScore.Should().Be(paper.PassingScore);
+        restored.Questions.Single(value => value.Id == question.Id).Points
+            .Should().Be(question.Points);
+        restored.Questions.Single(value => value.Id == question.Id).SavedAnswer
+            .Should().BeNull();
+
+        var foreignQuestion = async () => await service.ClearAnswerAsync(
+            userId,
+            started.Attempt.Id,
+            Guid.NewGuid(),
+            TestContext.Current.CancellationToken);
+        await foreignQuestion.Should().ThrowAsync<NotFoundException>();
+    }
+
+    /// <summary>
+    /// 验证提交后不能清除答案且其他用户无法操作该 Attempt。
+    /// </summary>
+    [Fact]
+    public async Task ClearAnswerShouldEnforceStatusAndOwnership()
+    {
+        await using var db = PaperServiceTests.CreateDbContext();
+        var paper = await CreatePublishedPaperAsync(db);
+        var userId = Guid.NewGuid();
+        var service = CreateService(db);
+        var started = await service.StartAsync(
+            userId,
+            paper.Id,
+            TestContext.Current.CancellationToken);
+        var questionId = paper.Questions.First().Id;
+        await service.SubmitAsync(
+            userId,
+            started.Attempt.Id,
+            TestContext.Current.CancellationToken);
+
+        var submitted = async () => await service.ClearAnswerAsync(
+            userId,
+            started.Attempt.Id,
+            questionId,
+            TestContext.Current.CancellationToken);
+        var otherUser = async () => await service.ClearAnswerAsync(
+            Guid.NewGuid(),
+            started.Attempt.Id,
+            questionId,
+            TestContext.Current.CancellationToken);
+
+        (await submitted.Should().ThrowAsync<ConflictException>())
+            .Which.ErrorCode.Should().Be(ErrorCodes.PaperAttemptNotInProgress);
+        await otherUser.Should().ThrowAsync<NotFoundException>();
+    }
+
+    /// <summary>
+    /// 验证归档阻止新测验但不影响已有测验保存、清除、提交和结果。
+    /// </summary>
+    [Fact]
+    public async Task ArchivedPaperShouldKeepExistingAttemptUsable()
+    {
+        await using var db = PaperServiceTests.CreateDbContext();
+        var adminId = Guid.NewGuid();
+        var paperService = PaperServiceTests.CreateService(db);
+        var draft = await paperService.CreateDraftAsync(
+            adminId,
+            PaperServiceTests.CreateCompleteRequest(),
+            TestContext.Current.CancellationToken);
+        var paper = await paperService.PublishAsync(
+            draft.Id,
+            adminId,
+            PaperServiceTests.Mutation(draft),
+            TestContext.Current.CancellationToken);
+        var userId = Guid.NewGuid();
+        var service = CreateService(db);
+        var started = await service.StartAsync(
+            userId,
+            paper.Id,
+            TestContext.Current.CancellationToken);
+        var currentPaper = await paperService.GetAdminByIdAsync(
+            paper.Id,
+            TestContext.Current.CancellationToken);
+        var unpublished = await paperService.UnpublishAsync(
+            paper.Id,
+            adminId,
+            PaperServiceTests.Mutation(currentPaper),
+            TestContext.Current.CancellationToken);
+        await paperService.ArchiveAsync(
+            paper.Id,
+            adminId,
+            PaperServiceTests.Mutation(unpublished),
+            TestContext.Current.CancellationToken);
+        var question = paper.Questions.Single(value =>
+            value.Type == PaperQuestionType.TrueFalse);
+
+        var resumed = await service.StartAsync(
+            userId,
+            paper.Id,
+            TestContext.Current.CancellationToken);
+        await service.SaveAnswerAsync(
+            userId,
+            started.Attempt.Id,
+            question.Id,
+            new SavePaperAttemptAnswerRequest { BooleanAnswer = true },
+            TestContext.Current.CancellationToken);
+        await service.ClearAnswerAsync(
+            userId,
+            started.Attempt.Id,
+            question.Id,
+            TestContext.Current.CancellationToken);
+        var result = await service.SubmitAsync(
+            userId,
+            started.Attempt.Id,
+            TestContext.Current.CancellationToken);
+        var persisted = await service.GetResultAsync(
+            userId,
+            started.Attempt.Id,
+            TestContext.Current.CancellationToken);
+        var newAttempt = async () => await service.StartAsync(
+            Guid.NewGuid(),
+            paper.Id,
+            TestContext.Current.CancellationToken);
+
+        resumed.WasCreated.Should().BeFalse();
+        resumed.Attempt.Id.Should().Be(started.Attempt.Id);
+        persisted.Should().BeEquivalentTo(result);
+        await newAttempt.Should().ThrowAsync<NotFoundException>();
+    }
+
+    /// <summary>
     /// 创建并发布包含三类完整题目的试卷。
     /// </summary>
     private static async Task<AdminPaperResponse> CreatePublishedPaperAsync(
@@ -422,6 +596,7 @@ public sealed class PaperAttemptServiceTests
         return await paperService.PublishAsync(
             draft.Id,
             adminId,
+            PaperServiceTests.Mutation(draft),
             TestContext.Current.CancellationToken);
     }
 

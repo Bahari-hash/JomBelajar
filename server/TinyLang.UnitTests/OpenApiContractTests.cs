@@ -41,6 +41,14 @@ public sealed class OpenApiContractTests
         paths.TryGetProperty("/api/admin/words/{id}/archive", out _)
             .Should().BeTrue();
         paths.TryGetProperty("/api/words", out _).Should().BeTrue();
+        paths.TryGetProperty("/api/admin/papers/{paperId}/validate", out _)
+            .Should().BeTrue();
+        paths.TryGetProperty("/api/admin/papers/{paperId}/archive", out _)
+            .Should().BeTrue();
+        paths.TryGetProperty(
+            "/api/paper-attempts/{attemptId}/answers/{questionId}",
+            out var answerPath).Should().BeTrue();
+        answerPath.TryGetProperty("delete", out _).Should().BeTrue();
         paths.TryGetProperty("/api/uploads/admin/media/capabilities", out _)
             .Should().BeTrue();
         foreach (var path in new[]
@@ -82,6 +90,31 @@ public sealed class OpenApiContractTests
         GetSchema(schemas, "BatchWordImportResponse").GetProperty("properties")
             .TryGetProperty("items", out _).Should().BeTrue();
 
+        var paperMutationRequest = GetSchema(schemas, "PaperMutationRequest");
+        GetRequiredProperties(paperMutationRequest).Should().Contain("concurrencyStamp");
+        var paperStatus = GetSchema(schemas, "PaperPublicationStatus");
+        paperStatus.GetProperty("enum").EnumerateArray()
+            .Select(value => value.GetString())
+            .Should().Contain("Archived");
+        var adminPaper = GetSchema(schemas, "AdminPaperResponse");
+        var adminPaperProperties = adminPaper.GetProperty("properties");
+        adminPaperProperties.TryGetProperty("attemptCount", out _).Should().BeTrue();
+        adminPaperProperties.TryGetProperty("createdBy", out _).Should().BeTrue();
+        adminPaperProperties.TryGetProperty("lastEditor", out _).Should().BeTrue();
+        adminPaperProperties.TryGetProperty("archivedAt", out _).Should().BeTrue();
+        var validationIssue = GetSchema(schemas, "PaperValidationIssueResponse")
+            .GetProperty("properties");
+        validationIssue.TryGetProperty("field", out _).Should().BeTrue();
+        validationIssue.TryGetProperty("errorCode", out _).Should().BeTrue();
+        validationIssue.TryGetProperty("questionId", out _).Should().BeTrue();
+        var userAttempt = GetSchema(schemas, "UserPaperAttemptResponse")
+            .GetProperty("properties");
+        userAttempt.TryGetProperty("paperTotalScore", out _).Should().BeTrue();
+        userAttempt.TryGetProperty("paperPassingScore", out _).Should().BeTrue();
+        GetSchema(schemas, "UserPaperAttemptQuestionResponse")
+            .GetProperty("properties").TryGetProperty("points", out _)
+            .Should().BeTrue();
+
         var adminVideo = GetSchema(schemas, "AdminVideoResponse");
         var videoPlayback = GetSchema(schemas, "VideoPlaybackResponse");
         var audioPlayback = GetSchema(schemas, "AudioPlaybackResponse");
@@ -116,6 +149,8 @@ public sealed class OpenApiContractTests
         builder.Services.AddSingleton(Mock.Of<IVideoCategoryService>());
         builder.Services.AddSingleton(Mock.Of<IAudioClipService>());
         builder.Services.AddSingleton(Mock.Of<IWordService>());
+        builder.Services.AddSingleton(Mock.Of<IPaperService>());
+        builder.Services.AddSingleton(Mock.Of<IPaperAttemptService>());
         builder.Services.AddSingleton(Mock.Of<IMediaResourceService>());
         var app = builder.Build();
         app.MapOpenApi();
@@ -124,7 +159,8 @@ public sealed class OpenApiContractTests
             .MapVideoCategoriesApi()
             .MapVideosApi()
             .MapAudioApi()
-            .MapWordsApi();
+            .MapWordsApi()
+            .MapOnlineQuizApi();
         await app.StartAsync(TestContext.Current.CancellationToken);
         return app;
     }

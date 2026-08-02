@@ -174,6 +174,22 @@ public sealed class UpdatePaperRequestValidator : AbstractValidator<UpdatePaperR
 }
 
 /// <summary>
+/// 校验试卷发布检查、状态动作和硬删除使用的并发标识。
+/// </summary>
+public sealed class PaperMutationRequestValidator
+    : AbstractValidator<PaperMutationRequest>
+{
+    /// <summary>
+    /// 要求客户端提供非空试卷并发标识。
+    /// </summary>
+    public PaperMutationRequestValidator()
+    {
+        RuleFor(value => value.ConcurrencyStamp)
+            .NotEmpty().WithErrKey(ErrorCodes.PaperConcurrencyConflict);
+    }
+}
+
+/// <summary>
 /// 校验题目文本、题型形状、评分、排序和嵌套答案集合。
 /// </summary>
 public sealed class PaperQuestionInputValidator
@@ -458,7 +474,7 @@ public sealed class PaperAttemptListRequestValidator
 }
 
 /// <summary>
-/// 校验逐题保存请求最多包含一个有界答案字段。
+/// 校验逐题保存请求恰好包含一个有界答案字段。
 /// </summary>
 public sealed class SavePaperAttemptAnswerRequestValidator
     : AbstractValidator<SavePaperAttemptAnswerRequest>
@@ -475,7 +491,7 @@ public sealed class SavePaperAttemptAnswerRequestValidator
             .MaximumLength(OnlineQuizConstraints.MaxAnswerTextLength)
             .WithErrKey(ErrorCodes.PaperAnswerTextLengthLimit);
         RuleFor(value => value)
-            .Must(value => CountAnswers(value) <= 1)
+            .Must(value => CountAnswers(value) == 1)
             .WithErrKey(ErrorCodes.PaperAttemptAnswerShapeInvalid);
     }
 

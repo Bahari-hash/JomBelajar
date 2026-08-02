@@ -184,6 +184,31 @@ public sealed class PaperAttemptService : IPaperAttemptService
     }
 
     /// <inheritdoc />
+    public async Task ClearAnswerAsync(
+        Guid userId,
+        Guid attemptId,
+        Guid questionId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await ClearAnswerCoreAsync(
+                userId,
+                attemptId,
+                questionId,
+                cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await ResolveClearConflictAsync(
+                userId,
+                attemptId,
+                questionId,
+                cancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<PaperAttemptResultResponse> SubmitAsync(
         Guid userId,
         Guid attemptId,
@@ -413,6 +438,76 @@ public sealed class PaperAttemptService : IPaperAttemptService
     }
 
     /// <summary>
+    /// 在一个事务中幂等删除活动测验的一道已保存答案。
+    /// </summary>
+    private async Task ClearAnswerCoreAsync(
+        Guid userId,
+        Guid attemptId,
+        Guid questionId,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        var attempt = await _db.PaperAttempts.SingleOrDefaultAsync(
+            value => value.Id == attemptId && value.UserId == userId,
+            cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.PaperAttemptNotFound);
+        EnsureInProgress(attempt);
+        await EnsureQuestionBelongsToPaperAsync(
+            attempt.PaperId,
+            questionId,
+            cancellationToken);
+        var answer = await _db.PaperAttemptAnswers.SingleOrDefaultAsync(
+            value => value.AttemptId == attemptId && value.QuestionId == questionId,
+            cancellationToken);
+        if (answer is null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return;
+        }
+
+        _db.PaperAttemptAnswers.Remove(answer);
+        attempt.ConcurrencyStamp = Guid.NewGuid();
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Cleared answer for attempt {AttemptId} question {QuestionId} user {UserId}",
+            attemptId,
+            questionId,
+            userId);
+    }
+
+    /// <summary>
+    /// 在清除竞争后识别已清除的幂等成功或返回稳定冲突。
+    /// </summary>
+    private async Task ResolveClearConflictAsync(
+        Guid userId,
+        Guid attemptId,
+        Guid questionId,
+        CancellationToken cancellationToken)
+    {
+        _db.ClearTrackedChanges();
+        var attempt = await _db.PaperAttempts.AsNoTracking().SingleOrDefaultAsync(
+            value => value.Id == attemptId && value.UserId == userId,
+            cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.PaperAttemptNotFound);
+        EnsureInProgress(attempt);
+        await EnsureQuestionBelongsToPaperAsync(
+            attempt.PaperId,
+            questionId,
+            cancellationToken);
+        var answerExists = await _db.PaperAttemptAnswers.AsNoTracking().AnyAsync(
+            value => value.AttemptId == attemptId && value.QuestionId == questionId,
+            cancellationToken);
+        if (!answerExists)
+        {
+            return;
+        }
+
+        throw ConflictException.Create(ErrorCodes.PaperAttemptConcurrencyConflict);
+    }
+
+    /// <summary>
     /// 在一个事务中补齐全部题目结果、判分并首次提交测验。
     /// </summary>
     private async Task<PaperAttemptResultResponse> SubmitCoreAsync(
@@ -529,6 +624,22 @@ public sealed class PaperAttemptService : IPaperAttemptService
             _ => throw new RequestValidationException(
                 ErrorCodes.PaperAttemptAnswerShapeInvalid)
         };
+    }
+
+    /// <summary>
+    /// 验证题目标识属于当前 Attempt 绑定的试卷。
+    /// </summary>
+    private async Task EnsureQuestionBelongsToPaperAsync(
+        Guid paperId,
+        Guid questionId,
+        CancellationToken cancellationToken)
+    {
+        if (!await _db.PaperQuestions.AsNoTracking().AnyAsync(
+            value => value.Id == questionId && value.PaperId == paperId,
+            cancellationToken))
+        {
+            throw NotFoundException.Create(ErrorCodes.PaperAttemptQuestionNotFound);
+        }
     }
 
     /// <summary>
@@ -687,6 +798,8 @@ public sealed class PaperAttemptService : IPaperAttemptService
             attempt.Paper.Instructions,
             attempt.Paper.LanguageTag,
             attempt.Paper.Questions.Count,
+            attempt.PaperTotalScore,
+            attempt.PaperPassingScore,
             attempt.StartedAt,
             attempt.SubmittedAt,
             attempt.Paper.Questions.OrderBy(question => question.SortOrder)
@@ -695,6 +808,7 @@ public sealed class PaperAttemptService : IPaperAttemptService
                     question.Id,
                     question.Type,
                     question.Prompt,
+                    question.Points,
                     question.SortOrder,
                     question.Options.OrderBy(option => option.SortOrder)
                         .ThenBy(option => option.Id)

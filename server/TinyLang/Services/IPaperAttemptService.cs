@@ -43,6 +43,15 @@ public interface IPaperAttemptService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 幂等清除活动测验中一道属于当前试卷的已保存答案。
+    /// </summary>
+    Task ClearAnswerAsync(
+        Guid userId,
+        Guid attemptId,
+        Guid questionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 原子判分并提交测验，重复提交返回已经持久化的相同结果。
     /// </summary>
     Task<PaperAttemptResultResponse> SubmitAsync(

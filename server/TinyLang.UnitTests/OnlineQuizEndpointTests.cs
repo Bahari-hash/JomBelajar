@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using FluentAssertions;
@@ -23,7 +24,7 @@ namespace TinyLang.UnitTests;
 public sealed class OnlineQuizEndpointTests
 {
     /// <summary>
-    /// 验证七条管理路由使用 RequireAdmin，八条用户路由使用 RequireUser。
+    /// 验证九条管理路由使用 RequireAdmin，九条用户路由使用 RequireUser。
     /// </summary>
     [Fact]
     public void RoutesShouldApplyAdminAndUserPolicies()
@@ -35,11 +36,11 @@ public sealed class OnlineQuizEndpointTests
         var userRoutes = routes.Where(value =>
             !value.RoutePattern.RawText!.StartsWith("/api/admin/papers"));
 
-        routes.Should().HaveCount(15);
-        adminRoutes.Should().HaveCount(7).And.OnlyContain(endpoint => endpoint.Metadata
+        routes.Should().HaveCount(18);
+        adminRoutes.Should().HaveCount(9).And.OnlyContain(endpoint => endpoint.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
             .Any(value => value.Policy == AuthorizationPolicies.RequireAdmin));
-        userRoutes.Should().HaveCount(8).And.OnlyContain(endpoint => endpoint.Metadata
+        userRoutes.Should().HaveCount(9).And.OnlyContain(endpoint => endpoint.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
             .Any(value => value.Policy == AuthorizationPolicies.RequireUser));
     }
@@ -77,6 +78,71 @@ public sealed class OnlineQuizEndpointTests
         paperService.Verify(value => value.CreateDraftAsync(
             adminId,
             It.IsAny<CreatePaperRequest>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// 验证发布检查、归档和 DELETE body 转发同一客户端并发标识。
+    /// </summary>
+    [Fact]
+    public async Task AdminMutationsShouldForwardRequiredConcurrencyStamp()
+    {
+        var adminId = Guid.NewGuid();
+        var paperId = Guid.NewGuid();
+        var stamp = Guid.NewGuid();
+        var request = new PaperMutationRequest { ConcurrencyStamp = stamp };
+        var paperService = new Mock<IPaperService>();
+        paperService.Setup(value => value.ValidateAsync(
+                paperId,
+                It.IsAny<PaperMutationRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaperValidationResponse(true, []));
+        paperService.Setup(value => value.ArchiveAsync(
+                paperId,
+                adminId,
+                It.IsAny<PaperMutationRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateAdminPaperResponse(paperId));
+        await using var app = await CreateHttpAppAsync(
+            paperService.Object,
+            Mock.Of<IPaperAttemptService>(),
+            adminId);
+        var client = app.GetTestClient();
+
+        var validation = await client.PostAsJsonAsync(
+            $"/api/admin/papers/{paperId}/validate",
+            request,
+            TestContext.Current.CancellationToken);
+        var archive = await client.PostAsJsonAsync(
+            $"/api/admin/papers/{paperId}/archive",
+            request,
+            TestContext.Current.CancellationToken);
+        using var deleteRequest = new HttpRequestMessage(
+            HttpMethod.Delete,
+            $"/api/admin/papers/{paperId}")
+        {
+            Content = JsonContent.Create(request)
+        };
+        var delete = await client.SendAsync(
+            deleteRequest,
+            TestContext.Current.CancellationToken);
+
+        validation.StatusCode.Should().Be(HttpStatusCode.OK);
+        archive.StatusCode.Should().Be(HttpStatusCode.OK);
+        delete.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        paperService.Verify(value => value.ValidateAsync(
+            paperId,
+            It.Is<PaperMutationRequest>(body => body.ConcurrencyStamp == stamp),
+            It.IsAny<CancellationToken>()), Times.Once);
+        paperService.Verify(value => value.ArchiveAsync(
+            paperId,
+            adminId,
+            It.Is<PaperMutationRequest>(body => body.ConcurrencyStamp == stamp),
+            It.IsAny<CancellationToken>()), Times.Once);
+        paperService.Verify(value => value.DeleteAsync(
+            paperId,
+            adminId,
+            It.Is<PaperMutationRequest>(body => body.ConcurrencyStamp == stamp),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -146,6 +212,9 @@ public sealed class OnlineQuizEndpointTests
             $"/api/paper-attempts/{attemptId}/answers/{questionId}",
             new SavePaperAttemptAnswerRequest { BooleanAnswer = true },
             TestContext.Current.CancellationToken);
+        var cleared = await app.GetTestClient().DeleteAsync(
+            $"/api/paper-attempts/{attemptId}/answers/{questionId}",
+            TestContext.Current.CancellationToken);
         var submitted = await app.GetTestClient().PostAsync(
             $"/api/paper-attempts/{attemptId}/submit",
             null,
@@ -155,6 +224,7 @@ public sealed class OnlineQuizEndpointTests
             TestContext.Current.CancellationToken);
 
         saved.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        cleared.StatusCode.Should().Be(HttpStatusCode.NoContent);
         submitted.StatusCode.Should().Be(HttpStatusCode.OK);
         result.StatusCode.Should().Be(HttpStatusCode.OK);
         attemptService.Verify(value => value.SaveAnswerAsync(
@@ -163,6 +233,11 @@ public sealed class OnlineQuizEndpointTests
             questionId,
             It.Is<SavePaperAttemptAnswerRequest>(request =>
                 request.BooleanAnswer == true),
+            It.IsAny<CancellationToken>()), Times.Once);
+        attemptService.Verify(value => value.ClearAnswerAsync(
+            userId,
+            attemptId,
+            questionId,
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -195,6 +270,9 @@ public sealed class OnlineQuizEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         json.Should().Contain("savedAnswer");
+        json.Should().Contain("paperTotalScore");
+        json.Should().Contain("paperPassingScore");
+        json.Should().Contain("points");
         json.Should().NotContain("isCorrect");
         json.Should().NotContain("correctBoolean");
         json.Should().NotContain("correctOptionId");
@@ -274,8 +352,10 @@ public sealed class OnlineQuizEndpointTests
             PaperPublicationStatus.Draft,
             0,
             0,
-            Guid.NewGuid(),
-            Guid.NewGuid(),
+            0,
+            new ContentAuditUserResponse(Guid.NewGuid(), null, null),
+            new ContentAuditUserResponse(Guid.NewGuid(), null, null),
+            null,
             null,
             Guid.NewGuid(),
             [],
@@ -299,6 +379,8 @@ public sealed class OnlineQuizEndpointTests
             null,
             "en",
             questionId.HasValue ? 1 : 0,
+            1,
+            1,
             DateTimeOffset.UtcNow,
             null,
             questionId is { } id
@@ -308,6 +390,7 @@ public sealed class OnlineQuizEndpointTests
                         id,
                         PaperQuestionType.TrueFalse,
                         "Prompt",
+                        1,
                         0,
                         [],
                         new UserPaperAttemptSavedAnswerResponse(

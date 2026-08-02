@@ -29,6 +29,7 @@ public sealed class Paper : BaseAuditableEntity
     public Guid LastEditorId { get; set; }
     public User? LastEditor { get; set; }
     public DateTimeOffset? PublishedAt { get; set; }
+    public DateTimeOffset? ArchivedAt { get; set; }
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
     public ICollection<PaperQuestion> Questions { get; set; } = [];
     public ICollection<PaperAttempt> Attempts { get; set; } = [];

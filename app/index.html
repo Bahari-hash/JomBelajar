@@ -1,10 +1,35 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>app</title>
+    <meta
+      name="description"
+      content="TinyLang 外语学习平台，提供文章、视频、单词和在线测试学习入口。"
+    />
+    <meta name="theme-color" content="#ffffff" />
+    <script>
+      (() => {
+        const storageKey = "tinylang-theme";
+        let preference = "system";
+        try {
+          const stored = localStorage.getItem(storageKey);
+          if (stored === "light" || stored === "dark" || stored === "system") {
+            preference = stored;
+          }
+        } catch {}
+        const dark =
+          preference === "dark" ||
+          (preference === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+        const resolved = dark ? "dark" : "light";
+        document.documentElement.dataset.theme = `tinylang-${resolved}`;
+        document.documentElement.style.colorScheme = resolved;
+        document
+          .querySelector('meta[name="theme-color"]')
+          ?.setAttribute("content", dark ? "#18181b" : "#ffffff");
+      })();
+    </script>
+    <title>TinyLang</title>
   </head>
   <body>
     <div id="root"></div>

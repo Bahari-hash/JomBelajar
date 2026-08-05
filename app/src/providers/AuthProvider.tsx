@@ -214,6 +214,24 @@ function AuthSessionProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const requestDeleteAccountToken = async () => {
+    try {
+      await accountSecurityApi.requestDeleteAccountToken();
+    } catch (error) {
+      throw toApiRequestError(error, "验证码发送失败，请稍后重试。");
+    }
+  };
+
+  const deleteAccount = async (verificationCode: string) => {
+    try {
+      await accountSecurityApi.deleteAccount(verificationCode);
+      clearSession();
+      dispatch(clearAuth());
+    } catch (error) {
+      throw toApiRequestError(error, "账号删除失败，请检查后重试。");
+    }
+  };
+
   const requestForgotPasswordToken = async (email: string) => {
     try {
       await accountSecurityApi.requestForgotPasswordToken(email);
@@ -268,6 +286,8 @@ function AuthSessionProvider({ children }: AuthProviderProps) {
         changeEmail,
         requestResetPasswordToken,
         resetPassword,
+        requestDeleteAccountToken,
+        deleteAccount,
         requestForgotPasswordToken,
         forgotPassword,
         logout,

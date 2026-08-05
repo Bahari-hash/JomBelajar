@@ -59,7 +59,7 @@ describe("ForgotPasswordPage", () => {
     ).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("邮箱验证码"), "123456");
-    await user.type(screen.getByLabelText("新密码"), "new-password");
+    await user.type(screen.getByLabelText(/^新密码/), "new-password");
     await user.type(screen.getByLabelText("确认新密码"), "new-password");
     await user.click(screen.getByRole("button", { name: "重置密码" }));
 
@@ -113,7 +113,7 @@ describe("ForgotPasswordPage", () => {
 
     await user.type(screen.getByLabelText("邮箱"), "user@example.test");
     await user.type(screen.getByLabelText("邮箱验证码"), "123456");
-    await user.type(screen.getByLabelText("新密码"), "short");
+    await user.type(screen.getByLabelText(/^新密码/), "short");
     await user.type(screen.getByLabelText("确认新密码"), "short");
     await user.click(screen.getByRole("button", { name: "重置密码" }));
 

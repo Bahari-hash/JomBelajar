@@ -2,6 +2,7 @@ using System.Linq;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -42,6 +43,9 @@ public sealed class UserSecurityEndpointTests
         AssertPolicy(routes, "/api/users/me/reset-password", AuthorizationPolicies.RequireUser);
         AssertPolicy(routes, "/api/users/me/change-email", AuthorizationPolicies.RequireUser);
         AssertPolicy(routes, "/api/users/me/delete-account", AuthorizationPolicies.RequireUser);
+        routes.Single(endpoint => endpoint.RoutePattern.RawText == "/api/users/me/delete-account")
+            .Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+            .Should().Be(RateLimitPolicies.StrictCodeLimit);
 
         routes.Should().NotContain(endpoint => endpoint.RoutePattern.RawText == "/api/users/me/password");
         routes.Should().NotContain(endpoint => endpoint.RoutePattern.RawText == "/api/users/me/email");

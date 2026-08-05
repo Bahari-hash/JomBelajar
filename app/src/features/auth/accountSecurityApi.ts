@@ -38,6 +38,16 @@ export const accountSecurityApi = {
         timeout: ACCOUNT_SECURITY_REQUEST_TIMEOUT_MS,
       },
     ),
+  requestDeleteAccountToken: () =>
+    httpClient.post<void>("/auth/delete-account-token", undefined, {
+      timeout: ACCOUNT_SECURITY_REQUEST_TIMEOUT_MS,
+    }),
+  deleteAccount: (verificationCode: string) =>
+    httpClient.delete<void>("/users/me/delete-account", {
+      data: { verificationCode },
+      skipAuthRefresh: true,
+      timeout: ACCOUNT_SECURITY_REQUEST_TIMEOUT_MS,
+    }),
   requestForgotPasswordToken: (email: string) =>
     httpClient.post<void>(
       "/auth/forgot-password-token",

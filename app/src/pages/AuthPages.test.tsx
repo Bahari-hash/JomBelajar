@@ -20,6 +20,24 @@ function renderWithAuth(
 }
 
 describe("consumer auth forms", () => {
+  it("shows a result message after account deletion", () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          { pathname: "/login", state: { accountDeleted: true } },
+        ]}
+      >
+        <AuthContext value={createAuthContextValue()}>
+          <LoginPage />
+        </AuthContext>
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByText("账号已删除，所有设备均已退出登录。"),
+    ).toBeInTheDocument();
+  });
+
   it("blocks invalid login fields before calling the API", async () => {
     const user = userEvent.setup();
     const login = vi.fn();
@@ -43,12 +61,12 @@ describe("consumer auth forms", () => {
     renderWithAuth(<LoginPage />, createAuthContextValue({ login }));
 
     await user.type(screen.getByLabelText("邮箱"), "user@example.test");
-    await user.type(screen.getByLabelText("密码"), "wrong-password");
+    await user.type(screen.getByLabelText(/^密码/), "wrong-password");
     await user.click(screen.getByRole("button", { name: "登录" }));
 
     expect(login).toHaveBeenCalledWith("user@example.test", "wrong-password");
     expect(await screen.findByText("邮箱或密码错误。")).toBeInTheDocument();
-    expect(screen.getByLabelText("密码")).toHaveValue("");
+    expect(screen.getByLabelText(/^密码/)).toHaveValue("");
   });
 
   it("submits a successful login and supports password visibility", async () => {
@@ -56,7 +74,7 @@ describe("consumer auth forms", () => {
     const login = vi.fn().mockResolvedValue({ id: "1" });
     renderWithAuth(<LoginPage />, createAuthContextValue({ login }));
 
-    const password = screen.getByLabelText("密码");
+    const password = screen.getByLabelText(/^密码/);
     await user.type(screen.getByLabelText("邮箱"), "user@example.test");
     await user.type(password, "correct-password");
     expect(password).toHaveAttribute("type", "password");
@@ -108,7 +126,7 @@ describe("consumer auth forms", () => {
 
     await user.type(screen.getByLabelText("邮箱"), "new@example.test");
     await user.type(screen.getByLabelText("注册验证码"), "123456");
-    await user.type(screen.getByLabelText("密码"), "password1");
+    await user.type(screen.getByLabelText(/^密码/), "password1");
     await user.type(screen.getByLabelText("确认密码"), "password2");
     await user.click(screen.getByRole("button", { name: "注册" }));
 
@@ -125,7 +143,7 @@ describe("consumer auth forms", () => {
 
     await user.type(screen.getByLabelText("邮箱"), "new@example.test");
     await user.type(screen.getByLabelText("注册验证码"), "123456");
-    await user.type(screen.getByLabelText("密码"), "short");
+    await user.type(screen.getByLabelText(/^密码/), "short");
     await user.type(screen.getByLabelText("确认密码"), "short");
     await user.click(screen.getByRole("button", { name: "注册" }));
 

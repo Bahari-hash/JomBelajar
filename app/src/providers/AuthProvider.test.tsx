@@ -21,7 +21,7 @@ function ReduxSessionStatus() {
 }
 
 function AccountSecurityStatus() {
-  const { status, login, changeEmail } = useAuth();
+  const { status, login, changeEmail, deleteAccount } = useAuth();
   return (
     <div>
       <output>{status}</output>
@@ -33,6 +33,9 @@ function AccountSecurityStatus() {
         onClick={() => void changeEmail("new@example.test", "123456")}
       >
         换绑命令
+      </button>
+      <button type="button" onClick={() => void deleteAccount("123456") }>
+        删除命令
       </button>
     </div>
   );
@@ -169,6 +172,57 @@ describe("AuthProvider", () => {
     expect(await screen.findByText("authenticated")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "换绑命令" }));
 
+    expect(await screen.findByText("anonymous")).toBeInTheDocument();
+    expect(sessionStorage.getItem(authStorageKey)).toBeNull();
+  });
+
+  it("clears Redux and persisted credentials after deleting the account", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(authApi, "login").mockResolvedValue({
+      data: {
+        token: "access",
+        refreshToken: "refresh",
+        expiresIn: 60,
+        user: { id: "user-1", email: "user@example.test", role: "User" },
+      },
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+    });
+    vi.spyOn(authApi, "getCurrentProfile").mockResolvedValue({
+      data: {
+        id: "user-1",
+        email: "user@example.test",
+        role: "User",
+        nickname: null,
+        avatarUrl: null,
+        bio: null,
+        createdAt: "2026-08-01T00:00:00Z",
+      },
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+    });
+    vi.spyOn(accountSecurityApi, "deleteAccount").mockResolvedValue({
+      data: undefined,
+      status: 204,
+      statusText: "No Content",
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+    });
+    render(
+      <AuthProvider>
+        <AccountSecurityStatus />
+      </AuthProvider>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "登录命令" }));
+    expect(await screen.findByText("authenticated")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "删除命令" }));
+
+    expect(accountSecurityApi.deleteAccount).toHaveBeenCalledWith("123456");
     expect(await screen.findByText("anonymous")).toBeInTheDocument();
     expect(sessionStorage.getItem(authStorageKey)).toBeNull();
   });

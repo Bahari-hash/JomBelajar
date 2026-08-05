@@ -77,6 +77,30 @@ public sealed class RateLimitEndpointTests
         repeatedResetResponse.Headers.RetryAfter?.Delta.Should().BeGreaterThan(TimeSpan.Zero);
     }
 
+    [Fact]
+    public async Task StrictCodeLimitShouldIsolateDeleteTokenAndDeleteCommand()
+    {
+        await using var app = await CreateRateLimitedAppAsync();
+        var client = app.GetTestClient();
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var tokenResponse = await client.PostAsync(
+            "/api/auth/delete-account-token",
+            null,
+            cancellationToken);
+        var deleteResponse = await client.DeleteAsync(
+            "/api/users/me/delete-account",
+            cancellationToken);
+        var repeatedDeleteResponse = await client.DeleteAsync(
+            "/api/users/me/delete-account",
+            cancellationToken);
+
+        tokenResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        repeatedDeleteResponse.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        repeatedDeleteResponse.Headers.RetryAfter?.Delta.Should().BeGreaterThan(TimeSpan.Zero);
+    }
+
     [Theory]
     [InlineData("/api/uploads/users/avatar/presign")]
     [InlineData("/api/uploads/admin/media/presign")]
@@ -147,6 +171,10 @@ public sealed class RateLimitEndpointTests
         app.MapPost("/api/auth/forgot-password-token", () => Results.Ok())
             .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
         app.MapPut("/api/auth/forgot-password", () => Results.NoContent())
+            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
+        app.MapPost("/api/auth/delete-account-token", () => Results.Ok())
+            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
+        app.MapDelete("/api/users/me/delete-account", () => Results.NoContent())
             .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
         await app.StartAsync(TestContext.Current.CancellationToken);
         return app;

@@ -32,6 +32,8 @@ export interface AuthContextValue {
     newPassword: string,
     verificationCode: string,
   ) => Promise<void>;
+  requestDeleteAccountToken: () => Promise<void>;
+  deleteAccount: (verificationCode: string) => Promise<void>;
   requestForgotPasswordToken: (email: string) => Promise<void>;
   forgotPassword: (
     email: string,

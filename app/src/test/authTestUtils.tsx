@@ -26,6 +26,8 @@ export function createAuthContextValue(
     },
     requestResetPasswordToken: async () => undefined,
     resetPassword: async () => undefined,
+    requestDeleteAccountToken: async () => undefined,
+    deleteAccount: async () => undefined,
     requestForgotPasswordToken: async () => undefined,
     forgotPassword: async () => undefined,
     logout: async () => undefined,

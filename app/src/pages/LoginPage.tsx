@@ -43,11 +43,13 @@ export default function LoginPage() {
   const [message, setMessage] = useState<string | null>(
     location.state?.registered
       ? "注册成功，请使用新账户登录。"
-      : location.state?.emailChanged
-        ? "邮箱修改成功，请使用新邮箱重新登录。"
-        : location.state?.passwordReset
-          ? "密码已重置，请使用新密码登录。"
-          : null,
+      : location.state?.accountDeleted
+        ? "账号已删除，所有设备均已退出登录。"
+        : location.state?.emailChanged
+          ? "邮箱修改成功，请使用新邮箱重新登录。"
+          : location.state?.passwordReset
+            ? "密码已重置，请使用新密码登录。"
+            : null,
   );
   const [pending, setPending] = useState(false);
 

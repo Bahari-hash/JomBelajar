@@ -66,7 +66,7 @@ describe("AccountSecurityPanel", () => {
       .getByRole("heading", { name: "重置密码" })
       .closest("form")!;
     await user.type(within(form).getByLabelText("邮箱验证码"), "123456");
-    await user.type(within(form).getByLabelText("新密码"), "new-password");
+    await user.type(within(form).getByLabelText(/^新密码/), "new-password");
     await user.type(
       within(form).getByLabelText("确认新密码"),
       "different-password",
@@ -92,7 +92,7 @@ describe("AccountSecurityPanel", () => {
 
     const form = screen.getByRole("heading", { name: "重置密码" }).closest("form")!;
     await user.type(within(form).getByLabelText("邮箱验证码"), "123456");
-    await user.type(within(form).getByLabelText("新密码"), "short");
+    await user.type(within(form).getByLabelText(/^新密码/), "short");
     await user.type(within(form).getByLabelText("确认新密码"), "short");
     await user.click(within(form).getByRole("button", { name: "确认重置密码" }));
 
@@ -162,5 +162,95 @@ describe("AccountSecurityPanel", () => {
       await within(form).findByText("请求超时，请检查网络连接后重试。"),
     ).toBeInTheDocument();
     expect(sendButton).toBeEnabled();
+  });
+
+  it("renders a red account deletion action and validates before deleting", async () => {
+    const user = userEvent.setup();
+    const deleteAccount = vi.fn();
+    render(
+      <MemoryRouter>
+        <AuthContext value={createAuthContextValue({ deleteAccount })}>
+          <AccountSecurityPanel currentEmail="user@example.test" />
+        </AuthContext>
+      </MemoryRouter>,
+    );
+
+    const openButton = screen.getByRole("button", { name: "删除账号" });
+    expect(openButton).toHaveClass("btn-error");
+    await user.click(openButton);
+
+    const form = screen.getByRole("form", { name: "删除账号确认" });
+    await user.click(
+      within(form).getByRole("button", { name: "永久删除账号" }),
+    );
+
+    expect(within(form).getByText("请输入验证码。")).toBeInTheDocument();
+    expect(deleteAccount).not.toHaveBeenCalled();
+  });
+
+  it("sends a deletion code and deletes the account after confirmation", async () => {
+    const user = userEvent.setup();
+    const requestDeleteAccountToken = vi.fn().mockResolvedValue(undefined);
+    const deleteAccount = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemoryRouter initialEntries={["/profile"]}>
+        <AuthContext
+          value={createAuthContextValue({
+            requestDeleteAccountToken,
+            deleteAccount,
+          })}
+        >
+          <AccountSecurityPanel currentEmail="user@example.test" />
+          <LocationStatus />
+        </AuthContext>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "删除账号" }));
+    const form = screen.getByRole("form", { name: "删除账号确认" });
+    await user.click(within(form).getByRole("button", { name: "发送验证码" }));
+    expect(requestDeleteAccountToken).toHaveBeenCalledOnce();
+    expect(
+      within(form).getByText("验证码已发送到 user@example.test。"),
+    ).toBeInTheDocument();
+
+    await user.type(within(form).getByLabelText("邮箱验证码"), "123456");
+    await user.click(
+      within(form).getByRole("button", { name: "永久删除账号" }),
+    );
+
+    expect(deleteAccount).toHaveBeenCalledWith("123456");
+    expect(await screen.findByText("/login")).toBeInTheDocument();
+  });
+
+  it("keeps the deletion code available after the backend rejects it", async () => {
+    const user = userEvent.setup();
+    const deleteAccount = vi.fn().mockRejectedValue(
+      new ApiRequestError("验证码错误或已失效，请重新获取。", {
+        code: "VerificationCodeInvalid",
+        status: 401,
+      }),
+    );
+    render(
+      <MemoryRouter>
+        <AuthContext value={createAuthContextValue({ deleteAccount })}>
+          <AccountSecurityPanel currentEmail="user@example.test" />
+        </AuthContext>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "删除账号" }));
+    const form = screen.getByRole("form", { name: "删除账号确认" });
+    const codeInput = within(form).getByLabelText("邮箱验证码");
+    await user.type(codeInput, "123456");
+    await user.click(
+      within(form).getByRole("button", { name: "永久删除账号" }),
+    );
+
+    expect(
+      await within(form).findByText("验证码错误或已失效，请重新获取。"),
+    ).toBeInTheDocument();
+    expect(codeInput).toHaveValue("123456");
+    expect(deleteAccount).toHaveBeenCalledOnce();
   });
 });

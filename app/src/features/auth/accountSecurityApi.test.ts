@@ -16,7 +16,7 @@ describe("accountSecurityApi", () => {
         data: config.url === "/users/me/change-email"
           ? { id: "user-1", email: "new@example.test" }
           : undefined,
-        status: config.method === "put" ? 204 : 200,
+        status: config.method === "post" ? 200 : 204,
         statusText: "OK",
         headers: {},
         config,
@@ -27,6 +27,8 @@ describe("accountSecurityApi", () => {
     await accountSecurityApi.changeEmail("new@example.test", "123456");
     await accountSecurityApi.requestResetPasswordToken();
     await accountSecurityApi.resetPassword("new-password", "123456");
+    await accountSecurityApi.requestDeleteAccountToken();
+    await accountSecurityApi.deleteAccount("123456");
     await accountSecurityApi.requestForgotPasswordToken("user@example.test");
     await accountSecurityApi.forgotPassword(
       "user@example.test",
@@ -39,6 +41,8 @@ describe("accountSecurityApi", () => {
       ["put", "/users/me/change-email"],
       ["post", "/auth/reset-password-token"],
       ["put", "/users/me/reset-password"],
+      ["post", "/auth/delete-account-token"],
+      ["delete", "/users/me/delete-account"],
       ["post", "/auth/forgot-password-token"],
       ["put", "/auth/forgot-password"],
     ]);
@@ -47,12 +51,16 @@ describe("accountSecurityApi", () => {
       verificationCode: "123456",
     });
     expect(JSON.parse(requests[5]!.data)).toEqual({
+      verificationCode: "123456",
+    });
+    expect(JSON.parse(requests[7]!.data)).toEqual({
       email: "user@example.test",
       newPassword: "new-password",
       verificationCode: "123456",
     });
     expect(requests[1]!.skipAuthRefresh).toBe(true);
-    expect(requests[5]!.skipAuth).toBe(true);
+    expect(requests[5]!.skipAuthRefresh).toBe(true);
+    expect(requests[7]!.skipAuth).toBe(true);
     expect(requests.every(({ timeout }) =>
       timeout === ACCOUNT_SECURITY_REQUEST_TIMEOUT_MS)).toBe(true);
     httpClient.defaults.adapter = originalAdapter;

@@ -2,6 +2,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TinyLang.Constants;
@@ -145,14 +146,19 @@ public static class RateLimitingDependencyInjection
     }
 
     /// <summary>
-    /// 优先按用户标识、否则按远端 IP 构建验证码限流分区键。
+    /// 按认证端点隔离，并优先按用户标识、否则按远端 IP 构建验证码限流分区键。
     /// </summary>
     /// <param name="context">当前 HTTP 上下文。</param>
     /// <returns>验证码限流分区键。</returns>
     private static string GetStrictCodePartitionKey(HttpContext context)
-        => TryGetUserId(context, out var userId)
+    {
+        var callerKey = TryGetUserId(context, out var userId)
             ? $"user:{userId:N}"
             : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        var endpointKey = (context.GetEndpoint() as RouteEndpoint)?
+            .RoutePattern.RawText?.ToLowerInvariant() ?? "unknown";
+        return $"{callerKey}|endpoint:{endpointKey}";
+    }
 
     /// <summary>
     /// 优先按用户标识、否则按未认证远端 IP 构建上传限流分区键。

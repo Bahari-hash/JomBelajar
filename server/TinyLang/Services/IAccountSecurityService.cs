@@ -20,6 +20,16 @@ public interface IAccountSecurityService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 使用邮箱验证码匿名重置密码，并撤销该账户的全部会话。
+    /// </summary>
+    /// <param name="request">邮箱、新密码和验证码。</param>
+    /// <param name="cancellationToken">用于取消操作的令牌。</param>
+    /// <returns>表示异步重置操作的任务。</returns>
+    Task ResetForgottenPasswordAsync(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 验证换绑码并更新当前用户邮箱，同时撤销现有会话。
     /// </summary>
     /// <param name="userId">当前用户标识。</param>

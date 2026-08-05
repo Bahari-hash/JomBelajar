@@ -12,6 +12,7 @@ declare module "axios" {
   interface AxiosRequestConfig {
     skipAuth?: boolean;
     authRetry?: boolean;
+    skipAuthRefresh?: boolean;
   }
 }
 
@@ -48,6 +49,9 @@ httpClient.interceptors.response.use(
     }
 
     const originalRequest = error.config;
+    if (originalRequest?.skipAuthRefresh) {
+      return Promise.reject(error);
+    }
     if (
       !originalRequest ||
       originalRequest.skipAuth ||

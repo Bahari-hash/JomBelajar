@@ -26,6 +26,12 @@ export const routes: RouteObject[] = [
               Component: (await import("@/pages/RegisterPage")).default,
             }),
           },
+          {
+            path: "forgot-password",
+            lazy: async () => ({
+              Component: (await import("@/pages/ForgotPasswordPage")).default,
+            }),
+          },
         ],
       },
       {

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Provider } from "react-redux";
 import { authApi, refreshAuthSession } from "@/features/auth/authApi";
+import { accountSecurityApi } from "@/features/auth/accountSecurityApi";
 import { toApiRequestError } from "@/features/auth/authErrors";
 import { readStoredRefreshToken } from "@/features/auth/authStorage";
 import {
@@ -170,6 +171,73 @@ function AuthSessionProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const requestChangeEmailToken = async (newEmail: string) => {
+    try {
+      await accountSecurityApi.requestChangeEmailToken(newEmail);
+    } catch (error) {
+      throw toApiRequestError(error, "验证码发送失败，请稍后重试。");
+    }
+  };
+
+  const changeEmail = async (newEmail: string, verificationCode: string) => {
+    try {
+      const response = await accountSecurityApi.changeEmail(
+        newEmail,
+        verificationCode,
+      );
+      clearSession();
+      dispatch(clearAuth());
+      return response.data;
+    } catch (error) {
+      throw toApiRequestError(error, "邮箱修改失败，请检查后重试。");
+    }
+  };
+
+  const requestResetPasswordToken = async () => {
+    try {
+      await accountSecurityApi.requestResetPasswordToken();
+    } catch (error) {
+      throw toApiRequestError(error, "验证码发送失败，请稍后重试。");
+    }
+  };
+
+  const resetPassword = async (
+    newPassword: string,
+    verificationCode: string,
+  ) => {
+    try {
+      await accountSecurityApi.resetPassword(newPassword, verificationCode);
+      clearSession();
+      dispatch(clearAuth());
+    } catch (error) {
+      throw toApiRequestError(error, "密码重置失败，请检查后重试。");
+    }
+  };
+
+  const requestForgotPasswordToken = async (email: string) => {
+    try {
+      await accountSecurityApi.requestForgotPasswordToken(email);
+    } catch (error) {
+      throw toApiRequestError(error, "验证码发送失败，请稍后重试。");
+    }
+  };
+
+  const forgotPassword = async (
+    email: string,
+    newPassword: string,
+    verificationCode: string,
+  ) => {
+    try {
+      await accountSecurityApi.forgotPassword(
+        email,
+        newPassword,
+        verificationCode,
+      );
+    } catch (error) {
+      throw toApiRequestError(error, "密码重置失败，请检查后重试。");
+    }
+  };
+
   const logout = async () => {
     const refreshToken = getRefreshToken();
     try {
@@ -196,6 +264,12 @@ function AuthSessionProvider({ children }: AuthProviderProps) {
         requestRegisterToken,
         refreshProfile,
         updateProfile,
+        requestChangeEmailToken,
+        changeEmail,
+        requestResetPasswordToken,
+        resetPassword,
+        requestForgotPasswordToken,
+        forgotPassword,
         logout,
       }}
     >

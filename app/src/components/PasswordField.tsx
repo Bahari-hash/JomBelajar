@@ -34,6 +34,7 @@ export default function PasswordField({
           aria-invalid={Boolean(error)}
           autoComplete={autoComplete}
           className="input input-bordered w-full pr-11"
+          maxLength={50}
           type={visible && !isConfirmation ? "text" : "password"}
           value={value}
           onChange={(event) => onChange(event.target.value)}

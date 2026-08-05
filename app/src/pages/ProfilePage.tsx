@@ -10,12 +10,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import UserAvatar from "@/components/UserAvatar";
 import {
+  clearFieldError,
   getFieldError,
   toApiRequestError,
   type FieldErrors,
 } from "@/features/auth/authErrors";
 import type { UpdateProfileRequest } from "@/features/auth/types";
 import { uploadAvatar } from "@/features/profile/profileApi";
+import AccountSecurityPanel from "@/features/profile/AccountSecurityPanel";
 import {
   formatProfileDate,
   getRoleLabel,
@@ -103,6 +105,7 @@ export default function ProfilePage() {
 
   const handleChange = (field: keyof UpdateProfileRequest, value: string) => {
     setDraft({ ...draft, [field]: value });
+    setFieldErrors((current) => clearFieldError(current, field));
     setDirty(true);
     setMessage(null);
   };
@@ -133,7 +136,7 @@ export default function ProfilePage() {
       setMessage("头像已上传，请保存资料以应用。");
     } catch (error) {
       const requestError = toApiRequestError(error, "头像上传失败，请重试。");
-      // setFieldErrors({ avatarUrl: requestError.message });
+      setFieldErrors(requestError.fieldErrors);
       setMessage(requestError.message);
     } finally {
       setUploadingAvatar(false);
@@ -336,6 +339,7 @@ export default function ProfilePage() {
           </form>
         </section>
       </div>
+      <AccountSecurityPanel currentEmail={profile.email} />
     </div>
   );
 }

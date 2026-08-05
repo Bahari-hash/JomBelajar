@@ -20,6 +20,19 @@ function renderWithAuth(
 }
 
 describe("consumer auth forms", () => {
+  it("blocks invalid login fields before calling the API", async () => {
+    const user = userEvent.setup();
+    const login = vi.fn();
+    renderWithAuth(<LoginPage />, createAuthContextValue({ login }));
+
+    await user.type(screen.getByLabelText("邮箱"), "invalid-email");
+    await user.click(screen.getByRole("button", { name: "登录" }));
+
+    expect(screen.getByText("请输入有效的邮箱地址。")).toBeInTheDocument();
+    expect(screen.getByText("请输入密码。")).toBeInTheDocument();
+    expect(login).not.toHaveBeenCalled();
+  });
+
   it("validates login fields and clears the password after invalid credentials", async () => {
     const user = userEvent.setup();
     const login = vi
@@ -49,6 +62,10 @@ describe("consumer auth forms", () => {
     expect(password).toHaveAttribute("type", "password");
     await user.click(screen.getByRole("button", { name: "显示或隐藏密码" }));
     expect(password).toHaveAttribute("type", "text");
+    expect(screen.getByRole("link", { name: "忘记密码？" })).toHaveAttribute(
+      "href",
+      "/forgot-password",
+    );
   });
 
   it("sends a real registration token request and starts the resend countdown", async () => {
@@ -69,6 +86,21 @@ describe("consumer auth forms", () => {
     expect(screen.getByRole("button", { name: /后重发/ })).toBeDisabled();
   });
 
+  it("blocks an invalid registration email before requesting a token", async () => {
+    const user = userEvent.setup();
+    const requestRegisterToken = vi.fn();
+    renderWithAuth(
+      <RegisterPage />,
+      createAuthContextValue({ requestRegisterToken }),
+    );
+
+    await user.type(screen.getByLabelText("邮箱"), "invalid-email");
+    await user.click(screen.getByRole("button", { name: "发送验证码" }));
+
+    expect(screen.getByText("请输入有效的邮箱地址。")).toBeInTheDocument();
+    expect(requestRegisterToken).not.toHaveBeenCalled();
+  });
+
   it("requires matching passwords and does not create a session on registration", async () => {
     const user = userEvent.setup();
     const register = vi.fn();
@@ -83,6 +115,22 @@ describe("consumer auth forms", () => {
     expect(
       await screen.findByText("两次输入的密码不一致。"),
     ).toBeInTheDocument();
+    expect(register).not.toHaveBeenCalled();
+  });
+
+  it("shows registration password length errors before submitting", async () => {
+    const user = userEvent.setup();
+    const register = vi.fn();
+    renderWithAuth(<RegisterPage />, createAuthContextValue({ register }));
+
+    await user.type(screen.getByLabelText("邮箱"), "new@example.test");
+    await user.type(screen.getByLabelText("注册验证码"), "123456");
+    await user.type(screen.getByLabelText("密码"), "short");
+    await user.type(screen.getByLabelText("确认密码"), "short");
+    await user.click(screen.getByRole("button", { name: "注册" }));
+
+    expect(screen.getByText("密码至少需要 8 个字符。"))
+      .toBeInTheDocument();
     expect(register).not.toHaveBeenCalled();
   });
 });

@@ -148,6 +148,44 @@ describe("httpClient", () => {
     httpClient.defaults.adapter = originalAdapter;
   });
 
+  it("preserves an authenticated session for a business 401", async () => {
+    const originalAdapter = httpClient.defaults.adapter;
+    let refreshCount = 0;
+    setSession({
+      token: "access",
+      refreshToken: "refresh",
+      expiresIn: 60,
+      user: { id: "user-1", email: "user@example.test", role: "User" },
+    });
+    configureAuthRefresh(async () => {
+      refreshCount += 1;
+      throw new Error("must not run");
+    });
+    httpClient.defaults.adapter = async (config) => {
+      const response: AxiosResponse = {
+        data: { errorCode: "VerificationCodeInvalid" },
+        status: 401,
+        statusText: "Unauthorized",
+        headers: {},
+        config,
+      };
+      throw new axios.AxiosError(
+        "invalid code",
+        "ERR_BAD_REQUEST",
+        config,
+        undefined,
+        response,
+      );
+    };
+
+    await expect(
+      httpClient.put("/users/me/reset-password", {}, { skipAuthRefresh: true }),
+    ).rejects.toThrow();
+    expect(refreshCount).toBe(0);
+    expect(getAccessToken()).toBe("access");
+    httpClient.defaults.adapter = originalAdapter;
+  });
+
   it("does not attach the consumer bearer token to an OSS presigned upload", async () => {
     const originalAdapter = httpClient.defaults.adapter;
     setSession({

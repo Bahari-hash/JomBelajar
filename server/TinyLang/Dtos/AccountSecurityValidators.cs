@@ -22,6 +22,50 @@ public sealed class SendChangeEmailTokenRequestValidator : AbstractValidator<Sen
 }
 
 /// <summary>
+/// 校验匿名密码找回验证码申请中的邮箱。
+/// </summary>
+public sealed class ForgotPasswordTokenRequestValidator : AbstractValidator<ForgotPasswordTokenRequest>
+{
+    /// <summary>
+    /// 初始化匿名密码找回验证码申请规则。
+    /// </summary>
+    public ForgotPasswordTokenRequestValidator()
+    {
+        RuleFor(x => x.Email)
+            .NotEmpty().WithErrKey(ErrorCodes.EmailRequired)
+            .EmailAddress().WithErrKey(ErrorCodes.EmailFormatInvalid)
+            .MaximumLength(100).WithErrKey(ErrorCodes.EmailLengthLimit);
+    }
+}
+
+/// <summary>
+/// 校验匿名密码找回请求中的邮箱、新密码和验证码。
+/// </summary>
+public sealed class ForgotPasswordRequestValidator : AbstractValidator<ForgotPasswordRequest>
+{
+    /// <summary>
+    /// 初始化匿名密码找回请求规则。
+    /// </summary>
+    public ForgotPasswordRequestValidator()
+    {
+        RuleFor(x => x.Email)
+            .NotEmpty().WithErrKey(ErrorCodes.EmailRequired)
+            .EmailAddress().WithErrKey(ErrorCodes.EmailFormatInvalid)
+            .MaximumLength(100).WithErrKey(ErrorCodes.EmailLengthLimit);
+
+        RuleFor(x => x.NewPassword)
+            .NotEmpty().WithErrKey(ErrorCodes.PasswordRequired)
+            .MinimumLength(8).WithErrKey(ErrorCodes.PasswordLengthMinimum)
+            .MaximumLength(50).WithErrKey(ErrorCodes.PasswordLengthLimit);
+
+        RuleFor(x => x.VerificationCode)
+            .NotEmpty().WithErrKey(ErrorCodes.VerificationCodeRequired)
+            .Length(6).WithErrKey(ErrorCodes.VerificationCodeLengthLimit)
+            .Matches("^[0-9]+$").WithErrKey(ErrorCodes.VerificationCodeFormatInvalid);
+    }
+}
+
+/// <summary>
 /// 校验密码重置请求中的新密码和验证码。
 /// </summary>
 public sealed class ResetPasswordRequestValidator : AbstractValidator<ResetPasswordRequest>

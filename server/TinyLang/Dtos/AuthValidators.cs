@@ -65,6 +65,7 @@ public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
 
         RuleFor(x => x.Password)
             .NotEmpty().WithErrKey(ErrorCodes.PasswordRequired)
+            .MinimumLength(8).WithErrKey(ErrorCodes.PasswordLengthMinimum)
             .MaximumLength(50).WithErrKey(ErrorCodes.PasswordLengthLimit);
     }
 }

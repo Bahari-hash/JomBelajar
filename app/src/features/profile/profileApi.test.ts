@@ -44,4 +44,40 @@ describe("profileApi", () => {
     await expect(uploadAvatar(file)).rejects.toThrow("头像仅支持");
     expect(presign).not.toHaveBeenCalled();
   });
+
+  it.each([
+    [
+      "unsafe file name",
+      () => new File(["avatar"], "../avatar.png", { type: "image/png" }),
+    ],
+    [
+      "long file name",
+      () => new File(["avatar"], `${"a".repeat(252)}.png`, { type: "image/png" }),
+    ],
+    [
+      "unsupported extension",
+      () => new File(["avatar"], "avatar.bmp", { type: "image/png" }),
+    ],
+    [
+      "mismatched content type",
+      () => new File(["avatar"], "avatar.jpg", { type: "image/png" }),
+    ],
+    [
+      "empty file",
+      () => new File([], "avatar.png", { type: "image/png" }),
+    ],
+    [
+      "oversized file",
+      () => new File(
+        [new Uint8Array(5 * 1024 * 1024 + 1)],
+        "avatar.png",
+        { type: "image/png" },
+      ),
+    ],
+  ])("rejects %s before requesting a presign", async (_scenario, createFile) => {
+    const presign = vi.spyOn(authApi, "presignAvatar");
+
+    await expect(uploadAvatar(createFile())).rejects.toThrow();
+    expect(presign).not.toHaveBeenCalled();
+  });
 });

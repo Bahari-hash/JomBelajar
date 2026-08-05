@@ -20,6 +20,14 @@ export function createAuthContextValue(
     updateProfile: async () => {
       throw new Error("updateProfile not configured");
     },
+    requestChangeEmailToken: async () => undefined,
+    changeEmail: async () => {
+      throw new Error("changeEmail not configured");
+    },
+    requestResetPasswordToken: async () => undefined,
+    resetPassword: async () => undefined,
+    requestForgotPasswordToken: async () => undefined,
+    forgotPassword: async () => undefined,
     logout: async () => undefined,
     ...overrides,
   };

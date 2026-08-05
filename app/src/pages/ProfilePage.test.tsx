@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { ApiRequestError } from "@/features/auth/authErrors";
+import { authApi } from "@/features/auth/authApi";
 import ProfilePage from "@/pages/ProfilePage";
 import * as profileApi from "@/features/profile/profileApi";
 import { AuthContext } from "@/providers/authContext";
@@ -95,6 +97,28 @@ describe("ProfilePage", () => {
     uploadAvatar.mockRestore();
   });
 
+  it("shows local avatar validation without requesting a presign", async () => {
+    const user = userEvent.setup();
+    const presignAvatar = vi.spyOn(authApi, "presignAvatar");
+    renderProfile(
+      createAuthContextValue({
+        status: "authenticated",
+        profile,
+        profileStatus: "ready",
+      }),
+    );
+
+    const mismatchedFile = new File(["avatar"], "avatar.jpg", {
+      type: "image/png",
+    });
+    await user.upload(screen.getByLabelText("上传头像"), mismatchedFile);
+
+    expect(
+      (await screen.findAllByText("头像文件扩展名与文件类型不匹配。")).length,
+    ).toBeGreaterThan(0);
+    expect(presignAvatar).not.toHaveBeenCalled();
+  });
+
   it("cancels a draft and exposes a recoverable profile error", async () => {
     const user = userEvent.setup();
     const refreshProfile = vi.fn().mockResolvedValue(profile);
@@ -131,5 +155,33 @@ describe("ProfilePage", () => {
     expect(screen.getByText("资料加载失败，请重试。")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重新加载" }));
     expect(refreshProfile).toHaveBeenCalled();
+  });
+
+  it("renders server field validation beside the matching profile control", async () => {
+    const user = userEvent.setup();
+    const updateProfile = vi.fn().mockRejectedValue(
+      new ApiRequestError("请检查表单中的填写内容。", {
+        code: "RequestValidationFailed",
+        fieldErrors: { Nickname: "昵称不能超过 60 个字符。" },
+      }),
+    );
+    renderProfile(
+      createAuthContextValue({
+        status: "authenticated",
+        profile,
+        profileStatus: "ready",
+        updateProfile,
+      }),
+    );
+
+    const nickname = screen.getByDisplayValue("学习者");
+    await user.clear(nickname);
+    await user.type(nickname, "新昵称");
+    await user.click(screen.getByRole("button", { name: "保存资料" }));
+
+    expect(
+      await screen.findByText("昵称不能超过 60 个字符。"),
+    ).toBeInTheDocument();
+    expect(updateProfile).toHaveBeenCalled();
   });
 });

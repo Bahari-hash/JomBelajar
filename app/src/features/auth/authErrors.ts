@@ -3,10 +3,12 @@ import axios from "axios";
 export type FieldErrors = Record<string, string>;
 
 const errorMessages: Record<string, string> = {
+  RequestValidationFailed: "请检查表单中的填写内容。",
   EmailRequired: "请输入邮箱。",
   EmailFormatInvalid: "请输入有效的邮箱地址。",
   EmailLengthLimit: "邮箱长度不能超过 100 个字符。",
   EmailAlreadyExists: "该邮箱已被注册。",
+  EmailUnchanged: "新邮箱不能与当前邮箱相同。",
   PasswordRequired: "请输入密码。",
   PasswordLengthMinimum: "密码至少需要 8 个字符。",
   PasswordLengthLimit: "密码不能超过 50 个字符。",
@@ -28,6 +30,7 @@ export class ApiRequestError extends Error {
   readonly code: string | null;
   readonly status: number | null;
   readonly fieldErrors: FieldErrors;
+  readonly retryAfterSeconds: number | null;
 
   constructor(
     message: string,
@@ -35,6 +38,7 @@ export class ApiRequestError extends Error {
       code?: string | null;
       status?: number | null;
       fieldErrors?: FieldErrors;
+      retryAfterSeconds?: number | null;
     } = {},
   ) {
     super(message);
@@ -42,7 +46,18 @@ export class ApiRequestError extends Error {
     this.code = options.code ?? null;
     this.status = options.status ?? null;
     this.fieldErrors = options.fieldErrors ?? {};
+    this.retryAfterSeconds = options.retryAfterSeconds ?? null;
   }
+}
+
+function parseRetryAfterSeconds(value: unknown) {
+  const seconds =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim() !== ""
+        ? Number(value)
+        : Number.NaN;
+  return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : null;
 }
 
 function mapFieldErrors(errors: unknown): FieldErrors {
@@ -52,11 +67,13 @@ function mapFieldErrors(errors: unknown): FieldErrors {
 
   return Object.entries(errors).reduce<FieldErrors>(
     (result, [field, value]) => {
-      if (
-        Array.isArray(value) &&
-        value.every((item) => typeof item === "string")
-      ) {
-        result[field] = value
+      const messages = Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === "string")
+        : typeof value === "string"
+          ? [value]
+          : [];
+      if (messages.length > 0) {
+        result[field] = messages
           .map((item) => errorMessages[item] ?? item)
           .join(" ");
       }
@@ -86,13 +103,36 @@ export function toApiRequestError(
       ? problem.errorCode
       : null;
   const fieldErrors = "errors" in problem ? mapFieldErrors(problem.errors) : {};
-  const safeMessage = code
+  const status = error.response?.status ?? null;
+  const responseRetryAfter =
+    "retryAfter" in problem
+      ? parseRetryAfterSeconds(problem.retryAfter)
+      : null;
+  const retryAfterSeconds =
+    responseRetryAfter ??
+    parseRetryAfterSeconds(
+      error.response?.headers["retry-after"] ??
+        error.response?.headers["Retry-After"],
+    );
+  let safeMessage = code
     ? (errorMessages[code] ?? fallbackMessage)
     : fallbackMessage;
+
+  if (status === 429) {
+    safeMessage = retryAfterSeconds
+      ? `请求过于频繁，请在 ${retryAfterSeconds} 秒后重试。`
+      : "请求过于频繁，请稍后重试。";
+  } else if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+    safeMessage = "请求超时，请检查网络连接后重试。";
+  } else if (!error.response && error.code === "ERR_NETWORK") {
+    safeMessage = "网络连接失败，请检查网络后重试。";
+  }
+
   return new ApiRequestError(safeMessage, {
     code,
-    status: error.response?.status ?? null,
+    status,
     fieldErrors,
+    retryAfterSeconds,
   });
 }
 
@@ -101,7 +141,28 @@ export function getErrorMessage(error: unknown, fallbackMessage?: string) {
 }
 
 export function getFieldError(errors: FieldErrors, field: string) {
-  return (
-    errors[field] ?? errors[`${field[0]?.toUpperCase() ?? ""}${field.slice(1)}`]
+  const direct = errors[field];
+  if (direct) {
+    return direct;
+  }
+
+  const pascalCase = `${field[0]?.toUpperCase() ?? ""}${field.slice(1)}`;
+  if (errors[pascalCase]) {
+    return errors[pascalCase];
+  }
+
+  const normalizedField = field.toLowerCase();
+  return Object.entries(errors).find(
+    ([key, value]) => key.toLowerCase() === normalizedField && value,
+  )?.[1];
+}
+
+/** Removes one field's stale error while preserving unrelated validation feedback. */
+export function clearFieldError(errors: FieldErrors, field: string) {
+  const normalizedField = field.toLowerCase();
+  return Object.fromEntries(
+    Object.entries(errors).filter(
+      ([key]) => key.toLowerCase() !== normalizedField,
+    ),
   );
 }

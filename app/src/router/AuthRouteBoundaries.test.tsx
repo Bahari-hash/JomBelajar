@@ -57,4 +57,28 @@ describe("auth route boundaries", () => {
     ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/profile");
   });
+
+  it("redirects an authenticated user away from anonymous password recovery", async () => {
+    const router = createMemoryRouter(routes, {
+      initialEntries: ["/forgot-password"],
+    });
+    render(
+      <ThemeProvider>
+        <AuthContext
+          value={createAuthContextValue({
+            status: "authenticated",
+            profile,
+            profileStatus: "ready",
+          })}
+        >
+          <RouterProvider router={router} />
+        </AuthContext>
+      </ThemeProvider>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "个人资料" }),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/profile");
+  });
 });

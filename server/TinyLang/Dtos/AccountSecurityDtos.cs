@@ -9,6 +9,24 @@ public sealed record SendChangeEmailTokenRequest
 }
 
 /// <summary>
+/// 描述匿名申请密码找回验证码的邮箱。
+/// </summary>
+public sealed record ForgotPasswordTokenRequest
+{
+    public required string Email { get; init; }
+}
+
+/// <summary>
+/// 描述匿名使用邮箱验证码重置密码的请求。
+/// </summary>
+public sealed record ForgotPasswordRequest
+{
+    public required string Email { get; init; }
+    public required string NewPassword { get; init; }
+    public required string VerificationCode { get; init; }
+}
+
+/// <summary>
 /// 描述使用验证码重置当前账户密码的请求。
 /// </summary>
 public sealed record ResetPasswordRequest

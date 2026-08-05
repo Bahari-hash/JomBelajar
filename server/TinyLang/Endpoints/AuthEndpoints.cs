@@ -34,6 +34,12 @@ public static class AuthEndpoints
             .RequireAuthorization(AuthorizationPolicies.RequireUser)
             .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
 
+        group.MapPost("/forgot-password-token", SendForgotPasswordTokenAsync)
+            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
+
+        group.MapPut("/forgot-password", ResetForgottenPasswordAsync)
+            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
+
         group.MapPost("/delete-account-token", SendDeleteAccountTokenAsync)
             .RequireAuthorization(AuthorizationPolicies.RequireUser)
             .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
@@ -103,6 +109,42 @@ public static class AuthEndpoints
         await authService.SendResetPasswordTokenAsync(
             EndpointIdentity.GetUserId(principal), cancellationToken);
         return TypedResults.Ok();
+    }
+
+    /// <summary>
+    /// 为有效账户发送匿名密码找回验证码，并对未知邮箱保持相同响应。
+    /// </summary>
+    /// <param name="request">待找回账户的邮箱。</param>
+    /// <param name="authService">认证业务服务。</param>
+    /// <param name="cancellationToken">请求取消令牌。</param>
+    /// <returns>不暴露邮箱是否存在的成功结果。</returns>
+    public static async Task<Ok> SendForgotPasswordTokenAsync(
+        ForgotPasswordTokenRequest request,
+        IAuthService authService,
+        CancellationToken cancellationToken)
+    {
+        await authService.SendForgotPasswordTokenAsync(
+            request.Email,
+            cancellationToken);
+        return TypedResults.Ok();
+    }
+
+    /// <summary>
+    /// 使用邮箱验证码匿名重置账户密码。
+    /// </summary>
+    /// <param name="request">邮箱、新密码和验证码。</param>
+    /// <param name="securityService">账户安全业务服务。</param>
+    /// <param name="cancellationToken">请求取消令牌。</param>
+    /// <returns>无响应体的成功结果。</returns>
+    public static async Task<NoContent> ResetForgottenPasswordAsync(
+        ForgotPasswordRequest request,
+        IAccountSecurityService securityService,
+        CancellationToken cancellationToken)
+    {
+        await securityService.ResetForgottenPasswordAsync(
+            request,
+            cancellationToken);
+        return TypedResults.NoContent();
     }
 
     /// <summary>

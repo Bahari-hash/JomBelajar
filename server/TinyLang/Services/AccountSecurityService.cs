@@ -43,6 +43,28 @@ public sealed class AccountSecurityService(
     }
 
     /// <inheritdoc />
+    public async Task ResetForgottenPasswordAsync(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var email = NormalizeEmail(request.Email);
+        var user = await db.Users.SingleOrDefaultAsync(
+            x => x.Email == email && !x.IsDeleted && !x.IsBanned,
+            cancellationToken);
+        if (user is null || !await authService.VerifyCodeAsync(
+                email,
+                VerificationCodePurpose.ResetPassword,
+                request.VerificationCode,
+                cancellationToken))
+        {
+            throw UnauthorizedException.Create(ErrorCodes.VerificationCodeInvalid);
+        }
+
+        user.PasswordHash = secretHasher.Hash(request.NewPassword);
+        await userSessionService.InvalidateAllAsync(user, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<ChangeEmailResponse> ChangeEmailAsync(
         Guid userId,
         ChangeEmailRequest request,

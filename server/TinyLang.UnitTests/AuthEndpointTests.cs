@@ -72,6 +72,41 @@ public sealed class AuthEndpointTests
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task ForgotPasswordHandlersShouldDelegateWithoutAuthenticationState()
+    {
+        var authService = new Mock<IAuthService>();
+        var securityService = new Mock<IAccountSecurityService>();
+        var tokenRequest = new ForgotPasswordTokenRequest
+        {
+            Email = "learner@example.test"
+        };
+        var resetRequest = new ForgotPasswordRequest
+        {
+            Email = "learner@example.test",
+            NewPassword = "new-password",
+            VerificationCode = "123456"
+        };
+
+        var tokenResult = await AuthEndpoints.SendForgotPasswordTokenAsync(
+            tokenRequest,
+            authService.Object,
+            TestContext.Current.CancellationToken);
+        var resetResult = await AuthEndpoints.ResetForgottenPasswordAsync(
+            resetRequest,
+            securityService.Object,
+            TestContext.Current.CancellationToken);
+
+        tokenResult.StatusCode.Should().Be((int)HttpStatusCode.OK);
+        resetResult.StatusCode.Should().Be((int)HttpStatusCode.NoContent);
+        authService.Verify(service => service.SendForgotPasswordTokenAsync(
+            tokenRequest.Email,
+            It.IsAny<CancellationToken>()), Times.Once);
+        securityService.Verify(service => service.ResetForgottenPasswordAsync(
+            resetRequest,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private static async Task<WebApplication> CreateAppAsync(
         IAuthService authService,
         Guid userId,
@@ -88,6 +123,7 @@ public sealed class AuthEndpointTests
                 policy.RequireAssertion(_ => true));
         });
         builder.Services.AddSingleton(authService);
+        builder.Services.AddSingleton(Mock.Of<IAccountSecurityService>());
         var app = builder.Build();
         app.Use(async (context, next) =>
         {

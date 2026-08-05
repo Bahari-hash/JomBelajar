@@ -26,6 +26,7 @@ describe("consumer routes", () => {
     ["/videos", "视频"],
     ["/words", "单词"],
     ["/papers", "在线测试"],
+    ["/forgot-password", "重置密码"],
     ["/missing", "页面未找到"],
   ])("renders %s inside the shared layout", async (path, heading) => {
     renderRoute(path);

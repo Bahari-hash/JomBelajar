@@ -85,6 +85,16 @@ public interface IAuthService
     Task SendResetPasswordTokenAsync(Guid userId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 为有效账户发送匿名密码找回验证码；未知邮箱保持静默成功。
+    /// </summary>
+    /// <param name="email">待找回账户的邮箱。</param>
+    /// <param name="cancellationToken">用于取消操作的令牌。</param>
+    /// <returns>表示异步发送操作的任务。</returns>
+    Task SendForgotPasswordTokenAsync(
+        string email,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 向当前用户邮箱发送账户删除验证码。
     /// </summary>
     /// <param name="userId">当前用户标识。</param>

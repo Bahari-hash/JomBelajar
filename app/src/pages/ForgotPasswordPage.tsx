@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AuthPageShell from "@/components/AuthPageShell";
 import PasswordField from "@/components/PasswordField";
@@ -16,137 +16,137 @@ import {
 } from "@/features/auth/authValidation";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useResendCountdown } from "@/hooks/useResendCountdown";
 
-interface RegisterFields {
+interface ForgotPasswordFields {
   email: string;
   verificationCode: string;
-  password: string;
+  newPassword: string;
   passwordConfirmation: string;
 }
 
-function validate(fields: RegisterFields): FieldErrors {
+function validate(fields: ForgotPasswordFields) {
   const errors: FieldErrors = {};
-  const emailError = validateEmail(fields.email);
-  const codeError = validateVerificationCode(fields.verificationCode);
-  const passwordError = validateNewPassword(fields.password);
+  const passwordError = validateNewPassword(fields.newPassword);
   const confirmationError = validatePasswordConfirmation(
-    fields.password,
+    fields.newPassword,
     fields.passwordConfirmation,
   );
+  const emailError = validateEmail(fields.email);
+  const codeError = validateVerificationCode(fields.verificationCode);
   if (emailError) errors.email = emailError;
   if (codeError) errors.verificationCode = codeError;
-  if (passwordError) errors.password = passwordError;
+  if (passwordError) errors.newPassword = passwordError;
   if (confirmationError) errors.passwordConfirmation = confirmationError;
   return errors;
 }
 
-export default function RegisterPage() {
-  useDocumentTitle("注册");
-  const { register, requestRegisterToken } = useAuth();
+export default function ForgotPasswordPage() {
+  useDocumentTitle("忘记密码");
+  const { requestForgotPasswordToken, forgotPassword } = useAuth();
   const navigate = useNavigate();
-  const [fields, setFields] = useState<RegisterFields>({
+  const countdown = useResendCountdown();
+  const [fields, setFields] = useState<ForgotPasswordFields>({
     email: "",
     verificationCode: "",
-    password: "",
+    newPassword: "",
     passwordConfirmation: "",
   });
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<string | null>(null);
-  const [countdown, setCountdown] = useState(0);
-  const [tokenPending, setTokenPending] = useState(false);
-  const [registerPending, setRegisterPending] = useState(false);
+  const [isError, setIsError] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (countdown <= 0) {
-      return;
-    }
-    const timer = window.setInterval(
-      () => setCountdown((current) => Math.max(0, current - 1)),
-      1000,
-    );
-    return () => window.clearInterval(timer);
-  }, [countdown]);
-
-  const handleSendToken = async () => {
+  const handleSendCode = async () => {
     const emailError = validateEmail(fields.email);
     if (emailError) {
       setFieldErrors({ email: emailError });
       return;
     }
 
-    setTokenPending(true);
+    setSending(true);
     setFieldErrors({});
     setMessage(null);
     try {
-      await requestRegisterToken(fields.email.trim());
-      setCountdown(60);
-      setMessage("验证码已发送，请检查邮箱。");
+      await requestForgotPasswordToken(fields.email.trim());
+      countdown.start();
+      setIsError(false);
+      setMessage("若该邮箱已注册，验证码将发送至该邮箱。");
     } catch (error) {
       const requestError = toApiRequestError(
         error,
         "验证码发送失败，请稍后重试。",
       );
-      setFieldErrors(requestError.fieldErrors);
+      setIsError(true);
       setMessage(requestError.message);
     } finally {
-      setTokenPending(false);
+      setSending(false);
     }
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const localErrors = validate(fields);
-    setFieldErrors(localErrors);
+    const errors = validate(fields);
+    setFieldErrors(errors);
     setMessage(null);
-    if (Object.keys(localErrors).length > 0) {
+    if (Object.keys(errors).length > 0) {
       return;
     }
 
-    setRegisterPending(true);
+    setSubmitting(true);
     try {
-      await register(
+      await forgotPassword(
         fields.email.trim(),
-        fields.password,
+        fields.newPassword,
         fields.verificationCode,
       );
-      navigate("/login", { replace: true, state: { registered: true } });
+      setFields({
+        email: "",
+        verificationCode: "",
+        newPassword: "",
+        passwordConfirmation: "",
+      });
+      navigate("/login", {
+        replace: true,
+        state: { passwordReset: true },
+      });
     } catch (error) {
       const requestError = toApiRequestError(
         error,
-        "注册失败，请检查信息后重试。",
+        "密码重置失败，请检查后重试。",
       );
       setFieldErrors(requestError.fieldErrors);
+      setIsError(true);
       setMessage(requestError.message);
     } finally {
-      setRegisterPending(false);
+      setSubmitting(false);
     }
   };
 
   return (
     <AuthPageShell
-      title="创建 TinyLang 账户"
-      description="注册后即可保存你的学习记录。"
+      title="重置密码"
+      description="使用注册邮箱接收验证码。"
       footer={
-        <span>
-          已有账户？
-          <Link className="link link-primary ml-1" to="/login">
-            返回登录
-          </Link>
-        </span>
+        <Link className="link link-primary" to="/login">
+          返回登录
+        </Link>
       }
     >
       {message ? (
-        <div className="alert alert-info mb-5 text-sm" role="status">
+        <div
+          className={`alert mb-5 text-sm ${isError ? "alert-error" : "alert-info"}`}
+          role={isError ? "alert" : "status"}
+        >
           {message}
         </div>
       ) : null}
       <form className="flex flex-col gap-4" noValidate onSubmit={handleSubmit}>
-        <label className="form-control w-full" htmlFor="register-email">
-          <span className="label pb-1">
-            <span className="label-text font-medium">邮箱</span>
-          </span>
+        <label className="form-control w-full" htmlFor="forgot-password-email">
+          <span className="label pb-1 font-medium">邮箱</span>
           <input
-            id="register-email"
+            id="forgot-password-email"
             aria-invalid={Boolean(getFieldError(fieldErrors, "email"))}
             autoComplete="email"
             className="input input-bordered w-full"
@@ -165,12 +165,15 @@ export default function RegisterPage() {
           ) : null}
         </label>
         <div className="form-control w-full">
-          <label className="label pb-1" htmlFor="register-verification-code">
-            <span className="label-text font-medium">注册验证码</span>
+          <label
+            className="label pb-1 font-medium"
+            htmlFor="forgot-password-code"
+          >
+            邮箱验证码
           </label>
           <div className="flex gap-2">
             <input
-              id="register-verification-code"
+              id="forgot-password-code"
               aria-invalid={Boolean(
                 getFieldError(fieldErrors, "verificationCode"),
               )}
@@ -178,7 +181,6 @@ export default function RegisterPage() {
               className="input input-bordered min-w-0 flex-1"
               inputMode="numeric"
               maxLength={6}
-              pattern="[0-9]{6}"
               value={fields.verificationCode}
               onChange={(event) => {
                 setFields({
@@ -194,14 +196,16 @@ export default function RegisterPage() {
             />
             <button
               className="btn btn-outline shrink-0"
-              disabled={tokenPending || countdown > 0}
+              disabled={sending || countdown.seconds > 0 || submitting}
               type="button"
-              onClick={() => void handleSendToken()}
+              onClick={() => void handleSendCode()}
             >
-              {tokenPending ? (
+              {sending ? (
                 <span className="loading loading-spinner loading-sm" />
               ) : null}
-              {countdown > 0 ? `${countdown}s 后重发` : "发送验证码"}
+              {countdown.seconds > 0
+                ? `${countdown.seconds}s 后重发`
+                : "发送验证码"}
             </button>
           </div>
           {getFieldError(fieldErrors, "verificationCode") ? (
@@ -211,19 +215,21 @@ export default function RegisterPage() {
           ) : null}
         </div>
         <PasswordField
-          id="register-password"
-          label="密码 (最小 8 位)"
+          id="forgot-password-new-password"
+          label="新密码 (最小 8 位)"
           autoComplete="new-password"
-          error={getFieldError(fieldErrors, "password")}
-          value={fields.password}
-          onChange={(password) => {
-            setFields({ ...fields, password });
-            setFieldErrors((current) => clearFieldError(current, "password"));
+          error={getFieldError(fieldErrors, "newPassword")}
+          value={fields.newPassword}
+          onChange={(newPassword) => {
+            setFields({ ...fields, newPassword });
+            setFieldErrors((current) =>
+              clearFieldError(current, "newPassword"),
+            );
           }}
         />
         <PasswordField
-          id="register-password-confirmation"
-          label="确认密码"
+          id="forgot-password-confirmation"
+          label="确认新密码"
           autoComplete="new-password"
           error={getFieldError(fieldErrors, "passwordConfirmation")}
           value={fields.passwordConfirmation}
@@ -235,14 +241,14 @@ export default function RegisterPage() {
           }}
         />
         <button
-          className="btn btn-primary w-full mt-4"
-          disabled={registerPending}
+          className="btn btn-primary mt-4 w-full"
+          disabled={submitting || sending}
           type="submit"
         >
-          {registerPending ? (
+          {submitting ? (
             <span className="loading loading-spinner loading-sm" />
           ) : null}
-          {registerPending ? "注册中" : "注册"}
+          {submitting ? "重置中" : "重置密码"}
         </button>
       </form>
     </AuthPageShell>

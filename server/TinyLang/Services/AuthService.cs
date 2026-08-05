@@ -186,6 +186,26 @@ public sealed class AuthService(
     }
 
     /// <inheritdoc />
+    public async Task SendForgotPasswordTokenAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        email = NormalizeEmail(email);
+        var exists = await db.Users.AnyAsync(
+            x => x.Email == email && !x.IsDeleted && !x.IsBanned,
+            cancellationToken);
+        if (!exists)
+        {
+            return;
+        }
+
+        await verificationCodeSender.SendCodeAsync(
+            email,
+            VerificationCodePurpose.ResetPassword,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task SendDeleteAccountTokenAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await FindActiveUserAsync(userId, cancellationToken);

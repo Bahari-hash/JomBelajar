@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { authApi } from "@/features/auth/authApi";
+import { accountSecurityApi } from "@/features/auth/accountSecurityApi";
 import { authStorageKey } from "@/features/auth/authStorage";
 import { useAuth } from "@/hooks/useAuth";
 import AuthProvider from "@/providers/AuthProvider";
@@ -16,6 +18,24 @@ function SessionStatus() {
 function ReduxSessionStatus() {
   const state = useAuthState();
   return <output data-testid="redux-session">{JSON.stringify(state)}</output>;
+}
+
+function AccountSecurityStatus() {
+  const { status, login, changeEmail } = useAuth();
+  return (
+    <div>
+      <output>{status}</output>
+      <button type="button" onClick={() => void login("user@example.test", "password") }>
+        登录命令
+      </button>
+      <button
+        type="button"
+        onClick={() => void changeEmail("new@example.test", "123456")}
+      >
+        换绑命令
+      </button>
+    </div>
+  );
 }
 
 describe("AuthProvider", () => {
@@ -100,6 +120,56 @@ describe("AuthProvider", () => {
 
     expect(await screen.findByText("anonymous:none")).toBeInTheDocument();
     expect(screen.queryByText("refresh secret")).not.toBeInTheDocument();
+    expect(sessionStorage.getItem(authStorageKey)).toBeNull();
+  });
+
+  it("clears Redux and persisted credentials after changing email", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(authApi, "login").mockResolvedValue({
+      data: {
+        token: "access",
+        refreshToken: "refresh",
+        expiresIn: 60,
+        user: { id: "user-1", email: "user@example.test", role: "User" },
+      },
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+    });
+    vi.spyOn(authApi, "getCurrentProfile").mockResolvedValue({
+      data: {
+        id: "user-1",
+        email: "user@example.test",
+        role: "User",
+        nickname: null,
+        avatarUrl: null,
+        bio: null,
+        createdAt: "2026-08-01T00:00:00Z",
+      },
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+    });
+    vi.spyOn(accountSecurityApi, "changeEmail").mockResolvedValue({
+      data: { id: "user-1", email: "new@example.test" },
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+    });
+    render(
+      <AuthProvider>
+        <AccountSecurityStatus />
+      </AuthProvider>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "登录命令" }));
+    expect(await screen.findByText("authenticated")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "换绑命令" }));
+
+    expect(await screen.findByText("anonymous")).toBeInTheDocument();
     expect(sessionStorage.getItem(authStorageKey)).toBeNull();
   });
 });

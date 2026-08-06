@@ -13,9 +13,10 @@ describe("accountSecurityApi", () => {
     httpClient.defaults.adapter = async (config) => {
       requests.push(config);
       return {
-        data: config.url === "/users/me/change-email"
-          ? { id: "user-1", email: "new@example.test" }
-          : undefined,
+        data:
+          config.url === "/users/me/change-email"
+            ? { id: "user-1", email: "new@example.test" }
+            : undefined,
         status: config.method === "post" ? 200 : 204,
         statusText: "OK",
         headers: {},
@@ -61,8 +62,11 @@ describe("accountSecurityApi", () => {
     expect(requests[1]!.skipAuthRefresh).toBe(true);
     expect(requests[5]!.skipAuthRefresh).toBe(true);
     expect(requests[7]!.skipAuth).toBe(true);
-    expect(requests.every(({ timeout }) =>
-      timeout === ACCOUNT_SECURITY_REQUEST_TIMEOUT_MS)).toBe(true);
+    expect(
+      requests.every(
+        ({ timeout }) => timeout === ACCOUNT_SECURITY_REQUEST_TIMEOUT_MS,
+      ),
+    ).toBe(true);
     httpClient.defaults.adapter = originalAdapter;
   });
 });

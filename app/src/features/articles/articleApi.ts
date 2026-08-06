@@ -14,15 +14,16 @@ export const articleApi = createApi({
   reducerPath: "articleApi",
   baseQuery: axiosBaseQuery(),
   endpoints: (builder) => ({
-    getArticles: builder.query<PagedResponse<ArticleListItem>, ArticleListQuery>(
-      {
-        query: ({ page, pageSize, keyword, categoryId }) => ({
-          url: "/articles",
-          params: { page, pageSize, keyword, categoryId },
-          skipAuth: true,
-        }),
-      },
-    ),
+    getArticles: builder.query<
+      PagedResponse<ArticleListItem>,
+      ArticleListQuery
+    >({
+      query: ({ page, pageSize, keyword, categoryId }) => ({
+        url: "/articles",
+        params: { page, pageSize, keyword, categoryId },
+        skipAuth: true,
+      }),
+    }),
     getArticle: builder.query<PublicArticle, string>({
       query: (articleId) => ({
         url: `/articles/${articleId}`,

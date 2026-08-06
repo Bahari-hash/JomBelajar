@@ -25,7 +25,10 @@ function AccountSecurityStatus() {
   return (
     <div>
       <output>{status}</output>
-      <button type="button" onClick={() => void login("user@example.test", "password") }>
+      <button
+        type="button"
+        onClick={() => void login("user@example.test", "password")}
+      >
         登录命令
       </button>
       <button
@@ -34,7 +37,7 @@ function AccountSecurityStatus() {
       >
         换绑命令
       </button>
-      <button type="button" onClick={() => void deleteAccount("123456") }>
+      <button type="button" onClick={() => void deleteAccount("123456")}>
         删除命令
       </button>
     </div>

@@ -393,6 +393,10 @@ public sealed class VideoService : IVideoService
                 value.Description,
                 value.OriginalLanguage,
                 value.DurationSeconds!.Value,
+                new VideoUserSummaryResponse(
+                    value.CreatedById,
+                    value.CreatedBy.Nickname,
+                    value.CreatedBy.AvatarUrl),
                 value.PublishedAt!.Value,
                 value.CategoryAssignments
                     .Where(assignment => assignment.VideoCategory.IsActive)
@@ -422,6 +426,10 @@ public sealed class VideoService : IVideoService
                 value.DurationSeconds!.Value,
                 value.DisplayWidth!.Value,
                 value.DisplayHeight!.Value,
+                new VideoUserSummaryResponse(
+                    value.CreatedById,
+                    value.CreatedBy.Nickname,
+                    value.CreatedBy.AvatarUrl),
                 value.PublishedAt!.Value,
                 value.CategoryAssignments
                     .Where(assignment => assignment.VideoCategory.IsActive)

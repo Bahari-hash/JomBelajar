@@ -64,10 +64,21 @@ export const routes: RouteObject[] = [
         }),
       },
       {
-        path: "videos",
-        lazy: async () => ({
-          Component: (await import("@/pages/VideosPage")).default,
-        }),
+        Component: ProtectedRoute,
+        children: [
+          {
+            path: "videos",
+            lazy: async () => ({
+              Component: (await import("@/pages/VideosPage")).default,
+            }),
+          },
+          {
+            path: "videos/:videoId",
+            lazy: async () => ({
+              Component: (await import("@/pages/VideoDetailPage")).default,
+            }),
+          },
+        ],
       },
       {
         path: "words",

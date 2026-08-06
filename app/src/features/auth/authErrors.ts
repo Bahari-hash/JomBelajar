@@ -30,6 +30,9 @@ const errorMessages: Record<string, string> = {
   KeywordLengthLimit: "搜索关键词不能超过 200 个字符。",
   KeywordInvalid: "搜索关键词包含无效字符。",
   ArticleCategoryInvalid: "文章分类无效，请重新选择。",
+  VideoNotFound: "视频不存在或已下架。",
+  VideoProgressInvalid: "播放进度无效，请重新加载视频后继续观看。",
+  VideoCategoryIdsInvalid: "视频分类无效，请重新选择。",
 };
 
 export class ApiRequestError extends Error {
@@ -111,9 +114,7 @@ export function toApiRequestError(
   const fieldErrors = "errors" in problem ? mapFieldErrors(problem.errors) : {};
   const status = error.response?.status ?? null;
   const responseRetryAfter =
-    "retryAfter" in problem
-      ? parseRetryAfterSeconds(problem.retryAfter)
-      : null;
+    "retryAfter" in problem ? parseRetryAfterSeconds(problem.retryAfter) : null;
   const retryAfterSeconds =
     responseRetryAfter ??
     parseRetryAfterSeconds(

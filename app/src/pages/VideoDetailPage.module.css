@@ -1,0 +1,21 @@
+.videoCard {
+  margin-top: 1.5rem;
+  border: 1px solid var(--color-base-300);
+  border-radius: var(--radius-box);
+  background: var(--color-base-100);
+  box-shadow:
+    0 18px 42px color-mix(in oklch, var(--color-neutral) 10%, transparent),
+    0 3px 10px color-mix(in oklch, var(--color-neutral) 8%, transparent);
+  padding: clamp(1.25rem, 3.5vw, 3rem);
+}
+
+@media (max-width: 40rem) {
+  .videoCard {
+    margin-top: 1.25rem;
+    border-radius: 0.375rem;
+    box-shadow:
+      0 10px 24px color-mix(in oklch, var(--color-neutral) 9%, transparent),
+      0 2px 6px color-mix(in oklch, var(--color-neutral) 7%, transparent);
+    padding: 1rem;
+  }
+}

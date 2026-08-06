@@ -147,8 +147,7 @@ describe("consumer auth forms", () => {
     await user.type(screen.getByLabelText("确认密码"), "short");
     await user.click(screen.getByRole("button", { name: "注册" }));
 
-    expect(screen.getByText("密码至少需要 8 个字符。"))
-      .toBeInTheDocument();
+    expect(screen.getByText("密码至少需要 8 个字符。")).toBeInTheDocument();
     expect(register).not.toHaveBeenCalled();
   });
 });

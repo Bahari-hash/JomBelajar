@@ -51,9 +51,7 @@ describe("ArticleDetailPage", () => {
         summary: "A practical lesson.",
         contentHtml:
           '<p>Safe lesson</p><script>steal()</script><a href="https://example.test">Source</a>',
-        categories: [
-          { id: CATEGORY_ID, name: "Grammar", slug: "grammar" },
-        ],
+        categories: [{ id: CATEGORY_ID, name: "Grammar", slug: "grammar" }],
         author: { id: "author-1", nickname: null, avatarUrl: null },
         publishedAt: "2026-08-05T01:00:00Z",
         coverUrl: null,

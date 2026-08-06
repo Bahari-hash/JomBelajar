@@ -28,9 +28,7 @@ describe("authValidation", () => {
 
   it("validates new password and confirmation boundaries", () => {
     expect(validateNewPassword("")).toBe("请输入新密码。");
-    expect(validateNewPassword("p".repeat(7))).toBe(
-      "密码至少需要 8 个字符。",
-    );
+    expect(validateNewPassword("p".repeat(7))).toBe("密码至少需要 8 个字符。");
     expect(validateNewPassword("p".repeat(8))).toBeNull();
     expect(validateNewPassword("p".repeat(50))).toBeNull();
     expect(validateNewPassword("p".repeat(51))).toBe(
@@ -47,12 +45,8 @@ describe("authValidation", () => {
 
   it("requires exactly six numeric verification-code characters", () => {
     expect(validateVerificationCode("")).toBe("请输入验证码。");
-    expect(validateVerificationCode("12345")).toBe(
-      "验证码必须是 6 位数字。",
-    );
-    expect(validateVerificationCode("12345a")).toBe(
-      "验证码必须是 6 位数字。",
-    );
+    expect(validateVerificationCode("12345")).toBe("验证码必须是 6 位数字。");
+    expect(validateVerificationCode("12345a")).toBe("验证码必须是 6 位数字。");
     expect(validateVerificationCode("123456")).toBeNull();
   });
 });

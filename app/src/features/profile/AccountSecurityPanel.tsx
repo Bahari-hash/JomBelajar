@@ -150,9 +150,7 @@ function ChangeEmailForm({ currentEmail }: AccountSecurityPanelProps) {
             value={newEmail}
             onChange={(event) => {
               setNewEmail(event.target.value);
-              setFieldErrors((current) =>
-                clearFieldError(current, "newEmail"),
-              );
+              setFieldErrors((current) => clearFieldError(current, "newEmail"));
               setMessage(null);
             }}
           />

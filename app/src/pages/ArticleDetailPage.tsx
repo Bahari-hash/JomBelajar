@@ -25,7 +25,11 @@ function getSafeReturnPath(state: unknown) {
 
 function ArticleDetailSkeleton() {
   return (
-    <div aria-label="文章详情加载中" className="mx-auto max-w-4xl space-y-6" role="status">
+    <div
+      aria-label="文章详情加载中"
+      className="mx-auto max-w-4xl space-y-6"
+      role="status"
+    >
       <div className="skeleton h-5 w-28" />
       <div className="skeleton h-12 w-4/5" />
       <div className="skeleton h-6 w-full max-w-2xl" />
@@ -46,7 +50,8 @@ export default function ArticleDetailPage() {
   const articleQuery = useGetArticleQuery(validArticleId ?? "", {
     skip: !validArticleId,
   });
-  const notFound = !validArticleId || isArticleNotFoundError(articleQuery.error);
+  const notFound =
+    !validArticleId || isArticleNotFoundError(articleQuery.error);
   useDocumentTitle(
     articleQuery.data?.title ?? (notFound ? "文章不存在" : "文章详情"),
   );
@@ -80,7 +85,11 @@ export default function ArticleDetailPage() {
           {getArticleErrorMessage(articleQuery.error)}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <button className="btn btn-primary" type="button" onClick={() => articleQuery.refetch()}>
+          <button
+            className="btn btn-primary"
+            type="button"
+            onClick={() => articleQuery.refetch()}
+          >
             <RefreshCw aria-hidden="true" className="size-4" />
             重新加载
           </button>
@@ -102,43 +111,47 @@ export default function ArticleDetailPage() {
         返回文章列表
       </Link>
       <article className={styles.articleCard}>
-        <header>
-        <div className="flex flex-wrap gap-2">
-          {article.categories.map((category) => (
-            <Link
-              key={category.id}
-              className="badge badge-outline hover:bg-base-200"
-              to={`/articles?categoryId=${category.id}&page=1`}
-            >
-              {category.name}
-            </Link>
-          ))}
-        </div>
-        <h1 className="mt-4 text-3xl font-bold leading-tight sm:text-4xl">
-          {article.title}
-        </h1>
-        {article.summary?.trim() ? (
-          <p className="mt-4 max-w-3xl text-lg leading-8 text-base-content/70">
-            {article.summary}
-          </p>
-        ) : null}
-        <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-base-300 py-4 text-sm">
-          <div className="flex items-center gap-2.5">
-            <UserAvatar className="size-9" name={authorName} url={article.author.avatarUrl} />
-            <span className="font-medium">{authorName}</span>
+        <header className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-2">
+            {article.categories.map((category) => (
+              <Link
+                key={category.id}
+                className="badge badge-outline hover:bg-base-200"
+                to={`/articles?categoryId=${category.id}&page=1`}
+              >
+                {category.name}
+              </Link>
+            ))}
           </div>
-          <span className="flex items-center gap-1.5 text-base-content/65">
-            <CalendarDays aria-hidden="true" className="size-4" />
-            <time dateTime={article.publishedAt ?? undefined}>
-              发布于 {formatArticleDate(article.publishedAt)}
-            </time>
-          </span>
-          {article.updatedAt !== article.publishedAt ? (
-            <span className="text-base-content/60">
-              更新于 {formatArticleDate(article.updatedAt)}
-            </span>
+          <h1 className="text-3xl font-bold leading-tight sm:text-4xl">
+            {article.title}
+          </h1>
+          {article.summary?.trim() ? (
+            <p className="max-w-3xl text-lg leading-8 text-base-content/70">
+              {article.summary}
+            </p>
           ) : null}
-        </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-base-300 py-4 text-sm">
+            <div className="flex items-center gap-2.5">
+              <UserAvatar
+                className="size-9"
+                name={authorName}
+                url={article.author.avatarUrl}
+              />
+              <span className="font-medium">{authorName}</span>
+            </div>
+            <span className="flex items-center gap-1.5 text-base-content/65">
+              <CalendarDays aria-hidden="true" className="size-4" />
+              <time dateTime={article.publishedAt ?? undefined}>
+                发布于 {formatArticleDate(article.publishedAt)}
+              </time>
+            </span>
+            {article.updatedAt !== article.publishedAt ? (
+              <span className="text-base-content/60">
+                更新于 {formatArticleDate(article.updatedAt)}
+              </span>
+            ) : null}
+          </div>
         </header>
 
         {/* {article.coverUrl ? (

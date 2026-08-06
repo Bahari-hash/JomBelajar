@@ -84,7 +84,9 @@ function renderPage(path = "/articles") {
 
 function LocationProbe() {
   const location = useLocation();
-  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
+  return (
+    <output data-testid="location">{`${location.pathname}${location.search}`}</output>
+  );
 }
 
 describe("ArticlesPage", () => {
@@ -152,7 +154,9 @@ describe("ArticlesPage", () => {
     renderPage("/articles?page=-2&categoryId=invalid&keyword=%20%20");
 
     await screen.findByRole("heading", { name: "A useful grammar lesson" });
-    const articleRequest = requests.find((request) => request.url === "/articles");
+    const articleRequest = requests.find(
+      (request) => request.url === "/articles",
+    );
     expect(articleRequest?.params).toMatchObject({ page: 1, pageSize: 12 });
     expect(articleRequest?.params.keyword).toBeUndefined();
     expect(articleRequest?.params.categoryId).toBeUndefined();

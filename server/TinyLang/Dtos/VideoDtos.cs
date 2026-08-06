@@ -157,6 +157,17 @@ public sealed record VideoCategorySummaryResponse(
     string Slug);
 
 /// <summary>
+/// 返回视频页面展示所需的发布用户摘要。
+/// </summary>
+/// <param name="Id">用户标识。</param>
+/// <param name="Nickname">用户昵称。</param>
+/// <param name="AvatarUrl">用户头像地址。</param>
+public sealed record VideoUserSummaryResponse(
+    Guid Id,
+    string? Nickname,
+    string? AvatarUrl);
+
+/// <summary>
 /// 返回管理员管理视频关联的分类摘要及启用状态。
 /// </summary>
 public sealed record AdminVideoCategorySummaryResponse(
@@ -233,6 +244,7 @@ public sealed record VideoCatalogItemResponse(
     string? Description,
     string OriginalLanguage,
     double DurationSeconds,
+    VideoUserSummaryResponse Author,
     DateTimeOffset PublishedAt,
     IReadOnlyList<VideoCategorySummaryResponse> Categories);
 
@@ -247,6 +259,7 @@ public sealed record VideoDetailsResponse(
     double DurationSeconds,
     int DisplayWidth,
     int DisplayHeight,
+    VideoUserSummaryResponse Author,
     DateTimeOffset PublishedAt,
     IReadOnlyList<VideoCategorySummaryResponse> Categories);
 

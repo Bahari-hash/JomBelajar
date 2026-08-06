@@ -53,7 +53,9 @@ describe("ForgotPasswordPage", () => {
 
     await user.type(screen.getByLabelText("邮箱"), "user@example.test");
     await user.click(screen.getByRole("button", { name: "发送验证码" }));
-    expect(requestForgotPasswordToken).toHaveBeenCalledWith("user@example.test");
+    expect(requestForgotPasswordToken).toHaveBeenCalledWith(
+      "user@example.test",
+    );
     expect(
       screen.getByText("若该邮箱已注册，验证码将发送至该邮箱。"),
     ).toBeInTheDocument();
@@ -117,8 +119,7 @@ describe("ForgotPasswordPage", () => {
     await user.type(screen.getByLabelText("确认新密码"), "short");
     await user.click(screen.getByRole("button", { name: "重置密码" }));
 
-    expect(screen.getByText("密码至少需要 8 个字符。"))
-      .toBeInTheDocument();
+    expect(screen.getByText("密码至少需要 8 个字符。")).toBeInTheDocument();
     expect(forgotPassword).not.toHaveBeenCalled();
 
     const newPassword = screen.getByLabelText(/^新密码/);

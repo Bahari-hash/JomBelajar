@@ -70,11 +70,13 @@ function getFileExtension(fileName: string) {
 }
 
 function isSafeFileName(fileName: string) {
-  return Boolean(fileName.trim()) &&
+  return (
+    Boolean(fileName.trim()) &&
     fileName !== "." &&
     fileName !== ".." &&
     !fileName.includes("/") &&
-    !fileName.includes("\\");
+    !fileName.includes("\\")
+  );
 }
 
 function throwAvatarValidationError(message: string): never {

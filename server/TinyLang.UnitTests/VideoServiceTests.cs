@@ -164,6 +164,9 @@ public sealed class VideoServiceTests
     public async Task CatalogShouldHideInactiveCategoriesAndFilterOnlyActiveCategories()
     {
         await using var db = CreateDbContext();
+        var creator = CreateUser("creator", "Video Creator", "https://media.example.test/avatar.jpg");
+        db.Users.Add(creator);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var active = new VideoCategory { Name = "Grammar", Slug = "grammar" };
         var inactive = new VideoCategory
         {
@@ -171,7 +174,7 @@ public sealed class VideoServiceTests
             Slug = "legacy",
             IsActive = false
         };
-        var video = CreateVideo(Guid.NewGuid());
+        var video = CreateVideo(creator.Id);
         video.ProcessingStatus = VideoProcessingStatus.Ready;
         video.PublicationStatus = VideoPublicationStatus.Published;
         video.DurationSeconds = 120;
@@ -203,8 +206,12 @@ public sealed class VideoServiceTests
             new VideoCatalogRequest { CategoryId = inactive.Id },
             TestContext.Current.CancellationToken);
 
-        catalog.Items.Should().ContainSingle().Which.Categories.Should().ContainSingle()
-            .Which.Id.Should().Be(active.Id);
+        var item = catalog.Items.Should().ContainSingle().Which;
+        item.Categories.Should().ContainSingle().Which.Id.Should().Be(active.Id);
+        item.Author.Should().Be(new VideoUserSummaryResponse(
+            creator.Id,
+            "Video Creator",
+            "https://media.example.test/avatar.jpg"));
         inactiveFilter.Items.Should().BeEmpty();
     }
 
@@ -312,7 +319,10 @@ public sealed class VideoServiceTests
     public async Task ReadyVideoPublishShouldBeIdempotentAndVisible()
     {
         await using var db = CreateDbContext();
-        var ownerId = Guid.NewGuid();
+        var creator = CreateUser("publisher", "Video Publisher", "https://media.example.test/publisher.jpg");
+        db.Users.Add(creator);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var ownerId = creator.Id;
         var video = CreateVideo(ownerId);
         video.ProcessingStatus = VideoProcessingStatus.Ready;
         video.DurationSeconds = 100;
@@ -339,6 +349,10 @@ public sealed class VideoServiceTests
         repeated.PublicationStatus.Should().Be(VideoPublicationStatus.Published);
         details.Id.Should().Be(video.Id);
         details.PublishedAt.Should().Be(Now);
+        details.Author.Should().Be(new VideoUserSummaryResponse(
+            creator.Id,
+            "Video Publisher",
+            "https://media.example.test/publisher.jpg"));
     }
 
     [Fact]
@@ -559,6 +573,19 @@ public sealed class VideoServiceTests
             Title = "Video",
             OriginalLanguage = "en",
             MasterPlaylistObjectName = "videos/id/outputs/version/master.m3u8"
+        };
+
+    private static User CreateUser(
+        string username,
+        string? nickname = null,
+        string? avatarUrl = null)
+        => new()
+        {
+            Username = username,
+            Email = $"{username}@example.test",
+            PasswordHash = "hash",
+            Nickname = nickname,
+            AvatarUrl = avatarUrl
         };
 
     private static MediaResource CreateResource(

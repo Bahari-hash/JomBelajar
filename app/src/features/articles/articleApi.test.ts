@@ -80,7 +80,9 @@ describe("articleApi", () => {
       skipAuth: true,
       params: { page: 1, pageSize: 100, keyword: "language" },
     });
-    expect(requests.every((request) => !request.headers.Authorization)).toBe(true);
+    expect(requests.every((request) => !request.headers.Authorization)).toBe(
+      true,
+    );
   });
 
   it("maps Problem Details into a safe RTK Query error", async () => {

@@ -50,7 +50,9 @@ describe("ArticleContent", () => {
       />,
     );
 
-    expect(container.querySelector("script, iframe, form, input, custom-element")).toBeNull();
+    expect(
+      container.querySelector("script, iframe, form, input, custom-element"),
+    ).toBeNull();
     expect(container.querySelector("a, img")).toBeNull();
     const paragraph = screen.getByText("Safe text");
     expect(paragraph).not.toHaveAttribute("id");
@@ -74,9 +76,7 @@ describe("ArticleContent", () => {
 
   it("shows recoverable states for failed images and empty content", () => {
     const { rerender } = render(
-      <ArticleContent
-        contentHtml='<img src="https://images.example.test/broken.png" alt="Broken">'
-      />,
+      <ArticleContent contentHtml='<img src="https://images.example.test/broken.png" alt="Broken">' />,
     );
     fireEvent.error(screen.getByRole("img", { name: "Broken" }));
     expect(

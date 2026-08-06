@@ -90,15 +90,17 @@ describe("AccountSecurityPanel", () => {
       </MemoryRouter>,
     );
 
-    const form = screen.getByRole("heading", { name: "重置密码" }).closest("form")!;
+    const form = screen
+      .getByRole("heading", { name: "重置密码" })
+      .closest("form")!;
     await user.type(within(form).getByLabelText("邮箱验证码"), "123456");
     await user.type(within(form).getByLabelText(/^新密码/), "short");
     await user.type(within(form).getByLabelText("确认新密码"), "short");
-    await user.click(within(form).getByRole("button", { name: "确认重置密码" }));
+    await user.click(
+      within(form).getByRole("button", { name: "确认重置密码" }),
+    );
 
-    expect(
-      screen.getByText("密码至少需要 8 个字符。"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("密码至少需要 8 个字符。")).toBeInTheDocument();
     expect(resetPassword).not.toHaveBeenCalled();
   });
 
@@ -124,10 +126,14 @@ describe("AccountSecurityPanel", () => {
       </MemoryRouter>,
     );
 
-    const form = screen.getByRole("heading", { name: "修改邮箱" }).closest("form")!;
+    const form = screen
+      .getByRole("heading", { name: "修改邮箱" })
+      .closest("form")!;
     await user.type(within(form).getByLabelText("新邮箱"), "new@example.test");
     await user.type(within(form).getByLabelText("邮箱验证码"), "123456");
-    await user.click(within(form).getByRole("button", { name: "确认修改邮箱" }));
+    await user.click(
+      within(form).getByRole("button", { name: "确认修改邮箱" }),
+    );
 
     expect(
       await within(form).findByText("请输入有效的邮箱地址。"),

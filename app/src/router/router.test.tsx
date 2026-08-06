@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { clearSession } from "@/features/auth/sessionStore";
 import ThemeProvider from "@/providers/ThemeProvider";
 import AuthProvider from "@/providers/AuthProvider";
 import RouteErrorPage from "@/pages/RouteErrorPage";
@@ -20,10 +21,10 @@ function renderRoute(path: string) {
 }
 
 describe("consumer routes", () => {
+  beforeEach(() => clearSession());
   it.each([
     ["/", "今天想练习什么？"],
     ["/articles", "文章"],
-    ["/videos", "视频"],
     ["/words", "单词"],
     ["/papers", "在线测试"],
     ["/forgot-password", "重置密码"],
@@ -38,6 +39,17 @@ describe("consumer routes", () => {
       screen.getByRole("link", { name: "TinyLang 首页" }),
     ).toBeInTheDocument();
     expect(screen.getByText("TinyLang 外语学习平台")).toBeInTheDocument();
+  });
+
+  it("protects the video catalog and preserves the return path", async () => {
+    const router = renderRoute("/videos?page=2");
+    expect(
+      await screen.findByRole("heading", { name: "登录 TinyLang", level: 1 }),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/login");
+    expect(router.state.location.search).toContain(
+      "returnTo=%2Fvideos%3Fpage%3D2",
+    );
   });
 
   it("supports navigation and browser history", async () => {

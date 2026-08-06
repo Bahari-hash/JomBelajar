@@ -29,7 +29,11 @@ function ContentImage({ src, alt = "", title }: ContentImageProps) {
   const [failed, setFailed] = useState(false);
   if (failed) {
     return (
-      <span className={styles.imageFallback} role="img" aria-label="正文图片加载失败">
+      <span
+        className={styles.imageFallback}
+        role="img"
+        aria-label="正文图片加载失败"
+      >
         <ImageOff aria-hidden="true" />
         正文图片暂时无法显示
       </span>
@@ -51,7 +55,10 @@ function ContentImage({ src, alt = "", title }: ContentImageProps) {
 function hasRenderableContent(contentHtml: string) {
   return (
     /<img\b/i.test(contentHtml) ||
-    contentHtml.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, "").trim() !== ""
+    contentHtml
+      .replace(/<[^>]*>/g, "")
+      .replace(/&nbsp;/gi, "")
+      .trim() !== ""
   );
 }
 
@@ -100,7 +107,9 @@ export default function ArticleContent({ contentHtml }: ArticleContentProps) {
             alt={domNode.attribs.alt}
             title={domNode.attribs.title}
           />
-        ) : createElement(Fragment);
+        ) : (
+          createElement(Fragment)
+        );
       }
       return createElement(tagName, null, children as ReactNode);
     },

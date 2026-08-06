@@ -43,7 +43,11 @@ export default function ArticlesPage() {
     if (parsedSearch.needsNormalization) {
       setSearchParams(parsedSearch.normalizedParams, { replace: true });
     }
-  }, [parsedSearch.needsNormalization, parsedSearch.normalizedParams, setSearchParams]);
+  }, [
+    parsedSearch.needsNormalization,
+    parsedSearch.normalizedParams,
+    setSearchParams,
+  ]);
 
   useEffect(() => {
     setKeywordDraft(keyword);
@@ -63,7 +67,13 @@ export default function ArticlesPage() {
         { replace: true },
       );
     }
-  }, [articleQuery.data?.totalPages, categoryId, keyword, page, setSearchParams]);
+  }, [
+    articleQuery.data?.totalPages,
+    categoryId,
+    keyword,
+    page,
+    setSearchParams,
+  ]);
 
   const updateSearch = (nextState: ArticleSearchState, replace = false) => {
     setSearchParams(createArticleSearchParams(nextState), { replace });
@@ -98,7 +108,8 @@ export default function ArticlesPage() {
   const selectedCategory = initialCategories.find(
     (category) => category.id === categoryId,
   );
-  const selectedCategoryName = selectedCategory?.name ?? resultCategory?.name ?? null;
+  const selectedCategoryName =
+    selectedCategory?.name ?? resultCategory?.name ?? null;
   const hasFilters = Boolean(keyword || categoryId);
   const currentListPath = `/articles${searchParams.size ? `?${searchParams}` : ""}`;
 
@@ -159,14 +170,25 @@ export default function ArticlesPage() {
             </p>
           </div>
           {articleQuery.isFetching && !articleQuery.isLoading ? (
-            <span className="loading loading-spinner loading-sm" aria-label="正在刷新文章" role="status" />
+            <span
+              className="loading loading-spinner loading-sm"
+              aria-label="正在刷新文章"
+              role="status"
+            />
           ) : null}
         </div>
 
         {articleQuery.isLoading ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" aria-label="文章加载中" role="status">
+          <div
+            className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+            aria-label="文章加载中"
+            role="status"
+          >
             {Array.from({ length: 6 }, (_, index) => (
-              <div key={index} className="overflow-hidden rounded-lg border border-base-300">
+              <div
+                key={index}
+                className="overflow-hidden rounded-lg border border-base-300"
+              >
                 <div className="skeleton aspect-video w-full rounded-none" />
                 <div className="space-y-3 p-5">
                   <div className="skeleton h-5 w-1/3" />
@@ -177,9 +199,18 @@ export default function ArticlesPage() {
             ))}
           </div>
         ) : articleQuery.isError && !articleQuery.data ? (
-          <div className="border-y border-base-300 py-12 text-center" role="alert">
-            <p className="font-semibold">{getArticleErrorMessage(articleQuery.error)}</p>
-            <button className="btn btn-outline btn-sm mt-4" type="button" onClick={() => articleQuery.refetch()}>
+          <div
+            className="border-y border-base-300 py-12 text-center"
+            role="alert"
+          >
+            <p className="font-semibold">
+              {getArticleErrorMessage(articleQuery.error)}
+            </p>
+            <button
+              className="btn btn-outline btn-sm mt-4"
+              type="button"
+              onClick={() => articleQuery.refetch()}
+            >
               <RotateCcw aria-hidden="true" className="size-4" />
               重新加载
             </button>
@@ -188,7 +219,11 @@ export default function ArticlesPage() {
           <>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {articleQuery.data.items.map((article) => (
-                <ArticleCard key={article.id} article={article} listPath={currentListPath} />
+                <ArticleCard
+                  key={article.id}
+                  article={article}
+                  listPath={currentListPath}
+                />
               ))}
             </div>
             <ArticlePagination
@@ -199,7 +234,10 @@ export default function ArticlesPage() {
           </>
         ) : (
           <div className="border-y border-base-300 py-12 text-center">
-            <SearchX aria-hidden="true" className="mx-auto size-10 text-base-content/45" />
+            <SearchX
+              aria-hidden="true"
+              className="mx-auto size-10 text-base-content/45"
+            />
             <h3 className="mt-4 text-lg font-semibold">
               {hasFilters ? "没有找到匹配的文章" : "暂时没有公开文章"}
             </h3>

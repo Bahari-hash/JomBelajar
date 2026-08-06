@@ -68,8 +68,12 @@ function detail(overrides = {}) {
 
 function listItem() {
   const value = detail();
-  const { description: _description, instructions: _instructions, questions, ...common } =
-    value;
+  const {
+    description: _description,
+    instructions: _instructions,
+    questions,
+    ...common
+  } = value;
   return { ...common, questionCount: questions.length };
 }
 
@@ -139,7 +143,9 @@ describe("papersApi", () => {
       passingScore: 0,
       questions: [],
     };
-    await store.dispatch(papersApi.endpoints.createPaper.initiate(body)).unwrap();
+    await store
+      .dispatch(papersApi.endpoints.createPaper.initiate(body))
+      .unwrap();
     await store
       .dispatch(
         papersApi.endpoints.updatePaper.initiate({
@@ -157,11 +163,7 @@ describe("papersApi", () => {
         }),
       )
       .unwrap();
-    for (const endpoint of [
-      "publishPaper",
-      "unpublishPaper",
-      "archivePaper",
-    ])
+    for (const endpoint of ["publishPaper", "unpublishPaper", "archivePaper"])
       await store
         .dispatch(
           papersApi.endpoints[endpoint].initiate({
@@ -212,11 +214,7 @@ describe("papersApi", () => {
         "POST",
         { concurrencyStamp: IDS.stamp },
       ],
-      [
-        `/admin/papers/${IDS.paper}`,
-        "DELETE",
-        { concurrencyStamp: IDS.stamp },
-      ],
+      [`/admin/papers/${IDS.paper}`, "DELETE", { concurrencyStamp: IDS.stamp }],
     ]);
   });
 

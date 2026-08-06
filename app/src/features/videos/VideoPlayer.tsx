@@ -149,7 +149,11 @@ export default function VideoPlayer({ videoId, video }: VideoPlayerProps) {
 
   if (loading)
     return (
-      <div className="relative aspect-video w-full overflow-hidden bg-base-300" role="status" aria-label="视频加载中">
+      <div
+        className="relative aspect-video w-full overflow-hidden bg-base-300"
+        role="status"
+        aria-label="视频加载中"
+      >
         {isSafeVideoUrl(video.coverUrl) ? (
           <img
             src={video.coverUrl ?? undefined}

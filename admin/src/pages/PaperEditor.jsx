@@ -29,10 +29,7 @@ import { Badge } from "@/components/ui/badge.jsx";
 import { Button } from "@/components/ui/button.jsx";
 import { Input } from "@/components/ui/input.jsx";
 import { Label } from "@/components/ui/label.jsx";
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from "@/components/ui/radio-group.jsx";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group.jsx";
 import {
   Select,
   SelectContent,
@@ -253,8 +250,7 @@ function basicValidate(form) {
     errors.passingScore = ["及格分必须是不超过总分的非负整数。"];
   form.questions.forEach((question, questionIndex) => {
     const prefix = `questions[${questionIndex}]`;
-    if (!question.prompt.trim())
-      errors[`${prefix}.prompt`] = ["请输入题干。"];
+    if (!question.prompt.trim()) errors[`${prefix}.prompt`] = ["请输入题干。"];
     if (question.prompt.length > 5000)
       errors[`${prefix}.prompt`] = ["题干不能超过 5,000 个字符。"];
     if (question.explanation.length > 5000)
@@ -294,8 +290,12 @@ function PaperEditor() {
   const [concurrencyConflict, setConcurrencyConflict] = useState(false);
   const [statusAction, setStatusAction] = useState(null);
   const allowNavigationRef = useRef(false);
-  const { data: paper, error: loadError, isLoading, refetch } =
-    useGetAdminPaperQuery(paperId, { skip: isNew });
+  const {
+    data: paper,
+    error: loadError,
+    isLoading,
+    refetch,
+  } = useGetAdminPaperQuery(paperId, { skip: isNew });
   const [createPaper, createState] = useCreatePaperMutation();
   const [updatePaper, updateState] = useUpdatePaperMutation();
   const [validatePaper, validateState] = useValidatePaperMutation();
@@ -313,7 +313,10 @@ function PaperEditor() {
   useAdminPage(pageTitle, pageTitle);
 
   useEffect(() => {
-    if (searchParams.has("tab") && !["edit", "preview"].includes(searchParams.get("tab"))) {
+    if (
+      searchParams.has("tab") &&
+      !["edit", "preview"].includes(searchParams.get("tab"))
+    ) {
       const next = new URLSearchParams(searchParams);
       next.set("tab", "edit");
       setSearchParams(next, { replace: true });
@@ -495,7 +498,11 @@ function PaperEditor() {
             </Link>
           </Button>
           {!isNew ? (
-            <Button type="button" variant="outline" onClick={() => changeTab("preview")}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => changeTab("preview")}
+            >
               <Eye aria-hidden="true" />
               预览
             </Button>
@@ -562,7 +569,8 @@ function PaperEditor() {
         <Alert variant="destructive" aria-live="assertive">
           <AlertTitle>发布检查未通过</AlertTitle>
           <AlertDescription>
-            已定位到首个问题。请修正 {validationIssues.length} 项服务端检查结果后重试。
+            已定位到首个问题。请修正 {validationIssues.length}{" "}
+            项服务端检查结果后重试。
           </AlertDescription>
         </Alert>
       ) : null}
@@ -882,7 +890,9 @@ function QuestionBlock({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <h3 className="font-medium">题目 {questionIndex + 1}</h3>
-          <Badge variant="outline">{getPaperQuestionTypeLabel(question.type)}</Badge>
+          <Badge variant="outline">
+            {getPaperQuestionTypeLabel(question.type)}
+          </Badge>
         </div>
         <OrderButtons
           label={`题目 ${questionIndex + 1}`}
@@ -1145,7 +1155,13 @@ function SingleChoiceEditor({
   );
 }
 
-function TrueFalseEditor({ question, questionIndex, readOnly, fieldError, updateQuestion }) {
+function TrueFalseEditor({
+  question,
+  questionIndex,
+  readOnly,
+  fieldError,
+  updateQuestion,
+}) {
   const field = `questions[${questionIndex}].correctBoolean`;
   return (
     <section
@@ -1157,7 +1173,9 @@ function TrueFalseEditor({ question, questionIndex, readOnly, fieldError, update
       <RadioGroup
         className="flex flex-wrap gap-3"
         value={
-          question.correctBoolean === null ? "" : String(question.correctBoolean)
+          question.correctBoolean === null
+            ? ""
+            : String(question.correctBoolean)
         }
         onValueChange={(value) =>
           updateQuestion(question._key, (current) => ({
@@ -1310,8 +1328,12 @@ function PaperPreview({ form }) {
   return (
     <section className="space-y-5">
       <div className="border-y py-5">
-        <p className="text-sm text-muted-foreground">{form.languageTag || "未设置语言"}</p>
-        <h2 className="mt-1 text-xl font-semibold">{form.title || "未命名试卷"}</h2>
+        <p className="text-sm text-muted-foreground">
+          {form.languageTag || "未设置语言"}
+        </p>
+        <h2 className="mt-1 text-xl font-semibold">
+          {form.title || "未命名试卷"}
+        </h2>
         {form.description ? (
           <p className="mt-2 whitespace-pre-wrap text-sm">{form.description}</p>
         ) : null}
@@ -1321,7 +1343,8 @@ function PaperPreview({ form }) {
           </p>
         ) : null}
         <p className="mt-3 text-sm text-muted-foreground">
-          共 {form.questions.length} 题，总分 {totalScore(form)}，及格分 {form.passingScore}
+          共 {form.questions.length} 题，总分 {totalScore(form)}，及格分{" "}
+          {form.passingScore}
         </p>
       </div>
       {form.questions.length === 0 ? (
@@ -1330,14 +1353,20 @@ function PaperPreview({ form }) {
         </p>
       ) : (
         form.questions.map((question, index) => (
-          <section key={question._key} className="space-y-3 rounded-lg border p-4">
+          <section
+            key={question._key}
+            className="space-y-3 rounded-lg border p-4"
+          >
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-medium">第 {index + 1} 题</h3>
               <span className="text-sm text-muted-foreground">
-                {getPaperQuestionTypeLabel(question.type)} · {question.points} 分
+                {getPaperQuestionTypeLabel(question.type)} · {question.points}{" "}
+                分
               </span>
             </div>
-            <p className="whitespace-pre-wrap text-sm">{question.prompt || "未填写题干"}</p>
+            <p className="whitespace-pre-wrap text-sm">
+              {question.prompt || "未填写题干"}
+            </p>
             {question.type === "SingleChoice" ? (
               <RadioGroup value="" aria-label={`第 ${index + 1} 题选项预览`}>
                 {question.options.map((option, optionIndex) => (
@@ -1402,7 +1431,10 @@ function PublishDialog({ form, argument, onClose, onSaved, onError }) {
     }
   };
   return (
-    <AlertDialog open onOpenChange={(open) => !open && !state.isLoading && onClose()}>
+    <AlertDialog
+      open
+      onOpenChange={(open) => !open && !state.isLoading && onClose()}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>确认发布试卷？</AlertDialogTitle>

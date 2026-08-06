@@ -253,7 +253,11 @@ export function normalizePaperValidation(value) {
 export function normalizePaperPage(value) {
   const source = object(value, "paper pagination");
   return {
-    items: array(source.items, normalizePaperListItem, "paper pagination items"),
+    items: array(
+      source.items,
+      normalizePaperListItem,
+      "paper pagination items",
+    ),
     page: number(source.page, "paper page", { integer: true, minimum: 1 }),
     pageSize: number(source.pageSize, "paper page size", {
       integer: true,

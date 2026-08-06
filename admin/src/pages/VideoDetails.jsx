@@ -529,7 +529,9 @@ function VideoDetails() {
       <AlertDialog open={confirmClearCover} onOpenChange={setConfirmClearCover}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>清除“{video.title}”的自定义封面？</AlertDialogTitle>
+            <AlertDialogTitle>
+              清除“{video.title}”的自定义封面？
+            </AlertDialogTitle>
             <AlertDialogDescription>
               保存修改后将解除当前封面关联，并立即回退到视频自动抽帧封面。已上传的媒体资源不会被删除。
             </AlertDialogDescription>

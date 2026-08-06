@@ -37,7 +37,8 @@ export const videoUploadApi = baseApi.injectEndpoints({
       query: () => ({
         url: "/uploads/admin/media/capabilities?module=VideoCover",
       }),
-      transformResponse: (value) => normalizeUploadCapability(value, "VideoCover"),
+      transformResponse: (value) =>
+        normalizeUploadCapability(value, "VideoCover"),
     }),
     presignVideoCover: builder.mutation({
       query: (file) => ({

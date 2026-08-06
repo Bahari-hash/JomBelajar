@@ -52,8 +52,13 @@ export function VideoCoverControl({ value, disabled, onUploaded, onClear }) {
       const resource = await uploader.upload(file, capability);
       onUploaded(resource);
     } catch (requestError) {
-      if (requestError?.name !== "AbortError" && requestError?.kind !== "aborted")
-        setError(getErrorMessage(requestError, "封面上传失败，请重新选择图片。"));
+      if (
+        requestError?.name !== "AbortError" &&
+        requestError?.kind !== "aborted"
+      )
+        setError(
+          getErrorMessage(requestError, "封面上传失败，请重新选择图片。"),
+        );
     }
   };
 
@@ -79,7 +84,9 @@ export function VideoCoverControl({ value, disabled, onUploaded, onClear }) {
                 className="h-full w-full object-cover"
                 onError={() => {
                   setFailedPreviewUrl(value.url);
-                  setError("封面预览加载失败，资源仍可保存；请检查对象存储访问配置。");
+                  setError(
+                    "封面预览加载失败，资源仍可保存；请检查对象存储访问配置。",
+                  );
                 }}
               />
             )}
@@ -126,14 +133,18 @@ export function VideoCoverControl({ value, disabled, onUploaded, onClear }) {
         id="video-cover"
         type="file"
         className="sr-only"
-        accept={capability?.allowedTypes.flatMap((item) => item.contentTypes).join(",")}
+        accept={capability?.allowedTypes
+          .flatMap((item) => item.contentTypes)
+          .join(",")}
         disabled={disabled || uploading}
         onChange={handleFile}
       />
       {uploading ? (
         <div className="flex items-center gap-3" role="status">
           <Progress value={uploader.progress} className="max-w-sm flex-1" />
-          <span className="text-xs tabular-nums text-muted-foreground">{uploader.progress}%</span>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {uploader.progress}%
+          </span>
           <Button
             type="button"
             variant="ghost"
@@ -142,7 +153,9 @@ export function VideoCoverControl({ value, disabled, onUploaded, onClear }) {
             onClick={() =>
               uploader
                 .cancel({ abortSession: Boolean(uploader.resumeRecord) })
-                .catch((requestError) => setError(getErrorMessage(requestError)))
+                .catch((requestError) =>
+                  setError(getErrorMessage(requestError)),
+                )
             }
           >
             <X aria-hidden="true" />
@@ -161,7 +174,9 @@ export function VideoCoverControl({ value, disabled, onUploaded, onClear }) {
             onClick={() =>
               uploader
                 .cancel({ abortSession: true })
-                .catch((requestError) => setError(getErrorMessage(requestError)))
+                .catch((requestError) =>
+                  setError(getErrorMessage(requestError)),
+                )
             }
           >
             <X aria-hidden="true" />

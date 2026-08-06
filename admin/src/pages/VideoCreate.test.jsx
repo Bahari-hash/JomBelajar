@@ -61,7 +61,9 @@ describe("VideoCreate", () => {
         return Promise.resolve(
           axiosResponse({
             resourceId:
-              config.data.module === "VideoCover" ? COVER_RESOURCE_ID : RESOURCE_ID,
+              config.data.module === "VideoCover"
+                ? COVER_RESOURCE_ID
+                : RESOURCE_ID,
             presignedUrl:
               config.data.module === "VideoCover"
                 ? "https://storage.example.test/cover"

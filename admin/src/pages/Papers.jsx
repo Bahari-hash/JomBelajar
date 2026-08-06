@@ -41,7 +41,9 @@ function Papers() {
       );
   }, [data, filters, setSearchParams]);
 
-  const hasFilters = Boolean(filters.keyword || filters.language || filters.status);
+  const hasFilters = Boolean(
+    filters.keyword || filters.language || filters.status,
+  );
 
   return (
     <div className="space-y-5">

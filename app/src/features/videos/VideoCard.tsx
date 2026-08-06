@@ -42,7 +42,9 @@ export default function VideoCard({ video, listPath }: VideoCardProps) {
             onError={() => setCoverFailed(true)}
           />
         ) : null}
-        <div className={`absolute inset-0 grid place-items-center text-base-content/70 transition-colors ${coverUrl ? "bg-black/15 group-hover:bg-black/25 group-focus-visible:bg-black/25" : "bg-base-300 group-hover:bg-base-200 group-focus-visible:bg-base-200"}`}>
+        <div
+          className={`absolute inset-0 grid place-items-center text-base-content/70 transition-colors ${coverUrl ? "bg-black/15 group-hover:bg-black/25 group-focus-visible:bg-black/25" : "bg-base-300 group-hover:bg-base-200 group-focus-visible:bg-base-200"}`}
+        >
           <Play aria-hidden="true" className="size-12 fill-current" />
         </div>
         <span className="absolute bottom-2 right-2 rounded bg-neutral px-2 py-1 text-xs text-neutral-content">

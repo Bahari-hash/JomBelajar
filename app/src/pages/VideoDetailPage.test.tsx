@@ -83,7 +83,9 @@ describe("VideoDetailPage", () => {
     const card = title.closest("article");
     expect(card).not.toBeNull();
     expect(within(card!).getByText("Video Publisher")).toBeInTheDocument();
-    expect(within(card!).getByAltText("Video Publisher的头像")).toBeInTheDocument();
+    expect(
+      within(card!).getByAltText("Video Publisher的头像"),
+    ).toBeInTheDocument();
     expect(within(card!).getByTestId("video-player")).toBeInTheDocument();
     expect(card).not.toContainElement(
       screen.getByRole("link", { name: "返回视频列表" }),

@@ -37,7 +37,8 @@ const COPY = {
   },
   delete: {
     title: "永久删除试卷",
-    consequence: "此操作不可撤销。存在测验历史或当前状态不允许时，服务端会拒绝删除。",
+    consequence:
+      "此操作不可撤销。存在测验历史或当前状态不允许时，服务端会拒绝删除。",
     submit: "永久删除",
   },
 };
@@ -106,7 +107,9 @@ export function PaperActionDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{copy.title}</AlertDialogTitle>
-          <AlertDialogDescription>“{paper.title || "未命名试卷"}”</AlertDialogDescription>
+          <AlertDialogDescription>
+            “{paper.title || "未命名试卷"}”
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <p className="mt-3 text-sm">{copy.consequence}</p>
         {paper.attemptCount > 0 ? (

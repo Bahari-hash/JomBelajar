@@ -57,7 +57,9 @@ describe("VideoCard", () => {
   it("falls back to the play placeholder when the cover URL is unsafe", () => {
     renderCard({ ...video, coverUrl: "javascript:alert(1)" });
 
-    expect(screen.queryByAltText("《Listening in context》封面")).not.toBeInTheDocument();
+    expect(
+      screen.queryByAltText("《Listening in context》封面"),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText(`观看《${video.title}》`)).toBeInTheDocument();
   });
 

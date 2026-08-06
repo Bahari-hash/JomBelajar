@@ -294,7 +294,10 @@ export function normalizePlayback(value) {
   };
 }
 
-export function normalizeUploadCapability(value, expectedModule = "CourseVideo") {
+export function normalizeUploadCapability(
+  value,
+  expectedModule = "CourseVideo",
+) {
   const source = object(value, "upload capability");
   if (source.module !== expectedModule || !Array.isArray(source.allowedTypes))
     invalid(`${expectedModule} upload capability`);

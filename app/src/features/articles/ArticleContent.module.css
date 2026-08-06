@@ -1,0 +1,153 @@
+.content {
+  max-width: 72ch;
+  color: var(--color-base-content);
+  font-size: 1rem;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+.content > :first-child {
+  margin-top: 0;
+}
+
+.content > :last-child {
+  margin-bottom: 0;
+}
+
+.content p,
+.content ul,
+.content ol,
+.content blockquote,
+.content pre,
+.content img {
+  margin-block: 1.25rem;
+}
+
+.content h1,
+.content h2,
+.content h3,
+.content h4,
+.content h5,
+.content h6 {
+  margin-block: 2rem 0.75rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.content h1 {
+  font-size: 1.875rem;
+}
+
+.content h2 {
+  font-size: 1.5rem;
+}
+
+.content h3 {
+  font-size: 1.25rem;
+}
+
+.content h4,
+.content h5,
+.content h6 {
+  font-size: 1.0625rem;
+}
+
+.content ul,
+.content ol {
+  padding-left: 1.5rem;
+}
+
+.content ul {
+  list-style: disc;
+}
+
+.content ol {
+  list-style: decimal;
+}
+
+.content li + li {
+  margin-top: 0.35rem;
+}
+
+.content blockquote {
+  border-left: 0.25rem solid var(--color-primary);
+  padding: 0.25rem 0 0.25rem 1rem;
+  color: color-mix(in oklch, var(--color-base-content) 72%, transparent);
+}
+
+.content a {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.content code {
+  border-radius: 0.25rem;
+  background: var(--color-base-200);
+  padding: 0.15rem 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.content pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-base-300);
+  border-radius: 0.5rem;
+  background: var(--color-base-200);
+  padding: 1rem;
+  overscroll-behavior-inline: contain;
+}
+
+.content pre code {
+  display: block;
+  min-width: max-content;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  white-space: pre;
+}
+
+.content img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+.imageFallback,
+.unavailable {
+  display: flex;
+  min-height: 8rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-block: 1.25rem;
+  border: 1px dashed var(--color-base-300);
+  border-radius: 0.5rem;
+  background: var(--color-base-200);
+  color: color-mix(in oklch, var(--color-base-content) 65%, transparent);
+  font-size: 0.875rem;
+}
+
+.imageFallback svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+@media (max-width: 40rem) {
+  .content {
+    font-size: 0.975rem;
+    line-height: 1.75;
+  }
+
+  .content h1 {
+    font-size: 1.625rem;
+  }
+
+  .content h2 {
+    font-size: 1.375rem;
+  }
+}

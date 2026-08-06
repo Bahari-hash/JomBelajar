@@ -24,6 +24,12 @@ const errorMessages: Record<string, string> = {
   BioLengthLimit: "简介不能超过 500 个字符。",
   AvatarUrlLengthLimit: "头像链接不能超过 500 个字符。",
   AvatarUrlFormatInvalid: "头像链接必须是 HTTP 或 HTTPS 地址。",
+  ArticleNotFound: "文章不存在或已下架。",
+  PageInvalid: "页码无效，请重新选择。",
+  PageSizeInvalid: "分页数量无效，请重试。",
+  KeywordLengthLimit: "搜索关键词不能超过 200 个字符。",
+  KeywordInvalid: "搜索关键词包含无效字符。",
+  ArticleCategoryInvalid: "文章分类无效，请重新选择。",
 };
 
 export class ApiRequestError extends Error {

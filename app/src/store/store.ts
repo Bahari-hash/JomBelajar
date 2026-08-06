@@ -1,10 +1,16 @@
 import { configureStore } from "@reduxjs/toolkit";
+import { articleApi } from "@/features/articles/articleApi";
 import authReducer from "@/store/authSlice";
 
 /** Creates the consumer Redux store; sensitive credentials are intentionally outside this state tree. */
 export function createAppStore() {
   return configureStore({
-    reducer: { auth: authReducer },
+    reducer: {
+      auth: authReducer,
+      [articleApi.reducerPath]: articleApi.reducer,
+    },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(articleApi.middleware),
   });
 }
 

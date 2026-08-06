@@ -73,6 +73,7 @@ public sealed class MediaResourceValidatorsTests
 
     [Theory]
     [InlineData(ResourceModule.ArticlePicture, "picture.gif", ".gif", "image/gif", 5)]
+    [InlineData(ResourceModule.VideoCover, "cover.webp", ".webp", "image/webp", 5)]
     [InlineData(ResourceModule.Audio, "lesson.webm", ".webm", "audio/webm", 20)]
     [InlineData(ResourceModule.CourseVideo, "course.webm", ".webm", "video/webm", 63)]
     public async Task AdminMediaShouldApplyRulesForEachModule(

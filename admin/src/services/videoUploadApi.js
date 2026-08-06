@@ -6,6 +6,7 @@ import {
   normalizePartPresigns,
   normalizePresign,
   normalizeUploadCapability,
+  normalizeVideoCoverResource,
 } from "@/services/videoContracts.js";
 
 function fileMetadata(file) {
@@ -19,6 +20,10 @@ function fileMetadata(file) {
   };
 }
 
+function coverFileMetadata(file) {
+  return { ...fileMetadata(file), module: "VideoCover" };
+}
+
 /** CourseVideo capability, simple upload and multipart session API contract. */
 export const videoUploadApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -27,6 +32,35 @@ export const videoUploadApi = baseApi.injectEndpoints({
         url: "/uploads/admin/media/capabilities?module=CourseVideo",
       }),
       transformResponse: normalizeUploadCapability,
+    }),
+    getVideoCoverUploadCapability: builder.query({
+      query: () => ({
+        url: "/uploads/admin/media/capabilities?module=VideoCover",
+      }),
+      transformResponse: (value) => normalizeUploadCapability(value, "VideoCover"),
+    }),
+    presignVideoCover: builder.mutation({
+      query: (file) => ({
+        url: "/uploads/admin/media/presign",
+        method: "POST",
+        body: coverFileMetadata(file),
+      }),
+      transformResponse: normalizePresign,
+    }),
+    createVideoCoverMultipart: builder.mutation({
+      query: (file) => ({
+        url: "/uploads/admin/media/multipart",
+        method: "POST",
+        body: coverFileMetadata(file),
+      }),
+      transformResponse: normalizeMultipartCreate,
+    }),
+    confirmVideoCoverResource: builder.mutation({
+      query: (resourceId) => ({
+        url: `/uploads/resources/${resourceId}/confirm`,
+        method: "PUT",
+      }),
+      transformResponse: normalizeVideoCoverResource,
     }),
     presignCourseVideo: builder.mutation({
       query: (file) => ({
@@ -90,6 +124,10 @@ export const {
   useGetCourseVideoMultipartStatusQuery,
   useLazyGetCourseVideoMultipartStatusQuery,
   useGetCourseVideoUploadCapabilityQuery,
+  useGetVideoCoverUploadCapabilityQuery,
+  usePresignVideoCoverMutation,
+  useConfirmVideoCoverResourceMutation,
+  useCreateVideoCoverMultipartMutation,
   usePresignCourseVideoMutation,
   usePresignCourseVideoPartsMutation,
 } = videoUploadApi;

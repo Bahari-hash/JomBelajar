@@ -52,6 +52,114 @@ public sealed class VideoServiceTests
     }
 
     [Fact]
+    public async Task ActiveVideoCoverShouldBeAssociatedAcrossAdmins()
+    {
+        await using var db = CreateDbContext();
+        var adminId = Guid.NewGuid();
+        var source = CreateResource(adminId, ResourceModule.CourseVideo, ResourceStatus.Active);
+        var cover = CreateResource(Guid.NewGuid(), ResourceModule.VideoCover, ResourceStatus.Active);
+        cover.OriginalName = "cover.webp";
+        cover.Url = "https://media.example.test/covers/cover.webp";
+        db.AddRange(source, cover);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var response = await service.CreateAsync(adminId, new CreateVideoRequest
+        {
+            SourceMediaResourceId = source.Id,
+            CoverMediaResourceId = cover.Id,
+            Title = "Covered lesson",
+            OriginalLanguage = "en"
+        }, TestContext.Current.CancellationToken);
+
+        response.Cover.Should().Be(new VideoCoverSummaryResponse(
+            cover.Id,
+            "cover.webp",
+            "https://media.example.test/covers/cover.webp"));
+        (await db.Videos.SingleAsync(TestContext.Current.CancellationToken))
+            .CoverMediaResourceId.Should().Be(cover.Id);
+    }
+
+    [Theory]
+    [InlineData(ResourceModule.ArticlePicture, ResourceStatus.Active,
+        "https://media.example.test/cover.jpg", ErrorCodes.VideoCoverModuleInvalid)]
+    [InlineData(ResourceModule.VideoCover, ResourceStatus.Pending,
+        "https://media.example.test/cover.jpg", ErrorCodes.VideoCoverNotActive)]
+    [InlineData(ResourceModule.VideoCover, ResourceStatus.Active,
+        "file:///private/cover.jpg", ErrorCodes.VideoCoverUrlInvalid)]
+    public async Task CreateShouldRejectInvalidCoverResourceContract(
+        ResourceModule module,
+        ResourceStatus status,
+        string url,
+        ErrorCodes expectedCode)
+    {
+        await using var db = CreateDbContext();
+        var adminId = Guid.NewGuid();
+        var source = CreateResource(adminId, ResourceModule.CourseVideo, ResourceStatus.Active);
+        var cover = CreateResource(Guid.NewGuid(), module, status);
+        cover.Url = url;
+        db.AddRange(source, cover);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var action = () => service.CreateAsync(adminId, new CreateVideoRequest
+        {
+            SourceMediaResourceId = source.Id,
+            CoverMediaResourceId = cover.Id,
+            Title = "Lesson",
+            OriginalLanguage = "en"
+        }, TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<ConflictException>();
+        exception.Which.ErrorCode.Should().Be(expectedCode);
+    }
+
+    [Fact]
+    public async Task UpdateCoverShouldKeepSetAndClearWithoutDeletingResources()
+    {
+        await using var db = CreateDbContext();
+        var adminId = Guid.NewGuid();
+        var first = CreateResource(adminId, ResourceModule.VideoCover, ResourceStatus.Active);
+        first.Url = "https://media.example.test/covers/first.jpg";
+        var second = CreateResource(Guid.NewGuid(), ResourceModule.VideoCover, ResourceStatus.Active);
+        second.Url = "https://media.example.test/covers/second.jpg";
+        var video = CreateVideo(adminId);
+        video.CoverMediaResourceId = first.Id;
+        video.CoverMediaResource = first;
+        db.AddRange(first, second, video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var kept = await service.UpdateAsync(video.Id, adminId, new UpdateVideoRequest
+        {
+            Title = "Kept",
+            OriginalLanguage = "en",
+            CoverAction = VideoCoverAction.Keep,
+            ConcurrencyStamp = video.ConcurrencyStamp
+        }, TestContext.Current.CancellationToken);
+        var replaced = await service.UpdateAsync(video.Id, adminId, new UpdateVideoRequest
+        {
+            Title = "Replaced",
+            OriginalLanguage = "en",
+            CoverAction = VideoCoverAction.Set,
+            CoverMediaResourceId = second.Id,
+            ConcurrencyStamp = kept.ConcurrencyStamp
+        }, TestContext.Current.CancellationToken);
+        var cleared = await service.UpdateAsync(video.Id, adminId, new UpdateVideoRequest
+        {
+            Title = "Cleared",
+            OriginalLanguage = "en",
+            CoverAction = VideoCoverAction.Clear,
+            ConcurrencyStamp = replaced.ConcurrencyStamp
+        }, TestContext.Current.CancellationToken);
+
+        kept.Cover!.Id.Should().Be(first.Id);
+        replaced.Cover!.Id.Should().Be(second.Id);
+        cleared.Cover.Should().BeNull();
+        (await db.MediaResources.CountAsync(TestContext.Current.CancellationToken)).Should().Be(2);
+    }
+
+    [Fact]
     public async Task CreateShouldAssociateAllEnabledVideoCategories()
     {
         await using var db = CreateDbContext();
@@ -216,6 +324,48 @@ public sealed class VideoServiceTests
     }
 
     [Fact]
+    public async Task CatalogAndDetailsShouldUseGeneratedPosterWithoutCustomCover()
+    {
+        await using var db = CreateDbContext();
+        var creator = CreateUser("poster-owner");
+        db.Users.Add(creator);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var video = CreateVideo(creator.Id);
+        video.ProcessingStatus = VideoProcessingStatus.Ready;
+        video.PublicationStatus = VideoPublicationStatus.Published;
+        video.DurationSeconds = 120;
+        video.DisplayWidth = 1920;
+        video.DisplayHeight = 1080;
+        video.PublishedAt = Now;
+        video.PosterObjectName = "videos/id/outputs/version/poster.jpg";
+        db.Videos.Add(video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var delivery = new Mock<IVideoDeliveryUrlService>();
+        delivery.Setup(value => value.CreateUrl(
+                video.PosterObjectName,
+                "videos/id/outputs/version/"))
+            .Returns(new VideoDeliveryUrl(
+                "https://media.example.test/videos/id/outputs/version/poster.jpg",
+                null));
+        var service = CreateService(db, deliveryUrlService: delivery.Object);
+
+        var catalog = await service.GetCatalogAsync(
+            new VideoCatalogRequest(),
+            TestContext.Current.CancellationToken);
+        var details = await service.GetDetailsAsync(
+            video.Id,
+            TestContext.Current.CancellationToken);
+
+        const string expectedPosterUrl =
+            "https://media.example.test/videos/id/outputs/version/poster.jpg";
+        catalog.Items.Should().ContainSingle().Which.CoverUrl.Should().Be(expectedPosterUrl);
+        details.CoverUrl.Should().Be(expectedPosterUrl);
+        delivery.Verify(value => value.CreateUrl(
+            video.PosterObjectName,
+            "videos/id/outputs/version/"), Times.Exactly(2));
+    }
+
+    [Fact]
     public async Task DraftOrUnreadyVideoShouldBeHiddenFromUserDetails()
     {
         await using var db = CreateDbContext();
@@ -266,6 +416,67 @@ public sealed class VideoServiceTests
         response.PositionSeconds.Should().Be(0);
         response.IsCompleted.Should().BeFalse();
         progress.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task AdminPlaybackShouldPreferCustomCoverOverGeneratedPoster()
+    {
+        await using var db = CreateDbContext();
+        var cover = CreateResource(Guid.NewGuid(), ResourceModule.VideoCover, ResourceStatus.Active);
+        cover.Url = "https://media.example.test/covers/custom.jpg";
+        var video = CreateVideo(Guid.NewGuid());
+        video.ProcessingStatus = VideoProcessingStatus.Ready;
+        video.CurrentOutputVersion = Guid.NewGuid();
+        video.DurationSeconds = 90;
+        video.PosterObjectName = "videos/id/outputs/version/poster.jpg";
+        video.CoverMediaResourceId = cover.Id;
+        video.CoverMediaResource = cover;
+        db.AddRange(cover, video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var delivery = new Mock<IVideoDeliveryUrlService>();
+        delivery.Setup(value => value.CreateUrl(
+                video.MasterPlaylistObjectName!,
+                "videos/id/outputs/version/"))
+            .Returns(new VideoDeliveryUrl("https://media.example.test/master.m3u8", null));
+        var service = CreateService(db, deliveryUrlService: delivery.Object);
+
+        var response = await service.GetAdminPlaybackAsync(
+            video.Id,
+            TestContext.Current.CancellationToken);
+
+        response.PosterUrl.Should().Be("https://media.example.test/covers/custom.jpg");
+        delivery.Verify(value => value.CreateUrl(
+            video.PosterObjectName!,
+            It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AdminPlaybackShouldUseGeneratedPosterWithoutCustomCover()
+    {
+        await using var db = CreateDbContext();
+        var video = CreateVideo(Guid.NewGuid());
+        video.ProcessingStatus = VideoProcessingStatus.Ready;
+        video.CurrentOutputVersion = Guid.NewGuid();
+        video.DurationSeconds = 90;
+        video.PosterObjectName = "videos/id/outputs/version/poster.jpg";
+        db.Videos.Add(video);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var delivery = new Mock<IVideoDeliveryUrlService>();
+        delivery.Setup(value => value.CreateUrl(
+                video.MasterPlaylistObjectName!,
+                "videos/id/outputs/version/"))
+            .Returns(new VideoDeliveryUrl("https://media.example.test/master.m3u8", null));
+        delivery.Setup(value => value.CreateUrl(
+                video.PosterObjectName,
+                "videos/id/outputs/version/"))
+            .Returns(new VideoDeliveryUrl("https://media.example.test/poster.jpg", null));
+        var service = CreateService(db, deliveryUrlService: delivery.Object);
+
+        var response = await service.GetAdminPlaybackAsync(
+            video.Id,
+            TestContext.Current.CancellationToken);
+
+        response.PosterUrl.Should().Be("https://media.example.test/poster.jpg");
     }
 
     [Theory]

@@ -242,6 +242,12 @@ public sealed class VideoProcessingServiceTests
                 (objectName, _, _, _, _) => uploaded.Add(objectName))
             .Returns(Task.CompletedTask);
         storage.Setup(value => value.GetObjectMetadataAsync(
+                It.Is<string>(name => name.EndsWith("poster.jpg", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ObjectStorageMetadata(
+                128,
+                "image/jpeg"));
+        storage.Setup(value => value.GetObjectMetadataAsync(
                 It.Is<string>(name => name.EndsWith("master.m3u8", StringComparison.Ordinal)),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ObjectStorageMetadata(
@@ -276,8 +282,63 @@ public sealed class VideoProcessingServiceTests
             .SingleAsync(TestContext.Current.CancellationToken);
         storedVideo.ProcessingStatus.Should().Be(VideoProcessingStatus.Ready);
         storedVideo.CurrentOutputVersion.Should().Be(job.OutputVersion);
+        storedVideo.PosterObjectName.Should().EndWith("/poster.jpg");
         (await db.VideoRenditions.AsNoTracking()
             .SingleAsync(TestContext.Current.CancellationToken)).Height.Should().Be(480);
+    }
+
+    [Fact]
+    public async Task MissingPosterMetadataShouldRequeueInsteadOfMarkingVideoReady()
+    {
+        await using var db = CreateDbContext();
+        var (_, job) = AddQueuedVideo(db);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var workerId = Guid.NewGuid();
+        var storage = new Mock<IObjectStorageService>();
+        storage.Setup(value => value.DownloadObjectAsync(
+                It.IsAny<string>(),
+                It.IsAny<Stream>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        storage.Setup(value => value.UploadObjectAsync(
+                It.IsAny<string>(),
+                It.IsAny<Stream>(),
+                It.IsAny<long>(),
+                It.IsAny<ObjectStorageUploadOptions>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        storage.Setup(value => value.GetObjectMetadataAsync(
+                It.Is<string>(name => name.EndsWith("poster.jpg", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ObjectStorageMetadata?)null);
+        var probe = new Mock<IMediaProbe>();
+        probe.Setup(value => value.ProbeAsync(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaProbeResult(60, 1280, 720, "mp4", "h264", "aac"));
+        var service = CreateService(
+            db,
+            storage.Object,
+            probe.Object,
+            new FakeVideoTranscoder());
+        (await service.TryClaimAsync(
+            job.Id,
+            workerId,
+            TestContext.Current.CancellationToken)).Should().BeTrue();
+
+        await service.ProcessClaimedAsync(
+            job.Id,
+            workerId,
+            TestContext.Current.CancellationToken);
+
+        var storedJob = await db.VideoProcessingJobs.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var storedVideo = await db.Videos.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        storedJob.Status.Should().Be(VideoProcessingJobStatus.Queued);
+        storedJob.FailureCode.Should().Be("OutputValidationFailed");
+        storedVideo.ProcessingStatus.Should().Be(VideoProcessingStatus.Queued);
+        storedVideo.PosterObjectName.Should().BeNull();
     }
 
     [Fact]
@@ -303,7 +364,13 @@ public sealed class VideoProcessingServiceTests
             .Callback(() => clock.Advance(TimeSpan.FromHours(4)))
             .Returns(Task.CompletedTask);
         storage.Setup(value => value.GetObjectMetadataAsync(
-                It.IsAny<string>(),
+                It.Is<string>(name => name.EndsWith("poster.jpg", StringComparison.Ordinal)),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ObjectStorageMetadata(
+                128,
+                "image/jpeg"));
+        storage.Setup(value => value.GetObjectMetadataAsync(
+                It.Is<string>(name => name.EndsWith("master.m3u8", StringComparison.Ordinal)),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ObjectStorageMetadata(
                 128,

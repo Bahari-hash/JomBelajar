@@ -21,6 +21,7 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
     public bool IsSupportedModule(ResourceModule module)
         => module is ResourceModule.Avatar or
             ResourceModule.ArticlePicture or
+            ResourceModule.VideoCover or
             ResourceModule.Audio or
             ResourceModule.CourseVideo;
 
@@ -31,6 +32,7 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
     /// <returns>模块属于文章图片、音频或课程视频时返回 <see langword="true"/>。</returns>
     public bool IsAdminModule(ResourceModule module)
         => module is ResourceModule.ArticlePicture or
+            ResourceModule.VideoCover or
             ResourceModule.Audio or
             ResourceModule.CourseVideo;
 
@@ -96,7 +98,7 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
     {
         var megabytes = module switch
         {
-            ResourceModule.Avatar or ResourceModule.ArticlePicture => _settings.PictureMaxMB,
+            ResourceModule.Avatar or ResourceModule.ArticlePicture or ResourceModule.VideoCover => _settings.PictureMaxMB,
             ResourceModule.Audio => _settings.AudioMaxMB,
             ResourceModule.CourseVideo => _settings.VideoMaxMB,
             _ => 0
@@ -194,7 +196,7 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
         ResourceModule module)
         => module switch
         {
-            ResourceModule.Avatar or ResourceModule.ArticlePicture
+            ResourceModule.Avatar or ResourceModule.ArticlePicture or ResourceModule.VideoCover
                 => _settings.PictureAllowedTypes,
             ResourceModule.Audio => _settings.AudioAllowedTypes,
             ResourceModule.CourseVideo => _settings.VideoAllowedTypes,

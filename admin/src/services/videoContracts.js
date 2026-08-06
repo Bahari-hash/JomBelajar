@@ -121,6 +121,16 @@ function categorySummary(value) {
   };
 }
 
+function coverSummary(value) {
+  if (value === null) return null;
+  const source = object(value, "video cover");
+  return {
+    id: uuid(source.id, "video cover id"),
+    originalName: string(source.originalName, "video cover name"),
+    url: normalizeHttpUrl(source.url, "video cover URL"),
+  };
+}
+
 function latestJob(value) {
   if (value === null) return null;
   const source = object(value, "video job summary");
@@ -200,6 +210,7 @@ export function normalizeAdminVideo(value) {
       source.sourceMediaResourceId,
       "video source media resource id",
     ),
+    cover: coverSummary(source.cover),
     description: string(source.description, "video description", true),
     displayWidth: number(source.displayWidth, "video display width", {
       nullable: true,
@@ -283,10 +294,10 @@ export function normalizePlayback(value) {
   };
 }
 
-export function normalizeUploadCapability(value) {
+export function normalizeUploadCapability(value, expectedModule = "CourseVideo") {
   const source = object(value, "upload capability");
-  if (source.module !== "CourseVideo" || !Array.isArray(source.allowedTypes))
-    invalid("CourseVideo upload capability");
+  if (source.module !== expectedModule || !Array.isArray(source.allowedTypes))
+    invalid(`${expectedModule} upload capability`);
   return {
     module: source.module,
     maxSizeBytes: number(source.maxSizeBytes, "maximum upload size", {
@@ -424,6 +435,19 @@ export function normalizeCourseVideoResource(value) {
     contentType: string(source.contentType, "media content type"),
     size: number(source.size, "media size", { integer: true }),
     url: normalizeHttpUrl(source.url, "media URL", true),
+  };
+}
+
+export function normalizeVideoCoverResource(value) {
+  const source = object(value, "VideoCover media resource");
+  if (source.module !== "VideoCover" || source.status !== "Active")
+    invalid("active VideoCover media resource");
+  return {
+    id: uuid(source.id, "video cover resource id"),
+    originalName: string(source.originalName, "video cover original name"),
+    contentType: string(source.contentType, "video cover content type"),
+    size: number(source.size, "video cover size", { integer: true }),
+    url: normalizeHttpUrl(source.url, "video cover URL"),
   };
 }
 

@@ -835,6 +835,7 @@ public sealed class MediaResourceService : IMediaResourceService
         {
             ResourceModule.Avatar => "avatars",
             ResourceModule.ArticlePicture => "article_pictures",
+            ResourceModule.VideoCover => "video_covers",
             ResourceModule.Audio => "audios",
             ResourceModule.CourseVideo => "courses",
             _ => throw new ArgumentOutOfRangeException(

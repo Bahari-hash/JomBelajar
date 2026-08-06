@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress.jsx";
 import { Skeleton } from "@/components/ui/skeleton.jsx";
 import { Textarea } from "@/components/ui/textarea.jsx";
 import { VideoCategorySelector } from "@/features/videos/VideoCategorySelector.jsx";
+import { VideoCoverControl } from "@/features/videos/VideoCoverControl.jsx";
 import { VideoFileControl } from "@/features/videos/VideoFileControl.jsx";
 import { useCourseVideoUpload } from "@/features/videos/useCourseVideoUpload.js";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
@@ -59,6 +60,7 @@ function VideoCreate() {
   });
   const [file, setFile] = useState(null);
   const [uploadedResource, setUploadedResource] = useState(null);
+  const [coverResource, setCoverResource] = useState(null);
   const [error, setError] = useState(null);
   const {
     data: capability,
@@ -83,6 +85,10 @@ function VideoCreate() {
   const fieldError = (field) => error?.fieldErrors?.[field]?.[0];
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (event.currentTarget.querySelector('[data-uploading="true"]')) {
+      setError({ detail: "请等待封面上传完成后再创建视频。", fieldErrors: {} });
+      return;
+    }
     if (busy || !capability) return;
     const localErrors = {};
     if (!form.title.trim()) localErrors.title = ["请输入视频标题。"];
@@ -113,6 +119,7 @@ function VideoCreate() {
       setUploadedResource(resource);
       const saved = await createVideo({
         sourceMediaResourceId: resource.id,
+        coverMediaResourceId: coverResource?.id ?? null,
         title: form.title,
         description: form.description.trim() || null,
         originalLanguage: form.originalLanguage.trim(),
@@ -246,6 +253,15 @@ function VideoCreate() {
           (categoryError ? "分类加载失败，请刷新后重试。" : null)
         }
         onChange={(categoryIds) => setForm({ ...form, categoryIds })}
+      />
+      <VideoCoverControl
+        value={coverResource}
+        disabled={busy}
+        onUploaded={(resource) => {
+          setCoverResource(resource);
+          setError(null);
+        }}
+        onClear={() => setCoverResource(null)}
       />
       <section className="space-y-3 border-y py-4">
         <div>

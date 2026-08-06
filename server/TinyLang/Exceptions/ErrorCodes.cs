@@ -222,6 +222,24 @@ public enum ErrorCodes
     [Description("视频源媒体资源已被其他视频占用.")]
     VideoSourceAlreadyUsed,
 
+    [Description("视频封面媒体资源无效.")]
+    VideoCoverInvalid,
+
+    [Description("视频封面媒体资源不存在.")]
+    VideoCoverNotFound,
+
+    [Description("媒体资源不属于视频封面模块.")]
+    VideoCoverModuleInvalid,
+
+    [Description("视频封面媒体资源尚未完成上传确认.")]
+    VideoCoverNotActive,
+
+    [Description("视频封面媒体资源没有有效的公开地址.")]
+    VideoCoverUrlInvalid,
+
+    [Description("视频封面操作无效.")]
+    VideoCoverActionInvalid,
+
     [Description("视频创建人筛选标识无效.")]
     VideoCreatedByInvalid,
 

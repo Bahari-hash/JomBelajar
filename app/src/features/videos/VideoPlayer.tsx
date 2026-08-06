@@ -149,11 +149,16 @@ export default function VideoPlayer({ videoId, video }: VideoPlayerProps) {
 
   if (loading)
     return (
-      <div
-        aria-label="视频加载中"
-        className="skeleton aspect-video w-full"
-        role="status"
-      />
+      <div className="relative aspect-video w-full overflow-hidden bg-base-300" role="status" aria-label="视频加载中">
+        {isSafeVideoUrl(video.coverUrl) ? (
+          <img
+            src={video.coverUrl ?? undefined}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover opacity-80"
+          />
+        ) : null}
+        <span className="loading loading-spinner loading-lg absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-base-100" />
+      </div>
     );
   if (error)
     return (

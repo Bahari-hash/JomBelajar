@@ -30,6 +30,7 @@ public sealed class VideoConfiguration : IEntityTypeConfiguration<Video>
         builder.Property(x => x.ConcurrencyStamp).IsConcurrencyToken();
 
         builder.HasIndex(x => x.SourceMediaResourceId).IsUnique();
+        builder.HasIndex(x => x.CoverMediaResourceId);
         builder.HasIndex(x => new
         {
             x.CreatedById,
@@ -65,6 +66,10 @@ public sealed class VideoConfiguration : IEntityTypeConfiguration<Video>
         builder.HasOne(x => x.SourceMediaResource)
             .WithOne(x => x.SourceVideo)
             .HasForeignKey<Video>(x => x.SourceMediaResourceId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.CoverMediaResource)
+            .WithMany(x => x.CoveredVideos)
+            .HasForeignKey(x => x.CoverMediaResourceId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

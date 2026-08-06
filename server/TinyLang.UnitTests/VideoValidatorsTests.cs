@@ -1,6 +1,7 @@
 using System.Linq;
 using FluentAssertions;
 using TinyLang.Dtos;
+using TinyLang.Entities.Enums;
 
 namespace TinyLang.UnitTests;
 
@@ -117,6 +118,31 @@ public sealed class VideoValidatorsTests
 
         mutation.IsValid.Should().BeFalse();
         update.IsValid.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(VideoCoverAction.Set, false)]
+    [InlineData(VideoCoverAction.Keep, true)]
+    [InlineData(VideoCoverAction.Clear, true)]
+    public async Task UpdateVideoShouldRejectInvalidCoverActionCombinations(
+        VideoCoverAction action,
+        bool includeResourceId)
+    {
+        var validator = new UpdateVideoRequestValidator();
+
+        var result = await validator.ValidateAsync(new UpdateVideoRequest
+        {
+            Title = "Video",
+            OriginalLanguage = "en",
+            CoverAction = action,
+            CoverMediaResourceId = includeResourceId ? Guid.NewGuid() : null,
+            ConcurrencyStamp = Guid.NewGuid()
+        }, TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(error =>
+            error.PropertyName == string.Empty ||
+            error.PropertyName == nameof(UpdateVideoRequest));
     }
 
     [Theory]

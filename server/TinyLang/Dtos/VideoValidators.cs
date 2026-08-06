@@ -1,5 +1,6 @@
 using FluentValidation;
 using TinyLang.Exceptions;
+using TinyLang.Entities.Enums;
 using TinyLang.Extensions;
 
 namespace TinyLang.Dtos;
@@ -16,6 +17,9 @@ public sealed class CreateVideoRequestValidator : AbstractValidator<CreateVideoR
     {
         RuleFor(x => x.SourceMediaResourceId)
             .NotEmpty().WithErrKey(ErrorCodes.VideoSourceInvalid);
+        RuleFor(x => x.CoverMediaResourceId)
+            .Must(value => value is null || value != Guid.Empty)
+            .WithErrKey(ErrorCodes.VideoCoverInvalid);
         AddMetadataRules(this);
     }
 
@@ -81,6 +85,20 @@ public sealed class UpdateVideoRequestValidator : AbstractValidator<UpdateVideoR
             .WithErrKey(ErrorCodes.VideoCategoryDuplicate);
         RuleFor(x => x.ConcurrencyStamp)
             .NotEmpty().WithErrKey(ErrorCodes.VideoConcurrencyConflict);
+        RuleFor(x => x.CoverAction)
+            .IsInEnum().WithErrKey(ErrorCodes.VideoCoverActionInvalid);
+        RuleFor(x => x)
+            .Must(request => request.CoverAction != VideoCoverAction.Set ||
+                request.CoverMediaResourceId is { } id && id != Guid.Empty)
+            .WithErrKey(ErrorCodes.VideoCoverActionInvalid);
+        RuleFor(x => x)
+            .Must(request => request.CoverAction != VideoCoverAction.Clear ||
+                request.CoverMediaResourceId is null)
+            .WithErrKey(ErrorCodes.VideoCoverActionInvalid);
+        RuleFor(x => x)
+            .Must(request => request.CoverAction != VideoCoverAction.Keep ||
+                request.CoverMediaResourceId is null)
+            .WithErrKey(ErrorCodes.VideoCoverActionInvalid);
     }
 }
 

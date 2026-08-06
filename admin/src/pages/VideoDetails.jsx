@@ -2,6 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Play, RefreshCw, Save } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.jsx";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog.jsx";
 import { Badge } from "@/components/ui/badge.jsx";
 import { Button } from "@/components/ui/button.jsx";
 import { Input } from "@/components/ui/input.jsx";
@@ -16,6 +26,7 @@ import {
 } from "@/constants/videoStatus.js";
 import { VideoActionDialog } from "@/features/videos/VideoActionDialog.jsx";
 import { VideoCategorySelector } from "@/features/videos/VideoCategorySelector.jsx";
+import { VideoCoverControl } from "@/features/videos/VideoCoverControl.jsx";
 import { VideoPlayer } from "@/features/videos/VideoPlayer.jsx";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
 import { formatDateTime } from "@/lib/dateTime.js";
@@ -33,6 +44,8 @@ function formFromVideo(video) {
     description: video.description ?? "",
     originalLanguage: video.originalLanguage,
     categoryIds: video.categories.map(({ id }) => id),
+    cover: video.cover,
+    coverAction: "Keep",
     concurrencyStamp: video.concurrencyStamp,
   };
 }
@@ -54,6 +67,7 @@ function VideoDetails() {
   const [formError, setFormError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [action, setAction] = useState(null);
+  const [confirmClearCover, setConfirmClearCover] = useState(false);
   const [playback, setPlayback] = useState(null);
   const [updateVideo, updateState] = useUpdateVideoMutation();
   const [loadPlayback, playbackState] = useGetVideoPlaybackMutation();
@@ -109,6 +123,10 @@ function VideoDetails() {
   };
   const handleSave = async (event) => {
     event.preventDefault();
+    if (event.currentTarget.querySelector('[data-uploading="true"]')) {
+      setFormError({ detail: "请等待封面上传完成后再保存。", fieldErrors: {} });
+      return;
+    }
     if (!form || updateState.isLoading) return;
     const localErrors = {};
     if (!form.title.trim()) localErrors.title = ["请输入视频标题。"];
@@ -136,6 +154,9 @@ function VideoDetails() {
         description: form.description.trim() || null,
         originalLanguage: form.originalLanguage.trim(),
         categoryIds: form.categoryIds,
+        coverAction: form.coverAction,
+        coverMediaResourceId:
+          form.coverAction === "Set" ? form.cover?.id : null,
         concurrencyStamp: form.concurrencyStamp,
       }).unwrap();
       applyVideo(saved);
@@ -395,6 +416,15 @@ function VideoDetails() {
         }
         onChange={(categoryIds) => setForm({ ...form, categoryIds })}
       />
+      <VideoCoverControl
+        value={form.cover}
+        disabled={readOnly || updateState.isLoading}
+        onUploaded={(cover) => {
+          setForm({ ...form, cover, coverAction: "Set" });
+          setFormError(null);
+        }}
+        onClear={() => setConfirmClearCover(true)}
+      />
       <section className="space-y-3 border-y py-4">
         <h2 className="text-sm font-semibold">媒体与处理信息</h2>
         <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -496,6 +526,29 @@ function VideoDetails() {
           onConflict={refetch}
         />
       ) : null}
+      <AlertDialog open={confirmClearCover} onOpenChange={setConfirmClearCover}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>清除“{video.title}”的自定义封面？</AlertDialogTitle>
+            <AlertDialogDescription>
+              保存修改后将解除当前封面关联，并立即回退到视频自动抽帧封面。已上传的媒体资源不会被删除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                setForm({ ...form, cover: null, coverAction: "Clear" });
+                setConfirmClearCover(false);
+              }}
+            >
+              确认清除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   );
 }

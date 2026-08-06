@@ -12,6 +12,7 @@ import {
 import { renderAppAt } from "@/test/renderApp.jsx";
 
 const RESOURCE_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const COVER_RESOURCE_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 describe("VideoCreate", () => {
   it("runs capability-driven simple upload before creating video metadata", async () => {
@@ -22,7 +23,19 @@ describe("VideoCreate", () => {
     });
     const saved = adminVideo({ title: "Bonjour" });
     const requestMock = mockHttpClient((config) => {
-      if (config.url.includes("capabilities"))
+      if (config.url.includes("capabilities?module=VideoCover"))
+        return Promise.resolve(
+          axiosResponse({
+            module: "VideoCover",
+            maxSizeBytes: 5_242_880,
+            allowedTypes: [{ extension: ".jpg", contentTypes: ["image/jpeg"] }],
+            multipartThresholdBytes: 268_435_456,
+            partSizeBytes: 16_777_216,
+            maxPartCount: 10_000,
+            partPresignBatchLimit: 20,
+          }),
+        );
+      if (config.url.includes("capabilities?module=CourseVideo"))
         return Promise.resolve(
           axiosResponse({
             module: "CourseVideo",
@@ -47,9 +60,32 @@ describe("VideoCreate", () => {
       if (config.url.endsWith("/presign"))
         return Promise.resolve(
           axiosResponse({
-            resourceId: RESOURCE_ID,
-            presignedUrl: "https://storage.example.test/video",
-            objectName: "staging/video.mp4",
+            resourceId:
+              config.data.module === "VideoCover" ? COVER_RESOURCE_ID : RESOURCE_ID,
+            presignedUrl:
+              config.data.module === "VideoCover"
+                ? "https://storage.example.test/cover"
+                : "https://storage.example.test/video",
+            objectName:
+              config.data.module === "VideoCover"
+                ? "staging/cover.jpg"
+                : "staging/video.mp4",
+          }),
+        );
+      if (config.url.endsWith(`${COVER_RESOURCE_ID}/confirm`))
+        return Promise.resolve(
+          axiosResponse({
+            id: COVER_RESOURCE_ID,
+            uploaderId: "11111111-1111-4111-8111-111111111111",
+            objectName: "video_covers/cover.jpg",
+            originalName: "cover.jpg",
+            module: "VideoCover",
+            status: "Active",
+            size: 3,
+            extension: ".jpg",
+            contentType: "image/jpeg",
+            url: "https://media.example.test/cover.jpg",
+            createdAt: "2026-07-31T08:00:00+00:00",
           }),
         );
       if (config.url.endsWith("/confirm"))
@@ -77,6 +113,11 @@ describe("VideoCreate", () => {
     );
     await user.type(screen.getByLabelText(/^原始语言/), "fr");
     await user.upload(
+      screen.getByLabelText("自定义封面"),
+      new File(["jpg"], "cover.jpg", { type: "image/jpeg" }),
+    );
+    expect(await screen.findByAltText("视频封面预览")).toBeVisible();
+    await user.upload(
       screen.getByLabelText(/^视频源文件/),
       new File(["mp4"], "video.mp4", { type: "video/mp4" }),
     );
@@ -92,11 +133,14 @@ describe("VideoCreate", () => {
         .filter((url) =>
           [
             "/uploads/admin/media/presign",
+            `/uploads/resources/${COVER_RESOURCE_ID}/confirm`,
             `/uploads/resources/${RESOURCE_ID}/confirm`,
             "/admin/videos",
           ].includes(url),
         ),
     ).toEqual([
+      "/uploads/admin/media/presign",
+      `/uploads/resources/${COVER_RESOURCE_ID}/confirm`,
       "/uploads/admin/media/presign",
       `/uploads/resources/${RESOURCE_ID}/confirm`,
       "/admin/videos",
@@ -106,6 +150,7 @@ describe("VideoCreate", () => {
     )[0];
     expect(create.data).toMatchObject({
       sourceMediaResourceId: RESOURCE_ID,
+      coverMediaResourceId: COVER_RESOURCE_ID,
       title: "Bonjour",
       originalLanguage: "fr",
     });

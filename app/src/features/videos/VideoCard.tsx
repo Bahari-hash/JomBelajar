@@ -1,10 +1,12 @@
-import { CalendarDays, Clock3, Play } from "lucide-react";
+import { useState } from "react";
+import { CalendarDays, Play } from "lucide-react";
 import { Link } from "react-router-dom";
 import UserAvatar from "@/components/UserAvatar";
 import type { VideoCatalogItem } from "@/features/videos/videoTypes";
 import {
   formatVideoDate,
   formatVideoDuration,
+  isSafeVideoUrl,
 } from "@/features/videos/videoUtils";
 
 interface VideoCardProps {
@@ -14,6 +16,9 @@ interface VideoCardProps {
 
 /** Presents catalog metadata without requesting a playback grant. */
 export default function VideoCard({ video, listPath }: VideoCardProps) {
+  const [coverFailed, setCoverFailed] = useState(false);
+  const coverUrl =
+    !coverFailed && isSafeVideoUrl(video.coverUrl) ? video.coverUrl : null;
   const authorName = video.author.nickname?.trim() || "TinyLang 编辑";
   const visibleCategories = video.categories.slice(0, 3);
   const remaining = Math.max(
@@ -29,7 +34,15 @@ export default function VideoCard({ video, listPath }: VideoCardProps) {
         state={{ from: listPath }}
         to={`/videos/${video.id}`}
       >
-        <div className="absolute inset-0 grid place-items-center bg-base-300 text-base-content/45 transition-colors group-hover:bg-base-200 group-focus-visible:bg-base-200">
+        {coverUrl ? (
+          <img
+            src={coverUrl}
+            alt={`《${video.title}》封面`}
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={() => setCoverFailed(true)}
+          />
+        ) : null}
+        <div className={`absolute inset-0 grid place-items-center text-base-content/70 transition-colors ${coverUrl ? "bg-black/15 group-hover:bg-black/25 group-focus-visible:bg-black/25" : "bg-base-300 group-hover:bg-base-200 group-focus-visible:bg-base-200"}`}>
           <Play aria-hidden="true" className="size-12 fill-current" />
         </div>
         <span className="absolute bottom-2 right-2 rounded bg-neutral px-2 py-1 text-xs text-neutral-content">

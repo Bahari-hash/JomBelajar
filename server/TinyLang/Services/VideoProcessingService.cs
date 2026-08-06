@@ -361,6 +361,25 @@ public sealed class VideoProcessingService : IVideoProcessingService
                 isTransient: true);
         }
 
+        var posterObjectName = ToObjectName(
+            outputDirectory,
+            output.PosterPath,
+            prefix);
+        var posterMetadata = await _objectStorage.GetObjectMetadataAsync(
+            posterObjectName,
+            cancellationToken);
+        if (posterMetadata is null ||
+            posterMetadata.Size <= 0 ||
+            !string.Equals(
+                posterMetadata.ContentType,
+                "image/jpeg",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new VideoProcessingException(
+                VideoProcessingFailureCode.OutputValidationFailed,
+                isTransient: true);
+        }
+
         var masterObjectName = ToObjectName(
             outputDirectory,
             output.MasterPlaylistPath,

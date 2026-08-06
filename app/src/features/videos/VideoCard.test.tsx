@@ -15,6 +15,7 @@ const video: VideoCatalogItem = {
     nickname: "Video Publisher",
     avatarUrl: "https://media.example.test/avatar.jpg",
   },
+  coverUrl: "https://media.example.test/video-cover.jpg",
   publishedAt: "2026-08-06T08:00:00Z",
   categories: [
     {
@@ -46,7 +47,30 @@ describe("VideoCard", () => {
       "href",
       `/videos/${video.id}`,
     );
-    expect(screen.getAllByText("1:35")).toHaveLength(2);
+    expect(screen.getByText("1:35")).toBeVisible();
+    expect(screen.getByAltText("《Listening in context》封面")).toHaveAttribute(
+      "src",
+      video.coverUrl,
+    );
+  });
+
+  it("falls back to the play placeholder when the cover URL is unsafe", () => {
+    renderCard({ ...video, coverUrl: "javascript:alert(1)" });
+
+    expect(screen.queryByAltText("《Listening in context》封面")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(`观看《${video.title}》`)).toBeInTheDocument();
+  });
+
+  it("renders the generated poster returned as the backend cover fallback", () => {
+    const generatedPosterUrl =
+      "https://media.example.test/videos/id/outputs/version/poster.jpg";
+
+    renderCard({ ...video, coverUrl: generatedPosterUrl });
+
+    expect(screen.getByAltText("《Listening in context》封面")).toHaveAttribute(
+      "src",
+      generatedPosterUrl,
+    );
   });
 
   it("uses the established publisher fallback when nickname and avatar are absent", () => {

@@ -166,6 +166,7 @@ export function adminVideo(overrides = {}) {
   return {
     ...videoListItem(),
     sourceMediaResourceId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    cover: null,
     description: "Basic phrases",
     displayWidth: 1280,
     displayHeight: 720,

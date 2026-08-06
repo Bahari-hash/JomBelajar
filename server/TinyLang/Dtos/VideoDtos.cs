@@ -9,6 +9,7 @@ namespace TinyLang.Dtos;
 public sealed record CreateVideoRequest
 {
     public Guid SourceMediaResourceId { get; init; }
+    public Guid? CoverMediaResourceId { get; init; }
     public required string Title { get; init; }
     public string? Description { get; init; }
     public required string OriginalLanguage { get; init; }
@@ -24,6 +25,8 @@ public sealed record UpdateVideoRequest
     public string? Description { get; init; }
     public required string OriginalLanguage { get; init; }
     public IReadOnlyCollection<Guid> CategoryIds { get; init; } = [];
+    public VideoCoverAction CoverAction { get; init; } = VideoCoverAction.Keep;
+    public Guid? CoverMediaResourceId { get; init; }
     [Required]
     public Guid ConcurrencyStamp { get; init; }
 }
@@ -129,6 +132,14 @@ public sealed record AdminVideoListItemResponse(
     VideoProcessingJobSummaryResponse? LatestJob);
 
 /// <summary>
+/// 返回已确认视频封面的非敏感摘要。
+/// </summary>
+public sealed record VideoCoverSummaryResponse(
+    Guid Id,
+    string OriginalName,
+    string Url);
+
+/// <summary>
 /// 返回内容管理审计所需的最小用户资料。
 /// </summary>
 public sealed record ContentAuditUserResponse(
@@ -212,6 +223,7 @@ public sealed record VideoRenditionResponse(
 public sealed record AdminVideoResponse(
     Guid Id,
     Guid SourceMediaResourceId,
+    VideoCoverSummaryResponse? Cover,
     string Title,
     string? Description,
     string OriginalLanguage,
@@ -245,6 +257,7 @@ public sealed record VideoCatalogItemResponse(
     string OriginalLanguage,
     double DurationSeconds,
     VideoUserSummaryResponse Author,
+    string? CoverUrl,
     DateTimeOffset PublishedAt,
     IReadOnlyList<VideoCategorySummaryResponse> Categories);
 
@@ -260,6 +273,7 @@ public sealed record VideoDetailsResponse(
     int DisplayWidth,
     int DisplayHeight,
     VideoUserSummaryResponse Author,
+    string? CoverUrl,
     DateTimeOffset PublishedAt,
     IReadOnlyList<VideoCategorySummaryResponse> Categories);
 

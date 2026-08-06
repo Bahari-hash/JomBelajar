@@ -20,6 +20,8 @@ describe("VideoDetails", () => {
     const user = userEvent.setup();
     const initial = adminVideo({ publicationStatus: "Draft" });
     const requestMock = mockHttpClient((config) => {
+      if (config.url.includes("capabilities?module=VideoCover"))
+        return Promise.resolve(axiosResponse(videoCoverCapability()));
       if (config.url.startsWith("/admin/video-categories"))
         return Promise.resolve(
           axiosResponse({
@@ -64,6 +66,8 @@ describe("VideoDetails", () => {
   it("does not offer playback before processing is ready", async () => {
     const initial = adminVideo({ processingStatus: "Processing" });
     mockHttpClient((config) => {
+      if (config.url.includes("capabilities?module=VideoCover"))
+        return Promise.resolve(axiosResponse(videoCoverCapability()));
       if (config.url.startsWith("/admin/video-categories"))
         return Promise.resolve(
           axiosResponse({
@@ -89,6 +93,8 @@ describe("VideoDetails", () => {
     const user = userEvent.setup();
     const initial = adminVideo();
     const requestMock = mockHttpClient((config) => {
+      if (config.url.includes("capabilities?module=VideoCover"))
+        return Promise.resolve(axiosResponse(videoCoverCapability()));
       if (config.url.startsWith("/admin/video-categories"))
         return Promise.resolve(
           axiosResponse({
@@ -129,6 +135,8 @@ describe("VideoDetails", () => {
     const user = userEvent.setup();
     const initial = adminVideo();
     mockHttpClient((config) => {
+      if (config.url.includes("capabilities?module=VideoCover"))
+        return Promise.resolve(axiosResponse(videoCoverCapability()));
       if (config.url.startsWith("/admin/video-categories"))
         return Promise.resolve(
           axiosResponse({
@@ -160,4 +168,57 @@ describe("VideoDetails", () => {
     expect(await screen.findByText(/你的输入仍然保留/)).toBeVisible();
     expect(title).toHaveValue("Local unsaved title");
   });
+
+  it("confirms clearing a custom cover and sends the explicit Clear action", async () => {
+    const user = userEvent.setup();
+    const initial = adminVideo({
+      cover: {
+        id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        originalName: "cover.jpg",
+        url: "https://media.example.test/cover.jpg",
+      },
+    });
+    const requestMock = mockHttpClient((config) => {
+      if (config.url.includes("capabilities?module=VideoCover"))
+        return Promise.resolve(axiosResponse(videoCoverCapability()));
+      if (config.url.startsWith("/admin/video-categories"))
+        return Promise.resolve(
+          axiosResponse({
+            items: [],
+            page: 1,
+            pageSize: 100,
+            totalCount: 0,
+            totalPages: 0,
+          }),
+        );
+      if (config.method === "PUT")
+        return Promise.resolve(axiosResponse(adminVideo({ cover: null })));
+      return Promise.resolve(axiosResponse(initial));
+    });
+
+    renderAppAt(`/videos/${initial.id}`);
+    await user.click(await screen.findByRole("button", { name: "清除封面" }));
+    await user.click(screen.getByRole("button", { name: "确认清除" }));
+    await user.click(screen.getByRole("button", { name: "保存修改" }));
+
+    const update = requestMock.mock.calls.find(
+      ([config]) => config.method === "PUT",
+    )[0];
+    expect(update.data).toMatchObject({
+      coverAction: "Clear",
+      coverMediaResourceId: null,
+    });
+  });
 });
+
+function videoCoverCapability() {
+  return {
+    module: "VideoCover",
+    maxSizeBytes: 5_242_880,
+    allowedTypes: [{ extension: ".jpg", contentTypes: ["image/jpeg"] }],
+    multipartThresholdBytes: 268_435_456,
+    partSizeBytes: 16_777_216,
+    maxPartCount: 10_000,
+    partPresignBatchLimit: 20,
+  };
+}

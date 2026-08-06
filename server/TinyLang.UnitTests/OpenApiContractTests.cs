@@ -132,7 +132,12 @@ public sealed class OpenApiContractTests
         moduleValues.Should().OnlyContain(value => value.ValueKind == JsonValueKind.String);
         moduleValues
             .Select(value => value.GetString())
-            .Should().BeEquivalentTo("Avatar", "ArticlePicture", "Audio", "CourseVideo");
+            .Should().BeEquivalentTo(
+                "Avatar",
+                "ArticlePicture",
+                "VideoCover",
+                "Audio",
+                "CourseVideo");
     }
 
     /// <summary>

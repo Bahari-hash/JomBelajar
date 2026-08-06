@@ -82,6 +82,7 @@ describe("videosApi", () => {
       .dispatch(
         videosApi.endpoints.createVideo.initiate({
           sourceMediaResourceId: response.sourceMediaResourceId,
+          coverMediaResourceId: null,
           ...metadata,
         }),
       )
@@ -91,6 +92,8 @@ describe("videosApi", () => {
         videosApi.endpoints.updateVideo.initiate({
           videoId,
           ...metadata,
+          coverAction: "Keep",
+          coverMediaResourceId: null,
           concurrencyStamp: response.concurrencyStamp,
         }),
       )
@@ -126,13 +129,19 @@ describe("videosApi", () => {
         method: "POST",
         data: {
           sourceMediaResourceId: response.sourceMediaResourceId,
+          coverMediaResourceId: null,
           ...metadata,
         },
       },
       {
         url: `/admin/videos/${videoId}`,
         method: "PUT",
-        data: { ...metadata, concurrencyStamp: response.concurrencyStamp },
+        data: {
+          ...metadata,
+          coverAction: "Keep",
+          coverMediaResourceId: null,
+          concurrencyStamp: response.concurrencyStamp,
+        },
       },
       ...["publish", "unpublish", "retry", "archive"].map((action) => ({
         url: `/admin/videos/${videoId}/${action}`,

@@ -22,6 +22,8 @@ public sealed class Video : BaseAuditableEntity
     public User LastEditor { get; set; } = null!;
     public Guid SourceMediaResourceId { get; set; }
     public MediaResource SourceMediaResource { get; set; } = null!;
+    public Guid? CoverMediaResourceId { get; set; }
+    public MediaResource? CoverMediaResource { get; set; }
     public required string Title { get; set; }
     public string? Description { get; set; }
     public required string OriginalLanguage { get; set; }

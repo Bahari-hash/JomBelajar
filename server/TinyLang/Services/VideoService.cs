@@ -57,6 +57,7 @@ public sealed class VideoService : IVideoService
         {
             throw ConflictException.Create(ErrorCodes.VideoSourceNotActive);
         }
+        var cover = await GetCoverResourceAsync(request.CoverMediaResourceId, cancellationToken);
         if (await _db.Videos.AsNoTracking().AnyAsync(
             value => value.SourceMediaResourceId == source.Id,
             cancellationToken))
@@ -73,6 +74,8 @@ public sealed class VideoService : IVideoService
             LastEditorId = adminId,
             SourceMediaResourceId = source.Id,
             SourceMediaResource = source,
+            CoverMediaResourceId = cover?.Id,
+            CoverMediaResource = cover,
             Title = request.Title.Trim(),
             Description = NormalizeOptional(request.Description),
             OriginalLanguage = NormalizeLanguageTag(request.OriginalLanguage)
@@ -226,6 +229,18 @@ public sealed class VideoService : IVideoService
         var existingAssignments = await _db.VideoCategoryAssignments
             .Where(value => value.VideoId == videoId)
             .ToListAsync(cancellationToken);
+        if (request.CoverAction == VideoCoverAction.Set)
+        {
+            var cover = await GetCoverResourceAsync(request.CoverMediaResourceId, cancellationToken);
+            video.CoverMediaResourceId = cover?.Id
+                ?? throw ConflictException.Create(ErrorCodes.VideoCoverActionInvalid);
+            video.CoverMediaResource = cover;
+        }
+        else if (request.CoverAction == VideoCoverAction.Clear)
+        {
+            video.CoverMediaResourceId = null;
+            video.CoverMediaResource = null;
+        }
         SynchronizeCategories(videoId, existingAssignments, categories);
         video.Title = request.Title.Trim();
         video.Description = NormalizeOptional(request.Description);
@@ -382,23 +397,28 @@ public sealed class VideoService : IVideoService
                 assignment.VideoCategory.IsActive));
         }
         var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query
+        var rows = await query
             .OrderByDescending(value => value.PublishedAt)
             .ThenByDescending(value => value.Id)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(value => new VideoCatalogItemResponse(
+            .Select(value => new
+            {
                 value.Id,
                 value.Title,
                 value.Description,
                 value.OriginalLanguage,
-                value.DurationSeconds!.Value,
-                new VideoUserSummaryResponse(
+                DurationSeconds = value.DurationSeconds!.Value,
+                Author = new VideoUserSummaryResponse(
                     value.CreatedById,
                     value.CreatedBy.Nickname,
                     value.CreatedBy.AvatarUrl),
-                value.PublishedAt!.Value,
-                value.CategoryAssignments
+                CustomCoverUrl = value.CoverMediaResource == null
+                    ? null
+                    : value.CoverMediaResource.Url,
+                value.PosterObjectName,
+                PublishedAt = value.PublishedAt!.Value,
+                Categories = value.CategoryAssignments
                     .Where(assignment => assignment.VideoCategory.IsActive)
                     .OrderBy(assignment => assignment.VideoCategory.Name)
                     .ThenBy(assignment => assignment.VideoCategoryId)
@@ -406,8 +426,20 @@ public sealed class VideoService : IVideoService
                         assignment.VideoCategory.Id,
                         assignment.VideoCategory.Name,
                         assignment.VideoCategory.Slug))
-                    .ToList()))
+                    .ToList()
+            })
             .ToListAsync(cancellationToken);
+        var items = rows.Select(value => new VideoCatalogItemResponse(
+                value.Id,
+                value.Title,
+                value.Description,
+                value.OriginalLanguage,
+                value.DurationSeconds,
+                value.Author,
+                ResolvePublishedCoverUrl(value.CustomCoverUrl, value.PosterObjectName),
+                value.PublishedAt,
+                value.Categories))
+            .ToList();
         return CreatePage(items, request.Page, request.PageSize, totalCount);
     }
 
@@ -416,22 +448,27 @@ public sealed class VideoService : IVideoService
         Guid videoId,
         CancellationToken cancellationToken = default)
     {
-        return await PublishedVideosQuery()
+        var row = await PublishedVideosQuery()
             .Where(value => value.Id == videoId)
-            .Select(value => new VideoDetailsResponse(
+            .Select(value => new
+            {
                 value.Id,
                 value.Title,
                 value.Description,
                 value.OriginalLanguage,
-                value.DurationSeconds!.Value,
-                value.DisplayWidth!.Value,
-                value.DisplayHeight!.Value,
-                new VideoUserSummaryResponse(
+                DurationSeconds = value.DurationSeconds!.Value,
+                DisplayWidth = value.DisplayWidth!.Value,
+                DisplayHeight = value.DisplayHeight!.Value,
+                Author = new VideoUserSummaryResponse(
                     value.CreatedById,
                     value.CreatedBy.Nickname,
                     value.CreatedBy.AvatarUrl),
-                value.PublishedAt!.Value,
-                value.CategoryAssignments
+                CustomCoverUrl = value.CoverMediaResource == null
+                    ? null
+                    : value.CoverMediaResource.Url,
+                value.PosterObjectName,
+                PublishedAt = value.PublishedAt!.Value,
+                Categories = value.CategoryAssignments
                     .Where(assignment => assignment.VideoCategory.IsActive)
                     .OrderBy(assignment => assignment.VideoCategory.Name)
                     .ThenBy(assignment => assignment.VideoCategoryId)
@@ -439,9 +476,25 @@ public sealed class VideoService : IVideoService
                         assignment.VideoCategory.Id,
                         assignment.VideoCategory.Name,
                         assignment.VideoCategory.Slug))
-                    .ToList()))
-            .SingleOrDefaultAsync(cancellationToken)
-            ?? throw NotFoundException.Create(ErrorCodes.VideoNotFound);
+                    .ToList()
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (row is null)
+        {
+            throw NotFoundException.Create(ErrorCodes.VideoNotFound);
+        }
+        return new VideoDetailsResponse(
+            row.Id,
+            row.Title,
+            row.Description,
+            row.OriginalLanguage,
+            row.DurationSeconds,
+            row.DisplayWidth,
+            row.DisplayHeight,
+            row.Author,
+            ResolvePublishedCoverUrl(row.CustomCoverUrl, row.PosterObjectName),
+            row.PublishedAt,
+            row.Categories);
     }
 
     /// <inheritdoc />
@@ -476,6 +529,7 @@ public sealed class VideoService : IVideoService
         CancellationToken cancellationToken = default)
     {
         var video = await _db.Videos.AsNoTracking()
+            .Include(value => value.CoverMediaResource)
             .SingleOrDefaultAsync(value =>
                 value.Id == videoId &&
                 value.ProcessingStatus == VideoProcessingStatus.Ready &&
@@ -522,6 +576,7 @@ public sealed class VideoService : IVideoService
     /// </summary>
     private IQueryable<Video> AdminDetailsQuery()
         => _db.Videos.AsNoTracking()
+            .Include(value => value.CoverMediaResource)
             .Include(value => value.Renditions)
             .Include(value => value.ProcessingJobs)
             .Include(value => value.CategoryAssignments)
@@ -531,7 +586,9 @@ public sealed class VideoService : IVideoService
     /// 创建只包含可播放视频且媒体属性完整的登录用户查询。
     /// </summary>
     private IQueryable<Video> PublishedVideosQuery()
-        => _db.Videos.AsNoTracking().Where(value =>
+        => _db.Videos.AsNoTracking()
+            .Include(value => value.CoverMediaResource)
+            .Where(value =>
             value.ProcessingStatus == VideoProcessingStatus.Ready &&
             value.PublicationStatus == VideoPublicationStatus.Published &&
             value.DurationSeconds != null &&
@@ -555,9 +612,13 @@ public sealed class VideoService : IVideoService
         var masterUrl = _deliveryUrlService.CreateUrl(
             masterObjectName,
             outputPrefix);
-        var posterUrl = video.PosterObjectName is null
-            ? null
-            : _deliveryUrlService.CreateUrl(video.PosterObjectName, outputPrefix).Url;
+        var posterUrl = video.CoverMediaResource?.Url;
+        if (string.IsNullOrWhiteSpace(posterUrl))
+        {
+            posterUrl = video.PosterObjectName is null
+                ? null
+                : _deliveryUrlService.CreateUrl(video.PosterObjectName, outputPrefix).Url;
+        }
         return new VideoPlaybackResponse(
             masterUrl.Url,
             posterUrl,
@@ -568,6 +629,26 @@ public sealed class VideoService : IVideoService
     }
 
     /// <summary>
+    /// 为公开目录和详情选择自定义封面，否则返回自动抽帧 poster 的 OSS 地址。
+    /// </summary>
+    private string? ResolvePublishedCoverUrl(
+        string? customCoverUrl,
+        string? posterObjectName)
+    {
+        if (!string.IsNullOrWhiteSpace(customCoverUrl))
+        {
+            return customCoverUrl;
+        }
+        if (string.IsNullOrWhiteSpace(posterObjectName))
+        {
+            return null;
+        }
+        return _deliveryUrlService.CreateUrl(
+            posterObjectName,
+            GetObjectDirectory(posterObjectName)).Url;
+    }
+
+    /// <summary>
     /// 查找管理员可变更的全局视频。
     /// </summary>
     private async Task<Video> FindVideoAsync(
@@ -575,6 +656,39 @@ public sealed class VideoService : IVideoService
         CancellationToken cancellationToken)
         => await _db.Videos.SingleOrDefaultAsync(value => value.Id == videoId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.VideoNotFound);
+
+    /// <summary>
+    /// 校验可关联的视频封面资源属于独立封面模块、已确认且具有安全公开地址。
+    /// </summary>
+    private async Task<MediaResource?> GetCoverResourceAsync(
+        Guid? resourceId,
+        CancellationToken cancellationToken)
+    {
+        if (resourceId is null)
+        {
+            return null;
+        }
+        var resource = await _db.MediaResources
+            .SingleOrDefaultAsync(value => value.Id == resourceId, cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.VideoCoverNotFound);
+        if (resource.Module != ResourceModule.VideoCover)
+        {
+            throw ConflictException.Create(ErrorCodes.VideoCoverModuleInvalid);
+        }
+        if (resource.Status != ResourceStatus.Active)
+        {
+            throw ConflictException.Create(ErrorCodes.VideoCoverNotActive);
+        }
+        if (!IsHttpUrl(resource.Url))
+        {
+            throw ConflictException.Create(ErrorCodes.VideoCoverUrlInvalid);
+        }
+        return resource;
+    }
+
+    private static bool IsHttpUrl(string? value)
+        => Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 
     /// <summary>
     /// 在任何状态判断前校验客户端读取到的视频版本。
@@ -611,6 +725,9 @@ public sealed class VideoService : IVideoService
         => new(
             video.Id,
             video.SourceMediaResourceId,
+            video.CoverMediaResource is { Url: not null } cover
+                ? new VideoCoverSummaryResponse(cover.Id, cover.OriginalName, cover.Url)
+                : null,
             video.Title,
             video.Description,
             video.OriginalLanguage,

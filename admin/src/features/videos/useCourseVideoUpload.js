@@ -8,9 +8,13 @@ import {
   useLazyGetCourseVideoMultipartStatusQuery,
   usePresignCourseVideoMutation,
   usePresignCourseVideoPartsMutation,
+  useConfirmVideoCoverResourceMutation,
+  useCreateVideoCoverMultipartMutation,
+  usePresignVideoCoverMutation,
 } from "@/services/videoUploadApi.js";
 
-const STORAGE_KEY = "tinylang.courseVideoUpload.v1";
+const COURSE_STORAGE_KEY = "tinylang.courseVideoUpload.v1";
+const COVER_STORAGE_KEY = "tinylang.videoCoverUpload.v1";
 const MAX_CONCURRENT_PARTS = 3;
 const FINALIZATION_POLL_MS = 1500;
 const MAX_FINALIZATION_POLLS = 120;
@@ -29,9 +33,9 @@ function sameFingerprint(file, saved) {
   return Object.keys(current).every((key) => current[key] === saved?.[key]);
 }
 
-export function readCourseVideoResumeRecord() {
+function readResumeRecord(storageKey) {
   try {
-    const parsed = JSON.parse(sessionStorage.getItem(STORAGE_KEY));
+    const parsed = JSON.parse(sessionStorage.getItem(storageKey));
     if (
       typeof parsed?.sessionId !== "string" ||
       typeof parsed?.resourceId !== "string" ||
@@ -39,22 +43,26 @@ export function readCourseVideoResumeRecord() {
       typeof parsed.fingerprint.name !== "string" ||
       !Number.isFinite(parsed.fingerprint.size)
     ) {
-      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(storageKey);
       return null;
     }
     return parsed;
   } catch {
-    sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(storageKey);
     return null;
   }
 }
 
-function saveResumeRecord(session) {
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+export function readCourseVideoResumeRecord() {
+  return readResumeRecord(COURSE_STORAGE_KEY);
 }
 
-function clearResumeRecord() {
-  sessionStorage.removeItem(STORAGE_KEY);
+function saveResumeRecord(storageKey, session) {
+  sessionStorage.setItem(storageKey, JSON.stringify(session));
+}
+
+function clearResumeRecord(storageKey) {
+  sessionStorage.removeItem(storageKey);
 }
 
 function delay(ms, signal) {
@@ -85,21 +93,33 @@ async function runPool(tasks, concurrency) {
   );
 }
 
-/** Coordinates capability-driven simple and resumable multipart CourseVideo uploads. */
-export function useCourseVideoUpload() {
+function useMediaUpload(module, storageKey) {
   const controllerRef = useRef(null);
-  const sessionRef = useRef(readCourseVideoResumeRecord());
+  const sessionRef = useRef(readResumeRecord(storageKey));
   const mountedRef = useRef(true);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState("idle");
   const [resumeRecord, setResumeRecord] = useState(sessionRef.current);
-  const [presignSimple] = usePresignCourseVideoMutation();
-  const [createMultipart] = useCreateCourseVideoMultipartMutation();
+  const [presignCourseVideo] = usePresignCourseVideoMutation();
+  const [presignVideoCover] = usePresignVideoCoverMutation();
+  const [createCourseVideoMultipart] = useCreateCourseVideoMultipartMutation();
+  const [createVideoCoverMultipart] = useCreateVideoCoverMultipartMutation();
   const [presignParts] = usePresignCourseVideoPartsMutation();
   const [getStatus] = useLazyGetCourseVideoMultipartStatusQuery();
   const [completeMultipart] = useCompleteCourseVideoMultipartMutation();
   const [abortMultipart] = useAbortCourseVideoMultipartMutation();
-  const [confirmResource] = useConfirmCourseVideoResourceMutation();
+  const [confirmCourseVideoResource] = useConfirmCourseVideoResourceMutation();
+  const [confirmVideoCoverResource] = useConfirmVideoCoverResourceMutation();
+  const presignSimple =
+    module === "VideoCover" ? presignVideoCover : presignCourseVideo;
+  const createMultipart =
+    module === "VideoCover"
+      ? createVideoCoverMultipart
+      : createCourseVideoMultipart;
+  const confirmResource =
+    module === "VideoCover"
+      ? confirmVideoCoverResource
+      : confirmCourseVideoResource;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -133,7 +153,7 @@ export function useCourseVideoUpload() {
       updateStage("checking");
       status = await getStatus(record.sessionId, false).unwrap();
       if (["Failed", "Expired", "Aborted"].includes(status.status)) {
-        clearResumeRecord();
+        clearResumeRecord(storageKey);
         sessionRef.current = null;
         setResumeRecord(null);
         throw new Error("旧上传会话已不可恢复，请重新开始上传。");
@@ -147,7 +167,7 @@ export function useCourseVideoUpload() {
         fingerprint: fingerprint(file),
       };
       sessionRef.current = record;
-      saveResumeRecord(record);
+      saveResumeRecord(storageKey, record);
       setResumeRecord(record);
       status = { ...created, status: "Initiated", uploadedParts: [] };
     }
@@ -155,7 +175,7 @@ export function useCourseVideoUpload() {
     if (status.status === "Completed") {
       updateStage("confirming");
       const resource = await confirmResource(record.resourceId).unwrap();
-      clearResumeRecord();
+      clearResumeRecord(storageKey);
       sessionRef.current = null;
       setResumeRecord(null);
       return resource;
@@ -169,7 +189,7 @@ export function useCourseVideoUpload() {
       );
       updateStage("confirming");
       const resource = await confirmResource(completed.resourceId).unwrap();
-      clearResumeRecord();
+      clearResumeRecord(storageKey);
       sessionRef.current = null;
       setResumeRecord(null);
       return resource;
@@ -253,7 +273,7 @@ export function useCourseVideoUpload() {
     );
     updateStage("confirming");
     const resource = await confirmResource(completed.resourceId).unwrap();
-    clearResumeRecord();
+    clearResumeRecord(storageKey);
     sessionRef.current = null;
     setResumeRecord(null);
     updateProgress(100);
@@ -299,7 +319,7 @@ export function useCourseVideoUpload() {
     if (abortSession && record) {
       updateStage("aborting");
       await abortMultipart({ sessionId: record.sessionId }).unwrap();
-      clearResumeRecord();
+      clearResumeRecord(storageKey);
       sessionRef.current = null;
       setResumeRecord(null);
     }
@@ -307,4 +327,14 @@ export function useCourseVideoUpload() {
   };
 
   return { upload, cancel, progress, stage, resumeRecord };
+}
+
+/** Coordinates capability-driven simple and resumable CourseVideo uploads. */
+export function useCourseVideoUpload() {
+  return useMediaUpload("CourseVideo", COURSE_STORAGE_KEY);
+}
+
+/** Coordinates VideoCover uploads with a module-specific resumable session key. */
+export function useVideoCoverUpload() {
+  return useMediaUpload("VideoCover", COVER_STORAGE_KEY);
 }

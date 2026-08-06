@@ -32,6 +32,7 @@ public sealed class MediaResource : BaseAuditableEntity
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 
     public ICollection<Article> CoveredArticles { get; set; } = [];
+    public ICollection<Video> CoveredVideos { get; set; } = [];
     public ICollection<ArticleMediaResource> ArticleMediaResources { get; set; } = [];
     public MultipartUploadSession? MultipartUploadSession { get; set; }
     public Video? SourceVideo { get; set; }

@@ -63,9 +63,9 @@ export function VideoTable({ videos, onAction }) {
                   >
                     {video.title}
                   </Link>
-                  <span className="text-xs text-muted-foreground">
+                  {/* <span className="text-xs text-muted-foreground">
                     {video.originalLanguage}
-                  </span>
+                  </span> */}
                 </TableCell>
                 <TableCell>
                   <Badge

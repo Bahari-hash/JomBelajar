@@ -366,7 +366,7 @@ function VideoDetails() {
             {fieldError("title") ?? `${form.title.length}/200`}
           </p>
         </div>
-        <div className="space-y-1.5">
+        {/* <div className="space-y-1.5">
           <Label htmlFor="detail-language">
             原始语言 <span aria-hidden="true">*</span>
           </Label>
@@ -383,7 +383,7 @@ function VideoDetails() {
           <p className="text-xs text-muted-foreground">
             {fieldError("originalLanguage") ?? "BCP 47 语言标签"}
           </p>
-        </div>
+        </div> */}
       </section>
       <div className="space-y-1.5">
         <Label htmlFor="detail-description">描述</Label>

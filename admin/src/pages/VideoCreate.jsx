@@ -55,7 +55,7 @@ function VideoCreate() {
   const [form, setForm] = useState({
     title: "",
     description: "",
-    originalLanguage: "",
+    originalLanguage: "ms",
     categoryIds: [],
   });
   const [file, setFile] = useState(null);
@@ -207,7 +207,7 @@ function VideoCreate() {
             {fieldError("title") ?? `${form.title.length}/200`}
           </p>
         </div>
-        <div className="space-y-1.5">
+        {/* <div className="space-y-1.5">
           <Label htmlFor="video-language">
             原始语言 <span aria-hidden="true">*</span>
           </Label>
@@ -225,7 +225,7 @@ function VideoCreate() {
           <p className="text-xs text-muted-foreground">
             {fieldError("originalLanguage") ?? "使用标准 BCP 47 语言标签。"}
           </p>
-        </div>
+        </div> */}
       </section>
       <div className="space-y-1.5">
         <Label htmlFor="video-description">描述</Label>

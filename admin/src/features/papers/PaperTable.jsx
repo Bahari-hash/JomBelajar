@@ -40,7 +40,7 @@ export function PaperTable({ papers, onAction }) {
         <TableHeader>
           <TableRow>
             <TableHead className="w-56 pl-4">标题</TableHead>
-            <TableHead className="w-20">语言</TableHead>
+            {/* <TableHead className="w-20">语言</TableHead> */}
             <TableHead className="w-24">状态</TableHead>
             <TableHead className="w-28">题目</TableHead>
             <TableHead className="w-28">分值</TableHead>
@@ -72,9 +72,9 @@ export function PaperTable({ papers, onAction }) {
                         : "只读"}
                   </span>
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                {/* <TableCell className="text-muted-foreground">
                   {paper.languageTag}
-                </TableCell>
+                </TableCell> */}
                 <TableCell>
                   <Badge
                     variant={

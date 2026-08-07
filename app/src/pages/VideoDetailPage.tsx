@@ -132,9 +132,9 @@ export default function VideoDetailPage() {
             <Clock3 aria-hidden="true" className="size-4" />
             {formatVideoDuration(video.durationSeconds)}
           </span>
-          <span className="text-base-content/65">
+          {/* <span className="text-base-content/65">
             {video.originalLanguage || "语言未知"}
-          </span>
+          </span> */}
         </div>
         <section
           aria-label="视频播放区域"

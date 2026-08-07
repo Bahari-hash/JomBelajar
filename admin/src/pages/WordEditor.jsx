@@ -8,6 +8,8 @@ import {
   Trash2,
   Volume2,
   Send,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.jsx";
@@ -53,7 +55,7 @@ import {
 let draftSequence = 0;
 const draftKey = (type) => `${type}-draft-${Date.now()}-${draftSequence++}`;
 const emptyForm = () => ({
-  languageTag: "",
+  languageTag: "ms",
   headword: "",
   senses: [],
   pronunciations: [],
@@ -63,7 +65,7 @@ const createSense = () => ({
   id: null,
   partOfSpeech: "Noun",
   definition: "",
-  definitionLanguageTag: "",
+  definitionLanguageTag: "ms",
   usageNote: "",
   examples: [],
 });
@@ -71,9 +73,9 @@ const createExample = (languageTag) => ({
   _key: draftKey("example"),
   id: null,
   sentence: "",
-  languageTag,
+  languageTag: "ms",
   translation: "",
-  translationLanguageTag: "",
+  translationLanguageTag: "ms",
   audioClipId: null,
 });
 const createPronunciation = () => ({
@@ -206,6 +208,15 @@ function WordEditor() {
   const dirty = JSON.stringify(payload) !== baseline;
   const readOnly = word?.status === "Published" || word?.status === "Archived";
   const blocker = useUnsavedChanges(dirty, allowNavigationRef);
+
+  const [collapsedKeys, setCollapsedKeys] = useState({});
+
+  const toggleCollapse = (key) => {
+    setCollapsedKeys((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   useEffect(() => {
     allowNavigationRef.current = false;
@@ -381,7 +392,7 @@ function WordEditor() {
         </Alert>
       ) : null}
       <section className="grid gap-4 border-y py-5 sm:grid-cols-2">
-        <Field
+        {/* <Field
           id="word-languageTag"
           label="语言标签"
           required
@@ -398,7 +409,7 @@ function WordEditor() {
               setForm({ ...form, languageTag: event.target.value })
             }
           />
-        </Field>
+        </Field> */}
         <Field
           id="word-headword"
           label="词头"
@@ -431,7 +442,7 @@ function WordEditor() {
             variant="outline"
             disabled={readOnly || form.senses.length >= 20}
             onClick={() =>
-              setForm({ ...form, senses: [...form.senses, createSense()] })
+              setForm({ ...form, senses: [createSense(), ...form.senses] })
             }
           >
             <Plus aria-hidden="true" />
@@ -444,9 +455,28 @@ function WordEditor() {
           </p>
         ) : (
           form.senses.map((sense, senseIndex) => (
-            <div key={sense._key} className="space-y-4 rounded-lg border p-4">
+            <div key={sense._key} className="rounded-lg border p-4">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="font-medium">释义 {senseIndex + 1}</h3>
+                {/* <h3 className="font-medium">释义 {senseIndex + 1}</h3> */}
+                <div
+                  className="flex flex-1 items-center gap-2 cursor-pointer select-none hover:text-primary"
+                  onClick={() => toggleCollapse(sense._key)}
+                >
+                  {collapsedKeys[sense._key] ? (
+                    <ChevronRight className="size-4" />
+                  ) : (
+                    <ChevronDown className="size-4" />
+                  )}
+                  <h3 className="font-medium whitespace-nowrap">
+                    释义 {senseIndex + 1}
+                  </h3>
+
+                  {collapsedKeys[sense._key] && (
+                    <span className="text-sm text-muted-foreground truncate max-w-50 sm:max-w-100">
+                      {sense.definition || "（未填写释义）"}
+                    </span>
+                  )}
+                </div>
                 <OrderButtons
                   label={`释义 ${senseIndex + 1}`}
                   index={senseIndex}
@@ -468,278 +498,306 @@ function WordEditor() {
                   }
                 />
               </div>
-              <div className="grid gap-4 md:grid-cols-[10rem_1fr_10rem]">
-                <Field label="词性" required>
-                  <Select
-                    value={sense.partOfSpeech}
-                    disabled={readOnly}
-                    onValueChange={(value) =>
-                      updateSense(sense._key, (item) => ({
-                        ...item,
-                        partOfSpeech: value,
-                      }))
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PART_OF_SPEECH_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field
-                  label="释义"
-                  required
-                  error={fieldError(`senses[${senseIndex}].definition`)}
-                >
-                  <Input
-                    value={sense.definition}
-                    maxLength={2000}
-                    disabled={readOnly}
-                    aria-invalid={Boolean(
-                      fieldError(`senses[${senseIndex}].definition`),
-                    )}
-                    onChange={(event) =>
-                      updateSense(sense._key, (item) => ({
-                        ...item,
-                        definition: event.target.value,
-                      }))
-                    }
-                  />
-                </Field>
-                <Field
-                  label="释义语言"
-                  required
-                  error={fieldError(
-                    `senses[${senseIndex}].definitionLanguageTag`,
-                  )}
-                >
-                  <Input
-                    value={sense.definitionLanguageTag}
-                    maxLength={35}
-                    disabled={readOnly}
-                    onChange={(event) =>
-                      updateSense(sense._key, (item) => ({
-                        ...item,
-                        definitionLanguageTag: event.target.value,
-                      }))
-                    }
-                  />
-                </Field>
-              </div>
-              <Field
-                label="用法说明"
-                error={fieldError(`senses[${senseIndex}].usageNote`)}
-              >
-                <Textarea
-                  value={sense.usageNote}
-                  maxLength={1000}
-                  disabled={readOnly}
-                  className="min-h-20"
-                  onChange={(event) =>
-                    updateSense(sense._key, (item) => ({
-                      ...item,
-                      usageNote: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
-              <div className="space-y-3 border-t pt-4">
-                <div className="flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-medium">例句</h4>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={readOnly || sense.examples.length >= 20}
-                    onClick={() =>
-                      updateSense(sense._key, (item) => ({
-                        ...item,
-                        examples: [
-                          ...item.examples,
-                          createExample(form.languageTag),
-                        ],
-                      }))
-                    }
-                  >
-                    <Plus aria-hidden="true" />
-                    添加例句
-                  </Button>
-                </div>
-                {sense.examples.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">暂无例句。</p>
-                ) : (
-                  sense.examples.map((example, exampleIndex) => {
-                    const prefix = `senses[${senseIndex}].examples[${exampleIndex}]`;
-                    return (
-                      <div
-                        key={example._key}
-                        className="space-y-3 border-t pt-3 first:border-t-0 first:pt-0"
+              {!collapsedKeys[sense._key] && (
+                <div className="mt-4 space-y-4">
+                  <div className="grid gap-4 md:grid-cols-[10rem_1fr_10rem]">
+                    <Field label="词性" required>
+                      <Select
+                        value={sense.partOfSpeech}
+                        disabled={readOnly}
+                        onValueChange={(value) =>
+                          updateSense(sense._key, (item) => ({
+                            ...item,
+                            partOfSpeech: value,
+                          }))
+                        }
                       >
-                        <div className="flex justify-end">
-                          <OrderButtons
-                            label={`例句 ${exampleIndex + 1}`}
-                            index={exampleIndex}
-                            count={sense.examples.length}
-                            disabled={readOnly}
-                            onMove={(offset) =>
-                              updateSense(sense._key, (item) => ({
-                                ...item,
-                                examples: move(
-                                  item.examples,
-                                  exampleIndex,
-                                  offset,
-                                ),
-                              }))
-                            }
-                            onDelete={() =>
-                              updateSense(sense._key, (item) => ({
-                                ...item,
-                                examples: item.examples.filter(
-                                  (value) => value._key !== example._key,
-                                ),
-                              }))
-                            }
-                          />
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-[1fr_9rem]">
-                          <Field
-                            label="例句原文"
-                            required
-                            error={fieldError(`${prefix}.sentence`)}
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PART_OF_SPEECH_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field
+                      label="释义"
+                      required
+                      error={fieldError(`senses[${senseIndex}].definition`)}
+                    >
+                      <Input
+                        value={sense.definition}
+                        maxLength={2000}
+                        disabled={readOnly}
+                        aria-invalid={Boolean(
+                          fieldError(`senses[${senseIndex}].definition`),
+                        )}
+                        onChange={(event) =>
+                          updateSense(sense._key, (item) => ({
+                            ...item,
+                            definition: event.target.value,
+                          }))
+                        }
+                      />
+                    </Field>
+                    {/* <Field
+                      label="释义语言"
+                      required
+                      error={fieldError(
+                        `senses[${senseIndex}].definitionLanguageTag`,
+                      )}
+                    >
+                      <Input
+                        value={sense.definitionLanguageTag}
+                        maxLength={35}
+                        disabled={readOnly}
+                        onChange={(event) =>
+                          updateSense(sense._key, (item) => ({
+                            ...item,
+                            definitionLanguageTag: event.target.value,
+                          }))
+                        }
+                      />
+                    </Field> */}
+                  </div>
+                  <Field
+                    label="用法说明"
+                    error={fieldError(`senses[${senseIndex}].usageNote`)}
+                  >
+                    <Textarea
+                      value={sense.usageNote}
+                      maxLength={1000}
+                      disabled={readOnly}
+                      className="min-h-20"
+                      onChange={(event) =>
+                        updateSense(sense._key, (item) => ({
+                          ...item,
+                          usageNote: event.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                  <div className="space-y-3 border-t pt-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-sm font-medium">例句</h4>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={readOnly || sense.examples.length >= 20}
+                        onClick={() =>
+                          updateSense(sense._key, (item) => ({
+                            ...item,
+                            examples: [
+                              createExample(form.languageTag),
+                              ...item.examples,
+                            ],
+                          }))
+                        }
+                      >
+                        <Plus aria-hidden="true" />
+                        添加例句
+                      </Button>
+                    </div>
+                    {sense.examples.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        暂无例句。
+                      </p>
+                    ) : (
+                      sense.examples.map((example, exampleIndex) => {
+                        const prefix = `senses[${senseIndex}].examples[${exampleIndex}]`;
+                        return (
+                          <div
+                            key={example._key}
+                            className="space-y-3 border-t pt-3 first:border-t-0 first:pt-0"
                           >
-                            <Textarea
-                              value={example.sentence}
-                              maxLength={2000}
-                              disabled={readOnly}
-                              className="min-h-18"
-                              onChange={(event) =>
-                                updateSense(sense._key, (item) => ({
-                                  ...item,
-                                  examples: item.examples.map((value) =>
-                                    value._key === example._key
-                                      ? {
-                                          ...value,
-                                          sentence: event.target.value,
-                                        }
-                                      : value,
-                                  ),
-                                }))
-                              }
-                            />
-                          </Field>
-                          <Field
-                            label="原文语言"
-                            required
-                            error={fieldError(`${prefix}.languageTag`)}
-                          >
-                            <Input
-                              value={example.languageTag}
-                              maxLength={35}
-                              disabled={readOnly}
-                              onChange={(event) =>
-                                updateSense(sense._key, (item) => ({
-                                  ...item,
-                                  examples: item.examples.map((value) =>
-                                    value._key === example._key
-                                      ? {
-                                          ...value,
-                                          languageTag: event.target.value,
-                                        }
-                                      : value,
-                                  ),
-                                }))
-                              }
-                            />
-                          </Field>
-                          <Field
-                            label="译文"
-                            required
-                            error={fieldError(`${prefix}.translation`)}
-                          >
-                            <Textarea
-                              value={example.translation}
-                              maxLength={2000}
-                              disabled={readOnly}
-                              className="min-h-18"
-                              onChange={(event) =>
-                                updateSense(sense._key, (item) => ({
-                                  ...item,
-                                  examples: item.examples.map((value) =>
-                                    value._key === example._key
-                                      ? {
-                                          ...value,
-                                          translation: event.target.value,
-                                        }
-                                      : value,
-                                  ),
-                                }))
-                              }
-                            />
-                          </Field>
-                          <Field
-                            label="译文语言"
-                            required
-                            error={fieldError(
-                              `${prefix}.translationLanguageTag`,
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                              <div
+                                className="flex flex-1 items-center gap-2 cursor-pointer select-none hover:text-primary"
+                                onClick={() => toggleCollapse(example._key)}
+                              >
+                                {collapsedKeys[example._key] ? (
+                                  <ChevronRight className="size-4" />
+                                ) : (
+                                  <ChevronDown className="size-4" />
+                                )}
+                                <h4 className="text-sm font-medium whitespace-nowrap">
+                                  例句 {exampleIndex + 1}
+                                </h4>
+
+                                {collapsedKeys[example._key] && (
+                                  <span className="text-sm text-muted-foreground truncate max-w-37.5 sm:max-w-75">
+                                    {example.sentence || "（未填写例句原文）"}
+                                  </span>
+                                )}
+                              </div>
+
+                              <OrderButtons
+                                label={`例句 ${exampleIndex + 1}`}
+                                index={exampleIndex}
+                                count={sense.examples.length}
+                                disabled={readOnly}
+                                onMove={(offset) =>
+                                  updateSense(sense._key, (item) => ({
+                                    ...item,
+                                    examples: move(
+                                      item.examples,
+                                      exampleIndex,
+                                      offset,
+                                    ),
+                                  }))
+                                }
+                                onDelete={() =>
+                                  updateSense(sense._key, (item) => ({
+                                    ...item,
+                                    examples: item.examples.filter(
+                                      (value) => value._key !== example._key,
+                                    ),
+                                  }))
+                                }
+                              />
+                            </div>
+                            {!collapsedKeys[[example._key]] && (
+                              <div className="flex flex-col gap-3">
+                                <Field
+                                  label="例句原文"
+                                  required
+                                  error={fieldError(`${prefix}.sentence`)}
+                                >
+                                  <Textarea
+                                    value={example.sentence}
+                                    maxLength={2000}
+                                    disabled={readOnly}
+                                    className="min-h-18"
+                                    onChange={(event) =>
+                                      updateSense(sense._key, (item) => ({
+                                        ...item,
+                                        examples: item.examples.map((value) =>
+                                          value._key === example._key
+                                            ? {
+                                                ...value,
+                                                sentence: event.target.value,
+                                              }
+                                            : value,
+                                        ),
+                                      }))
+                                    }
+                                  />
+                                </Field>
+                                {/* <Field
+                                  label="原文语言"
+                                  required
+                                  error={fieldError(`${prefix}.languageTag`)}
+                                >
+                                  <Input
+                                    value={example.languageTag}
+                                    maxLength={35}
+                                    disabled={readOnly}
+                                    onChange={(event) =>
+                                      updateSense(sense._key, (item) => ({
+                                        ...item,
+                                        examples: item.examples.map((value) =>
+                                          value._key === example._key
+                                            ? {
+                                                ...value,
+                                                languageTag: event.target.value,
+                                              }
+                                            : value,
+                                        ),
+                                      }))
+                                    }
+                                  />
+                                </Field> */}
+                                <Field
+                                  label="译文"
+                                  required
+                                  error={fieldError(`${prefix}.translation`)}
+                                >
+                                  <Textarea
+                                    value={example.translation}
+                                    maxLength={2000}
+                                    disabled={readOnly}
+                                    className="min-h-18"
+                                    onChange={(event) =>
+                                      updateSense(sense._key, (item) => ({
+                                        ...item,
+                                        examples: item.examples.map((value) =>
+                                          value._key === example._key
+                                            ? {
+                                                ...value,
+                                                translation: event.target.value,
+                                              }
+                                            : value,
+                                        ),
+                                      }))
+                                    }
+                                  />
+                                </Field>
+                                {/* <Field
+                                  label="译文语言"
+                                  required
+                                  error={fieldError(
+                                    `${prefix}.translationLanguageTag`,
+                                  )}
+                                >
+                                  <Input
+                                    value={example.translationLanguageTag}
+                                    maxLength={35}
+                                    disabled={readOnly}
+                                    onChange={(event) =>
+                                      updateSense(sense._key, (item) => ({
+                                        ...item,
+                                        examples: item.examples.map((value) =>
+                                          value._key === example._key
+                                            ? {
+                                                ...value,
+                                                translationLanguageTag:
+                                                  event.target.value,
+                                              }
+                                            : value,
+                                        ),
+                                      }))
+                                    }
+                                  />
+                                </Field> */}
+                                <AudioReference
+                                  value={example.audioClipId}
+                                  label="例句音频"
+                                  disabled={readOnly}
+                                  error={fieldError(`${prefix}.audioClipId`)}
+                                  onChoose={() =>
+                                    setAudioTarget({
+                                      type: "example",
+                                      senseKey: sense._key,
+                                      itemKey: example._key,
+                                      selectedId: example.audioClipId,
+                                      language: example.languageTag,
+                                    })
+                                  }
+                                  onClear={() =>
+                                    updateSense(sense._key, (item) => ({
+                                      ...item,
+                                      examples: item.examples.map((value) =>
+                                        value._key === example._key
+                                          ? { ...value, audioClipId: null }
+                                          : value,
+                                      ),
+                                    }))
+                                  }
+                                />
+                              </div>
                             )}
-                          >
-                            <Input
-                              value={example.translationLanguageTag}
-                              maxLength={35}
-                              disabled={readOnly}
-                              onChange={(event) =>
-                                updateSense(sense._key, (item) => ({
-                                  ...item,
-                                  examples: item.examples.map((value) =>
-                                    value._key === example._key
-                                      ? {
-                                          ...value,
-                                          translationLanguageTag:
-                                            event.target.value,
-                                        }
-                                      : value,
-                                  ),
-                                }))
-                              }
-                            />
-                          </Field>
-                        </div>
-                        <AudioReference
-                          value={example.audioClipId}
-                          label="例句音频"
-                          disabled={readOnly}
-                          error={fieldError(`${prefix}.audioClipId`)}
-                          onChoose={() =>
-                            setAudioTarget({
-                              type: "example",
-                              senseKey: sense._key,
-                              itemKey: example._key,
-                              selectedId: example.audioClipId,
-                              language: example.languageTag,
-                            })
-                          }
-                          onClear={() =>
-                            updateSense(sense._key, (item) => ({
-                              ...item,
-                              examples: item.examples.map((value) =>
-                                value._key === example._key
-                                  ? { ...value, audioClipId: null }
-                                  : value,
-                              ),
-                            }))
-                          }
-                        />
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ))
         )}

@@ -44,7 +44,7 @@ export function PaperFilters({ filters, onApply, onReset }) {
 
   return (
     <form onSubmit={handleSubmit} className="border-y py-4">
-      <div className="grid items-start gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-[16rem_repeat(2,8rem)_6rem_auto]">
+      <div className="grid items-start gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-[16rem_8rem_6rem_auto]">
         <TextFilter
           id="paper-keyword"
           label="关键词"
@@ -53,14 +53,14 @@ export function PaperFilters({ filters, onApply, onReset }) {
           placeholder="试卷标题"
           onChange={(value) => update("keyword", value)}
         />
-        <TextFilter
+        {/* <TextFilter
           id="paper-language"
           label="语言"
           value={draft.language}
           maxLength={35}
           placeholder="例如 en"
           onChange={(value) => update("language", value)}
-        />
+        /> */}
         <FilterSelect
           label="状态"
           value={draft.status || ALL}

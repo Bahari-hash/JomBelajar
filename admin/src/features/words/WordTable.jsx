@@ -63,9 +63,9 @@ export function WordTable({ words, onAction }) {
                   >
                     {word.headword}
                   </Link>
-                  <span className="text-xs text-muted-foreground">
+                  {/* <span className="text-xs text-muted-foreground">
                     {word.languageTag}
-                  </span>
+                  </span> */}
                 </TableCell>
                 <TableCell>
                   <span className="block truncate text-sm">

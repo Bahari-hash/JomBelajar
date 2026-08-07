@@ -74,7 +74,7 @@ export function WordFilters({ filters, onApply, onReset }) {
 
   return (
     <form onSubmit={handleSubmit} className="border-y py-4">
-      <div className="grid items-start gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-[16rem_repeat(3,8rem)_10rem_6rem_auto]">
+      <div className="grid items-start gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-[16rem_repeat(2,8rem)_10rem_6rem_auto]">
         <TextFilter
           id="word-keyword"
           label="关键词"
@@ -83,14 +83,14 @@ export function WordFilters({ filters, onApply, onReset }) {
           placeholder="词头关键词"
           onChange={(value) => update("keyword", value)}
         />
-        <TextFilter
+        {/* <TextFilter
           id="word-language"
           label="语言"
           value={draft.language}
           maxLength={35}
           placeholder="例如 jp"
           onChange={(value) => update("language", value)}
-        />
+        /> */}
         <FilterSelect
           label="状态"
           value={draft.status || ALL}
@@ -107,8 +107,9 @@ export function WordFilters({ filters, onApply, onReset }) {
         />
         <TextFilter
           id="word-definition"
-          label="释义关键词"
+          label="释义"
           value={draft.definition}
+          placeholder="释义关键词"
           maxLength={200}
           onChange={(value) => update("definition", value)}
         />

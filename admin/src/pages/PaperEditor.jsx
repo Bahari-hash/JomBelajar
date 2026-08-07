@@ -73,7 +73,7 @@ const emptyForm = () => ({
   title: "",
   description: "",
   instructions: "",
-  languageTag: "",
+  languageTag: "ms",
   passingScore: 0,
   concurrencyStamp: null,
   status: "Draft",
@@ -743,16 +743,17 @@ function PaperEditor() {
 
 function PaperBasics({ form, readOnly, fieldError, onChange }) {
   return (
-    <section className="grid gap-4 lg:grid-cols-2">
-      <Field label="标题" required error={fieldError("title")} path="title">
-        <Input
-          value={form.title}
-          maxLength={200}
-          disabled={readOnly}
-          onChange={(event) => onChange({ title: event.target.value })}
-        />
-      </Field>
-      <Field
+    <section className="flex flex-col gap-4">
+      <div className="w-full sm:w-1/2">
+        <Field label="标题" required error={fieldError("title")} path="title">
+          <Input
+            value={form.title}
+            maxLength={200}
+            disabled={readOnly}
+            onChange={(event) => onChange({ title: event.target.value })}
+          />
+        </Field>
+        {/* <Field
         label="语言标签"
         required
         error={fieldError("languageTag")}
@@ -765,53 +766,60 @@ function PaperBasics({ form, readOnly, fieldError, onChange }) {
           placeholder="例如 en"
           onChange={(event) => onChange({ languageTag: event.target.value })}
         />
-      </Field>
-      <Field
-        label="试卷说明"
-        error={fieldError("description")}
-        path="description"
-      >
-        <Textarea
-          value={form.description}
-          maxLength={2000}
-          rows={3}
-          disabled={readOnly}
-          onChange={(event) => onChange({ description: event.target.value })}
-        />
-      </Field>
-      <Field
-        label="答题说明"
-        error={fieldError("instructions")}
-        path="instructions"
-      >
-        <Textarea
-          value={form.instructions}
-          maxLength={5000}
-          rows={3}
-          disabled={readOnly}
-          onChange={(event) => onChange({ instructions: event.target.value })}
-        />
-      </Field>
-      <Field
-        label="及格分"
-        required
-        error={fieldError("passingScore")}
-        path="passingScore"
-      >
-        <Input
-          type="number"
-          min="0"
-          value={form.passingScore}
-          disabled={readOnly}
-          onChange={(event) =>
-            onChange({ passingScore: Number(event.target.value) })
-          }
-        />
-      </Field>
-      <div className="space-y-1.5">
-        <Label>总分</Label>
-        <div className="flex h-8 items-center rounded-lg border px-2.5 text-sm">
-          {totalScore(form)} 分，由题目分值自动汇总
+      </Field> */}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Field
+          label="试卷说明"
+          error={fieldError("description")}
+          path="description"
+        >
+          <Textarea
+            value={form.description}
+            maxLength={2000}
+            rows={3}
+            disabled={readOnly}
+            onChange={(event) => onChange({ description: event.target.value })}
+          />
+        </Field>
+        <Field
+          label="答题说明"
+          error={fieldError("instructions")}
+          path="instructions"
+        >
+          <Textarea
+            value={form.instructions}
+            maxLength={5000}
+            rows={3}
+            disabled={readOnly}
+            onChange={(event) => onChange({ instructions: event.target.value })}
+          />
+        </Field>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Field
+          label="及格分"
+          required
+          error={fieldError("passingScore")}
+          path="passingScore"
+        >
+          <Input
+            type="number"
+            min="0"
+            value={form.passingScore}
+            disabled={readOnly}
+            onChange={(event) =>
+              onChange({ passingScore: Number(event.target.value) })
+            }
+          />
+        </Field>
+        <div className="space-y-1.5">
+          <Label>总分</Label>
+          <div className="flex h-8 items-center rounded-lg border px-2.5 text-sm">
+            {totalScore(form)} 分，由题目分值自动汇总
+          </div>
         </div>
       </div>
     </section>

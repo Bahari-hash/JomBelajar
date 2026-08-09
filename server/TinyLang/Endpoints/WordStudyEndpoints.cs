@@ -24,6 +24,8 @@ public static class WordStudyEndpoints
         var study = endpoints.MapGroup("/word-study")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
         study.MapPost("/sessions", CreateSessionAsync);
+        study.MapGet("/today", GetTodayAsync);
+        study.MapPost("/today/start", StartTodayAsync);
         study.MapGet("/sessions/active", GetActiveSessionAsync);
         study.MapGet("/sessions/{sessionId:guid}", GetSessionAsync);
         study.MapGet("/sessions/{sessionId:guid}/next", GetNextItemAsync);
@@ -32,6 +34,29 @@ public static class WordStudyEndpoints
             SubmitResultAsync);
         study.MapPost("/sessions/{sessionId:guid}/abandon", AbandonSessionAsync);
         return endpoints;
+    }
+
+    /// <summary>
+    /// 获取当前登录用户今天的 UTC 背诵状态。
+    /// </summary>
+    public static async Task<Ok<WordStudyTodayResponse>> GetTodayAsync(
+        ClaimsPrincipal principal,
+        IWordStudyService studyService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await studyService.GetTodayAsync(
+            EndpointIdentity.GetUserId(principal), cancellationToken));
+
+    /// <summary>
+    /// 幂等启动或恢复当前登录用户今天的 UTC 背诵会话。
+    /// </summary>
+    public static async Task<Created<WordStudySessionResponse>> StartTodayAsync(
+        ClaimsPrincipal principal,
+        IWordStudyService studyService,
+        CancellationToken cancellationToken)
+    {
+        var response = await studyService.StartTodayAsync(
+            EndpointIdentity.GetUserId(principal), cancellationToken);
+        return TypedResults.Created($"/api/word-study/sessions/{response.Id}", response);
     }
 
     /// <summary>

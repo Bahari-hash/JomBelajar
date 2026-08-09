@@ -85,6 +85,41 @@ public sealed class UserEndpointTests
     }
 
     [Fact]
+    public async Task WordStudySettingsShouldUseAuthenticatedUserId()
+    {
+        var userId = Guid.NewGuid();
+        var userService = new Mock<IUserService>();
+        userService.Setup(value => value.GetWordStudySettingsAsync(
+                userId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WordStudySettingsResponse(20));
+        userService.Setup(value => value.UpdateWordStudySettingsAsync(
+                userId,
+                It.IsAny<UpdateWordStudySettingsRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WordStudySettingsResponse(30));
+        await using var app = await CreateHttpAppAsync(userService.Object, userId);
+
+        var get = await app.GetTestClient().GetAsync(
+            "/api/users/me/word-study-settings",
+            TestContext.Current.CancellationToken);
+        var put = await app.GetTestClient().PutAsJsonAsync(
+            "/api/users/me/word-study-settings",
+            new UpdateWordStudySettingsRequest { DailyWordStudyCount = 30 },
+            TestContext.Current.CancellationToken);
+
+        get.StatusCode.Should().Be(HttpStatusCode.OK);
+        put.StatusCode.Should().Be(HttpStatusCode.OK);
+        userService.Verify(value => value.GetWordStudySettingsAsync(
+            userId,
+            It.IsAny<CancellationToken>()), Times.Once);
+        userService.Verify(value => value.UpdateWordStudySettingsAsync(
+            userId,
+            It.Is<UpdateWordStudySettingsRequest>(request => request.DailyWordStudyCount == 30),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task RoleUpdateShouldReturnStringEnumResponseContract()
     {
         var operatorId = Guid.NewGuid();

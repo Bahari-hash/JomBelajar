@@ -25,7 +25,6 @@ describe("consumer routes", () => {
   it.each([
     ["/", "今天想练习什么？"],
     ["/articles", "文章"],
-    ["/words", "单词"],
     ["/papers", "在线测试"],
     ["/forgot-password", "重置密码"],
     ["/missing", "页面未找到"],
@@ -41,14 +40,17 @@ describe("consumer routes", () => {
     expect(screen.getByText("TinyLang 外语学习平台")).toBeInTheDocument();
   });
 
-  it("protects the video catalog and preserves the return path", async () => {
-    const router = renderRoute("/videos?page=2");
+  it.each([
+    ["/videos?page=2", "%2Fvideos%3Fpage%3D2"],
+    ["/words", "%2Fwords"],
+  ])("protects %s and preserves the return path", async (path, returnTo) => {
+    const router = renderRoute(path);
     expect(
       await screen.findByRole("heading", { name: "登录 TinyLang", level: 1 }),
     ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/login");
     expect(router.state.location.search).toContain(
-      "returnTo=%2Fvideos%3Fpage%3D2",
+      `returnTo=${returnTo}`,
     );
   });
 

@@ -23,7 +23,7 @@ namespace TinyLang.UnitTests;
 public sealed class WordStudyEndpointTests
 {
     /// <summary>
-    /// 验证六条背诵路由均统一使用 RequireUser 策略。
+    /// 验证今日背诵和基础背诵路由均统一使用 RequireUser 策略。
     /// </summary>
     [Fact]
     public void RoutesShouldRequireAuthenticatedUser()
@@ -31,10 +31,40 @@ public sealed class WordStudyEndpointTests
         using var app = CreateMetadataApp();
         var routes = GetRoutes(app);
 
-        routes.Should().HaveCount(6);
+        routes.Should().HaveCount(8);
         routes.Should().OnlyContain(endpoint => endpoint.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
             .Any(value => value.Policy == AuthorizationPolicies.RequireUser));
+    }
+
+    [Fact]
+    public async Task TodayRoutesShouldUseAuthenticatedUserId()
+    {
+        var userId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var service = new Mock<IWordStudyService>();
+        service.Setup(value => value.GetTodayAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WordStudyTodayResponse(
+                DateTimeOffset.Parse("2026-07-29T00:00:00Z"),
+                20,
+                WordStudyTodayState.NotStarted,
+                null));
+        service.Setup(value => value.StartTodayAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateSessionResponse(sessionId));
+        await using var app = await CreateHttpAppAsync(service.Object, userId);
+
+        var today = await app.GetTestClient().GetAsync(
+            "/api/word-study/today",
+            TestContext.Current.CancellationToken);
+        var start = await app.GetTestClient().PostAsync(
+            "/api/word-study/today/start",
+            null,
+            TestContext.Current.CancellationToken);
+
+        today.StatusCode.Should().Be(HttpStatusCode.OK);
+        start.StatusCode.Should().Be(HttpStatusCode.Created);
+        service.Verify(value => value.GetTodayAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
+        service.Verify(value => value.StartTodayAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     /// <summary>

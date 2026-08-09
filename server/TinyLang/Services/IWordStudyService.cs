@@ -8,6 +8,19 @@ namespace TinyLang.Services;
 public interface IWordStudyService
 {
     /// <summary>
+    /// 获取当前 UTC 日期的每日背诵状态。
+    /// </summary>
+    Task<WordStudyTodayResponse> GetTodayAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 幂等创建或恢复当前 UTC 日期的每日背诵会话。
+    /// </summary>
+    Task<WordStudySessionResponse> StartTodayAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+    /// <summary>
     /// 按指定数量、历史范围和选词模式创建固定内容的活动会话。
     /// </summary>
     Task<WordStudySessionResponse> CreateSessionAsync(

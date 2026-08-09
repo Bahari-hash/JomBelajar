@@ -81,10 +81,15 @@ export const routes: RouteObject[] = [
         ],
       },
       {
-        path: "words",
-        lazy: async () => ({
-          Component: (await import("@/pages/WordsPage")).default,
-        }),
+        Component: ProtectedRoute,
+        children: [
+          {
+            path: "words",
+            lazy: async () => ({
+              Component: (await import("@/pages/WordsPage")).default,
+            }),
+          },
+        ],
       },
       {
         path: "papers",

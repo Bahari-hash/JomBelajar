@@ -44,6 +44,23 @@ public sealed class UpdateProfileRequestValidator : AbstractValidator<UpdateProf
 }
 
 /// <summary>
+/// 校验每日自动背诵数量的范围。
+/// </summary>
+public sealed class UpdateWordStudySettingsRequestValidator
+    : AbstractValidator<UpdateWordStudySettingsRequest>
+{
+    /// <summary>
+    /// 初始化每日背诵数量范围规则。
+    /// </summary>
+    public UpdateWordStudySettingsRequestValidator()
+    {
+        RuleFor(x => x.DailyWordStudyCount)
+            .InclusiveBetween(WordStudyConstraints.MinWordCount, WordStudyConstraints.MaxWordCount)
+            .WithErrKey(ErrorCodes.WordStudyWordCountInvalid);
+    }
+}
+
+/// <summary>
 /// 校验管理员提交的用户角色名称。
 /// </summary>
 public sealed class UpdateRoleRequestValidator : AbstractValidator<UpdateRoleRequest>

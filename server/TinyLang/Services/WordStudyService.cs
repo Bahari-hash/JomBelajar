@@ -16,6 +16,8 @@ public sealed class WordStudyService : IWordStudyService
 {
     private const string ActiveSessionUniqueIndex =
         "IX_word_study_sessions_UserId";
+    private const string DailySessionUniqueIndex =
+        "IX_word_study_sessions_UserId_StudyDateUtc";
     private const string ProgressUniqueIndex =
         "IX_user_word_progress_UserId_WordId";
 
@@ -37,6 +39,125 @@ public sealed class WordStudyService : IWordStudyService
         _databaseExceptionClassifier = databaseExceptionClassifier;
         _timeProvider = timeProvider;
         _logger = logger;
+    }
+
+    /// <inheritdoc />
+    public async Task<WordStudyTodayResponse> GetTodayAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var today = GetStudyDateUtc();
+        var dailyCount = await _db.Users.AsNoTracking()
+            .Where(user => user.Id == userId && !user.IsDeleted && !user.IsBanned)
+            .Select(user => (int?)user.DailyWordStudyCount)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
+        var session = await GetTodaySessionAsync(userId, today, cancellationToken);
+        return new WordStudyTodayResponse(
+            today,
+            dailyCount,
+            session is null
+                ? WordStudyTodayState.NotStarted
+                : session.Status == WordStudySessionStatus.Active
+                    ? WordStudyTodayState.Active
+                    : WordStudyTodayState.Completed,
+            session);
+    }
+
+    /// <inheritdoc />
+    public async Task<WordStudySessionResponse> StartTodayAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var today = GetStudyDateUtc();
+        var dailyCount = await _db.Users.AsNoTracking()
+            .Where(user => user.Id == userId && !user.IsDeleted && !user.IsBanned)
+            .Select(user => (int?)user.DailyWordStudyCount)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
+
+        try
+        {
+            return await StartTodayCoreAsync(
+                userId,
+                today,
+                dailyCount,
+                cancellationToken);
+        }
+        catch (DbUpdateException exception) when (
+            _databaseExceptionClassifier.IsUniqueConstraintViolation(
+                exception,
+                DailySessionUniqueIndex))
+        {
+            _db.ClearTrackedChanges();
+            return await GetTodaySessionAsync(userId, today, cancellationToken)
+                ?? throw ConflictException.Create(ErrorCodes.WordStudyConcurrencyConflict);
+        }
+    }
+
+    /// <summary>
+    /// 在事务中恢复或创建今日会话，并将跨日活动会话标记为放弃。
+    /// </summary>
+    private async Task<WordStudySessionResponse> StartTodayCoreAsync(
+        Guid userId,
+        DateTimeOffset today,
+        int dailyCount,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        var existingToday = await GetTodaySessionAsync(userId, today, cancellationToken);
+        if (existingToday is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return existingToday;
+        }
+
+        var wordIds = await SelectWordIdsAsync(
+            userId,
+            dailyCount,
+            includePreviouslyStudied: true,
+            WordStudySelectionMode.Sequential,
+            languageTag: null,
+            cancellationToken);
+        if (wordIds.Count == 0)
+        {
+            throw ConflictException.Create(ErrorCodes.WordStudyNoEligibleWords);
+        }
+
+        var staleActive = await _db.WordStudySessions.SingleOrDefaultAsync(
+            value => value.UserId == userId &&
+                value.Status == WordStudySessionStatus.Active &&
+                value.StudyDateUtc < today,
+            cancellationToken);
+        if (staleActive is not null)
+        {
+            staleActive.Status = WordStudySessionStatus.Abandoned;
+            staleActive.AbandonedAt = _timeProvider.GetUtcNow();
+            staleActive.ConcurrencyStamp = Guid.NewGuid();
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        var session = new WordStudySession
+        {
+            UserId = userId,
+            RequestedCount = dailyCount,
+            ActualCount = wordIds.Count,
+            IncludePreviouslyStudied = true,
+            SelectionMode = WordStudySelectionMode.Sequential,
+            StudyDateUtc = today,
+            StartedAt = now,
+            Items = wordIds.Select((wordId, position) => new WordStudySessionItem
+            {
+                WordId = wordId,
+                Position = position
+            }).ToArray()
+        };
+        _db.WordStudySessions.Add(session);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return await GetSessionAsync(userId, session.Id, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -80,6 +201,7 @@ public sealed class WordStudyService : IWordStudyService
             IncludePreviouslyStudied = request.IncludePreviouslyStudied,
             SelectionMode = request.SelectionMode,
             LanguageTag = languageTag,
+            StudyDateUtc = NormalizeStudyDate(now),
             StartedAt = now,
             Items = wordIds.Select((wordId, position) =>
                 new WordStudySessionItem
@@ -98,7 +220,10 @@ public sealed class WordStudyService : IWordStudyService
         catch (DbUpdateException exception) when (
             _databaseExceptionClassifier.IsUniqueConstraintViolation(
                 exception,
-                ActiveSessionUniqueIndex))
+                ActiveSessionUniqueIndex) ||
+            _databaseExceptionClassifier.IsUniqueConstraintViolation(
+                exception,
+                DailySessionUniqueIndex))
         {
             throw ConflictException.Create(ErrorCodes.WordStudyActiveSessionExists);
         }
@@ -322,6 +447,29 @@ public sealed class WordStudyService : IWordStudyService
             throw new RequestValidationException(ErrorCodes.WordLanguageInvalid);
         }
     }
+
+    /// <summary>
+    /// 获取当前时间对应的 UTC 日期零点。
+    /// </summary>
+    private DateTimeOffset GetStudyDateUtc()
+        => NormalizeStudyDate(_timeProvider.GetUtcNow());
+
+    /// <summary>
+    /// 将任意带偏移时间归一化为 UTC 日期零点。
+    /// </summary>
+    private static DateTimeOffset NormalizeStudyDate(DateTimeOffset value)
+        => new(value.UtcDateTime.Date, TimeSpan.Zero);
+
+    /// <summary>
+    /// 查询用户在指定 UTC 日期的唯一会话摘要。
+    /// </summary>
+    private async Task<WordStudySessionResponse?> GetTodaySessionAsync(
+        Guid userId,
+        DateTimeOffset today,
+        CancellationToken cancellationToken)
+        => await ProjectSessionSummary(_db.WordStudySessions.AsNoTracking()
+                .Where(value => value.UserId == userId && value.StudyDateUtc == today))
+            .SingleOrDefaultAsync(cancellationToken);
 
     /// <summary>
     /// 防御性校验 result 枚举只包含模块支持的两个值。

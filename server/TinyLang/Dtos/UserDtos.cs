@@ -13,6 +13,19 @@ public sealed record UpdateProfileRequest
 }
 
 /// <summary>
+/// 描述用户每日自动背诵数量设置。
+/// </summary>
+public sealed record UpdateWordStudySettingsRequest
+{
+    public int DailyWordStudyCount { get; init; }
+}
+
+/// <summary>
+/// 返回用户每日自动背诵数量设置。
+/// </summary>
+public sealed record WordStudySettingsResponse(int DailyWordStudyCount);
+
+/// <summary>
 /// 描述管理员修改用户角色的请求。
 /// </summary>
 public sealed record UpdateRoleRequest

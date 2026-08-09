@@ -16,6 +16,7 @@ public sealed class User : BaseAuditableEntity
     public string? Nickname { get; set; }
     public string? AvatarUrl { get; set; }
     public string? Bio { get; set; }
+    public int DailyWordStudyCount { get; set; } = 20;
 
     public bool IsBanned { get; set; }
     public DateTimeOffset? BannedAt { get; set; }

@@ -1,0 +1,81 @@
+import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
+import { AxiosHeaders } from "axios";
+import { afterEach, describe, expect, it } from "vitest";
+import { setSession, clearSession } from "@/features/auth/sessionStore";
+import {
+  requestWordAudio,
+  wordStudyApi,
+} from "@/features/wordStudy/wordStudyApi";
+import { httpClient } from "@/services/httpClient";
+import { createAppStore } from "@/store/store";
+
+const originalAdapter = httpClient.defaults.adapter;
+const SESSION_ID = "11111111-2222-3333-4444-555555555555";
+const ITEM_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+const AUDIO_ID = "99999999-8888-7777-6666-555555555555";
+
+afterEach(() => {
+  httpClient.defaults.adapter = originalAdapter;
+  clearSession();
+});
+
+describe("wordStudyApi", () => {
+  it("uses the authenticated settings, today, result, and audio contracts", async () => {
+    const requests: InternalAxiosRequestConfig[] = [];
+    httpClient.defaults.adapter = (async (config) => {
+      requests.push(config);
+      const data = config.url?.endsWith("/playback")
+        ? {
+            url: "https://media.example.test/audio.mp3",
+            expiresAt: null,
+            durationSeconds: 2,
+            languageTag: "en",
+            audioClipKind: "WordPronunciation",
+          }
+        : config.url?.endsWith("/result")
+          ? { id: SESSION_ID, status: "Completed" }
+          : config.url?.endsWith("/start")
+            ? { id: SESSION_ID, status: "Active" }
+            : { dailyWordStudyCount: 20 };
+      return {
+        data,
+        status: config.method === "post" && config.url?.endsWith("/start") ? 201 : 200,
+        statusText: "OK",
+        headers: new AxiosHeaders(),
+        config,
+      };
+    }) as AxiosAdapter;
+    setSession({
+      token: "access",
+      refreshToken: "refresh",
+      expiresIn: 300,
+      user: { id: "user", email: "user@test", role: "User" },
+    });
+    const store = createAppStore();
+
+    await store.dispatch(wordStudyApi.endpoints.getSettings.initiate()).unwrap();
+    await store.dispatch(wordStudyApi.endpoints.startToday.initiate()).unwrap();
+    await store
+      .dispatch(
+        wordStudyApi.endpoints.submitResult.initiate({
+          sessionId: SESSION_ID,
+          itemId: ITEM_ID,
+          result: "Remembered",
+        }),
+      )
+      .unwrap();
+    await requestWordAudio(AUDIO_ID);
+
+    expect(requests.map((request) => [request.method, request.url])).toEqual([
+      ["get", "/users/me/word-study-settings"],
+      ["post", "/word-study/today/start"],
+      [
+        "post",
+        `/word-study/sessions/${SESSION_ID}/items/${ITEM_ID}/result`,
+      ],
+      ["post", `/audio/${AUDIO_ID}/playback`],
+    ]);
+    expect(requests[2]?.data).toBe(JSON.stringify({ result: "Remembered" }));
+    expect(requests.every((request) => request.headers.Authorization === "Bearer access")).toBe(true);
+  });
+});

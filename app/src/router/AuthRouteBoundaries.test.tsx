@@ -1,10 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
+import { Provider } from "react-redux";
 import { describe, expect, it } from "vitest";
 import { routes } from "@/router";
 import { AuthContext } from "@/providers/authContext";
 import ThemeProvider from "@/providers/ThemeProvider";
 import { createAuthContextValue } from "@/test/authTestUtils";
+import { createAppStore } from "@/store/store";
 
 const profile = {
   id: "user-1",
@@ -20,11 +22,13 @@ describe("auth route boundaries", () => {
   it("redirects anonymous profile access to login with an internal return path", async () => {
     const router = createMemoryRouter(routes, { initialEntries: ["/profile"] });
     render(
-      <ThemeProvider>
-        <AuthContext value={createAuthContextValue()}>
-          <RouterProvider router={router} />
-        </AuthContext>
-      </ThemeProvider>,
+      <Provider store={createAppStore()}>
+        <ThemeProvider>
+          <AuthContext value={createAuthContextValue()}>
+            <RouterProvider router={router} />
+          </AuthContext>
+        </ThemeProvider>
+      </Provider>,
     );
 
     expect(
@@ -39,17 +43,19 @@ describe("auth route boundaries", () => {
       initialEntries: ["/login?returnTo=https%3A%2F%2Fevil.example%2Fsteal"],
     });
     render(
-      <ThemeProvider>
-        <AuthContext
-          value={createAuthContextValue({
-            status: "authenticated",
-            profile,
-            profileStatus: "ready",
-          })}
-        >
-          <RouterProvider router={router} />
-        </AuthContext>
-      </ThemeProvider>,
+      <Provider store={createAppStore()}>
+        <ThemeProvider>
+          <AuthContext
+            value={createAuthContextValue({
+              status: "authenticated",
+              profile,
+              profileStatus: "ready",
+            })}
+          >
+            <RouterProvider router={router} />
+          </AuthContext>
+        </ThemeProvider>
+      </Provider>,
     );
 
     expect(
@@ -63,17 +69,19 @@ describe("auth route boundaries", () => {
       initialEntries: ["/forgot-password"],
     });
     render(
-      <ThemeProvider>
-        <AuthContext
-          value={createAuthContextValue({
-            status: "authenticated",
-            profile,
-            profileStatus: "ready",
-          })}
-        >
-          <RouterProvider router={router} />
-        </AuthContext>
-      </ThemeProvider>,
+      <Provider store={createAppStore()}>
+        <ThemeProvider>
+          <AuthContext
+            value={createAuthContextValue({
+              status: "authenticated",
+              profile,
+              profileStatus: "ready",
+            })}
+          >
+            <RouterProvider router={router} />
+          </AuthContext>
+        </ThemeProvider>
+      </Provider>,
     );
 
     expect(

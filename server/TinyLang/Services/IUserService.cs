@@ -44,6 +44,21 @@ public interface IUserService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 获取当前用户每日自动背诵数量设置。
+    /// </summary>
+    Task<WordStudySettingsResponse> GetWordStudySettingsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 更新当前用户每日自动背诵数量设置。
+    /// </summary>
+    Task<WordStudySettingsResponse> UpdateWordStudySettingsAsync(
+        Guid userId,
+        UpdateWordStudySettingsRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 使用必填原因封禁目标用户并原子撤销其现有会话。
     /// </summary>
     Task BanAsync(

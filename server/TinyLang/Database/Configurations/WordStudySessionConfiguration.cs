@@ -23,6 +23,7 @@ public sealed class WordStudySessionConfiguration
             .HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(value => value.Status)
             .HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(value => value.StudyDateUtc).IsRequired();
         builder.Property(value => value.LanguageTag).HasMaxLength(35);
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
 
@@ -35,6 +36,8 @@ public sealed class WordStudySessionConfiguration
             value.StartedAt,
             value.Id
         });
+        builder.HasIndex(value => new { value.UserId, value.StudyDateUtc })
+            .IsUnique();
 
         builder.HasOne(value => value.User)
             .WithMany(value => value.WordStudySessions)

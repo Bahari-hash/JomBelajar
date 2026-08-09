@@ -42,6 +42,25 @@ public sealed record WordStudySessionResponse(
     DateTimeOffset? AbandonedAt);
 
 /// <summary>
+/// 表示当前 UTC 日期的背诵状态。
+/// </summary>
+public enum WordStudyTodayState
+{
+    NotStarted,
+    Active,
+    Completed
+}
+
+/// <summary>
+/// 返回当前 UTC 日期的背诵摘要。
+/// </summary>
+public sealed record WordStudyTodayResponse(
+    DateTimeOffset StudyDateUtc,
+    int DailyWordStudyCount,
+    WordStudyTodayState State,
+    WordStudySessionResponse? Session);
+
+/// <summary>
 /// 返回当前会话中下一个待背诵项及其实时安全词条内容。
 /// </summary>
 public sealed record WordStudyNextItemResponse(

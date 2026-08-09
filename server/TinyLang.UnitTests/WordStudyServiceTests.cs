@@ -21,6 +21,113 @@ public sealed class WordStudyServiceTests
     private static readonly DateTimeOffset Now = new(
         2026, 7, 29, 6, 30, 0, TimeSpan.Zero);
 
+    [Fact]
+    public async Task StartTodayShouldUseSavedDailyCount()
+    {
+        await using var db = CreateDbContext();
+        var user = new User
+        {
+            Username = "daily",
+            Email = "daily@example.test",
+            PasswordHash = "hash",
+            DailyWordStudyCount = 2
+        };
+        db.Users.Add(user);
+        db.Words.AddRange(
+            CreateVisibleWord("one", "en", Now),
+            CreateVisibleWord("two", "en", Now.AddMinutes(-1)),
+            CreateVisibleWord("three", "en", Now.AddMinutes(-2)));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var userId = user.Id;
+
+        var response = await CreateService(db).StartTodayAsync(
+            userId,
+            TestContext.Current.CancellationToken);
+
+        response.RequestedCount.Should().Be(2);
+        response.ActualCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task StartTodayShouldAbandonPreviousDayActiveSession()
+    {
+        await using var db = CreateDbContext();
+        var user = new User
+        {
+            Username = "cross-day",
+            Email = "cross-day@example.test",
+            PasswordHash = "hash",
+            DailyWordStudyCount = 1
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var userId = user.Id;
+        db.Words.AddRange(
+            CreateVisibleWord("old", "en", Now),
+            CreateVisibleWord("new", "en", Now.AddMinutes(-1)));
+        var oldSession = new WordStudySession
+        {
+            UserId = userId,
+            RequestedCount = 1,
+            ActualCount = 1,
+            SelectionMode = WordStudySelectionMode.Sequential,
+            StartedAt = Now.AddDays(-1),
+            StudyDateUtc = new DateTimeOffset(
+                Now.AddDays(-1).UtcDateTime.Date,
+                TimeSpan.Zero),
+            Items = []
+        };
+        db.WordStudySessions.Add(oldSession);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var response = await CreateService(db).StartTodayAsync(
+            userId,
+            TestContext.Current.CancellationToken);
+
+        response.Id.Should().NotBe(oldSession.Id);
+        var storedOld = await db.WordStudySessions.SingleAsync(
+            value => value.Id == oldSession.Id,
+            TestContext.Current.CancellationToken);
+        storedOld.Status.Should().Be(WordStudySessionStatus.Abandoned);
+        response.StartedAt.Date.Should().Be(Now.Date);
+    }
+
+    [Fact]
+    public async Task StartTodayShouldResumeSameDayActiveSession()
+    {
+        await using var db = CreateDbContext();
+        var user = new User
+        {
+            Username = "same-day",
+            Email = "same-day@example.test",
+            PasswordHash = "hash",
+            DailyWordStudyCount = 1
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var userId = user.Id;
+        var word = CreateVisibleWord("same", "en", Now);
+        db.Words.Add(word);
+        var session = new WordStudySession
+        {
+            UserId = userId,
+            RequestedCount = 1,
+            ActualCount = 1,
+            SelectionMode = WordStudySelectionMode.Sequential,
+            StartedAt = Now,
+            StudyDateUtc = new DateTimeOffset(Now.UtcDateTime.Date, TimeSpan.Zero),
+            Items = [new WordStudySessionItem { WordId = word.Id, Position = 0 }]
+        };
+        db.WordStudySessions.Add(session);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var response = await CreateService(db).StartTodayAsync(
+            userId,
+            TestContext.Current.CancellationToken);
+
+        response.Id.Should().Be(session.Id);
+    }
+
     /// <summary>
     /// 验证 Sequential 排除当前用户已有进度、应用语言筛选并如实返回候选不足。
     /// </summary>

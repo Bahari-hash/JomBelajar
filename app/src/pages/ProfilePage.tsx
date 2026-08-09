@@ -18,6 +18,7 @@ import {
 import type { UpdateProfileRequest } from "@/features/auth/types";
 import { uploadAvatar } from "@/features/profile/profileApi";
 import AccountSecurityPanel from "@/features/profile/AccountSecurityPanel";
+import WordStudySettingsPanel from "@/features/wordStudy/WordStudySettingsPanel";
 import {
   formatProfileDate,
   getRoleLabel,
@@ -339,6 +340,7 @@ export default function ProfilePage() {
           </form>
         </section>
       </div>
+      <WordStudySettingsPanel />
       <AccountSecurityPanel currentEmail={profile.email} />
     </div>
   );

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { Provider } from "react-redux";
 import { describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "@/features/auth/authErrors";
 import { authApi } from "@/features/auth/authApi";
@@ -8,6 +9,7 @@ import ProfilePage from "@/pages/ProfilePage";
 import * as profileApi from "@/features/profile/profileApi";
 import { AuthContext } from "@/providers/authContext";
 import { createAuthContextValue } from "@/test/authTestUtils";
+import { createAppStore } from "@/store/store";
 
 const profile = {
   id: "user-1",
@@ -21,11 +23,13 @@ const profile = {
 
 function renderProfile(value: ReturnType<typeof createAuthContextValue>) {
   return render(
-    <MemoryRouter>
-      <AuthContext value={value}>
-        <ProfilePage />
-      </AuthContext>
-    </MemoryRouter>,
+    <Provider store={createAppStore()}>
+      <MemoryRouter>
+        <AuthContext value={value}>
+          <ProfilePage />
+        </AuthContext>
+      </MemoryRouter>
+    </Provider>,
   );
 }
 
@@ -138,19 +142,21 @@ describe("ProfilePage", () => {
     expect(bio).toHaveValue("正在学习外语。");
 
     rerender(
-      <MemoryRouter>
-        <AuthContext
-          value={createAuthContextValue({
-            status: "authenticated",
-            profile: null,
-            profileStatus: "error",
-            profileError: "资料加载失败，请重试。",
-            refreshProfile,
-          })}
-        >
-          <ProfilePage />
-        </AuthContext>
-      </MemoryRouter>,
+      <Provider store={createAppStore()}>
+        <MemoryRouter>
+          <AuthContext
+            value={createAuthContextValue({
+              status: "authenticated",
+              profile: null,
+              profileStatus: "error",
+              profileError: "资料加载失败，请重试。",
+              refreshProfile,
+            })}
+          >
+            <ProfilePage />
+          </AuthContext>
+        </MemoryRouter>
+      </Provider>,
     );
     expect(screen.getByText("资料加载失败，请重试。")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重新加载" }));

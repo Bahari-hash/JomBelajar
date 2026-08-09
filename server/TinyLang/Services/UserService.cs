@@ -151,6 +151,39 @@ public sealed class UserService(
     }
 
     /// <inheritdoc />
+    public async Task<WordStudySettingsResponse> GetWordStudySettingsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+        => await db.Users.AsNoTracking()
+            .Where(user => user.Id == userId && !user.IsDeleted && !user.IsBanned)
+            .Select(user => new WordStudySettingsResponse(user.DailyWordStudyCount))
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
+
+    /// <inheritdoc />
+    public async Task<WordStudySettingsResponse> UpdateWordStudySettingsAsync(
+        Guid userId,
+        UpdateWordStudySettingsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.DailyWordStudyCount is < WordStudyConstraints.MinWordCount or
+            > WordStudyConstraints.MaxWordCount)
+        {
+            throw new RequestValidationException(ErrorCodes.WordStudyWordCountInvalid);
+        }
+
+        var user = await FindManagedUserAsync(userId, cancellationToken);
+        if (user.IsBanned)
+        {
+            throw NotFoundException.Create(ErrorCodes.UserNotFound);
+        }
+
+        user.DailyWordStudyCount = request.DailyWordStudyCount;
+        await db.SaveChangesAsync(cancellationToken);
+        return new WordStudySettingsResponse(user.DailyWordStudyCount);
+    }
+
+    /// <inheritdoc />
     public async Task BanAsync(
         Guid operatorId,
         Guid targetUserId,

@@ -33,6 +33,10 @@ const errorMessages: Record<string, string> = {
   VideoNotFound: "视频不存在或已下架。",
   VideoProgressInvalid: "播放进度无效，请重新加载视频后继续观看。",
   VideoCategoryIdsInvalid: "视频分类无效，请重新选择。",
+  WordStudyWordCountInvalid: "每日背诵数量必须在 1 到 100 之间。",
+  WordStudyNoEligibleWords: "词库中暂时没有可背诵的单词。",
+  WordStudySessionNotActive: "本次背诵已经结束，请刷新今日进度。",
+  WordStudyConcurrencyConflict: "背诵进度已更新，请刷新后继续。",
 };
 
 export class ApiRequestError extends Error {

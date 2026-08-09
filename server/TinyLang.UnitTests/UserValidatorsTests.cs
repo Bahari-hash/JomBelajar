@@ -6,6 +6,34 @@ namespace TinyLang.UnitTests;
 
 public sealed class UserValidatorsTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(100)]
+    public async Task WordStudySettingsShouldAcceptDocumentedBoundaries(int count)
+    {
+        var validator = new UpdateWordStudySettingsRequestValidator();
+
+        var result = await validator.ValidateAsync(
+            new UpdateWordStudySettingsRequest { DailyWordStudyCount = count },
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(101)]
+    public async Task WordStudySettingsShouldRejectValuesOutsideDocumentedRange(int count)
+    {
+        var validator = new UpdateWordStudySettingsRequestValidator();
+
+        var result = await validator.ValidateAsync(
+            new UpdateWordStudySettingsRequest { DailyWordStudyCount = count },
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeFalse();
+    }
+
     [Fact]
     public async Task ProfileShouldRejectNonHttpAvatarUrl()
     {

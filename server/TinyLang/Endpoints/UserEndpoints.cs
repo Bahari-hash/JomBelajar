@@ -27,6 +27,8 @@ public static class UserEndpoints
         group.MapGet("/me", GetCurrentProfileAsync);
 
         group.MapPut("/me/profile", UpdateProfileAsync);
+        group.MapGet("/me/word-study-settings", GetWordStudySettingsAsync);
+        group.MapPut("/me/word-study-settings", UpdateWordStudySettingsAsync);
 
         group.MapGet("/{id:guid}/profile", GetPublicProfileAsync);
 
@@ -78,6 +80,27 @@ public static class UserEndpoints
             EndpointIdentity.GetUserId(principal), request, cancellationToken);
         return TypedResults.Ok(response);
     }
+
+    /// <summary>
+    /// 获取当前用户每日自动背诵数量设置。
+    /// </summary>
+    public static async Task<Ok<WordStudySettingsResponse>> GetWordStudySettingsAsync(
+        ClaimsPrincipal principal,
+        IUserService userService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await userService.GetWordStudySettingsAsync(
+            EndpointIdentity.GetUserId(principal), cancellationToken));
+
+    /// <summary>
+    /// 更新当前用户每日自动背诵数量设置。
+    /// </summary>
+    public static async Task<Ok<WordStudySettingsResponse>> UpdateWordStudySettingsAsync(
+        UpdateWordStudySettingsRequest request,
+        ClaimsPrincipal principal,
+        IUserService userService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await userService.UpdateWordStudySettingsAsync(
+            EndpointIdentity.GetUserId(principal), request, cancellationToken));
 
     /// <summary>
     /// 获取指定有效用户的最小公开资料。

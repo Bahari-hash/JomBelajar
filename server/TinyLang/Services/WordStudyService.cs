@@ -256,6 +256,89 @@ public sealed class WordStudyService : IWordStudyService
             ?? throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<WordStudySessionItemResponse>> GetSessionItemsAsync(
+        Guid userId,
+        Guid sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        var ownsSession = await _db.WordStudySessions.AsNoTracking().AnyAsync(
+            value => value.UserId == userId && value.Id == sessionId,
+            cancellationToken);
+        if (!ownsSession)
+        {
+            throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);
+        }
+
+        var itemRows = await _db.WordStudySessionItems.AsNoTracking()
+            .Where(value => value.SessionId == sessionId)
+            .OrderBy(value => value.Position)
+            .ThenBy(value => value.Id)
+            .Select(value => new
+            {
+                ItemId = value.Id,
+                value.WordId,
+                value.Position,
+                value.Status
+            })
+            .ToListAsync(cancellationToken);
+        var wordIds = itemRows.Select(value => value.WordId).ToArray();
+        var visibleContent = await WordVisibilityPolicy.Apply(_db.Words.AsNoTracking())
+            .Where(value => wordIds.Contains(value.Id))
+            .Select(word => new
+            {
+                word.Id,
+                Content = new WordStudySessionItemContentResponse(
+                    word.Headword,
+                    word.Senses.OrderBy(sense => sense.SortOrder)
+                        .ThenBy(sense => sense.Id)
+                        .Select(sense => new WordSenseResponse(
+                            sense.PartOfSpeech,
+                            sense.Definition,
+                            sense.DefinitionLanguageTag,
+                            sense.UsageNote,
+                            sense.SortOrder,
+                            sense.Examples.OrderBy(example => example.SortOrder)
+                                .ThenBy(example => example.Id)
+                                .Select(example => new ExampleSentenceResponse(
+                                    example.Sentence,
+                                    example.LanguageTag,
+                                    example.Translation,
+                                    example.TranslationLanguageTag,
+                                    example.AudioClipId,
+                                    example.SortOrder))
+                                .ToList()))
+                        .ToList(),
+                    word.Pronunciations.OrderBy(value => value.SortOrder)
+                        .ThenBy(value => value.Id)
+                        .Select(value => new WordPronunciationResponse(
+                            value.AudioClipId,
+                            value.AccentTag,
+                            value.Ipa,
+                            value.IsDefault,
+                            value.SortOrder))
+                        .ToList())
+            })
+            .ToDictionaryAsync(
+                value => value.Id,
+                value => value.Content,
+                cancellationToken);
+
+        return itemRows.Select(row =>
+        {
+            var contentAvailable = visibleContent.TryGetValue(
+                row.WordId,
+                out var content);
+            return new WordStudySessionItemResponse(
+                row.ItemId,
+                row.WordId,
+                row.Position,
+                row.Status,
+                contentAvailable,
+                content);
+        }).ToArray();
+    }
+
+    /// <inheritdoc />
     public async Task<WordStudyNextItemResponse?> GetNextItemAsync(
         Guid userId,
         Guid sessionId,

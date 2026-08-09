@@ -31,7 +31,7 @@ public sealed class WordStudyEndpointTests
         using var app = CreateMetadataApp();
         var routes = GetRoutes(app);
 
-        routes.Should().HaveCount(8);
+        routes.Should().HaveCount(9);
         routes.Should().OnlyContain(endpoint => endpoint.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
             .Any(value => value.Policy == AuthorizationPolicies.RequireUser));
@@ -127,6 +127,49 @@ public sealed class WordStudyEndpointTests
 
         active.StatusCode.Should().Be(HttpStatusCode.NoContent);
         next.StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>
+    /// 验证完整词单查询只使用认证用户和路由会话标识，并保持安全响应边界。
+    /// </summary>
+    [Fact]
+    public async Task SessionItemsShouldUseAuthenticatedUserAndRouteSessionId()
+    {
+        var userId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var service = new Mock<IWordStudyService>();
+        service.Setup(value => value.GetSessionItemsAsync(
+                userId,
+                sessionId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new WordStudySessionItemResponse(
+                    itemId,
+                    Guid.NewGuid(),
+                    0,
+                    WordStudySessionItemStatus.Pending,
+                    true,
+                    new WordStudySessionItemContentResponse("hello", [], []))
+            ]);
+        await using var app = await CreateHttpAppAsync(service.Object, userId);
+
+        var response = await app.GetTestClient().GetAsync(
+            $"/api/word-study/sessions/{sessionId}/items",
+            TestContext.Current.CancellationToken);
+        var json = await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        json.Should().Contain("hello");
+        json.Should().Contain("contentAvailable");
+        json.Should().NotContain("objectName");
+        json.Should().NotContain("outputObjectName");
+        json.Should().NotContain("url");
+        service.Verify(value => value.GetSessionItemsAsync(
+            userId,
+            sessionId,
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     /// <summary>

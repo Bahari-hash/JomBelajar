@@ -28,6 +28,7 @@ public static class WordStudyEndpoints
         study.MapPost("/today/start", StartTodayAsync);
         study.MapGet("/sessions/active", GetActiveSessionAsync);
         study.MapGet("/sessions/{sessionId:guid}", GetSessionAsync);
+        study.MapGet("/sessions/{sessionId:guid}/items", GetSessionItemsAsync);
         study.MapGet("/sessions/{sessionId:guid}/next", GetNextItemAsync);
         study.MapPost(
             "/sessions/{sessionId:guid}/items/{itemId:guid}/result",
@@ -103,6 +104,20 @@ public static class WordStudyEndpoints
         IWordStudyService studyService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await studyService.GetSessionAsync(
+            EndpointIdentity.GetUserId(principal),
+            sessionId,
+            cancellationToken));
+
+    /// <summary>
+    /// 获取当前登录用户指定会话的完整有序词单和实时可见内容。
+    /// </summary>
+    public static async Task<Ok<IReadOnlyList<WordStudySessionItemResponse>>>
+        GetSessionItemsAsync(
+            Guid sessionId,
+            ClaimsPrincipal principal,
+            IWordStudyService studyService,
+            CancellationToken cancellationToken)
+        => TypedResults.Ok(await studyService.GetSessionItemsAsync(
             EndpointIdentity.GetUserId(principal),
             sessionId,
             cancellationToken));

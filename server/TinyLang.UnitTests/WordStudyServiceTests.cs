@@ -374,6 +374,106 @@ public sealed class WordStudyServiceTests
     }
 
     /// <summary>
+    /// 验证会话词单按固定位置返回每项状态和完整可见内容。
+    /// </summary>
+    [Fact]
+    public async Task GetSessionItemsShouldReturnOrderedStatusesAndVisibleContent()
+    {
+        await using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var first = CreateVisibleWord("first", "en", Now);
+        var second = CreateVisibleWord("second", "en", Now.AddMinutes(-1));
+        var third = CreateVisibleWord("third", "en", Now.AddMinutes(-2));
+        var fourth = CreateVisibleWord("fourth", "en", Now.AddMinutes(-3));
+        var session = new WordStudySession
+        {
+            UserId = userId,
+            RequestedCount = 4,
+            ActualCount = 4,
+            SelectionMode = WordStudySelectionMode.Sequential,
+            StudyDateUtc = new DateTimeOffset(Now.UtcDateTime.Date, TimeSpan.Zero),
+            StartedAt = Now,
+            Items =
+            [
+                new WordStudySessionItem
+                {
+                    WordId = third.Id,
+                    Position = 2,
+                    Status = WordStudySessionItemStatus.Forgotten
+                },
+                new WordStudySessionItem
+                {
+                    WordId = first.Id,
+                    Position = 0,
+                    Status = WordStudySessionItemStatus.Remembered
+                },
+                new WordStudySessionItem { WordId = second.Id, Position = 1 },
+                new WordStudySessionItem
+                {
+                    WordId = fourth.Id,
+                    Position = 3,
+                    Status = WordStudySessionItemStatus.Skipped
+                }
+            ]
+        };
+        db.Words.AddRange(first, second, third, fourth);
+        db.WordStudySessions.Add(session);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await CreateService(db).GetSessionItemsAsync(
+            userId,
+            session.Id,
+            TestContext.Current.CancellationToken);
+
+        result.Select(value => value.Position).Should().Equal(0, 1, 2, 3);
+        result.Select(value => value.Status).Should().Equal(
+            WordStudySessionItemStatus.Remembered,
+            WordStudySessionItemStatus.Pending,
+            WordStudySessionItemStatus.Forgotten,
+            WordStudySessionItemStatus.Skipped);
+        result.Should().OnlyContain(value => value.ContentAvailable);
+        result[0].Content?.Headword.Should().Be("first");
+        result[0].Content?.Senses.Should().ContainSingle();
+        result[0].Content?.Senses[0].Examples.Should().ContainSingle();
+        result[0].Content?.Pronunciations.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// 验证会话词单隐藏不可见内容并拒绝其他用户读取。
+    /// </summary>
+    [Fact]
+    public async Task GetSessionItemsShouldHideUnavailableContentAndEnforceOwnership()
+    {
+        await using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var word = CreateVisibleWord("hidden", "en", Now);
+        db.Words.Add(word);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+        var session = await service.CreateSessionAsync(
+            userId,
+            new CreateWordStudySessionRequest { WordCount = 1 },
+            TestContext.Current.CancellationToken);
+        word.Status = WordPublicationStatus.Unpublished;
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await service.GetSessionItemsAsync(
+            userId,
+            session.Id,
+            TestContext.Current.CancellationToken);
+        var crossUser = async () => await service.GetSessionItemsAsync(
+            Guid.NewGuid(),
+            session.Id,
+            TestContext.Current.CancellationToken);
+
+        result.Should().ContainSingle();
+        result[0].Status.Should().Be(WordStudySessionItemStatus.Pending);
+        result[0].ContentAvailable.Should().BeFalse();
+        result[0].Content.Should().BeNull();
+        await crossUser.Should().ThrowAsync<NotFoundException>();
+    }
+
+    /// <summary>
     /// 验证 next 跳过失效词条、重复返回同一可见项并在全失效时完成。
     /// </summary>
     [Fact]

@@ -6,6 +6,7 @@ import type {
   WordStudyNextItem,
   WordStudyResult,
   WordStudySession,
+  WordStudySessionItem,
   WordStudySettings,
   WordStudyToday,
 } from "@/features/wordStudy/wordStudyTypes";
@@ -14,7 +15,12 @@ import type {
 export const wordStudyApi = createApi({
   reducerPath: "wordStudyApi",
   baseQuery: axiosBaseQuery(),
-  tagTypes: ["WordStudySettings", "WordStudyToday", "WordStudySession"],
+  tagTypes: [
+    "WordStudySettings",
+    "WordStudyToday",
+    "WordStudySession",
+    "WordStudySessionItems",
+  ],
   endpoints: (builder) => ({
     getSettings: builder.query<WordStudySettings, void>({
       query: () => ({ url: "/users/me/word-study-settings" }),
@@ -42,6 +48,14 @@ export const wordStudyApi = createApi({
         { type: "WordStudySession", id: sessionId },
       ],
     }),
+    getSessionItems: builder.query<WordStudySessionItem[], string>({
+      query: (sessionId) => ({
+        url: `/word-study/sessions/${sessionId}/items`,
+      }),
+      providesTags: (_result, _error, sessionId) => [
+        { type: "WordStudySessionItems", id: sessionId },
+      ],
+    }),
     submitResult: builder.mutation<WordStudySession, {
       sessionId: string;
       itemId: string;
@@ -52,9 +66,32 @@ export const wordStudyApi = createApi({
         method: "POST",
         data: { result },
       }),
+      onQueryStarted: async (
+        { sessionId, itemId, result },
+        { dispatch, queryFulfilled },
+      ) => {
+        const patch = dispatch(
+          wordStudyApi.util.updateQueryData(
+            "getSessionItems",
+            sessionId,
+            (items) => {
+              const item = items.find((value) => value.itemId === itemId);
+              if (item) {
+                item.status = result;
+              }
+            },
+          ),
+        );
+        try {
+          await queryFulfilled;
+        } catch {
+          patch.undo();
+        }
+      },
       invalidatesTags: (_result, _error, request) => [
         "WordStudyToday",
         { type: "WordStudySession", id: request.sessionId },
+        { type: "WordStudySessionItems", id: request.sessionId },
       ],
     }),
     abandon: builder.mutation<WordStudySession, string>({
@@ -73,6 +110,7 @@ export const {
   useGetTodayQuery,
   useStartTodayMutation,
   useLazyGetNextItemQuery,
+  useGetSessionItemsQuery,
   useSubmitResultMutation,
   useAbandonMutation,
 } = wordStudyApi;

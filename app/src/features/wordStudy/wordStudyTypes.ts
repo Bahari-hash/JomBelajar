@@ -1,5 +1,10 @@
 export type WordStudyTodayState = "NotStarted" | "Active" | "Completed";
 export type WordStudyResult = "Remembered" | "Forgotten";
+export type WordStudySessionItemStatus =
+  | "Pending"
+  | "Remembered"
+  | "Forgotten"
+  | "Skipped";
 
 export interface WordStudySettings {
   dailyWordStudyCount: number;
@@ -58,6 +63,21 @@ export interface WordStudyNextItem {
   languageTag: string;
   senses: WordSense[];
   pronunciations: WordPronunciation[];
+}
+
+export interface WordStudySessionItemContent {
+  headword: string;
+  senses: WordSense[];
+  pronunciations: WordPronunciation[];
+}
+
+export interface WordStudySessionItem {
+  itemId: string;
+  wordId: string;
+  position: number;
+  status: WordStudySessionItemStatus;
+  contentAvailable: boolean;
+  content: WordStudySessionItemContent | null;
 }
 
 export interface WordStudyToday {

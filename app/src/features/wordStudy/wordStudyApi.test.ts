@@ -1,5 +1,6 @@
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
 import { AxiosHeaders } from "axios";
+import { waitFor } from "@testing-library/dom";
 import { afterEach, describe, expect, it } from "vitest";
 import { setSession, clearSession } from "@/features/auth/sessionStore";
 import {
@@ -32,6 +33,21 @@ describe("wordStudyApi", () => {
             languageTag: "en",
             audioClipKind: "WordPronunciation",
           }
+        : config.url === `/word-study/sessions/${SESSION_ID}/items`
+          ? [
+              {
+                itemId: ITEM_ID,
+                wordId: "word-1",
+                position: 0,
+                status: "Pending",
+                contentAvailable: true,
+                content: {
+                  headword: "hello",
+                  senses: [],
+                  pronunciations: [],
+                },
+              },
+            ]
         : config.url?.endsWith("/result")
           ? { id: SESSION_ID, status: "Completed" }
           : config.url?.endsWith("/start")
@@ -56,6 +72,9 @@ describe("wordStudyApi", () => {
     await store.dispatch(wordStudyApi.endpoints.getSettings.initiate()).unwrap();
     await store.dispatch(wordStudyApi.endpoints.startToday.initiate()).unwrap();
     await store
+      .dispatch(wordStudyApi.endpoints.getSessionItems.initiate(SESSION_ID))
+      .unwrap();
+    await store
       .dispatch(
         wordStudyApi.endpoints.submitResult.initiate({
           sessionId: SESSION_ID,
@@ -69,13 +88,67 @@ describe("wordStudyApi", () => {
     expect(requests.map((request) => [request.method, request.url])).toEqual([
       ["get", "/users/me/word-study-settings"],
       ["post", "/word-study/today/start"],
+      ["get", `/word-study/sessions/${SESSION_ID}/items`],
       [
         "post",
         `/word-study/sessions/${SESSION_ID}/items/${ITEM_ID}/result`,
       ],
+      ["get", `/word-study/sessions/${SESSION_ID}/items`],
       ["post", `/audio/${AUDIO_ID}/playback`],
     ]);
-    expect(requests[2]?.data).toBe(JSON.stringify({ result: "Remembered" }));
+    expect(requests[3]?.data).toBe(JSON.stringify({ result: "Remembered" }));
     expect(requests.every((request) => request.headers.Authorization === "Bearer access")).toBe(true);
+  });
+
+  it("rolls back an optimistic item result when the request fails", async () => {
+    const resultControl: { reject?: (reason?: unknown) => void } = {};
+    httpClient.defaults.adapter = ((config) => {
+      if (config.url?.endsWith("/result")) {
+        return new Promise((_resolve, reject) => {
+          resultControl.reject = reject;
+        });
+      }
+      return Promise.resolve({
+        data: [
+          {
+            itemId: ITEM_ID,
+            wordId: "word-1",
+            position: 0,
+            status: "Pending",
+            contentAvailable: true,
+            content: { headword: "hello", senses: [], pronunciations: [] },
+          },
+        ],
+        status: 200,
+        statusText: "OK",
+        headers: new AxiosHeaders(),
+        config,
+      });
+    }) as AxiosAdapter;
+    const store = createAppStore();
+    await store
+      .dispatch(wordStudyApi.endpoints.getSessionItems.initiate(SESSION_ID))
+      .unwrap();
+
+    const mutation = store.dispatch(
+      wordStudyApi.endpoints.submitResult.initiate({
+        sessionId: SESSION_ID,
+        itemId: ITEM_ID,
+        result: "Remembered",
+      }),
+    );
+    await waitFor(() => expect(resultControl.reject).toBeDefined());
+    expect(
+      wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(store.getState())
+        .data?.[0]?.status,
+    ).toBe("Remembered");
+
+    resultControl.reject?.(new Error("request failed"));
+    await expect(mutation.unwrap()).rejects.toBeDefined();
+
+    expect(
+      wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(store.getState())
+        .data?.[0]?.status,
+    ).toBe("Pending");
   });
 });

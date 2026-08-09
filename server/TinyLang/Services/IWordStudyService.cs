@@ -44,6 +44,14 @@ public interface IWordStudyService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 按固定顺序返回当前用户指定会话中的全部项目及实时可见内容。
+    /// </summary>
+    Task<IReadOnlyList<WordStudySessionItemResponse>> GetSessionItemsAsync(
+        Guid userId,
+        Guid sessionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 获取 Position 最小的可用待处理项，并跳过实时不可见内容。
     /// </summary>
     Task<WordStudyNextItemResponse?> GetNextItemAsync(

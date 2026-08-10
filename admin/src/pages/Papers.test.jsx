@@ -17,6 +17,7 @@ function paperListItem(overrides = {}) {
     id: PAPER_ID,
     title: "English basics",
     languageTag: "en",
+    tags: [],
     status: "Draft",
     questionCount: 2,
     totalScore: 4,

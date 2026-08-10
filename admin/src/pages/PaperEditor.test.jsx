@@ -19,6 +19,7 @@ function paperDetail(overrides = {}) {
     description: null,
     instructions: null,
     languageTag: "en",
+    tags: [],
     status: "Draft",
     passingScore: 0,
     totalScore: 1,
@@ -63,7 +64,14 @@ describe("PaperEditor", () => {
     const { router } = renderAppAt("/papers/new");
 
     await user.type(await screen.findByLabelText("标题 *"), "English basics");
-    await user.type(screen.getByLabelText("语言标签 *"), "en");
+    const tagInput = screen.getByRole("textbox", { name: "试卷标签" });
+    await user.type(tagInput, "Grammar");
+    await user.keyboard("{Enter}");
+    await user.type(tagInput, "grammar");
+    await user.keyboard("{Enter}");
+    await user.type(tagInput, "A2");
+    await user.click(screen.getByRole("button", { name: "添加标签" }));
+    await user.click(screen.getByRole("button", { name: "删除标签 grammar" }));
     await user.click(screen.getByRole("button", { name: "添加题目" }));
     await user.type(screen.getByLabelText("题干 *"), "Hello means?");
     await user.click(screen.getAllByRole("button", { name: "保存" })[0]);
@@ -78,7 +86,8 @@ describe("PaperEditor", () => {
       title: "English basics",
       description: null,
       instructions: null,
-      languageTag: "en",
+      languageTag: "ms",
+      tags: ["a2"],
       passingScore: 0,
       questions: [
         {

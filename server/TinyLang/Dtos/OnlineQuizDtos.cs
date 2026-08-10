@@ -13,6 +13,7 @@ public abstract record PaperUpsertRequest
     public string? Description { get; init; }
     public string? Instructions { get; init; }
     public required string LanguageTag { get; init; }
+    public IReadOnlyCollection<string> Tags { get; init; } = [];
     public int PassingScore { get; init; }
     public IReadOnlyCollection<PaperQuestionInput> Questions { get; init; } = [];
 }
@@ -177,6 +178,7 @@ public sealed record AdminPaperResponse(
     string? Description,
     string? Instructions,
     string LanguageTag,
+    IReadOnlyList<string> Tags,
     PaperPublicationStatus Status,
     int PassingScore,
     int TotalScore,
@@ -197,6 +199,7 @@ public sealed record AdminPaperListItemResponse(
     Guid Id,
     string Title,
     string LanguageTag,
+    IReadOnlyList<string> Tags,
     PaperPublicationStatus Status,
     int QuestionCount,
     int TotalScore,
@@ -218,6 +221,7 @@ public sealed record PaperCatalogItemResponse(
     string Title,
     string? Description,
     string LanguageTag,
+    IReadOnlyList<string> Tags,
     int QuestionCount,
     int TotalScore,
     int PassingScore,
@@ -232,6 +236,7 @@ public sealed record PaperDetailsResponse(
     string? Description,
     string? Instructions,
     string LanguageTag,
+    IReadOnlyList<string> Tags,
     int QuestionCount,
     int TotalScore,
     int PassingScore,
@@ -364,6 +369,8 @@ public static class OnlineQuizConstraints
     public const int MaxOptionTextLength = 2000;
     public const int MaxAnswerTextLength = 1000;
     public const int MaxLanguageTagLength = 35;
+    public const int MaxPaperTagCount = 10;
+    public const int MaxPaperTagLength = 30;
     public const int MaxQuestionCount = 200;
     public const int MaxOptionCount = 10;
     public const int MaxAcceptedAnswerCount = 20;

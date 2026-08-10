@@ -2,7 +2,7 @@ import { CalendarDays, ListCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { PaperCatalogItem } from "@/features/papers/paperTypes";
 import {
-  formatLanguageTag,
+  // formatLanguageTag,
   formatPaperDate,
 } from "@/features/papers/paperUtils";
 
@@ -25,9 +25,21 @@ export default function PaperCard({ paper, listPath }: PaperCardProps) {
       </Link>
       <div className="flex flex-1 flex-col p-4 sm:p-5">
         <div className="flex min-h-7 flex-wrap gap-1.5">
-          <span className="badge badge-outline max-w-full truncate">
+          {/* <span className="badge badge-outline max-w-full truncate">
             {formatLanguageTag(paper.languageTag)}
-          </span>
+          </span> */}
+          {paper.tags.length > 0 ? (
+            <div className="contents" aria-label="试卷标签">
+              {paper.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="badge badge-outline hover:bg-base-200"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
           <span className="badge badge-ghost">客观题</span>
         </div>
         <h2 className="mt-3 text-lg font-bold leading-7">

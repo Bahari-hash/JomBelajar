@@ -48,6 +48,7 @@ import {
   isPaperEditable,
 } from "@/constants/paperStatus.js";
 import { PaperActionDialog } from "@/features/papers/PaperActionDialog.jsx";
+import { PaperTagInput } from "@/features/papers/PaperTagInput.jsx";
 import { PaperUnsavedChangesDialog } from "@/features/papers/PaperUnsavedChangesDialog.jsx";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges.js";
@@ -74,6 +75,7 @@ const emptyForm = () => ({
   description: "",
   instructions: "",
   languageTag: "ms",
+  tags: [],
   passingScore: 0,
   concurrencyStamp: null,
   status: "Draft",
@@ -119,6 +121,7 @@ function formFromPaper(paper) {
     description: paper.description ?? "",
     instructions: paper.instructions ?? "",
     languageTag: paper.languageTag,
+    tags: paper.tags,
     passingScore: paper.passingScore,
     concurrencyStamp: paper.concurrencyStamp,
     status: paper.status,
@@ -158,6 +161,7 @@ function payloadFromForm(form, includeStamp) {
     description: compactText(form.description),
     instructions: compactText(form.instructions),
     languageTag: form.languageTag,
+    tags: form.tags,
     passingScore: Number(form.passingScore) || 0,
     questions: form.questions.map((question, questionIndex) => ({
       id: question.id,
@@ -767,6 +771,16 @@ function PaperBasics({ form, readOnly, fieldError, onChange }) {
           onChange={(event) => onChange({ languageTag: event.target.value })}
         />
       </Field> */}
+      </div>
+
+      <div className="w-full sm:w-1/2">
+        <Field label="标签" error={fieldError("tags")} path="tags">
+          <PaperTagInput
+            value={form.tags}
+            disabled={readOnly}
+            onChange={(tags) => onChange({ tags })}
+          />
+        </Field>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

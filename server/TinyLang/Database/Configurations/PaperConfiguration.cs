@@ -21,6 +21,10 @@ public sealed class PaperConfiguration : IEntityTypeConfiguration<Paper>
         builder.Property(value => value.Description).HasMaxLength(2000);
         builder.Property(value => value.Instructions).HasMaxLength(5000);
         builder.Property(value => value.LanguageTag).HasMaxLength(35).IsRequired();
+        builder.Property(value => value.Tags)
+            .HasColumnType("text[]")
+            .HasDefaultValueSql("'{}'::text[]")
+            .IsRequired();
         builder.Property(value => value.Status)
             .HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();

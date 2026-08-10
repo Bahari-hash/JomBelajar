@@ -20,6 +20,7 @@ public sealed class Paper : BaseAuditableEntity
     public string? Description { get; set; }
     public string? Instructions { get; set; }
     public required string LanguageTag { get; set; }
+    public string[] Tags { get; set; } = [];
     public PaperPublicationStatus Status { get; set; } =
         PaperPublicationStatus.Draft;
     public int PassingScore { get; set; }

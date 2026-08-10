@@ -618,6 +618,18 @@ public enum ErrorCodes
     [Description("试卷语言标签不能为空或格式无效.")]
     PaperLanguageInvalid,
 
+    [Description("试卷标签不能为空或包含无效字符.")]
+    PaperTagInvalid,
+
+    [Description("试卷标签长度最大不能超过30个字符.")]
+    PaperTagLengthLimit,
+
+    [Description("单份试卷最多只能包含10个标签.")]
+    PaperTagCountLimit,
+
+    [Description("试卷标签不能重复.")]
+    PaperTagDuplicate,
+
     [Description("试卷发布状态无效.")]
     PaperStatusInvalid,
 

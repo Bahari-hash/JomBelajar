@@ -1,7 +1,7 @@
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
 import { AxiosHeaders } from "axios";
 import { Provider } from "react-redux";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
@@ -16,7 +16,10 @@ afterEach(() => {
   httpClient.defaults.adapter = originalAdapter;
 });
 
-function installAdapter(requests: InternalAxiosRequestConfig[]) {
+function installAdapter(
+  requests: InternalAxiosRequestConfig[],
+  tags = ["grammar", "a2"],
+) {
   httpClient.defaults.adapter = (async (config) => {
     requests.push(config);
     return {
@@ -27,6 +30,7 @@ function installAdapter(requests: InternalAxiosRequestConfig[]) {
             title: "A2 Grammar Check",
             description: "Check practical grammar knowledge.",
             languageTag: "en",
+            tags,
             questionCount: 12,
             totalScore: 24,
             passingScore: 15,
@@ -111,7 +115,18 @@ describe("PapersPage", () => {
     expect(await screen.findByText("12 题")).toBeInTheDocument();
     expect(screen.getByText("总分 24")).toBeInTheDocument();
     expect(screen.getByText("及格 15")).toBeInTheDocument();
+    const tags = screen.getByLabelText("试卷标签");
+    expect(within(tags).getByText("grammar")).toBeInTheDocument();
+    expect(within(tags).getByText("a2")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "查看《A2 Grammar Check》" });
     expect(link).toHaveAttribute("href", `/papers/${PAPER_ID}`);
+  });
+  it("does not render a tag container when a paper has no tags", async () => {
+    const requests: InternalAxiosRequestConfig[] = [];
+    installAdapter(requests, []);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "A2 Grammar Check" });
+    expect(screen.queryByLabelText("试卷标签")).not.toBeInTheDocument();
   });
 });

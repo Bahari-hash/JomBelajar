@@ -2,6 +2,7 @@ using System.Linq;
 using FluentAssertions;
 using TinyLang.Dtos;
 using TinyLang.Entities.Enums;
+using TinyLang.Exceptions;
 
 namespace TinyLang.UnitTests;
 
@@ -33,6 +34,78 @@ public sealed class OnlineQuizValidatorsTests
     public void CreateValidatorShouldAcceptThreeQuestionTypes()
     {
         var request = CreateCompleteRequest();
+
+        new CreatePaperRequestValidator().Validate(request).IsValid.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// 验证试卷标签数量不能超过写入边界。
+    /// </summary>
+    [Fact]
+    public void CreateValidatorShouldRejectTooManyTags()
+    {
+        var request = CreateCompleteRequest() with
+        {
+            Tags = Enumerable.Range(0, OnlineQuizConstraints.MaxPaperTagCount + 1)
+                .Select(value => $"tag-{value}").ToArray()
+        };
+
+        new CreatePaperRequestValidator().Validate(request)
+            .ShouldContain(ErrorCodes.PaperTagCountLimit);
+    }
+
+    /// <summary>
+    /// 验证标签长度限制应用于裁剪后的值。
+    /// </summary>
+    [Fact]
+    public void CreateValidatorShouldRejectTrimmedTagAboveLengthLimit()
+    {
+        var request = CreateCompleteRequest() with
+        {
+            Tags = [$"  {new string('a', OnlineQuizConstraints.MaxPaperTagLength + 1)}  "]
+        };
+
+        new CreatePaperRequestValidator().Validate(request)
+            .ShouldContain(ErrorCodes.PaperTagLengthLimit);
+    }
+
+    /// <summary>
+    /// 验证空白或包含控制字符的标签被拒绝。
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("gram\nmar")]
+    public void CreateValidatorShouldRejectInvalidTag(string tag)
+    {
+        var request = CreateCompleteRequest() with { Tags = [tag] };
+
+        new CreatePaperRequestValidator().Validate(request)
+            .ShouldContain(ErrorCodes.PaperTagInvalid);
+    }
+
+    /// <summary>
+    /// 验证标签在裁剪且忽略大小写后不能重复。
+    /// </summary>
+    [Fact]
+    public void CreateValidatorShouldRejectCaseInsensitiveTagDuplicates()
+    {
+        var request = CreateCompleteRequest() with
+        {
+            Tags = ["Grammar", " grammar "]
+        };
+
+        new CreatePaperRequestValidator().Validate(request)
+            .ShouldContain(ErrorCodes.PaperTagDuplicate);
+    }
+
+    /// <summary>
+    /// 验证有效的规范标签集合通过校验。
+    /// </summary>
+    [Fact]
+    public void CreateValidatorShouldAcceptValidTags()
+    {
+        var request = CreateCompleteRequest() with { Tags = ["grammar", "a2"] };
 
         new CreatePaperRequestValidator().Validate(request).IsValid.Should().BeTrue();
     }

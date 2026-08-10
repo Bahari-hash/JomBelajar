@@ -6,7 +6,7 @@ import {
 } from "@/features/papers/paperApi";
 import { isPaperGuid } from "@/features/papers/paperSearchParams";
 import {
-  formatLanguageTag,
+  // formatLanguageTag,
   formatPaperDate,
   getPaperErrorMessage,
   isPaperNotFoundError,
@@ -103,9 +103,10 @@ export default function PaperDetailPage() {
             <span className="grid size-10 place-items-center rounded-md bg-primary text-primary-content">
               <ListCheck aria-hidden="true" className="size-5" />
             </span>
-            <span className="badge badge-outline">
+            <span className="badge badge-ghost">客观题</span>
+            {/* <span className="badge badge-outline">
               {formatLanguageTag(paper.languageTag)}
-            </span>
+            </span> */}
           </div>
           <h1 className="wrap-break-word text-3xl font-bold leading-tight sm:text-4xl">
             {paper.title}
@@ -114,6 +115,18 @@ export default function PaperDetailPage() {
             <p className="max-w-3xl text-lg leading-8 text-base-content/70">
               {paper.description}
             </p>
+          ) : null}
+          {paper.tags.length > 0 ? (
+            <div className="flex flex-wrap gap-2" aria-label="试卷标签">
+              {paper.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="badge badge-outline hover:bg-base-200"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
           ) : null}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-base-300 py-4 text-sm">
             <span className="inline-flex items-center gap-1.5">

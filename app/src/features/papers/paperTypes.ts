@@ -15,6 +15,7 @@ export interface PaperCatalogItem {
   title: string;
   description: string | null;
   languageTag: string;
+  tags: string[];
   questionCount: number;
   totalScore: number;
   passingScore: number;

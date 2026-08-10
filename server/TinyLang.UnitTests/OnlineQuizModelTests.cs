@@ -75,6 +75,22 @@ public sealed class OnlineQuizModelTests
         paperType.FindProperty(nameof(Paper.Status))!.GetProviderClrType()
             .Should().Be<string>();
     }
+    /// <summary>
+    /// 验证试卷标签映射为必填 PostgreSQL text[]，并以空数组作为默认值。
+    /// </summary>
+    [Fact]
+    public void ModelShouldConfigurePaperTagsAsRequiredTextArray()
+    {
+        using var db = CreateDbContext();
+        var tags = db.Model.FindEntityType(typeof(Paper))!
+            .FindProperty(nameof(Paper.Tags))!;
+
+        tags.IsNullable.Should().BeFalse();
+        tags.FindAnnotation(RelationalAnnotationNames.ColumnType)!.Value
+            .Should().Be("text[]");
+        tags.FindAnnotation(RelationalAnnotationNames.DefaultValueSql)!.Value
+            .Should().Be("'{}'::text[]");
+    }
 
     /// <summary>
     /// 创建使用隔离 InMemory 数据库的应用上下文。

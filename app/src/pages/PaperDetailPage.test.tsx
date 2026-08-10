@@ -1,7 +1,7 @@
 import type { AxiosAdapter } from "axios";
 import { AxiosHeaders } from "axios";
 import { Provider } from "react-redux";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
@@ -17,13 +17,14 @@ afterEach(() => {
   httpClient.defaults.adapter = originalAdapter;
 });
 
-function detail() {
+function detail(tags = ["grammar", "a2"]) {
   return {
     id: PAPER_ID,
     title: "Grammar Check",
     description: "Practice grammar.",
     instructions: "Answer every question.",
     languageTag: "en",
+    tags,
     questionCount: 2,
     totalScore: 4,
     passingScore: 2,
@@ -106,6 +107,9 @@ describe("PaperDetailPage", () => {
       await screen.findByRole("heading", { name: "Grammar Check" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Answer every question.")).toBeInTheDocument();
+    const tags = screen.getByLabelText("试卷标签");
+    expect(within(tags).getByText("grammar")).toBeInTheDocument();
+    expect(within(tags).getByText("a2")).toBeInTheDocument();
     const button = screen.getByRole("button", { name: "开始测试" });
     await user.click(button);
     expect(button).toBeDisabled();
@@ -118,5 +122,18 @@ describe("PaperDetailPage", () => {
     expect(requests.filter((value) => value.includes("/attempts")).length).toBe(
       1,
     );
+  });
+  it("does not render a tag container when details have no tags", async () => {
+    httpClient.defaults.adapter = (async (config) => ({
+      data: detail([]),
+      status: 200,
+      statusText: "OK",
+      headers: new AxiosHeaders(),
+      config,
+    })) as AxiosAdapter;
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Grammar Check" });
+    expect(screen.queryByLabelText("试卷标签")).not.toBeInTheDocument();
   });
 });

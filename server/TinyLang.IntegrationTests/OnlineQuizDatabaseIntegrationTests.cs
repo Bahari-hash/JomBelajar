@@ -85,6 +85,7 @@ public sealed class OnlineQuizDatabaseIntegrationTests
                     },
                     TestContext.Current.CancellationToken);
                 paperId = published.Id;
+                published.Tags.Should().Equal("grammar", "a2");
                 trueFalseQuestionId = published.Questions.Single(value =>
                     value.Type == PaperQuestionType.TrueFalse).Id;
 
@@ -117,6 +118,18 @@ public sealed class OnlineQuizDatabaseIntegrationTests
                     paperId,
                     new PaperAttemptListRequest(),
                     TestContext.Current.CancellationToken)).Items.Should().HaveCount(2);
+            }
+
+            await using (var tagDb = new ApplicationDbContext(options))
+            {
+                var persistedPaper = await tagDb.Papers.AsNoTracking().SingleAsync(
+                    value => value.Id == paperId,
+                    TestContext.Current.CancellationToken);
+                persistedPaper.Tags.Should().Equal("grammar", "a2");
+                var tagsProperty = tagDb.Model.FindEntityType(typeof(Paper))!
+                    .FindProperty(nameof(Paper.Tags))!;
+                tagsProperty.GetColumnType().Should().Be("text[]");
+                tagsProperty.IsNullable.Should().BeFalse();
             }
 
             await VerifyActiveAttemptUniqueAsync(
@@ -501,6 +514,7 @@ public sealed class OnlineQuizDatabaseIntegrationTests
         {
             Title = "Integration Quiz",
             LanguageTag = "en",
+            Tags = [" Grammar ", "A2"],
             PassingScore = 2,
             Questions =
             [
@@ -558,6 +572,7 @@ public sealed class OnlineQuizDatabaseIntegrationTests
             Description = draft.Description,
             Instructions = draft.Instructions,
             LanguageTag = draft.LanguageTag,
+            Tags = draft.Tags,
             PassingScore = draft.PassingScore,
             ConcurrencyStamp = draft.ConcurrencyStamp,
             Questions = draft.Questions.Reverse()

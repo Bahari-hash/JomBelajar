@@ -75,6 +75,30 @@ function array(value, normalize, name) {
   return value.map(normalize);
 }
 
+function paperTags(value) {
+  const tags = array(
+    value,
+    (tag) => nonEmptyString(tag, "paper tag"),
+    "paper tags",
+  );
+  if (tags.length > 10) invalid("paper tags");
+  if (
+    tags.some(
+      (tag) =>
+        tag.length > 30 ||
+        tag !== tag.trim() ||
+        tag !== tag.toLowerCase() ||
+        [...tag].some((character) => {
+          const codePoint = character.codePointAt(0);
+          return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+        }),
+    )
+  )
+    invalid("paper tags");
+  if (new Set(tags).size !== tags.length) invalid("paper tags");
+  return tags;
+}
+
 function httpUrl(value, name, nullable = false) {
   if (nullable && value === null) return null;
   const result = nonEmptyString(value, name);
@@ -176,6 +200,7 @@ function commonPaper(source) {
     id: uuid(source.id, "paper id"),
     title: string(source.title, "paper title"),
     languageTag: nonEmptyString(source.languageTag, "paper language"),
+    tags: paperTags(source.tags),
     status: enumeration(source.status, PAPER_STATUSES, "paper status"),
     totalScore: number(source.totalScore, "paper total score", {
       integer: true,

@@ -24,6 +24,7 @@ function detail(overrides = {}) {
     description: null,
     instructions: "Choose the answer.",
     languageTag: "en",
+    tags: ["grammar", "a2"],
     status: "Draft",
     passingScore: 1,
     totalScore: 2,
@@ -102,7 +103,7 @@ describe("papersApi", () => {
       }),
     );
     await expect(request.unwrap()).resolves.toMatchObject({
-      items: [{ title: "English basics" }],
+      items: [{ title: "English basics", tags: ["grammar", "a2"] }],
     });
     expect(requestMock.mock.calls[0][0].url).toBe(
       "/admin/papers?page=2&pageSize=20&keyword=English&language=en&status=Draft",
@@ -140,6 +141,7 @@ describe("papersApi", () => {
       description: null,
       instructions: null,
       languageTag: "en",
+      tags: ["grammar", "a2"],
       passingScore: 0,
       questions: [],
     };
@@ -246,6 +248,20 @@ describe("papersApi", () => {
         ),
       ),
     );
+    await expect(
+      store
+        .dispatch(papersApi.endpoints.getAdminPaper.initiate(IDS.paper))
+        .unwrap(),
+    ).rejects.toMatchObject({ status: "CUSTOM_ERROR", kind: "contract" });
+  });
+
+  it("rejects non-canonical paper tag contracts", async () => {
+    tokenVault.install("access", "refresh");
+    const store = createAppStore();
+    mockHttpClient(() =>
+      Promise.resolve(axiosResponse(detail({ tags: ["Grammar", "grammar"] }))),
+    );
+
     await expect(
       store
         .dispatch(papersApi.endpoints.getAdminPaper.initiate(IDS.paper))

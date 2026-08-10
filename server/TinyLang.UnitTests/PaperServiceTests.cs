@@ -36,12 +36,15 @@ public sealed class PaperServiceTests
             CreateCompleteRequest() with
             {
                 Title = "  Quiz  ",
-                LanguageTag = "EN-us"
+                LanguageTag = "EN-us",
+                Tags = [" Grammar ", "A2"]
             },
             TestContext.Current.CancellationToken);
 
         response.Title.Should().Be("Quiz");
         response.LanguageTag.Should().Be("en-us");
+        response.Tags.Should().Equal("grammar", "a2");
+        (await db.Papers.SingleAsync(TestContext.Current.CancellationToken)).Tags.Should().Equal("grammar", "a2");
         response.TotalScore.Should().Be(9);
         response.PassingScore.Should().Be(6);
         response.CreatedBy.Id.Should().Be(adminId);
@@ -76,6 +79,7 @@ public sealed class PaperServiceTests
             Title = "Updated",
             Description = "Description",
             LanguageTag = "en",
+            Tags = ["B1", " Reading "],
             PassingScore = 4,
             ConcurrencyStamp = created.ConcurrencyStamp,
             Questions =
@@ -122,6 +126,7 @@ public sealed class PaperServiceTests
             TestContext.Current.CancellationToken);
 
         updated.Title.Should().Be("Updated");
+        updated.Tags.Should().Equal("b1", "reading");
         updated.TotalScore.Should().Be(6);
         updated.LastEditor.Id.Should().Be(secondAdminId);
         updated.Questions.Should().HaveCount(2);

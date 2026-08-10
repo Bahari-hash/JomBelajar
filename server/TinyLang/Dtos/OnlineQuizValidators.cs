@@ -36,6 +36,17 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
             .WithErrKey(ErrorCodes.PaperLanguageInvalid)
             .Matches(MediaValidationPatterns.LanguageTag())
             .WithErrKey(ErrorCodes.PaperLanguageInvalid);
+        RuleFor(value => value.Tags)
+            .Cascade(CascadeMode.Stop)
+            .NotNull().WithErrKey(ErrorCodes.PaperTagInvalid)
+            .Must(value => value.Count <= OnlineQuizConstraints.MaxPaperTagCount)
+            .WithErrKey(ErrorCodes.PaperTagCountLimit)
+            .Must(HaveValidTags)
+            .WithErrKey(ErrorCodes.PaperTagInvalid)
+            .Must(HaveTagsWithinLengthLimit)
+            .WithErrKey(ErrorCodes.PaperTagLengthLimit)
+            .Must(HaveUniqueTags)
+            .WithErrKey(ErrorCodes.PaperTagDuplicate);
         RuleFor(value => value.PassingScore)
             .InclusiveBetween(0, OnlineQuizConstraints.MaxTotalScore)
             .WithErrKey(ErrorCodes.PaperPassingScoreInvalid);
@@ -60,6 +71,28 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
             .Must(HaveValidPassingScore)
             .WithErrKey(ErrorCodes.PaperPassingScoreInvalid);
     }
+
+    /// <summary>
+    /// 判断标签均包含可见的非控制字符内容。
+    /// </summary>
+    private static bool HaveValidTags(IReadOnlyCollection<string> tags)
+        => tags.All(tag => !string.IsNullOrWhiteSpace(tag) &&
+            !tag.Any(char.IsControl));
+
+    /// <summary>
+    /// 判断标签裁剪后的长度均不超过写入边界。
+    /// </summary>
+    private static bool HaveTagsWithinLengthLimit(
+        IReadOnlyCollection<string> tags)
+        => tags.All(tag => tag.Trim().Length <=
+            OnlineQuizConstraints.MaxPaperTagLength);
+
+    /// <summary>
+    /// 判断标签裁剪并小写化后互不重复。
+    /// </summary>
+    private static bool HaveUniqueTags(IReadOnlyCollection<string> tags)
+        => tags.Select(tag => tag.Trim().ToLowerInvariant()).Distinct(
+            StringComparer.Ordinal).Count() == tags.Count;
 
     /// <summary>
     /// 判断已有题目标识合法且互不重复。

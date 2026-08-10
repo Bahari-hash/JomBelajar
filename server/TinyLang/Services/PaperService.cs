@@ -58,6 +58,7 @@ public sealed class PaperService : IPaperService
             Description = NormalizeOptional(request.Description),
             Instructions = NormalizeOptional(request.Instructions),
             LanguageTag = WordTextNormalizer.NormalizeLanguageTag(request.LanguageTag),
+            Tags = PaperTagNormalizer.Normalize(request.Tags),
             PassingScore = request.PassingScore,
             CreatedById = adminId,
             LastEditorId = adminId
@@ -99,6 +100,7 @@ public sealed class PaperService : IPaperService
         paper.Description = NormalizeOptional(request.Description);
         paper.Instructions = NormalizeOptional(request.Instructions);
         paper.LanguageTag = WordTextNormalizer.NormalizeLanguageTag(request.LanguageTag);
+        paper.Tags = PaperTagNormalizer.Normalize(request.Tags);
         paper.PassingScore = request.PassingScore;
         paper.TotalScore = CalculateTotalScore(request.Questions);
         paper.LastEditorId = adminId;
@@ -317,6 +319,7 @@ public sealed class PaperService : IPaperService
                 value.Id,
                 value.Title,
                 value.LanguageTag,
+                value.Tags,
                 value.Status,
                 value.Questions.Count,
                 value.TotalScore,
@@ -373,6 +376,7 @@ public sealed class PaperService : IPaperService
                 value.Title,
                 value.Description,
                 value.LanguageTag,
+                value.Tags,
                 value.Questions.Count,
                 value.TotalScore,
                 value.PassingScore,
@@ -393,6 +397,7 @@ public sealed class PaperService : IPaperService
                 value.Description,
                 value.Instructions,
                 value.LanguageTag,
+                value.Tags,
                 value.Questions.Count,
                 value.TotalScore,
                 value.PassingScore,
@@ -1017,6 +1022,7 @@ public sealed class PaperService : IPaperService
             paper.Description,
             paper.Instructions,
             paper.LanguageTag,
+            paper.Tags,
             paper.Status,
             paper.PassingScore,
             paper.TotalScore,

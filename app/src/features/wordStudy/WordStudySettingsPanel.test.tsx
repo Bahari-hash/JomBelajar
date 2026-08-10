@@ -19,7 +19,8 @@ describe("WordStudySettingsPanel", () => {
     const requests: InternalAxiosRequestConfig[] = [];
     httpClient.defaults.adapter = (async (config) => {
       requests.push(config);
-      const requestBody = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+      const requestBody =
+        typeof config.data === "string" ? JSON.parse(config.data) : config.data;
       return {
         data: {
           dailyWordStudyCount:
@@ -38,12 +39,16 @@ describe("WordStudySettingsPanel", () => {
       </Provider>,
     );
 
-    const input = await screen.findByRole("spinbutton", { name: /每天背诵数量/ });
+    const input = await screen.findByRole("spinbutton", {
+      name: /每天背诵数量/,
+    });
     expect(input).toHaveValue(20);
     await user.clear(input);
     await user.type(input, "101");
     await user.click(screen.getByRole("button", { name: "保存背诵设置" }));
-    expect(screen.getByText("每日背诵数量必须在 1 到 100 之间。")).toBeInTheDocument();
+    expect(
+      screen.getByText("每日背诵数量必须在 1 到 100 之间。"),
+    ).toBeInTheDocument();
 
     await user.clear(input);
     await user.type(input, "30");

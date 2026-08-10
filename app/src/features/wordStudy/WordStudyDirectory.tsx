@@ -1,9 +1,4 @@
-import {
-  Check,
-  Circle,
-  CircleSlash2,
-  RotateCcw,
-} from "lucide-react";
+import { Check, Circle, CircleSlash2, RotateCcw } from "lucide-react";
 import type {
   WordStudySessionItem,
   WordStudySessionItemStatus,
@@ -91,9 +86,7 @@ function DirectoryList({
             <button
               aria-current={selected ? "true" : undefined}
               className={`flex w-full items-start gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors ${
-                selected
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-base-200"
+                selected ? "bg-primary/10 text-primary" : "hover:bg-base-200"
               }`}
               disabled={disabled || !available}
               type="button"
@@ -102,7 +95,8 @@ function DirectoryList({
               <StatusIcon status={item.status} unavailable={!available} />
               <span className="min-w-0 flex-1">
                 <span className="block wrap-break-word font-medium">
-                  {item.position + 1}. {item.content?.headword ?? "单词内容不可用"}
+                  {item.position + 1}.{" "}
+                  {item.content?.headword ?? "单词内容不可用"}
                 </span>
                 <span className="mt-0.5 block text-xs text-base-content/60">
                   {statusLabel}
@@ -124,7 +118,9 @@ function StatusIcon({
   unavailable: boolean;
 }) {
   if (unavailable) {
-    return <CircleSlash2 aria-hidden="true" className="mt-0.5 size-4 shrink-0" />;
+    return (
+      <CircleSlash2 aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+    );
   }
   if (status === "Remembered") {
     return <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0" />;

@@ -1,5 +1,6 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { articleApi } from "@/features/articles/articleApi";
+import { paperApi } from "@/features/papers/paperApi";
 import { wordStudyApi } from "@/features/wordStudy/wordStudyApi";
 import { videoApi } from "@/features/videos/videoApi";
 import authReducer from "@/store/authSlice";
@@ -10,12 +11,14 @@ export function createAppStore() {
     reducer: {
       auth: authReducer,
       [articleApi.reducerPath]: articleApi.reducer,
+      [paperApi.reducerPath]: paperApi.reducer,
       [videoApi.reducerPath]: videoApi.reducer,
       [wordStudyApi.reducerPath]: wordStudyApi.reducer,
     },
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware().concat(
         articleApi.middleware,
+        paperApi.middleware,
         videoApi.middleware,
         wordStudyApi.middleware,
       ),

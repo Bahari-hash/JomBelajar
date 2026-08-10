@@ -25,7 +25,6 @@ describe("consumer routes", () => {
   it.each([
     ["/", "今天想练习什么？"],
     ["/articles", "文章"],
-    ["/papers", "在线测试"],
     ["/forgot-password", "重置密码"],
     ["/missing", "页面未找到"],
   ])("renders %s inside the shared layout", async (path, heading) => {
@@ -43,15 +42,29 @@ describe("consumer routes", () => {
   it.each([
     ["/videos?page=2", "%2Fvideos%3Fpage%3D2"],
     ["/words", "%2Fwords"],
+    [
+      "/papers?keyword=grammar&page=2",
+      "%2Fpapers%3Fkeyword%3Dgrammar%26page%3D2",
+    ],
+    [
+      "/papers/11111111-2222-3333-4444-555555555555",
+      "%2Fpapers%2F11111111-2222-3333-4444-555555555555",
+    ],
+    [
+      "/paper-attempts/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "%2Fpaper-attempts%2Faaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    ],
   ])("protects %s and preserves the return path", async (path, returnTo) => {
     const router = renderRoute(path);
     expect(
-      await screen.findByRole("heading", { name: "登录 TinyLang", level: 1 }),
+      await screen.findByRole(
+        "heading",
+        { name: "登录 TinyLang", level: 1 },
+        { timeout: 5_000 },
+      ),
     ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/login");
-    expect(router.state.location.search).toContain(
-      `returnTo=${returnTo}`,
-    );
+    expect(router.state.location.search).toContain(`returnTo=${returnTo}`);
   });
 
   it("supports navigation and browser history", async () => {

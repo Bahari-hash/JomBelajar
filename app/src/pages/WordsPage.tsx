@@ -26,14 +26,14 @@ export default function WordsPage() {
   const [submitResult, submitState] = useSubmitResultMutation();
   const [session, setSession] = useState<WordStudySession | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [reconciledSessionId, setReconciledSessionId] = useState<string | null>(null);
+  const [reconciledSessionId, setReconciledSessionId] = useState<string | null>(
+    null,
+  );
   const [message, setMessage] = useState<string | null>(null);
 
   const today = todayQuery.data;
   const currentSession = session ?? today?.session ?? null;
-  const itemsQuery = useGetSessionItemsQuery(
-    currentSession?.id ?? skipToken,
-  );
+  const itemsQuery = useGetSessionItemsQuery(currentSession?.id ?? skipToken);
   const items = itemsQuery.data ?? [];
   const refetchToday = todayQuery.refetch;
   const refetchItems = itemsQuery.refetch;
@@ -107,7 +107,8 @@ export default function WordsPage() {
     }
   };
 
-  const currentItem = items.find((item) => item.itemId === selectedItemId) ?? null;
+  const currentItem =
+    items.find((item) => item.itemId === selectedItemId) ?? null;
   const currentIndex = currentItem
     ? items.findIndex((item) => item.itemId === currentItem.itemId)
     : -1;
@@ -133,9 +134,7 @@ export default function WordsPage() {
         await todayQuery.refetch();
       }
     } catch (error) {
-      setMessage(
-        getWordStudyErrorMessage(error, "背诵结果保存失败，请重试。"),
-      );
+      setMessage(getWordStudyErrorMessage(error, "背诵结果保存失败，请重试。"));
     }
   };
 
@@ -153,7 +152,11 @@ export default function WordsPage() {
 
   if (todayQuery.isLoading) {
     return (
-      <div aria-label="今日单词加载中" className="mx-auto max-w-3xl space-y-5" role="status">
+      <div
+        aria-label="今日单词加载中"
+        className="mx-auto max-w-3xl space-y-5"
+        role="status"
+      >
         <div className="skeleton h-9 w-48" />
         <div className="skeleton h-[32rem] w-full" />
       </div>
@@ -164,7 +167,10 @@ export default function WordsPage() {
     return (
       <WordStudyStatus
         title="今日单词暂时无法加载"
-        description={getWordStudyErrorMessage(todayQuery.error, "请求失败，请重试。")}
+        description={getWordStudyErrorMessage(
+          todayQuery.error,
+          "请求失败，请重试。",
+        )}
         actionLabel="重新加载"
         onAction={() => void todayQuery.refetch()}
       />
@@ -220,7 +226,11 @@ export default function WordsPage() {
 
   if (itemsQuery.isLoading && !itemsQuery.data) {
     return (
-      <div aria-label="今日词单加载中" className="mx-auto max-w-3xl space-y-5" role="status">
+      <div
+        aria-label="今日词单加载中"
+        className="mx-auto max-w-3xl space-y-5"
+        role="status"
+      >
         <div className="skeleton h-8 w-full" />
         <div className="skeleton h-[30rem] w-full" />
       </div>
@@ -231,7 +241,10 @@ export default function WordsPage() {
     return (
       <WordStudyStatus
         title="今日词单加载失败"
-        description={getWordStudyErrorMessage(itemsQuery.error, "请求失败，请重试。")}
+        description={getWordStudyErrorMessage(
+          itemsQuery.error,
+          "请求失败，请重试。",
+        )}
         actionLabel="重新加载"
         onAction={() => void itemsQuery.refetch()}
       />
@@ -255,34 +268,51 @@ export default function WordsPage() {
         title="正在整理今日进度"
         description="请稍候，系统正在确认今天的背诵结果。"
         actionLabel="刷新状态"
-        onAction={() => void Promise.all([todayQuery.refetch(), itemsQuery.refetch()])}
+        onAction={() =>
+          void Promise.all([todayQuery.refetch(), itemsQuery.refetch()])
+        }
       />
     );
   }
 
-  const completed = currentSession.status === "Completed" || today.state === "Completed";
+  const completed =
+    currentSession.status === "Completed" || today.state === "Completed";
   return (
     <div className="space-y-4">
       <header className="mx-auto flex max-w-6xl items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">单词背诵</h1>
-          <p className="mt-1 text-sm text-base-content/65">按 UTC 日期记录今日学习进度</p>
+          <p className="mt-1 text-sm text-base-content/65">
+            按 UTC 日期记录今日学习进度
+          </p>
         </div>
       </header>
       {completed ? (
-        <div className="alert alert-success mx-auto max-w-6xl text-sm" role="status">
-          今天的单词已完成，共完成 {currentSession.completedCount} 个，记住 {currentSession.rememberedCount} 个，没记住 {currentSession.forgottenCount} 个。
+        <div
+          className="alert alert-success mx-auto max-w-6xl text-sm"
+          role="status"
+        >
+          今天的单词已完成，共完成 {currentSession.completedCount} 个，记住{" "}
+          {currentSession.rememberedCount} 个，没记住{" "}
+          {currentSession.forgottenCount} 个。
         </div>
       ) : null}
       {message ? (
-        <div className="alert alert-error mx-auto max-w-6xl text-sm" role="alert">
+        <div
+          className="alert alert-error mx-auto max-w-6xl text-sm"
+          role="alert"
+        >
           {message}
         </div>
       ) : null}
       {itemsQuery.isError && itemsQuery.data ? (
-        <div className="alert alert-warning mx-auto flex max-w-6xl flex-wrap justify-between gap-3 text-sm" role="alert">
+        <div
+          className="alert alert-warning mx-auto flex max-w-6xl flex-wrap justify-between gap-3 text-sm"
+          role="alert"
+        >
           <span>
-            词单刷新失败：{getWordStudyErrorMessage(itemsQuery.error, "请稍后重试。")}
+            词单刷新失败：
+            {getWordStudyErrorMessage(itemsQuery.error, "请稍后重试。")}
           </span>
           <button
             className="btn btn-sm"
@@ -317,10 +347,13 @@ export default function WordsPage() {
 }
 
 function findDefaultItemId(items: WordStudySessionItem[]) {
-  return items.find((item) => item.status === "Pending" && item.contentAvailable)?.itemId
-    ?? items.find((item) => item.contentAvailable)?.itemId
-    ?? items[0]?.itemId
-    ?? null;
+  return (
+    items.find((item) => item.status === "Pending" && item.contentAvailable)
+      ?.itemId ??
+    items.find((item) => item.contentAvailable)?.itemId ??
+    items[0]?.itemId ??
+    null
+  );
 }
 
 function findNextPendingItemId(
@@ -332,9 +365,11 @@ function findNextPendingItemId(
     ...items.slice(currentIndex + 1),
     ...items.slice(0, Math.max(0, currentIndex)),
   ];
-  return candidates.find(
-    (item) => item.status === "Pending" && item.contentAvailable,
-  )?.itemId ?? null;
+  return (
+    candidates.find(
+      (item) => item.status === "Pending" && item.contentAvailable,
+    )?.itemId ?? null
+  );
 }
 
 interface WordStudyStatusProps {
@@ -354,9 +389,15 @@ function WordStudyStatus({
     <section className="mx-auto flex min-h-96 max-w-2xl flex-col items-center justify-center text-center">
       <BookOpenCheck aria-hidden="true" className="size-12 text-primary" />
       <h1 className="mt-5 text-3xl font-bold">{title}</h1>
-      <p className="mt-3 max-w-lg leading-7 text-base-content/70">{description}</p>
+      <p className="mt-3 max-w-lg leading-7 text-base-content/70">
+        {description}
+      </p>
       {actionLabel && onAction ? (
-        <button className="btn btn-primary mt-7" type="button" onClick={onAction}>
+        <button
+          className="btn btn-primary mt-7"
+          type="button"
+          onClick={onAction}
+        >
           <RefreshCw aria-hidden="true" className="size-4" />
           {actionLabel}
         </button>

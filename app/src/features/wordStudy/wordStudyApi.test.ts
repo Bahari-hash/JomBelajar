@@ -48,14 +48,17 @@ describe("wordStudyApi", () => {
                 },
               },
             ]
-        : config.url?.endsWith("/result")
-          ? { id: SESSION_ID, status: "Completed" }
-          : config.url?.endsWith("/start")
-            ? { id: SESSION_ID, status: "Active" }
-            : { dailyWordStudyCount: 20 };
+          : config.url?.endsWith("/result")
+            ? { id: SESSION_ID, status: "Completed" }
+            : config.url?.endsWith("/start")
+              ? { id: SESSION_ID, status: "Active" }
+              : { dailyWordStudyCount: 20 };
       return {
         data,
-        status: config.method === "post" && config.url?.endsWith("/start") ? 201 : 200,
+        status:
+          config.method === "post" && config.url?.endsWith("/start")
+            ? 201
+            : 200,
         statusText: "OK",
         headers: new AxiosHeaders(),
         config,
@@ -69,7 +72,9 @@ describe("wordStudyApi", () => {
     });
     const store = createAppStore();
 
-    await store.dispatch(wordStudyApi.endpoints.getSettings.initiate()).unwrap();
+    await store
+      .dispatch(wordStudyApi.endpoints.getSettings.initiate())
+      .unwrap();
     await store.dispatch(wordStudyApi.endpoints.startToday.initiate()).unwrap();
     await store
       .dispatch(wordStudyApi.endpoints.getSessionItems.initiate(SESSION_ID))
@@ -89,15 +94,16 @@ describe("wordStudyApi", () => {
       ["get", "/users/me/word-study-settings"],
       ["post", "/word-study/today/start"],
       ["get", `/word-study/sessions/${SESSION_ID}/items`],
-      [
-        "post",
-        `/word-study/sessions/${SESSION_ID}/items/${ITEM_ID}/result`,
-      ],
+      ["post", `/word-study/sessions/${SESSION_ID}/items/${ITEM_ID}/result`],
       ["get", `/word-study/sessions/${SESSION_ID}/items`],
       ["post", `/audio/${AUDIO_ID}/playback`],
     ]);
     expect(requests[3]?.data).toBe(JSON.stringify({ result: "Remembered" }));
-    expect(requests.every((request) => request.headers.Authorization === "Bearer access")).toBe(true);
+    expect(
+      requests.every(
+        (request) => request.headers.Authorization === "Bearer access",
+      ),
+    ).toBe(true);
   });
 
   it("rolls back an optimistic item result when the request fails", async () => {
@@ -139,16 +145,18 @@ describe("wordStudyApi", () => {
     );
     await waitFor(() => expect(resultControl.reject).toBeDefined());
     expect(
-      wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(store.getState())
-        .data?.[0]?.status,
+      wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(
+        store.getState(),
+      ).data?.[0]?.status,
     ).toBe("Remembered");
 
     resultControl.reject?.(new Error("request failed"));
     await expect(mutation.unwrap()).rejects.toBeDefined();
 
     expect(
-      wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(store.getState())
-        .data?.[0]?.status,
+      wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(
+        store.getState(),
+      ).data?.[0]?.status,
     ).toBe("Pending");
   });
 });

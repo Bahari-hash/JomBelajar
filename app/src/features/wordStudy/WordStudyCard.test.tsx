@@ -98,22 +98,26 @@ describe("WordStudyCard", () => {
     );
 
     expect(screen.getByRole("status")).toHaveTextContent("结果：已记住");
-    expect(screen.queryByRole("button", { name: "记住了" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "没记住" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "记住了" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "没记住" }),
+    ).not.toBeInTheDocument();
 
-    rerender(
-      <WordStudyCard item={createItem("Skipped")} {...props} />,
-    );
+    rerender(<WordStudyCard item={createItem("Skipped")} {...props} />);
 
     expect(screen.getByRole("status")).toHaveTextContent("结果：已跳过");
 
-    rerender(
-      <WordStudyCard item={createItem("Pending", false)} {...props} />,
-    );
+    rerender(<WordStudyCard item={createItem("Pending", false)} {...props} />);
 
     expect(screen.getByText("该单词当前不可查看")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "记住了" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "显示释义和例句" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "记住了" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "显示释义和例句" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps definitions collapsed until the user reveals them", async () => {
@@ -126,8 +130,9 @@ describe("WordStudyCard", () => {
     expect(screen.queryByText("Example hello")).not.toBeInTheDocument();
 
     await user.click(toggle);
-    expect(screen.getByRole("button", { name: "隐藏释义和例句" }))
-      .toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("button", { name: "隐藏释义和例句" }),
+    ).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("释义 hello")).toBeInTheDocument();
     expect(screen.getByText("用法 hello")).toBeInTheDocument();
     expect(screen.getByText("Example hello")).toBeInTheDocument();
@@ -150,8 +155,9 @@ describe("WordStudyCard", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "显示释义和例句" }))
-      .toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.getByRole("button", { name: "显示释义和例句" }),
+    ).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("释义 world")).not.toBeInTheDocument();
   });
 });

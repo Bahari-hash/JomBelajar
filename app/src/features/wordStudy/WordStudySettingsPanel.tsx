@@ -52,7 +52,11 @@ export default function WordStudySettingsPanel() {
 
   if (settingsQuery.isLoading) {
     return (
-      <section aria-label="每日单词背诵设置加载中" className="space-y-4" role="status">
+      <section
+        aria-label="每日单词背诵设置加载中"
+        className="space-y-4"
+        role="status"
+      >
         <div className="skeleton h-7 w-44" />
         <div className="skeleton h-32 w-full" />
       </section>
@@ -88,8 +92,15 @@ export default function WordStudySettingsPanel() {
           {message}
         </div>
       ) : null}
-      <form className="mt-6 flex flex-col gap-5" noValidate onSubmit={handleSubmit}>
-        <label className="form-control max-w-xs" htmlFor="daily-word-study-count">
+      <form
+        className="mt-6 flex flex-col gap-5"
+        noValidate
+        onSubmit={handleSubmit}
+      >
+        <label
+          className="form-control max-w-xs"
+          htmlFor="daily-word-study-count"
+        >
           <span className="label pb-1">
             <span className="label-text font-medium">每天背诵数量</span>
             <span className="label-text-alt">1 - 100</span>

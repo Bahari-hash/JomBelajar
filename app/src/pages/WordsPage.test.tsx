@@ -99,7 +99,12 @@ describe("WordsPage", () => {
     httpClient.defaults.adapter = (async (config) => {
       requests.push(config);
       if (config.url === "/word-study/today") {
-        return response(config, { studyDateUtc: "2026-08-09T00:00:00Z", dailyWordStudyCount: 3, state: "Active", session: session("Active") });
+        return response(config, {
+          studyDateUtc: "2026-08-09T00:00:00Z",
+          dailyWordStudyCount: 3,
+          state: "Active",
+          session: session("Active"),
+        });
       }
       if (config.url === `/word-study/sessions/${SESSION_ID}/items`) {
         return response(config, items);
@@ -115,18 +120,32 @@ describe("WordsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "world" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "world" }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "上一词" }));
-    expect(await screen.findByRole("heading", { name: "hello" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "hello" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("结果：已记住");
-    expect(screen.queryByRole("button", { name: "记住了" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "记住了" }),
+    ).not.toBeInTheDocument();
 
-    await user.click(screen.getAllByRole("button", { name: /future.*待背诵/ })[0]);
-    expect(await screen.findByRole("heading", { name: "future" })).toBeInTheDocument();
+    await user.click(
+      screen.getAllByRole("button", { name: /future.*待背诵/ })[0],
+    );
+    expect(
+      await screen.findByRole("heading", { name: "future" }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "没记住" }));
-    expect(await screen.findByRole("heading", { name: "world" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "world" }),
+    ).toBeInTheDocument();
     await waitFor(() => {
-      const resultRequest = requests.find((request) => request.url?.endsWith("/result"));
+      const resultRequest = requests.find((request) =>
+        request.url?.endsWith("/result"),
+      );
       expect(resultRequest?.data).toBe(JSON.stringify({ result: "Forgotten" }));
     });
   });
@@ -134,15 +153,24 @@ describe("WordsPage", () => {
   it("keeps a completed session browsable", async () => {
     httpClient.defaults.adapter = (async (config) => {
       if (config.url === "/word-study/today") {
-        return response(config, { studyDateUtc: "2026-08-09T00:00:00Z", dailyWordStudyCount: 1, state: "Completed", session: session("Completed") });
+        return response(config, {
+          studyDateUtc: "2026-08-09T00:00:00Z",
+          dailyWordStudyCount: 1,
+          state: "Completed",
+          session: session("Completed"),
+        });
       }
       return response(config, [item("item-1", 0, "hello", "Remembered")]);
     }) as AxiosAdapter;
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "hello" })).toBeInTheDocument();
-    expect(screen.getAllByRole("status")[0]).toHaveTextContent("今天的单词已完成");
+    expect(
+      await screen.findByRole("heading", { name: "hello" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("status")[0]).toHaveTextContent(
+      "今天的单词已完成",
+    );
     expect(screen.getAllByRole("status")[1]).toHaveTextContent("结果：已记住");
   });
 
@@ -151,13 +179,20 @@ describe("WordsPage", () => {
     httpClient.defaults.adapter = (async (config) => {
       requests.push(config);
       if (config.url === "/word-study/today") {
-        return response(config, { studyDateUtc: "2026-08-09T00:00:00Z", dailyWordStudyCount: 1, state: "Active", session: session("Active", 0) });
+        return response(config, {
+          studyDateUtc: "2026-08-09T00:00:00Z",
+          dailyWordStudyCount: 1,
+          state: "Active",
+          session: session("Active", 0),
+        });
       }
       if (config.url?.endsWith("/next")) {
         return response(config, null, 204);
       }
       if (config.url?.includes("/items")) {
-        return response(config, [item("item-1", 0, "hidden", "Pending", false)]);
+        return response(config, [
+          item("item-1", 0, "hidden", "Pending", false),
+        ]);
       }
       return response(config, session("Active", 0));
     }) as AxiosAdapter;
@@ -165,28 +200,44 @@ describe("WordsPage", () => {
     renderPage();
 
     expect(await screen.findByText("该单词当前不可查看")).toBeInTheDocument();
-    expect(requests.some((request) => request.url?.endsWith("/next"))).toBe(true);
+    expect(requests.some((request) => request.url?.endsWith("/next"))).toBe(
+      true,
+    );
   });
 
   it("shows a recoverable empty state when the session has no items", async () => {
     httpClient.defaults.adapter = (async (config) => {
       if (config.url === "/word-study/today") {
-        return response(config, { studyDateUtc: "2026-08-09T00:00:00Z", dailyWordStudyCount: 1, state: "Active", session: session("Active", 0) });
+        return response(config, {
+          studyDateUtc: "2026-08-09T00:00:00Z",
+          dailyWordStudyCount: 1,
+          state: "Active",
+          session: session("Active", 0),
+        });
       }
       return response(config, []);
     }) as AxiosAdapter;
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "今日词单暂时为空" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "刷新词单" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "今日词单暂时为空" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "刷新词单" }),
+    ).toBeInTheDocument();
   });
 
   it("retries the session item request after an initial failure", async () => {
     let itemAttempts = 0;
     httpClient.defaults.adapter = (async (config) => {
       if (config.url === "/word-study/today") {
-        return response(config, { studyDateUtc: "2026-08-09T00:00:00Z", dailyWordStudyCount: 1, state: "Active", session: session("Active", 0) });
+        return response(config, {
+          studyDateUtc: "2026-08-09T00:00:00Z",
+          dailyWordStudyCount: 1,
+          state: "Active",
+          session: session("Active", 0),
+        });
       }
       if (config.url?.includes("/items")) {
         itemAttempts += 1;
@@ -200,10 +251,14 @@ describe("WordsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "今日词单加载失败" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "今日词单加载失败" }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重新加载" }));
 
-    expect(await screen.findByRole("heading", { name: "recovered" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "recovered" }),
+    ).toBeInTheDocument();
     expect(itemAttempts).toBe(2);
   });
 
@@ -219,7 +274,12 @@ describe("WordsPage", () => {
     ];
     httpClient.defaults.adapter = (async (config) => {
       if (config.url === "/word-study/today") {
-        return response(config, { studyDateUtc: "2026-08-09T00:00:00Z", dailyWordStudyCount: 2, state: "Active", session: session("Active", 0) });
+        return response(config, {
+          studyDateUtc: "2026-08-09T00:00:00Z",
+          dailyWordStudyCount: 2,
+          state: "Active",
+          session: session("Active", 0),
+        });
       }
       if (config.url?.includes("/items") && !config.url.endsWith("/result")) {
         return response(config, items);
@@ -233,12 +293,16 @@ describe("WordsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "hello" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "hello" }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "记住了" }));
 
     expect(screen.getByRole("button", { name: "上一词" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "下一词" })).toBeDisabled();
-    expect(screen.getAllByRole("button", { name: /world.*待背诵/ })[0]).toBeDisabled();
+    expect(
+      screen.getAllByRole("button", { name: /world.*待背诵/ })[0],
+    ).toBeDisabled();
     expect(screen.getByRole("heading", { name: "hello" })).toBeInTheDocument();
 
     if (releaseResult && resultConfig) {
@@ -250,7 +314,12 @@ describe("WordsPage", () => {
     let itemAttempts = 0;
     httpClient.defaults.adapter = (async (config) => {
       if (config.url === "/word-study/today") {
-        return response(config, { studyDateUtc: "2026-08-09T00:00:00Z", dailyWordStudyCount: 1, state: "Active", session: session("Active", 0) });
+        return response(config, {
+          studyDateUtc: "2026-08-09T00:00:00Z",
+          dailyWordStudyCount: 1,
+          state: "Active",
+          session: session("Active", 0),
+        });
       }
       if (config.url?.includes("/items")) {
         itemAttempts += 1;
@@ -263,11 +332,19 @@ describe("WordsPage", () => {
     }) as AxiosAdapter;
     const { store } = renderPage();
 
-    expect(await screen.findByRole("heading", { name: "hello" })).toBeInTheDocument();
-    store.dispatch(wordStudyApi.util.invalidateTags([{ type: "WordStudySessionItems", id: SESSION_ID }]));
+    expect(
+      await screen.findByRole("heading", { name: "hello" }),
+    ).toBeInTheDocument();
+    store.dispatch(
+      wordStudyApi.util.invalidateTags([
+        { type: "WordStudySessionItems", id: SESSION_ID },
+      ]),
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent("词单刷新失败");
-    expect(screen.getByRole("button", { name: "重试词单" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "重试词单" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "hello" })).toBeInTheDocument();
   });
 });

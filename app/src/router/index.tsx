@@ -43,6 +43,24 @@ export const routes: RouteObject[] = [
               Component: (await import("@/pages/ProfilePage")).default,
             }),
           },
+          {
+            path: "papers",
+            lazy: async () => ({
+              Component: (await import("@/pages/PapersPage")).default,
+            }),
+          },
+          {
+            path: "papers/:paperId",
+            lazy: async () => ({
+              Component: (await import("@/pages/PaperDetailPage")).default,
+            }),
+          },
+          {
+            path: "paper-attempts/:attemptId",
+            lazy: async () => ({
+              Component: (await import("@/pages/PaperAttemptPage")).default,
+            }),
+          },
         ],
       },
       {
@@ -90,12 +108,6 @@ export const routes: RouteObject[] = [
             }),
           },
         ],
-      },
-      {
-        path: "papers",
-        lazy: async () => ({
-          Component: (await import("@/pages/PapersPage")).default,
-        }),
       },
       {
         path: "*",

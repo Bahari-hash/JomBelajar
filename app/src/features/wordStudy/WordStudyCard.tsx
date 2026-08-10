@@ -92,7 +92,11 @@ export default function WordStudyCard({
             词条内容已经下架或暂时无法使用。
           </p>
           {answered ? (
-            <p className="mt-4 text-sm font-medium">结果：{RESULT_LABELS[item.status as keyof typeof RESULT_LABELS] ?? "已跳过"}</p>
+            <p className="mt-4 text-sm font-medium">
+              结果：
+              {RESULT_LABELS[item.status as keyof typeof RESULT_LABELS] ??
+                "已跳过"}
+            </p>
           ) : null}
         </div>
       ) : (
@@ -102,7 +106,10 @@ export default function WordStudyCard({
               {content.headword}
             </h2>
             {pronunciations.map((pronunciation) => (
-              <span className="inline-flex items-center gap-1" key={pronunciation.audioClipId}>
+              <span
+                className="inline-flex items-center gap-1"
+                key={pronunciation.audioClipId}
+              >
                 <WordStudyAudioButton
                   audioClipId={pronunciation.audioClipId}
                   label="发音"
@@ -143,9 +150,14 @@ export default function WordStudyCard({
               id={`word-study-content-${item.itemId}`}
             >
               {content.senses.map((sense) => (
-                <li className="border-t border-base-300 pt-5" key={`${sense.sortOrder}-${sense.definition}`}>
+                <li
+                  className="border-t border-base-300 pt-5"
+                  key={`${sense.sortOrder}-${sense.definition}`}
+                >
                   <div className="flex flex-wrap items-start gap-3">
-                    <span className="badge badge-outline">{sense.partOfSpeech}</span>
+                    <span className="badge badge-outline">
+                      {sense.partOfSpeech}
+                    </span>
                     <p className="min-w-0 flex-1 wrap-break-word text-lg leading-8">
                       {sense.definition}
                     </p>
@@ -187,7 +199,9 @@ export default function WordStudyCard({
 
           {answered ? (
             <div className="alert mt-9" role="status">
-              结果：{RESULT_LABELS[item.status as keyof typeof RESULT_LABELS] ?? "已跳过"}
+              结果：
+              {RESULT_LABELS[item.status as keyof typeof RESULT_LABELS] ??
+                "已跳过"}
             </div>
           ) : (
             <div className="mt-9 grid grid-cols-1 gap-3 border-t border-base-300 pt-6 sm:grid-cols-2">

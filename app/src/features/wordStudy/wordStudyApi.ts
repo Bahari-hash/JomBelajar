@@ -56,11 +56,14 @@ export const wordStudyApi = createApi({
         { type: "WordStudySessionItems", id: sessionId },
       ],
     }),
-    submitResult: builder.mutation<WordStudySession, {
-      sessionId: string;
-      itemId: string;
-      result: WordStudyResult;
-    }>({
+    submitResult: builder.mutation<
+      WordStudySession,
+      {
+        sessionId: string;
+        itemId: string;
+        result: WordStudyResult;
+      }
+    >({
       query: ({ sessionId, itemId, result }) => ({
         url: `/word-study/sessions/${sessionId}/items/${itemId}/result`,
         method: "POST",

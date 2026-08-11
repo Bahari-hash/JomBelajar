@@ -37,7 +37,7 @@ export default function HomePage() {
                 className="group flex min-h-36 items-start gap-4 rounded-lg border border-base-300 bg-base-100 p-5 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 to={item.to}
               >
-                <span className="grid size-11 shrink-0 place-items-center rounded-md bg-secondary text-secondary-content">
+                <span className="grid size-11 shrink-0 place-items-center rounded-md badge badge-outline text-secondary-content">
                   <Icon aria-hidden="true" className="size-5" />
                 </span>
                 <span className="min-w-0 flex-1">

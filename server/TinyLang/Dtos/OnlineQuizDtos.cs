@@ -14,7 +14,7 @@ public abstract record PaperUpsertRequest
     public string? Instructions { get; init; }
     public required string LanguageTag { get; init; }
     public IReadOnlyCollection<string> Tags { get; init; } = [];
-    public int PassingScore { get; init; }
+    public int PassingScorePercentage { get; init; } = 60;
     public IReadOnlyCollection<PaperQuestionInput> Questions { get; init; } = [];
 }
 
@@ -196,6 +196,7 @@ public sealed record AdminPaperResponse(
     string LanguageTag,
     IReadOnlyList<string> Tags,
     PaperPublicationStatus Status,
+    int PassingScorePercentage,
     int PassingScore,
     int TotalScore,
     int AttemptCount,

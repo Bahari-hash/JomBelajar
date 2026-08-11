@@ -12,7 +12,7 @@ namespace TinyLang.UnitTests;
 public sealed class OnlineQuizValidatorsTests
 {
     /// <summary>
-    /// 验证没有题目且及格分为零的草稿可以创建。
+    /// 验证没有题目且使用默认及格百分比的草稿可以创建。
     /// </summary>
     [Fact]
     public void CreateValidatorShouldAllowIncompleteDraft()
@@ -21,7 +21,7 @@ public sealed class OnlineQuizValidatorsTests
         {
             Title = "Draft",
             LanguageTag = "en",
-            PassingScore = 0
+            PassingScorePercentage = 60
         };
 
         new CreatePaperRequestValidator().Validate(request).IsValid.Should().BeTrue();
@@ -158,12 +158,18 @@ public sealed class OnlineQuizValidatorsTests
     }
 
     /// <summary>
-    /// 验证及格分不能超过服务端从题目计算的总分。
+    /// 验证及格分百分比必须位于一到一百之间。
     /// </summary>
-    [Fact]
-    public void CreateValidatorShouldRejectPassingScoreAboveTotal()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(101)]
+    public void CreateValidatorShouldRejectInvalidPassingScorePercentage(
+        int percentage)
     {
-        var request = CreateCompleteRequest() with { PassingScore = 100 };
+        var request = CreateCompleteRequest() with
+        {
+            PassingScorePercentage = percentage
+        };
 
         new CreatePaperRequestValidator().Validate(request).IsValid.Should().BeFalse();
     }
@@ -303,7 +309,7 @@ public sealed class OnlineQuizValidatorsTests
         {
             Title = "Language Quiz",
             LanguageTag = "en",
-            PassingScore = 5,
+            PassingScorePercentage = 60,
             Questions =
             [
                 new PaperQuestionInput

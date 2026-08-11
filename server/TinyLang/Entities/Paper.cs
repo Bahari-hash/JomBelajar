@@ -23,6 +23,7 @@ public sealed class Paper : BaseAuditableEntity
     public string[] Tags { get; set; } = [];
     public PaperPublicationStatus Status { get; set; } =
         PaperPublicationStatus.Draft;
+    public int PassingScorePercentage { get; set; } = 60;
     public int PassingScore { get; set; }
     public int TotalScore { get; set; }
     public Guid CreatedById { get; set; }

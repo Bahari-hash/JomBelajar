@@ -15,6 +15,7 @@ public sealed class PaperConfiguration : IEntityTypeConfiguration<Paper>
         builder.ToTable("papers", table => table.HasCheckConstraint(
             "CK_papers_scores",
             "\"TotalScore\" BETWEEN 0 AND 20000 AND " +
+            "\"PassingScorePercentage\" BETWEEN 1 AND 100 AND " +
             "\"PassingScore\" BETWEEN 0 AND \"TotalScore\""));
         builder.HasKey(value => value.Id);
         builder.Property(value => value.Title).HasMaxLength(200).IsRequired();
@@ -26,6 +27,8 @@ public sealed class PaperConfiguration : IEntityTypeConfiguration<Paper>
             .HasDefaultValueSql("'{}'::text[]")
             .IsRequired();
         builder.HasIndex(value => value.Tags).HasMethod("gin");
+        builder.Property(value => value.PassingScorePercentage)
+            .HasDefaultValue(60);
         builder.Property(value => value.Status)
             .HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();

@@ -59,12 +59,15 @@ public sealed class PaperService : IPaperService
             Instructions = NormalizeOptional(request.Instructions),
             LanguageTag = WordTextNormalizer.NormalizeLanguageTag(request.LanguageTag),
             Tags = PaperTagNormalizer.Normalize(request.Tags),
-            PassingScore = request.PassingScore,
+            PassingScorePercentage = request.PassingScorePercentage,
             CreatedById = adminId,
             LastEditorId = adminId
         };
         ApplyNewTarget(paper, request);
         paper.TotalScore = CalculateTotalScore(request.Questions);
+        paper.PassingScore = CalculatePassingScore(
+            paper.TotalScore,
+            paper.PassingScorePercentage);
         _db.Papers.Add(paper);
         await SavePaperChangesAsync(cancellationToken);
 
@@ -101,8 +104,11 @@ public sealed class PaperService : IPaperService
         paper.Instructions = NormalizeOptional(request.Instructions);
         paper.LanguageTag = WordTextNormalizer.NormalizeLanguageTag(request.LanguageTag);
         paper.Tags = PaperTagNormalizer.Normalize(request.Tags);
-        paper.PassingScore = request.PassingScore;
+        paper.PassingScorePercentage = request.PassingScorePercentage;
         paper.TotalScore = CalculateTotalScore(request.Questions);
+        paper.PassingScore = CalculatePassingScore(
+            paper.TotalScore,
+            paper.PassingScorePercentage);
         paper.LastEditorId = adminId;
         paper.ConcurrencyStamp = Guid.NewGuid();
 
@@ -163,6 +169,9 @@ public sealed class PaperService : IPaperService
             throw ConflictException.Create(ErrorCodes.PaperPublishRequirementsNotMet);
         }
         paper.TotalScore = paper.Questions.Sum(value => value.Points);
+        paper.PassingScore = CalculatePassingScore(
+            paper.TotalScore,
+            paper.PassingScorePercentage);
         paper.Status = PaperPublicationStatus.Published;
         paper.PublishedAt ??= _timeProvider.GetUtcNow();
         paper.LastEditorId = adminId;
@@ -943,9 +952,9 @@ public sealed class PaperService : IPaperService
         {
             Add("questions", ErrorCodes.PaperPointsInvalid);
         }
-        if (paper.PassingScore < 0 || paper.PassingScore > totalScore)
+        if (paper.PassingScorePercentage is < 1 or > 100)
         {
-            Add("passingScore", ErrorCodes.PaperPassingScoreInvalid);
+            Add("passingScorePercentage", ErrorCodes.PaperPassingScoreInvalid);
         }
 
         for (var questionIndex = 0; questionIndex < questions.Length; questionIndex++)
@@ -1180,6 +1189,7 @@ public sealed class PaperService : IPaperService
             paper.LanguageTag,
             paper.Tags,
             paper.Status,
+            paper.PassingScorePercentage,
             paper.PassingScore,
             paper.TotalScore,
             paper.Attempts.Count,
@@ -1323,6 +1333,14 @@ public sealed class PaperService : IPaperService
         }
         return (int)total;
     }
+
+    /// <summary>
+    /// 根据试卷总分和及格百分比计算向上取整的及格分。
+    /// </summary>
+    private static int CalculatePassingScore(
+        int totalScore,
+        int passingScorePercentage)
+        => (int)Math.Ceiling(totalScore * passingScorePercentage / 100m);
 
     /// <summary>
     /// 去除必填文本两端空白。

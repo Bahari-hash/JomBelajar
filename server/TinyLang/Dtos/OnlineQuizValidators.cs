@@ -47,8 +47,8 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
             .WithErrKey(ErrorCodes.PaperTagLengthLimit)
             .Must(HaveUniqueTags)
             .WithErrKey(ErrorCodes.PaperTagDuplicate);
-        RuleFor(value => value.PassingScore)
-            .InclusiveBetween(0, OnlineQuizConstraints.MaxTotalScore)
+        RuleFor(value => value.PassingScorePercentage)
+            .InclusiveBetween(1, 100)
             .WithErrKey(ErrorCodes.PaperPassingScoreInvalid);
         RuleFor(value => value.Questions)
             .Cascade(CascadeMode.Stop)
@@ -67,9 +67,6 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
         RuleForEach(value => value.Questions)
             .NotNull().WithErrKey(ErrorCodes.PaperQuestionCollectionInvalid)
             .SetValidator(new PaperQuestionInputValidator());
-        RuleFor(value => value)
-            .Must(HaveValidPassingScore)
-            .WithErrKey(ErrorCodes.PaperPassingScoreInvalid);
     }
 
     /// <summary>
@@ -130,21 +127,6 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
             ids.Distinct().Count() == ids.Length;
     }
 
-    /// <summary>
-    /// 判断及格分不超过服务端可从当前题目集合计算的总分。
-    /// </summary>
-    private static bool HaveValidPassingScore(T request)
-    {
-        if (request.Questions is null ||
-            request.Questions.Any(value => value is null))
-        {
-            return false;
-        }
-
-        var total = request.Questions.Sum(value => (long)value.Points);
-        return total is >= 0 and <= OnlineQuizConstraints.MaxTotalScore &&
-            request.PassingScore >= 0 && request.PassingScore <= total;
-    }
 }
 
 /// <summary>

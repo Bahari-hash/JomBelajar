@@ -46,12 +46,39 @@ public sealed class PaperServiceTests
         response.Tags.Should().Equal("grammar", "a2");
         (await db.Papers.SingleAsync(TestContext.Current.CancellationToken)).Tags.Should().Equal("grammar", "a2");
         response.TotalScore.Should().Be(9);
+        response.PassingScorePercentage.Should().Be(60);
         response.PassingScore.Should().Be(6);
         response.CreatedBy.Id.Should().Be(adminId);
         response.LastEditor.Id.Should().Be(adminId);
         response.Questions.Should().HaveCount(3);
         response.Questions.Select(value => value.SortOrder)
             .Should().ContainInOrder(0, 1, 2);
+    }
+
+    /// <summary>
+    /// 验证及格分按照总分与百分比计算，并对非整数结果向上取整。
+    /// </summary>
+    [Fact]
+    public async Task CreateDraftShouldRoundPassingScoreUp()
+    {
+        await using var db = CreateDbContext();
+        var service = CreateService(db);
+        var request = CreateCompleteRequest();
+
+        var response = await service.CreateDraftAsync(
+            Guid.NewGuid(),
+            request with
+            {
+                Questions = request.Questions.Select(question => question with
+                {
+                    Points = 1
+                }).ToArray()
+            },
+            TestContext.Current.CancellationToken);
+
+        response.TotalScore.Should().Be(3);
+        response.PassingScorePercentage.Should().Be(60);
+        response.PassingScore.Should().Be(2);
     }
 
     /// <summary>
@@ -80,7 +107,7 @@ public sealed class PaperServiceTests
             Description = "Description",
             LanguageTag = "en",
             Tags = ["B1", " Reading "],
-            PassingScore = 4,
+            PassingScorePercentage = 50,
             ConcurrencyStamp = created.ConcurrencyStamp,
             Questions =
             [
@@ -128,6 +155,8 @@ public sealed class PaperServiceTests
         updated.Title.Should().Be("Updated");
         updated.Tags.Should().Equal("b1", "reading");
         updated.TotalScore.Should().Be(6);
+        updated.PassingScorePercentage.Should().Be(50);
+        updated.PassingScore.Should().Be(3);
         updated.LastEditor.Id.Should().Be(secondAdminId);
         updated.Questions.Should().HaveCount(2);
         updated.Questions.First().Id.Should().Be(trueFalse.Id);
@@ -162,7 +191,7 @@ public sealed class PaperServiceTests
                     Id = second.Questions.First().Id
                 }
             ],
-            PassingScore = 1
+            PassingScorePercentage = 60
         };
 
         var foreign = async () => await service.UpdateAsync(
@@ -660,7 +689,7 @@ public sealed class PaperServiceTests
             Description = "Description",
             Instructions = "Instructions",
             LanguageTag = "en",
-            PassingScore = 6,
+            PassingScorePercentage = 60,
             Questions =
             [
                 new PaperQuestionInput
@@ -724,7 +753,7 @@ public sealed class PaperServiceTests
             Description = response.Description,
             Instructions = response.Instructions,
             LanguageTag = response.LanguageTag,
-            PassingScore = response.PassingScore,
+            PassingScorePercentage = response.PassingScorePercentage,
             ConcurrencyStamp = response.ConcurrencyStamp,
             Questions = response.Questions.Select(ToQuestionInput).ToArray()
         };

@@ -26,6 +26,7 @@ function detail(overrides = {}) {
     languageTag: "en",
     tags: ["grammar", "a2"],
     status: "Draft",
+    passingScorePercentage: 60,
     passingScore: 1,
     totalScore: 2,
     attemptCount: 0,
@@ -205,7 +206,7 @@ describe("papersApi", () => {
       instructions: null,
       languageTag: "en",
       tags: ["grammar", "a2"],
-      passingScore: 0,
+      passingScorePercentage: 60,
       questions: [],
     };
     await store

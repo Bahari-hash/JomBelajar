@@ -243,6 +243,11 @@ export function normalizeAdminPaper(value) {
   const source = object(value, "paper details");
   const normalized = {
     ...commonPaper(source),
+    passingScorePercentage: number(
+      source.passingScorePercentage,
+      "paper passing score percentage",
+      { integer: true, minimum: 1, maximum: 100 },
+    ),
     description: string(source.description, "paper description", true),
     instructions: string(source.instructions, "paper instructions", true),
     questions: array(source.questions, question, "paper questions"),

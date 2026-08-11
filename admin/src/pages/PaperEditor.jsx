@@ -3,6 +3,8 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  ChevronDown,
+  ChevronUp,
   Eye,
   Plus,
   Save,
@@ -76,7 +78,7 @@ const emptyForm = () => ({
   instructions: "",
   languageTag: "ms",
   tags: [],
-  passingScore: 0,
+  passingScorePercentage: 60,
   concurrencyStamp: null,
   status: "Draft",
   attemptCount: 0,
@@ -122,7 +124,7 @@ function formFromPaper(paper) {
     instructions: paper.instructions ?? "",
     languageTag: paper.languageTag,
     tags: paper.tags,
-    passingScore: paper.passingScore,
+    passingScorePercentage: paper.passingScorePercentage,
     concurrencyStamp: paper.concurrencyStamp,
     status: paper.status,
     attemptCount: paper.attemptCount,
@@ -162,7 +164,7 @@ function payloadFromForm(form, includeStamp) {
     instructions: compactText(form.instructions),
     languageTag: form.languageTag,
     tags: form.tags,
-    passingScore: Number(form.passingScore) || 0,
+    passingScorePercentage: Number(form.passingScorePercentage),
     questions: form.questions.map((question, questionIndex) => ({
       id: question.id,
       type: question.type,
@@ -210,6 +212,12 @@ function totalScore(form) {
   );
 }
 
+function passingScore(form) {
+  const percentage = Number(form.passingScorePercentage);
+  if (!Number.isFinite(percentage)) return 0;
+  return Math.ceil((totalScore(form) * percentage) / 100);
+}
+
 function move(values, index, offset) {
   const next = [...values];
   const [item] = next.splice(index, 1);
@@ -249,9 +257,9 @@ function basicValidate(form) {
     errors.description = ["说明不能超过 2,000 个字符。"];
   if (form.instructions.length > 5000)
     errors.instructions = ["答题说明不能超过 5,000 个字符。"];
-  const score = Number(form.passingScore);
-  if (!Number.isInteger(score) || score < 0 || score > totalScore(form))
-    errors.passingScore = ["及格分必须是不超过总分的非负整数。"];
+  const percentage = Number(form.passingScorePercentage);
+  if (!Number.isInteger(percentage) || percentage < 1 || percentage > 100)
+    errors.passingScorePercentage = ["及格分百分比必须是 1-100 的整数。"];
   form.questions.forEach((question, questionIndex) => {
     const prefix = `questions[${questionIndex}]`;
     if (!question.prompt.trim()) errors[`${prefix}.prompt`] = ["请输入题干。"];
@@ -293,6 +301,10 @@ function PaperEditor() {
   const [typeChange, setTypeChange] = useState(null);
   const [concurrencyConflict, setConcurrencyConflict] = useState(false);
   const [statusAction, setStatusAction] = useState(null);
+  const [expandedQuestionKeys, setExpandedQuestionKeys] = useState(
+    () => new Set(),
+  );
+  const questionCardRefs = useRef(new Map());
   const allowNavigationRef = useRef(false);
   const {
     data: paper,
@@ -334,6 +346,9 @@ function PaperEditor() {
   const applyPaper = (value) => {
     const next = formFromPaper(value);
     setForm(next);
+    setExpandedQuestionKeys(
+      new Set(next.questions[0] ? [next.questions[0]._key] : []),
+    );
     setBaseline(compareForm(next));
     setValidationIssues([]);
     setFormError(null);
@@ -357,7 +372,33 @@ function PaperEditor() {
     setValidationIssues([]);
   };
 
+  const addQuestion = (afterQuestionKey = null) => {
+    const question = createQuestion("SingleChoice");
+    setForm((current) => {
+      const questions = [...current.questions];
+      const currentIndex = afterQuestionKey
+        ? questions.findIndex((value) => value._key === afterQuestionKey)
+        : questions.length - 1;
+      questions.splice(currentIndex + 1, 0, question);
+      return { ...current, questions };
+    });
+    setExpandedQuestionKeys(new Set([question._key]));
+    setFormError(null);
+    setValidationIssues([]);
+    window.setTimeout(() => {
+      const card = questionCardRefs.current.get(question._key);
+      card?.focus?.();
+      card?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    }, 0);
+  };
   const focusIssue = (field) => {
+    const questionIndex = Number(/^questions\[(\d+)\]/.exec(field)?.[1]);
+    const questionKey = Number.isInteger(questionIndex)
+      ? form.questions[questionIndex]?._key
+      : null;
+    if (questionKey) {
+      setExpandedQuestionKeys((current) => new Set([...current, questionKey]));
+    }
     window.setTimeout(() => {
       const control =
         document.getElementById(fieldId(field)) ??
@@ -596,7 +637,18 @@ function PaperEditor() {
             form={form}
             readOnly={readOnly}
             fieldError={fieldError}
+            expandedQuestionKeys={expandedQuestionKeys}
+            questionCardRefs={questionCardRefs}
+            onAddQuestion={addQuestion}
             onChange={setForm}
+            onToggleQuestion={(questionKey) =>
+              setExpandedQuestionKeys((current) => {
+                const next = new Set(current);
+                if (next.has(questionKey)) next.delete(questionKey);
+                else next.add(questionKey);
+                return next;
+              })
+            }
             updateQuestion={updateQuestion}
             onTypeChange={(questionKey, nextType) =>
               setTypeChange({ questionKey, nextType })
@@ -812,30 +864,24 @@ function PaperBasics({ form, readOnly, fieldError, onChange }) {
         </Field>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Field
-          label="及格分"
-          required
-          error={fieldError("passingScore")}
-          path="passingScore"
-        >
-          <Input
-            type="number"
-            min="0"
-            value={form.passingScore}
-            disabled={readOnly}
-            onChange={(event) =>
-              onChange({ passingScore: Number(event.target.value) })
-            }
-          />
-        </Field>
-        <div className="space-y-1.5">
-          <Label>总分</Label>
-          <div className="flex h-8 items-center rounded-lg border px-2.5 text-sm">
-            {totalScore(form)} 分，由题目分值自动汇总
-          </div>
-        </div>
-      </div>
+      <Field
+        label="及格分百分比"
+        required
+        error={fieldError("passingScorePercentage")}
+        path="passingScorePercentage"
+      >
+        <Input
+          className="max-w-xs"
+          type="number"
+          min="1"
+          max="100"
+          value={form.passingScorePercentage}
+          disabled={readOnly}
+          onChange={(event) =>
+            onChange({ passingScorePercentage: event.target.value })
+          }
+        />
+      </Field>
     </section>
   );
 }
@@ -844,13 +890,18 @@ function QuestionEditor({
   form,
   readOnly,
   fieldError,
+  expandedQuestionKeys,
+  questionCardRefs,
+  onAddQuestion,
   onChange,
+  onToggleQuestion,
   updateQuestion,
   onTypeChange,
 }) {
+  const atQuestionLimit = form.questions.length >= 200;
   return (
     <section className="space-y-4" data-field-path="questions" tabIndex={-1}>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold">题目</h2>
           <p className="text-sm text-muted-foreground">
@@ -861,13 +912,8 @@ function QuestionEditor({
           type="button"
           size="sm"
           variant="outline"
-          disabled={readOnly || form.questions.length >= 200}
-          onClick={() =>
-            onChange({
-              ...form,
-              questions: [...form.questions, createQuestion("SingleChoice")],
-            })
-          }
+          disabled={readOnly || atQuestionLimit}
+          onClick={() => onAddQuestion()}
         >
           <Plus aria-hidden="true" />
           添加题目
@@ -878,19 +924,40 @@ function QuestionEditor({
           尚未添加题目。可以保存空草稿，但发布前至少需要一道题。
         </p>
       ) : (
-        form.questions.map((question, questionIndex) => (
-          <QuestionBlock
-            key={question._key}
-            form={form}
-            question={question}
-            questionIndex={questionIndex}
-            readOnly={readOnly}
-            fieldError={fieldError}
-            updateQuestion={updateQuestion}
-            onChange={onChange}
-            onTypeChange={onTypeChange}
-          />
-        ))
+        <div className="space-y-3">
+          {form.questions.map((question, questionIndex) => (
+            <QuestionBlock
+              key={question._key}
+              form={form}
+              question={question}
+              questionIndex={questionIndex}
+              readOnly={readOnly}
+              expanded={expandedQuestionKeys.has(question._key)}
+              fieldError={fieldError}
+              registerCard={(node) => {
+                if (node) questionCardRefs.current.set(question._key, node);
+                else questionCardRefs.current.delete(question._key);
+              }}
+              updateQuestion={updateQuestion}
+              onAddNext={() => onAddQuestion(question._key)}
+              onChange={onChange}
+              onToggle={() => onToggleQuestion(question._key)}
+              onTypeChange={onTypeChange}
+            />
+          ))}
+          {/* <div className="flex justify-end border-t pt-4">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={readOnly || atQuestionLimit}
+              onClick={() => onAddQuestion()}
+            >
+              <Plus aria-hidden="true" />
+              在末尾添加题目
+            </Button>
+          </div> */}
+        </div>
       )}
     </section>
   );
@@ -901,153 +968,220 @@ function QuestionBlock({
   question,
   questionIndex,
   readOnly,
+  expanded,
   fieldError,
+  registerCard,
   updateQuestion,
+  onAddNext,
   onChange,
+  onToggle,
   onTypeChange,
 }) {
   const prefix = `questions[${questionIndex}]`;
+  const contentId = `question-content-${question._key}`;
+  const headingId = `question-heading-${question._key}`;
+  const promptSummary = question.prompt.trim() || "未填写题干";
   return (
-    <section className="space-y-4 rounded-lg border p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <h3 className="font-medium">题目 {questionIndex + 1}</h3>
-          <Badge variant="outline">
-            {getPaperQuestionTypeLabel(question.type)}
-          </Badge>
-        </div>
-        <OrderButtons
-          label={`题目 ${questionIndex + 1}`}
-          index={questionIndex}
-          count={form.questions.length}
-          disabled={readOnly}
-          onMove={(offset) =>
-            onChange({
-              ...form,
-              questions: move(form.questions, questionIndex, offset),
-            })
-          }
-          onDelete={() =>
-            onChange({
-              ...form,
-              questions: form.questions.filter(
-                (value) => value._key !== question._key,
-              ),
-            })
-          }
-        />
-      </div>
-      <div className="grid gap-3 md:grid-cols-[12rem_8rem_1fr]">
-        <div className="space-y-1.5">
-          <Label id={`${fieldId(`${prefix}.type`)}-label`}>题型</Label>
-          <Select
-            value={question.type}
-            disabled={readOnly}
-            onValueChange={(nextType) =>
-              nextType === question.type
-                ? undefined
-                : onTypeChange(question._key, nextType)
-            }
+    <section
+      ref={registerCard}
+      className="overflow-hidden rounded-lg border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      tabIndex={-1}
+    >
+      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 id={headingId} className="font-medium">
+              题目 {questionIndex + 1}
+            </h3>
+            <Badge variant="outline">
+              {getPaperQuestionTypeLabel(question.type)}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              {question.points} 分
+            </span>
+          </div>
+          <p
+            className="mt-1 truncate text-sm text-muted-foreground"
+            title={promptSummary}
           >
-            <SelectTrigger
-              id={fieldId(`${prefix}.type`)}
-              aria-labelledby={`${fieldId(`${prefix}.type`)}-label`}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAPER_QUESTION_TYPE_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            {promptSummary}
+          </p>
         </div>
-        <Field
-          label="分值"
-          required
-          error={fieldError(`${prefix}.points`)}
-          path={`${prefix}.points`}
-        >
-          <Input
-            type="number"
-            min="1"
-            max="100"
-            value={question.points}
+        <div className="flex shrink-0 items-center justify-end gap-1">
+          <OrderButtons
+            label={`题目 ${questionIndex + 1}`}
+            index={questionIndex}
+            count={form.questions.length}
             disabled={readOnly}
-            onChange={(event) =>
-              updateQuestion(question._key, (value) => ({
-                ...value,
-                points: Number(event.target.value),
-              }))
+            onMove={(offset) =>
+              onChange({
+                ...form,
+                questions: move(form.questions, questionIndex, offset),
+              })
+            }
+            onDelete={() =>
+              onChange({
+                ...form,
+                questions: form.questions.filter(
+                  (value) => value._key !== question._key,
+                ),
+              })
             }
           />
-        </Field>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={
+              expanded
+                ? `折叠题目 ${questionIndex + 1}`
+                : `展开题目 ${questionIndex + 1}`
+            }
+            aria-expanded={expanded}
+            aria-controls={contentId}
+            onClick={onToggle}
+          >
+            {expanded ? (
+              <ChevronUp aria-hidden="true" />
+            ) : (
+              <ChevronDown aria-hidden="true" />
+            )}
+          </Button>
+        </div>
       </div>
-      <Field
-        label="题干"
-        required
-        error={fieldError(`${prefix}.prompt`)}
-        path={`${prefix}.prompt`}
-      >
-        <Textarea
-          value={question.prompt}
-          maxLength={5000}
-          disabled={readOnly}
-          rows={3}
-          onChange={(event) =>
-            updateQuestion(question._key, (value) => ({
-              ...value,
-              prompt: event.target.value,
-            }))
-          }
-        />
-      </Field>
-      <Field
-        label="解析说明"
-        error={fieldError(`${prefix}.explanation`)}
-        path={`${prefix}.explanation`}
-      >
-        <Textarea
-          value={question.explanation}
-          maxLength={5000}
-          disabled={readOnly}
-          rows={2}
-          onChange={(event) =>
-            updateQuestion(question._key, (value) => ({
-              ...value,
-              explanation: event.target.value,
-            }))
-          }
-        />
-      </Field>
-      {question.type === "SingleChoice" ? (
-        <SingleChoiceEditor
-          question={question}
-          questionIndex={questionIndex}
-          readOnly={readOnly}
-          fieldError={fieldError}
-          updateQuestion={updateQuestion}
-        />
-      ) : null}
-      {question.type === "TrueFalse" ? (
-        <TrueFalseEditor
-          question={question}
-          questionIndex={questionIndex}
-          readOnly={readOnly}
-          fieldError={fieldError}
-          updateQuestion={updateQuestion}
-        />
-      ) : null}
-      {question.type === "FillBlank" ? (
-        <FillBlankEditor
-          question={question}
-          questionIndex={questionIndex}
-          readOnly={readOnly}
-          fieldError={fieldError}
-          updateQuestion={updateQuestion}
-        />
+      {expanded ? (
+        <div
+          id={contentId}
+          role="region"
+          aria-labelledby={headingId}
+          className="space-y-4 border-t p-4"
+        >
+          <div className="grid gap-3 md:grid-cols-[12rem_8rem_1fr]">
+            <div className="space-y-1.5">
+              <Label id={`${fieldId(`${prefix}.type`)}-label`}>题型</Label>
+              <Select
+                value={question.type}
+                disabled={readOnly}
+                onValueChange={(nextType) =>
+                  nextType === question.type
+                    ? undefined
+                    : onTypeChange(question._key, nextType)
+                }
+              >
+                <SelectTrigger
+                  id={fieldId(`${prefix}.type`)}
+                  aria-labelledby={`${fieldId(`${prefix}.type`)}-label`}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAPER_QUESTION_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Field
+              label="分值"
+              required
+              error={fieldError(`${prefix}.points`)}
+              path={`${prefix}.points`}
+            >
+              <Input
+                type="number"
+                min="1"
+                max="100"
+                value={question.points}
+                disabled={readOnly}
+                onChange={(event) =>
+                  updateQuestion(question._key, (value) => ({
+                    ...value,
+                    points: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+          </div>
+          <Field
+            label="题干"
+            required
+            error={fieldError(`${prefix}.prompt`)}
+            path={`${prefix}.prompt`}
+          >
+            <Textarea
+              value={question.prompt}
+              maxLength={5000}
+              disabled={readOnly}
+              rows={3}
+              onChange={(event) =>
+                updateQuestion(question._key, (value) => ({
+                  ...value,
+                  prompt: event.target.value,
+                }))
+              }
+            />
+          </Field>
+          <Field
+            label="解析说明"
+            error={fieldError(`${prefix}.explanation`)}
+            path={`${prefix}.explanation`}
+          >
+            <Textarea
+              value={question.explanation}
+              maxLength={5000}
+              disabled={readOnly}
+              rows={2}
+              onChange={(event) =>
+                updateQuestion(question._key, (value) => ({
+                  ...value,
+                  explanation: event.target.value,
+                }))
+              }
+            />
+          </Field>
+          {question.type === "SingleChoice" ? (
+            <SingleChoiceEditor
+              question={question}
+              questionIndex={questionIndex}
+              readOnly={readOnly}
+              fieldError={fieldError}
+              updateQuestion={updateQuestion}
+            />
+          ) : null}
+          {question.type === "TrueFalse" ? (
+            <TrueFalseEditor
+              question={question}
+              questionIndex={questionIndex}
+              readOnly={readOnly}
+              fieldError={fieldError}
+              updateQuestion={updateQuestion}
+            />
+          ) : null}
+          {question.type === "FillBlank" ? (
+            <FillBlankEditor
+              question={question}
+              questionIndex={questionIndex}
+              readOnly={readOnly}
+              fieldError={fieldError}
+              updateQuestion={updateQuestion}
+            />
+          ) : null}
+          {!readOnly ? (
+            <div className="flex justify-end border-t pt-4">
+              <Button
+                type="button"
+                size="sm"
+                disabled={form.questions.length >= 200}
+                onClick={onAddNext}
+              >
+                <Plus aria-hidden="true" />
+                收起并添加下一题
+              </Button>
+            </div>
+          ) : null}
+        </div>
       ) : null}
     </section>
   );
@@ -1366,7 +1500,7 @@ function PaperPreview({ form }) {
         ) : null}
         <p className="mt-3 text-sm text-muted-foreground">
           共 {form.questions.length} 题，总分 {totalScore(form)}，及格分{" "}
-          {form.passingScore}
+          {passingScore(form)}
         </p>
       </div>
       {form.questions.length === 0 ? (
@@ -1467,7 +1601,7 @@ function PublishDialog({ form, argument, onClose, onSaved, onError }) {
         <div className="space-y-1 text-sm">
           <p>题目数：{form.questions.length}</p>
           <p>总分：{totalScore(form)}</p>
-          <p>及格分：{form.passingScore}</p>
+          <p>及格分：{passingScore(form)}</p>
         </div>
         {error ? (
           <Alert variant="destructive">

@@ -695,7 +695,7 @@ public sealed class OnlineQuizDatabaseIntegrationTests
             Title = "Integration Quiz",
             LanguageTag = "en",
             Tags = [" Grammar ", "A2"],
-            PassingScore = 2,
+            PassingScorePercentage = 60,
             Questions =
             [
                 new PaperQuestionInput
@@ -753,7 +753,7 @@ public sealed class OnlineQuizDatabaseIntegrationTests
             Instructions = draft.Instructions,
             LanguageTag = draft.LanguageTag,
             Tags = draft.Tags,
-            PassingScore = draft.PassingScore,
+            PassingScorePercentage = draft.PassingScorePercentage,
             ConcurrencyStamp = draft.ConcurrencyStamp,
             Questions = draft.Questions.Reverse()
                 .Select((question, questionSortOrder) => new PaperQuestionInput

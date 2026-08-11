@@ -391,6 +391,7 @@ public sealed class OnlineQuizEndpointTests
             "en",
             [],
             PaperPublicationStatus.Draft,
+            60,
             0,
             0,
             0,

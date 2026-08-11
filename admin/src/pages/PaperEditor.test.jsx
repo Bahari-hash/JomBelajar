@@ -22,6 +22,7 @@ function paperDetail(overrides = {}) {
     tags: [],
     status: "Draft",
     passingScore: 0,
+    passingScorePercentage: 60,
     totalScore: 1,
     attemptCount: 0,
     createdBy: user,
@@ -74,6 +75,7 @@ describe("PaperEditor", () => {
     await user.click(screen.getByRole("button", { name: "删除标签 grammar" }));
     await user.click(screen.getByRole("button", { name: "添加题目" }));
     await user.type(screen.getByLabelText("题干 *"), "Hello means?");
+    expect(screen.getByLabelText("及格分百分比 *")).toHaveValue(60);
     await user.click(screen.getAllByRole("button", { name: "保存" })[0]);
 
     await waitFor(() =>
@@ -88,7 +90,7 @@ describe("PaperEditor", () => {
       instructions: null,
       languageTag: "ms",
       tags: ["a2"],
-      passingScore: 0,
+      passingScorePercentage: 60,
       questions: [
         {
           id: null,
@@ -104,6 +106,42 @@ describe("PaperEditor", () => {
         },
       ],
     });
+  });
+
+  it("keeps a cleared question score empty before accepting a replacement", async () => {
+    tokenVault.install("access", "refresh");
+    mockHttpClient(() => Promise.resolve(axiosResponse(paperDetail(), 200)));
+    const user = userEvent.setup();
+    renderAppAt("/papers/new");
+
+    await screen.findByLabelText("标题 *");
+    await user.click(screen.getByRole("button", { name: "添加题目" }));
+    const points = screen.getByLabelText("分值 *");
+
+    await user.clear(points);
+    expect(points).toHaveValue(null);
+    await user.type(points, "30");
+
+    expect(points).toHaveValue(30);
+  });
+  it("collapses completed questions and adds the next question in place", async () => {
+    tokenVault.install("access", "refresh");
+    mockHttpClient(() => Promise.resolve(axiosResponse(paperDetail(), 200)));
+    const user = userEvent.setup();
+    renderAppAt("/papers/new");
+
+    await screen.findByLabelText("标题 *");
+    await user.click(screen.getByRole("button", { name: "添加题目" }));
+    await user.type(screen.getByLabelText("题干 *"), "First question");
+    await user.click(screen.getByRole("button", { name: "收起并添加下一题" }));
+
+    expect(screen.getByRole("button", { name: "展开题目 1" })).toBeVisible();
+    expect(screen.getByText("First question")).toBeVisible();
+    expect(screen.getByRole("button", { name: "折叠题目 2" })).toBeVisible();
+    expect(screen.getAllByLabelText("题干 *")).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "展开题目 1" }));
+    expect(screen.getAllByLabelText("题干 *")).toHaveLength(2);
   });
 
   it("previews saved content without exposing the correct answer", async () => {

@@ -83,6 +83,46 @@ describe("WordEditor", () => {
     expect(screen.getByText("请输入释义语言。")).toBeVisible();
   });
 
+  it("collapses a completed sense and adds the next sense in place", async () => {
+    const user = userEvent.setup();
+    renderAppAt("/words/new");
+
+    await screen.findByLabelText("词头 *");
+    await user.click(screen.getByRole("button", { name: "添加释义" }));
+    await user.type(screen.getByLabelText("释义 *"), "第一条释义");
+    await user.click(
+      screen.getByRole("button", { name: "收起并添加下一条释义" }),
+    );
+
+    expect(screen.getByRole("button", { name: "展开释义 1" })).toBeVisible();
+    expect(screen.getByText("第一条释义")).toBeVisible();
+    expect(screen.getByRole("button", { name: "折叠释义 2" })).toBeVisible();
+    expect(screen.getAllByLabelText("释义 *")).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "展开释义 1" }));
+    expect(screen.getAllByLabelText("释义 *")).toHaveLength(2);
+  });
+
+  it("collapses a completed example and adds the next example in place", async () => {
+    const user = userEvent.setup();
+    renderAppAt("/words/new");
+
+    await screen.findByLabelText("词头 *");
+    await user.click(screen.getByRole("button", { name: "添加释义" }));
+    await user.click(screen.getByRole("button", { name: "添加例句" }));
+    await user.type(screen.getByLabelText("例句原文 *"), "第一条例句");
+    await user.click(
+      screen.getByRole("button", { name: "收起并添加下一条例句" }),
+    );
+
+    expect(screen.getByRole("button", { name: "展开例句 1" })).toBeVisible();
+    expect(screen.getByText("第一条例句")).toBeVisible();
+    expect(screen.getByRole("button", { name: "折叠例句 2" })).toBeVisible();
+    expect(screen.getAllByLabelText("例句原文 *")).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "展开例句 1" }));
+    expect(screen.getAllByLabelText("例句原文 *")).toHaveLength(2);
+  });
   it("preserves server child ids and concurrency stamp when updating", async () => {
     tokenVault.install("access", "refresh");
     const saved = {

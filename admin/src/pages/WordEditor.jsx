@@ -9,7 +9,7 @@ import {
   Volume2,
   Send,
   ChevronDown,
-  ChevronRight,
+  ChevronUp,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.jsx";
@@ -210,6 +210,8 @@ function WordEditor() {
   const blocker = useUnsavedChanges(dirty, allowNavigationRef);
 
   const [collapsedKeys, setCollapsedKeys] = useState({});
+  const senseCardRefs = useRef(new Map());
+  const exampleCardRefs = useRef(new Map());
 
   const toggleCollapse = (key) => {
     setCollapsedKeys((prev) => ({
@@ -218,6 +220,52 @@ function WordEditor() {
     }));
   };
 
+  const addSense = (afterSenseKey = null) => {
+    const sense = createSense();
+    const senses = [...form.senses];
+    const currentIndex = afterSenseKey
+      ? senses.findIndex((value) => value._key === afterSenseKey)
+      : senses.length - 1;
+    senses.splice(currentIndex + 1, 0, sense);
+    setForm({ ...form, senses });
+    setCollapsedKeys((current) => ({
+      ...current,
+      ...Object.fromEntries(form.senses.map((value) => [value._key, true])),
+      [sense._key]: false,
+    }));
+    window.setTimeout(() => {
+      const card = senseCardRefs.current.get(sense._key);
+      card?.focus?.();
+      card?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    }, 0);
+  };
+
+  const addExample = (senseKey, afterExampleKey = null) => {
+    const example = createExample(form.languageTag);
+    const sense = form.senses.find((value) => value._key === senseKey);
+    if (!sense) return;
+    const examples = [...sense.examples];
+    const currentIndex = afterExampleKey
+      ? examples.findIndex((value) => value._key === afterExampleKey)
+      : examples.length - 1;
+    examples.splice(currentIndex + 1, 0, example);
+    setForm({
+      ...form,
+      senses: form.senses.map((value) =>
+        value._key === senseKey ? { ...value, examples } : value,
+      ),
+    });
+    setCollapsedKeys((current) => ({
+      ...current,
+      ...Object.fromEntries(sense.examples.map((value) => [value._key, true])),
+      [example._key]: false,
+    }));
+    window.setTimeout(() => {
+      const card = exampleCardRefs.current.get(example._key);
+      card?.focus?.();
+      card?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    }, 0);
+  };
   useEffect(() => {
     allowNavigationRef.current = false;
   }, [wordId]);
@@ -226,6 +274,11 @@ function WordEditor() {
     const nextForm = formFromWord(saved);
     setWord(saved);
     setForm(nextForm);
+    setCollapsedKeys(
+      Object.fromEntries(
+        nextForm.senses.map((sense, index) => [sense._key, index !== 0]),
+      ),
+    );
     setBaseline(JSON.stringify(toPayload(nextForm, saved.concurrencyStamp)));
     setFieldErrors({});
     setFormError(null);
@@ -429,7 +482,7 @@ function WordEditor() {
         </Field>
       </section>
       <section className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-semibold">释义与例句</h2>
             <p className="text-sm text-muted-foreground">
@@ -441,9 +494,7 @@ function WordEditor() {
             size="sm"
             variant="outline"
             disabled={readOnly || form.senses.length >= 20}
-            onClick={() =>
-              setForm({ ...form, senses: [createSense(), ...form.senses] })
-            }
+            onClick={() => addSense()}
           >
             <Plus aria-hidden="true" />
             添加释义
@@ -455,27 +506,26 @@ function WordEditor() {
           </p>
         ) : (
           form.senses.map((sense, senseIndex) => (
-            <div key={sense._key} className="rounded-lg border p-4">
-              <div className="flex items-center justify-between gap-3">
-                {/* <h3 className="font-medium">释义 {senseIndex + 1}</h3> */}
-                <div
-                  className="flex flex-1 items-center gap-2 cursor-pointer select-none hover:text-primary"
-                  onClick={() => toggleCollapse(sense._key)}
-                >
-                  {collapsedKeys[sense._key] ? (
-                    <ChevronRight className="size-4" />
-                  ) : (
-                    <ChevronDown className="size-4" />
-                  )}
-                  <h3 className="font-medium whitespace-nowrap">
-                    释义 {senseIndex + 1}
-                  </h3>
-
-                  {collapsedKeys[sense._key] && (
-                    <span className="text-sm text-muted-foreground truncate max-w-50 sm:max-w-100">
-                      {sense.definition || "（未填写释义）"}
+            <div
+              key={sense._key}
+              ref={(node) => {
+                if (node) senseCardRefs.current.set(sense._key, node);
+                else senseCardRefs.current.delete(sense._key);
+              }}
+              className="overflow-hidden rounded-lg border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              tabIndex={-1}
+            >
+              <div className="flex items-start justify-between gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium">{`{ 释义 ${senseIndex + 1} }`}</h3>
+                    <span
+                      className="mt-1 truncate text-sm text-muted-foreground"
+                      title={sense.definition || "未填写释义"}
+                    >
+                      {sense.definition || "未填写释义"}
                     </span>
-                  )}
+                  </div>
                 </div>
                 <OrderButtons
                   label={`释义 ${senseIndex + 1}`}
@@ -497,9 +547,27 @@ function WordEditor() {
                     })
                   }
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={
+                    collapsedKeys[sense._key]
+                      ? `展开释义 ${senseIndex + 1}`
+                      : `折叠释义 ${senseIndex + 1}`
+                  }
+                  aria-expanded={!collapsedKeys[sense._key]}
+                  onClick={() => toggleCollapse(sense._key)}
+                >
+                  {collapsedKeys[sense._key] ? (
+                    <ChevronDown aria-hidden="true" />
+                  ) : (
+                    <ChevronUp aria-hidden="true" />
+                  )}
+                </Button>
               </div>
               {!collapsedKeys[sense._key] && (
-                <div className="mt-4 space-y-4">
+                <div className="space-y-4 border-t p-4">
                   <div className="grid gap-4 md:grid-cols-[10rem_1fr_10rem]">
                     <Field label="词性" required>
                       <Select
@@ -589,15 +657,7 @@ function WordEditor() {
                         size="sm"
                         variant="outline"
                         disabled={readOnly || sense.examples.length >= 20}
-                        onClick={() =>
-                          updateSense(sense._key, (item) => ({
-                            ...item,
-                            examples: [
-                              createExample(form.languageTag),
-                              ...item.examples,
-                            ],
-                          }))
-                        }
+                        onClick={() => addExample(sense._key)}
                       >
                         <Plus aria-hidden="true" />
                         添加例句
@@ -613,27 +673,27 @@ function WordEditor() {
                         return (
                           <div
                             key={example._key}
-                            className="space-y-3 border-t pt-3 first:border-t-0 first:pt-0"
+                            ref={(node) => {
+                              if (node)
+                                exampleCardRefs.current.set(example._key, node);
+                              else exampleCardRefs.current.delete(example._key);
+                            }}
+                            className="overflow-hidden rounded-lg border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            tabIndex={-1}
                           >
-                            <div className="flex items-center justify-between gap-3 mb-3">
-                              <div
-                                className="flex flex-1 items-center gap-2 cursor-pointer select-none hover:text-primary"
-                                onClick={() => toggleCollapse(example._key)}
-                              >
-                                {collapsedKeys[example._key] ? (
-                                  <ChevronRight className="size-4" />
-                                ) : (
-                                  <ChevronDown className="size-4" />
-                                )}
-                                <h4 className="text-sm font-medium whitespace-nowrap">
-                                  例句 {exampleIndex + 1}
-                                </h4>
+                            <div className="flex items-center justify-between gap-3 px-3 py-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-sm font-medium whitespace-nowrap">
+                                    [ 例句 {exampleIndex + 1} ]
+                                  </h4>
 
-                                {collapsedKeys[example._key] && (
-                                  <span className="text-sm text-muted-foreground truncate max-w-37.5 sm:max-w-75">
-                                    {example.sentence || "（未填写例句原文）"}
-                                  </span>
-                                )}
+                                  {collapsedKeys[example._key] && (
+                                    <span className="text-sm text-muted-foreground truncate max-w-37.5 sm:max-w-75">
+                                      {example.sentence || "（未填写例句原文）"}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
 
                               <OrderButtons
@@ -660,9 +720,27 @@ function WordEditor() {
                                   }))
                                 }
                               />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                aria-label={
+                                  collapsedKeys[example._key]
+                                    ? `展开例句 ${exampleIndex + 1}`
+                                    : `折叠例句 ${exampleIndex + 1}`
+                                }
+                                aria-expanded={!collapsedKeys[example._key]}
+                                onClick={() => toggleCollapse(example._key)}
+                              >
+                                {collapsedKeys[example._key] ? (
+                                  <ChevronDown className="size-4" />
+                                ) : (
+                                  <ChevronUp className="size-4" />
+                                )}
+                              </Button>
                             </div>
-                            {!collapsedKeys[[example._key]] && (
-                              <div className="flex flex-col gap-3">
+                            {!collapsedKeys[example._key] && (
+                              <div className="space-y-3 border-t p-3">
                                 <Field
                                   label="例句原文"
                                   required
@@ -789,12 +867,40 @@ function WordEditor() {
                                     }))
                                   }
                                 />
+                                <div className="flex justify-end border-t pt-3">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    // variant="outline"
+                                    disabled={
+                                      readOnly || sense.examples.length >= 20
+                                    }
+                                    onClick={() =>
+                                      addExample(sense._key, example._key)
+                                    }
+                                  >
+                                    <Plus aria-hidden="true" />
+                                    收起并添加下一条例句
+                                  </Button>
+                                </div>
                               </div>
                             )}
                           </div>
                         );
                       })
                     )}
+                  </div>
+                  <div className="flex justify-end border-t pt-4">
+                    <Button
+                      type="button"
+                      size="sm"
+                      // variant="outline"
+                      disabled={readOnly || form.senses.length >= 20}
+                      onClick={() => addSense(sense._key)}
+                    >
+                      <Plus aria-hidden="true" />
+                      收起并添加下一条释义
+                    </Button>
                   </div>
                 </div>
               )}

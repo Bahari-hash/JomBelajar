@@ -22,10 +22,22 @@ export interface PaperCatalogItem {
   publishedAt: string;
 }
 
+export interface PaperTagSummary {
+  name: string;
+  paperCount: number;
+}
+
+export interface PaperTagListQuery {
+  page: number;
+  pageSize: number;
+  keyword?: string;
+}
+
 export interface PaperListQuery {
   page: number;
   pageSize: number;
   keyword?: string;
+  tag?: string;
 }
 
 export interface PaperDetails extends PaperCatalogItem {

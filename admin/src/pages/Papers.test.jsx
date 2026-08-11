@@ -50,7 +50,7 @@ describe("Papers", () => {
     );
     const user = userEvent.setup();
     const { router } = renderAppAt("/papers", {
-      initialEntry: "/papers?status=Draft&language=en",
+      initialEntry: "/papers?status=Draft&language=en&tag=cet-4",
     });
 
     expect(
@@ -61,6 +61,57 @@ describe("Papers", () => {
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "重置筛选" }));
     await waitFor(() => expect(router.state.location.search).toBe(""));
+  });
+
+  it("applies a selected tag only after submitting filter drafts", async () => {
+    tokenVault.install("access", "refresh");
+    const requestMock = mockHttpClient((config) => {
+      if (config.url.startsWith("/admin/paper-tags"))
+        return Promise.resolve(
+          axiosResponse({
+            items: [{ name: "grammar", paperCount: 8 }],
+            page: 1,
+            pageSize: 20,
+            totalCount: 1,
+            totalPages: 1,
+          }),
+        );
+      return Promise.resolve(
+        axiosResponse({
+          items: [paperListItem()],
+          page: 1,
+          pageSize: 20,
+          totalCount: 1,
+          totalPages: 1,
+        }),
+      );
+    });
+    const user = userEvent.setup();
+    const { router } = renderAppAt("/papers");
+
+    expect(
+      await screen.findByRole("link", { name: "English basics" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("combobox", { name: "标签" }));
+    await user.click(await screen.findByRole("option", { name: "grammar 8" }));
+
+    expect(
+      requestMock.mock.calls
+        .map(([config]) => config.url)
+        .filter((url) => url.startsWith("/admin/papers?"))
+        .some((url) => url.includes("tag=grammar")),
+    ).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: "应用" }));
+    await waitFor(() => {
+      expect(router.state.location.search).toContain("tag=grammar");
+      expect(
+        requestMock.mock.calls
+          .map(([config]) => config.url)
+          .filter((url) => url.startsWith("/admin/papers?"))
+          .at(-1),
+      ).toContain("tag=grammar");
+    });
   });
 
   it("shows history locking in the table", async () => {

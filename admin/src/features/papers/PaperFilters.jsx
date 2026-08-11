@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.jsx";
 import { PAPER_STATUS_OPTIONS } from "@/constants/paperStatus.js";
+import { PaperTagCombobox } from "@/features/papers/PaperTagCombobox.jsx";
 
 const ALL = "all";
 const PAGE_SIZES = [20, 50, 100];
@@ -18,10 +19,10 @@ const PAGE_SIZES = [20, 50, 100];
 /** Edits paper list filters before applying them to shareable URL state. */
 export function PaperFilters({ filters, onApply, onReset }) {
   const [draft, setDraft] = useState(filters);
-  const { keyword, language, page, pageSize, status } = filters;
+  const { keyword, language, page, pageSize, status, tag } = filters;
   useEffect(
-    () => setDraft({ keyword, language, page, pageSize, status }),
-    [keyword, language, page, pageSize, status],
+    () => setDraft({ keyword, language, page, pageSize, status, tag }),
+    [keyword, language, page, pageSize, status, tag],
   );
   const update = (key, value) =>
     setDraft((current) => ({ ...current, [key]: value }));
@@ -33,18 +34,26 @@ export function PaperFilters({ filters, onApply, onReset }) {
       keyword: draft.keyword.trim(),
       language: draft.language.trim(),
       status: draft.status === ALL ? "" : draft.status,
+      tag: draft.tag,
       pageSize: Number(draft.pageSize),
     });
   };
 
   const handleReset = () => {
-    setDraft({ page: 1, pageSize: 20, keyword: "", language: "", status: "" });
+    setDraft({
+      page: 1,
+      pageSize: 20,
+      keyword: "",
+      language: "",
+      status: "",
+      tag: "",
+    });
     onReset();
   };
 
   return (
     <form onSubmit={handleSubmit} className="border-y py-4">
-      <div className="grid items-start gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-[16rem_8rem_6rem_auto]">
+      <div className="grid items-start gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-[16rem_repeat(2,8rem)_6rem_auto]">
         <TextFilter
           id="paper-keyword"
           label="关键词"
@@ -53,6 +62,13 @@ export function PaperFilters({ filters, onApply, onReset }) {
           placeholder="试卷标题"
           onChange={(value) => update("keyword", value)}
         />
+        <div className="min-w-0 space-y-1.5">
+          <Label>标签</Label>
+          <PaperTagCombobox
+            value={draft.tag}
+            onChange={(value) => update("tag", value)}
+          />
+        </div>
         {/* <TextFilter
           id="paper-language"
           label="语言"

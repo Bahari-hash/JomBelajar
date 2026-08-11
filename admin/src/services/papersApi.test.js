@@ -100,15 +100,78 @@ describe("papersApi", () => {
         keyword: "English",
         language: "en",
         status: "Draft",
+        tag: "cet-4",
       }),
     );
     await expect(request.unwrap()).resolves.toMatchObject({
       items: [{ title: "English basics", tags: ["grammar", "a2"] }],
     });
     expect(requestMock.mock.calls[0][0].url).toBe(
-      "/admin/papers?page=2&pageSize=20&keyword=English&language=en&status=Draft",
+      "/admin/papers?page=2&pageSize=20&keyword=English&language=en&status=Draft&tag=cet-4",
     );
     request.unsubscribe();
+  });
+
+  it("loads and validates the administrator Paper tag directory", async () => {
+    tokenVault.install("access", "refresh");
+    const requestMock = mockHttpClient(() =>
+      Promise.resolve(
+        axiosResponse({
+          items: [{ name: "grammar", paperCount: 8 }],
+          page: 1,
+          pageSize: 20,
+          totalCount: 1,
+          totalPages: 1,
+        }),
+      ),
+    );
+    const store = createAppStore();
+    await expect(
+      store
+        .dispatch(
+          papersApi.endpoints.getAdminPaperTags.initiate({
+            page: 1,
+            pageSize: 20,
+            keyword: "gram",
+          }),
+        )
+        .unwrap(),
+    ).resolves.toEqual({
+      items: [{ name: "grammar", paperCount: 8 }],
+      page: 1,
+      pageSize: 20,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    expect(requestMock.mock.calls[0][0].url).toBe(
+      "/admin/paper-tags?page=1&pageSize=20&keyword=gram",
+    );
+  });
+
+  it("rejects malformed Paper tag directory responses", async () => {
+    tokenVault.install("access", "refresh");
+    mockHttpClient(() =>
+      Promise.resolve(
+        axiosResponse({
+          items: [{ name: "", paperCount: 1 }],
+          page: 1,
+          pageSize: 20,
+          totalCount: 1,
+          totalPages: 1,
+        }),
+      ),
+    );
+    const store = createAppStore();
+    await expect(
+      store
+        .dispatch(
+          papersApi.endpoints.getAdminPaperTags.initiate({
+            page: 1,
+            pageSize: 20,
+          }),
+        )
+        .unwrap(),
+    ).rejects.toMatchObject({ status: "CUSTOM_ERROR", kind: "contract" });
   });
 
   it("uses exact aggregate, validation and lifecycle contracts", async () => {

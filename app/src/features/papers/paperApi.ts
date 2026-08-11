@@ -6,6 +6,8 @@ import type {
   PaperCatalogItem,
   PaperDetails,
   PaperListQuery,
+  PaperTagListQuery,
+  PaperTagSummary,
   PagedResponse,
   SavePaperAnswerRequest,
 } from "@/features/papers/paperTypes";
@@ -24,11 +26,24 @@ export interface AnswerIdentity {
 export const paperApi = createApi({
   reducerPath: "paperApi",
   baseQuery: axiosBaseQuery(),
-  tagTypes: ["PaperCatalog", "Paper", "PaperAttempt", "PaperAttemptResult"],
+  tagTypes: [
+    "PaperCatalog",
+    "PaperTagCatalog",
+    "Paper",
+    "PaperAttempt",
+    "PaperAttemptResult",
+  ],
   endpoints: (builder) => ({
     getPapers: builder.query<PagedResponse<PaperCatalogItem>, PaperListQuery>({
       query: (params) => ({ url: "/papers", params }),
       providesTags: ["PaperCatalog"],
+    }),
+    getPaperTags: builder.query<
+      PagedResponse<PaperTagSummary>,
+      PaperTagListQuery
+    >({
+      query: (params) => ({ url: "/paper-tags", params }),
+      providesTags: ["PaperTagCatalog"],
     }),
     getPaper: builder.query<PaperDetails, string>({
       query: (paperId) => ({ url: `/papers/${paperId}` }),
@@ -126,6 +141,7 @@ export const paperApi = createApi({
 
 export const {
   useGetPapersQuery,
+  useGetPaperTagsQuery,
   useGetPaperQuery,
   useStartAttemptMutation,
   useGetAttemptQuery,

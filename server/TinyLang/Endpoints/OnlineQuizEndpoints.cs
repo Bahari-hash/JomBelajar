@@ -33,6 +33,10 @@ public static class OnlineQuizEndpoints
         admin.MapPost("/{paperId:guid}/unpublish", UnpublishPaperAsync);
         admin.MapPost("/{paperId:guid}/archive", ArchivePaperAsync);
         admin.MapDelete("/{paperId:guid}", DeletePaperAsync);
+        endpoints.MapGet("/paper-tags", GetPaperTagsAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
+        endpoints.MapGet("/admin/paper-tags", GetAdminPaperTagsAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
         var papers = endpoints.MapGroup("/papers")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
@@ -187,6 +191,27 @@ public static class OnlineQuizEndpoints
         return TypedResults.NoContent();
     }
 
+    /// <summary>
+    /// 获取当前用户可见的已发布试卷标签目录。
+    /// </summary>
+    public static async Task<Ok<PagedResponse<PaperTagSummaryResponse>>> GetPaperTagsAsync(
+        [AsParameters] PaperTagListRequest request,
+        IPaperService paperService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await paperService.GetPublicTagListAsync(
+            request,
+            cancellationToken));
+
+    /// <summary>
+    /// 获取管理员可见的全部试卷标签目录。
+    /// </summary>
+    public static async Task<Ok<PagedResponse<PaperTagSummaryResponse>>> GetAdminPaperTagsAsync(
+        [AsParameters] PaperTagListRequest request,
+        IPaperService paperService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await paperService.GetAdminTagListAsync(
+            request,
+            cancellationToken));
     /// <summary>
     /// 获取当前用户可见的已发布试卷分页目录。
     /// </summary>

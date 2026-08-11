@@ -2,6 +2,7 @@ import { baseApi } from "@/services/baseApi.js";
 import {
   normalizeAdminPaper,
   normalizePaperPage,
+  normalizePaperTagPage,
   normalizePaperValidation,
 } from "@/services/paperContracts.js";
 
@@ -36,6 +37,7 @@ function buildListUrl(filters) {
   if (filters.keyword) params.set("keyword", filters.keyword);
   if (filters.language) params.set("language", filters.language);
   if (filters.status) params.set("status", filters.status);
+  if (filters.tag) params.set("tag", filters.tag);
   return `/admin/papers?${params.toString()}`;
 }
 
@@ -45,6 +47,7 @@ function invalidatePaper(_result, error, { paperId }) {
     : [
         { type: "Paper", id: paperId },
         { type: "Paper", id: "LIST" },
+        { type: "Paper", id: "TAG_LIST" },
       ];
 }
 
@@ -67,6 +70,17 @@ export const papersApi = baseApi.injectEndpoints({
             ]
           : [{ type: "Paper", id: "LIST" }],
     }),
+    getAdminPaperTags: builder.query({
+      queryFn: normalizedQuery(({ page, pageSize, keyword }) => {
+        const params = new URLSearchParams({
+          page: String(page),
+          pageSize: String(pageSize),
+        });
+        if (keyword) params.set("keyword", keyword);
+        return { url: `/admin/paper-tags?${params.toString()}` };
+      }, normalizePaperTagPage),
+      providesTags: [{ type: "Paper", id: "TAG_LIST" }],
+    }),
     getAdminPaper: builder.query({
       queryFn: normalizedQuery(
         (paperId) => ({ url: `/admin/papers/${paperId}` }),
@@ -82,7 +96,12 @@ export const papersApi = baseApi.injectEndpoints({
         normalizeAdminPaper,
       ),
       invalidatesTags: (_result, error) =>
-        error ? [] : [{ type: "Paper", id: "LIST" }],
+        error
+          ? []
+          : [
+              { type: "Paper", id: "LIST" },
+              { type: "Paper", id: "TAG_LIST" },
+            ],
     }),
     updatePaper: builder.mutation({
       queryFn: normalizedQuery(
@@ -155,6 +174,7 @@ export const {
   useDeletePaperMutation,
   useGetAdminPaperQuery,
   useGetAdminPapersQuery,
+  useGetAdminPaperTagsQuery,
   usePublishPaperMutation,
   useUnpublishPaperMutation,
   useUpdatePaperMutation,

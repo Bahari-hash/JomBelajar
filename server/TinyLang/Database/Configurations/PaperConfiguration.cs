@@ -25,6 +25,7 @@ public sealed class PaperConfiguration : IEntityTypeConfiguration<Paper>
             .HasColumnType("text[]")
             .HasDefaultValueSql("'{}'::text[]")
             .IsRequired();
+        builder.HasIndex(value => value.Tags).HasMethod("gin");
         builder.Property(value => value.Status)
             .HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();

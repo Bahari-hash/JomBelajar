@@ -42,7 +42,7 @@ function Papers() {
   }, [data, filters, setSearchParams]);
 
   const hasFilters = Boolean(
-    filters.keyword || filters.language || filters.status,
+    filters.keyword || filters.language || filters.status || filters.tag,
   );
 
   return (

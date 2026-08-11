@@ -31,12 +31,14 @@ export default function PaperCard({ paper, listPath }: PaperCardProps) {
           {paper.tags.length > 0 ? (
             <div className="contents" aria-label="试卷标签">
               {paper.tags.map((tag) => (
-                <span
+                <Link
                   key={tag}
-                  className="badge badge-outline hover:bg-base-200"
+                  className="badge badge-outline max-w-full truncate hover:bg-base-200"
+                  title={tag}
+                  to={`/papers?${new URLSearchParams({ tag }).toString()}`}
                 >
                   {tag}
-                </span>
+                </Link>
               ))}
             </div>
           ) : null}

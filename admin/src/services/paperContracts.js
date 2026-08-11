@@ -275,25 +275,38 @@ export function normalizePaperValidation(value) {
   };
 }
 
-export function normalizePaperPage(value) {
-  const source = object(value, "paper pagination");
+export function normalizePaperTag(value) {
+  const source = object(value, "Paper tag");
   return {
-    items: array(
-      source.items,
-      normalizePaperListItem,
-      "paper pagination items",
-    ),
-    page: number(source.page, "paper page", { integer: true, minimum: 1 }),
-    pageSize: number(source.pageSize, "paper page size", {
+    name: nonEmptyString(source.name, "Paper tag name"),
+    paperCount: number(source.paperCount, "Paper tag count", {
+      integer: true,
+    }),
+  };
+}
+
+function normalizePage(value, normalizeItem, name) {
+  const source = object(value, name);
+  return {
+    items: array(source.items, normalizeItem, `${name} items`),
+    page: number(source.page, `${name} page`, { integer: true, minimum: 1 }),
+    pageSize: number(source.pageSize, `${name} page size`, {
       integer: true,
       minimum: 1,
       maximum: 100,
     }),
-    totalCount: number(source.totalCount, "paper total count", {
+    totalCount: number(source.totalCount, `${name} total count`, {
       integer: true,
     }),
-    totalPages: number(source.totalPages, "paper total pages", {
+    totalPages: number(source.totalPages, `${name} total pages`, {
       integer: true,
     }),
   };
+}
+
+export const normalizePaperTagPage = (value) =>
+  normalizePage(value, normalizePaperTag, "Paper tag page");
+
+export function normalizePaperPage(value) {
+  return normalizePage(value, normalizePaperListItem, "paper pagination");
 }

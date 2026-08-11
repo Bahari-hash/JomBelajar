@@ -1,11 +1,13 @@
 export const PAPER_PAGE_SIZE = 12;
 export const MAX_PAPER_KEYWORD_LENGTH = 200;
+export const MAX_PAPER_TAG_LENGTH = 30;
 
 const GUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface PaperSearchState {
   keyword: string;
+  tag: string | null;
   page: number;
 }
 
@@ -27,6 +29,15 @@ function normalizeKeyword(value: string) {
   return keyword.length <= MAX_PAPER_KEYWORD_LENGTH &&
     !hasPaperControlCharacters(keyword)
     ? keyword
+    : null;
+}
+
+function normalizeTag(value: string) {
+  const tag = value.trim().toLowerCase();
+  return tag &&
+    tag.length <= MAX_PAPER_TAG_LENGTH &&
+    !hasPaperControlCharacters(tag)
+    ? tag
     : null;
 }
 
@@ -56,8 +67,13 @@ export function parsePaperSearchParams(
     normalizeKeyword,
     "",
   );
+  const tag = getFirstSafeValue(
+    params.getAll("tag"),
+    normalizeTag,
+    null as string | null,
+  );
   const page = getFirstSafeValue(params.getAll("page"), normalizePage, 1);
-  const state = { keyword, page };
+  const state = { keyword, tag, page };
   const normalizedParams = createPaperSearchParams(state);
 
   return {
@@ -71,6 +87,8 @@ export function createPaperSearchParams(state: PaperSearchState) {
   const params = new URLSearchParams();
   const keyword = normalizeKeyword(state.keyword) ?? "";
   if (keyword) params.set("keyword", keyword);
+  const tag = state.tag == null ? null : normalizeTag(state.tag);
+  if (tag) params.set("tag", tag);
   if (Number.isSafeInteger(state.page) && state.page > 1) {
     params.set("page", String(state.page));
   }

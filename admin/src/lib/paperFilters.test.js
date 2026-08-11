@@ -9,8 +9,21 @@ describe("paper filters", () => {
       keyword: "beginner",
       language: "en",
       status: "Published",
+      tag: "cet-4",
     };
     expect(readPaperFilters(writePaperFilters(filters))).toEqual(filters);
+  });
+
+  it("normalizes Paper tag URL state", () => {
+    const filters = readPaperFilters(
+      new URLSearchParams("tag=%20CET-4%20&page=2"),
+    );
+
+    expect(filters.tag).toBe("cet-4");
+    expect(writePaperFilters(filters).toString()).toBe("page=2&tag=cet-4");
+    expect(
+      readPaperFilters(new URLSearchParams(`tag=${"a".repeat(31)}`)).tag,
+    ).toBe("");
   });
 
   it("replaces unsafe or unsupported values with defaults", () => {
@@ -26,6 +39,7 @@ describe("paper filters", () => {
       keyword: "",
       language: "",
       status: "",
+      tag: "",
     });
   });
 });

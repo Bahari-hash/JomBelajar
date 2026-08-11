@@ -18,6 +18,135 @@ namespace TinyLang.IntegrationTests;
 public sealed class OnlineQuizDatabaseIntegrationTests
 {
     /// <summary>
+    /// 在真实 PostgreSQL 上验证标签精确筛选、目录可见性及 unnest 聚合排序。
+    /// </summary>
+    [Fact]
+    public async Task PaperTagQueriesShouldTranslateAndRespectVisibility()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            "TINYLANG_POSTGRES_TEST_CONNECTION_STRING");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            Assert.Skip(
+                "Set TINYLANG_POSTGRES_TEST_CONNECTION_STRING to run PostgreSQL online quiz tests.");
+        }
+
+        var schema = $"tiny_lang_tags_{Guid.NewGuid():N}";
+        await using var adminConnection = new NpgsqlConnection(connectionString);
+        await adminConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await ExecuteSchemaCommandAsync(
+            adminConnection,
+            $"CREATE SCHEMA \"{schema}\"",
+            TestContext.Current.CancellationToken);
+
+        try
+        {
+            var schemaConnection = new NpgsqlConnectionStringBuilder(connectionString)
+            {
+                SearchPath = schema
+            }.ConnectionString;
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseNpgsql(schemaConnection)
+                .AddInterceptors(new AuditableEntityInterceptor())
+                .Options;
+            await using (var migrationDb = new ApplicationDbContext(options))
+            {
+                await migrationDb.Database.MigrateAsync(
+                    TestContext.Current.CancellationToken);
+            }
+
+            await using var db = new ApplicationDbContext(options);
+            var admin = await CreateUserAsync(db, UserRole.Admin);
+            var paperService = CreatePaperService(db);
+            var firstPublishedId = await CreatePaperWithStatusAsync(
+                paperService,
+                admin.Id,
+                "Tag Search Alpha",
+                ["Grammar", "rank-top", "rank-beta"],
+                PaperPublicationStatus.Published);
+            var secondPublishedId = await CreatePaperWithStatusAsync(
+                paperService,
+                admin.Id,
+                "Tag Search Beta",
+                ["grammar", "rank-top", "rank-alpha"],
+                PaperPublicationStatus.Published);
+            var thirdPublishedId = await CreatePaperWithStatusAsync(
+                paperService,
+                admin.Id,
+                "Tag Search Gamma",
+                ["grammar"],
+                PaperPublicationStatus.Published);
+            var draftId = await CreatePaperWithStatusAsync(
+                paperService,
+                admin.Id,
+                "Tag Search Draft",
+                ["draft-only"],
+                PaperPublicationStatus.Draft);
+            var archivedId = await CreatePaperWithStatusAsync(
+                paperService,
+                admin.Id,
+                "Tag Search Archived",
+                ["archived-only"],
+                PaperPublicationStatus.Archived);
+
+            var exactCatalog = await paperService.GetCatalogAsync(
+                new PaperCatalogRequest { Tag = " GRAMMAR " },
+                TestContext.Current.CancellationToken);
+            exactCatalog.Items.Select(value => value.Id).Should().BeEquivalentTo(
+                [firstPublishedId, secondPublishedId, thirdPublishedId]);
+            var partialCatalog = await paperService.GetCatalogAsync(
+                new PaperCatalogRequest { Tag = "gram" },
+                TestContext.Current.CancellationToken);
+            partialCatalog.Items.Should().BeEmpty();
+
+            var draftList = await paperService.GetAdminListAsync(
+                new AdminPaperListRequest { Tag = "DRAFT-ONLY" },
+                TestContext.Current.CancellationToken);
+            draftList.Items.Should().ContainSingle(value => value.Id == draftId);
+            var archivedList = await paperService.GetAdminListAsync(
+                new AdminPaperListRequest
+                {
+                    Tag = "ARCHIVED-ONLY",
+                    Status = PaperPublicationStatus.Archived
+                },
+                TestContext.Current.CancellationToken);
+            archivedList.Items.Should().ContainSingle(value => value.Id == archivedId);
+
+            var publicTags = await paperService.GetPublicTagListAsync(
+                new PaperTagListRequest { PageSize = 20 },
+                TestContext.Current.CancellationToken);
+            publicTags.Items.Should().Contain(value =>
+                value.Name == "grammar" && value.PaperCount == 3);
+            publicTags.Items.Should().NotContain(value =>
+                value.Name == "draft-only" || value.Name == "archived-only");
+
+            var adminTags = await paperService.GetAdminTagListAsync(
+                new PaperTagListRequest { PageSize = 20 },
+                TestContext.Current.CancellationToken);
+            adminTags.Items.Should().Contain(value =>
+                value.Name == "draft-only" && value.PaperCount == 1);
+            adminTags.Items.Should().Contain(value =>
+                value.Name == "archived-only" && value.PaperCount == 1);
+
+            var rankedTags = await paperService.GetPublicTagListAsync(
+                new PaperTagListRequest { Keyword = "RANK", PageSize = 20 },
+                TestContext.Current.CancellationToken);
+            rankedTags.Items.Select(value => (value.Name, value.PaperCount)).Should()
+                .Equal(
+                    ("rank-top", 2),
+                    ("rank-alpha", 1),
+                    ("rank-beta", 1));
+        }
+        finally
+        {
+            await ExecuteSchemaCommandAsync(
+                adminConnection,
+                $"DROP SCHEMA IF EXISTS \"{schema}\" CASCADE",
+                TestContext.Current.CancellationToken);
+        }
+    }
+
+    /// <summary>
     /// 在隔离 schema 中验证完整测验流程和 PostgreSQL 专属约束。
     /// </summary>
     [Fact]
@@ -495,6 +624,57 @@ public sealed class OnlineQuizDatabaseIntegrationTests
             new PostgresDatabaseExceptionClassifier(),
             TimeProvider.System,
             NullLogger<PaperService>.Instance);
+
+    /// <summary>
+    /// 创建指定发布状态的规范化标签试卷并返回其标识。
+    /// </summary>
+    private static async Task<Guid> CreatePaperWithStatusAsync(
+        PaperService paperService,
+        Guid adminId,
+        string title,
+        IReadOnlyCollection<string> tags,
+        PaperPublicationStatus status)
+    {
+        var draft = await paperService.CreateDraftAsync(
+            adminId,
+            CreateCompleteRequest() with { Title = title, Tags = tags },
+            TestContext.Current.CancellationToken);
+        if (status == PaperPublicationStatus.Draft)
+        {
+            return draft.Id;
+        }
+
+        var published = await paperService.PublishAsync(
+            draft.Id,
+            adminId,
+            new PaperMutationRequest
+            {
+                ConcurrencyStamp = draft.ConcurrencyStamp
+            },
+            TestContext.Current.CancellationToken);
+        if (status == PaperPublicationStatus.Published)
+        {
+            return published.Id;
+        }
+
+        var unpublished = await paperService.UnpublishAsync(
+            published.Id,
+            adminId,
+            new PaperMutationRequest
+            {
+                ConcurrencyStamp = published.ConcurrencyStamp
+            },
+            TestContext.Current.CancellationToken);
+        var archived = await paperService.ArchiveAsync(
+            unpublished.Id,
+            adminId,
+            new PaperMutationRequest
+            {
+                ConcurrencyStamp = unpublished.ConcurrencyStamp
+            },
+            TestContext.Current.CancellationToken);
+        return archived.Id;
+    }
 
     /// <summary>
     /// 创建真实数据库测试使用的测验服务。

@@ -87,6 +87,7 @@ public sealed record AdminPaperListRequest
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
     public string? Language { get; init; }
+    public string? Tag { get; init; }
     public PaperPublicationStatus? Status { get; init; }
 }
 
@@ -99,8 +100,23 @@ public sealed record PaperCatalogRequest
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
     public string? Language { get; init; }
+    public string? Tag { get; init; }
 }
 
+/// <summary>
+/// 描述试卷标签目录的分页和名称搜索条件。
+/// </summary>
+public sealed record PaperTagListRequest
+{
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+    public string? Keyword { get; init; }
+}
+
+/// <summary>
+/// 返回规范标签及其可见试卷数量。
+/// </summary>
+public sealed record PaperTagSummaryResponse(string Name, int PaperCount);
 /// <summary>
 /// 描述当前用户指定试卷测验历史的分页条件。
 /// </summary>

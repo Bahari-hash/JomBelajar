@@ -462,7 +462,8 @@ public sealed class AdminPaperListRequestValidator
             value => value.Page,
             value => value.PageSize,
             value => value.Keyword,
-            value => value.Language);
+            value => value.Language,
+            value => value.Tag);
         RuleFor(value => value.Status)
             .Must(value => value is null || Enum.IsDefined(value.Value))
             .WithErrKey(ErrorCodes.PaperStatusInvalid);
@@ -484,10 +485,32 @@ public sealed class PaperCatalogRequestValidator : AbstractValidator<PaperCatalo
             value => value.Page,
             value => value.PageSize,
             value => value.Keyword,
-            value => value.Language);
+            value => value.Language,
+            value => value.Tag);
     }
 }
 
+/// <summary>
+/// 校验标签目录的分页和名称搜索条件。
+/// </summary>
+public sealed class PaperTagListRequestValidator
+    : AbstractValidator<PaperTagListRequest>
+{
+    /// <summary>
+    /// 初始化标签目录的有界列表规则。
+    /// </summary>
+    public PaperTagListRequestValidator()
+    {
+        RuleFor(value => value.Page)
+            .GreaterThanOrEqualTo(1).WithErrKey(ErrorCodes.PageInvalid);
+        RuleFor(value => value.PageSize)
+            .InclusiveBetween(1, 100).WithErrKey(ErrorCodes.PageSizeInvalid);
+        RuleFor(value => value.Keyword)
+            .MaximumLength(200).WithErrKey(ErrorCodes.KeywordLengthLimit)
+            .Must(value => string.IsNullOrEmpty(value) || !value.Any(char.IsControl))
+            .WithErrKey(ErrorCodes.KeywordInvalid);
+    }
+}
 /// <summary>
 /// 校验用户测验历史的有界分页参数。
 /// </summary>
@@ -550,7 +573,8 @@ internal static class OnlineQuizListValidationRules
         Expression<Func<T, int>> pageExpression,
         Expression<Func<T, int>> pageSizeExpression,
         Expression<Func<T, string?>> keywordExpression,
-        Expression<Func<T, string?>> languageExpression)
+        Expression<Func<T, string?>> languageExpression,
+        Expression<Func<T, string?>> tagExpression)
         where T : class
     {
         var getLanguage = languageExpression.Compile();
@@ -572,5 +596,10 @@ internal static class OnlineQuizListValidationRules
             .Matches(MediaValidationPatterns.LanguageTag())
             .When(value => !string.IsNullOrWhiteSpace(getLanguage(value)))
             .WithErrKey(ErrorCodes.PaperLanguageInvalid);
+        validator.RuleFor(tagExpression)
+            .MaximumLength(OnlineQuizConstraints.MaxPaperTagLength)
+            .WithErrKey(ErrorCodes.PaperTagLengthLimit)
+            .Must(value => value is null || !value.Any(char.IsControl))
+            .WithErrKey(ErrorCodes.PaperTagInvalid);
     }
 }

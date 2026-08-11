@@ -4,7 +4,10 @@ import { useSearchParams } from "react-router-dom";
 import PaperCard from "@/features/papers/PaperCard";
 import PaperFilters from "@/features/papers/PaperFilters";
 import PaperPagination from "@/features/papers/PaperPagination";
-import { useGetPapersQuery } from "@/features/papers/paperApi";
+import {
+  useGetPaperTagsQuery,
+  useGetPapersQuery,
+} from "@/features/papers/paperApi";
 import {
   createPaperSearchParams,
   hasPaperControlCharacters,
@@ -16,18 +19,25 @@ import {
 import { getPaperErrorMessage } from "@/features/papers/paperUtils";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
+const INITIAL_PAPER_TAG_PAGE_SIZE = 6;
+
 export default function PapersPage() {
   useDocumentTitle("在线测试");
   const [searchParams, setSearchParams] = useSearchParams();
   const parsed = parsePaperSearchParams(searchParams);
-  const { keyword, page } = parsed.state;
+  const { keyword, tag, page } = parsed.state;
   const [keywordDraft, setKeywordDraft] = useState(keyword);
   const [keywordError, setKeywordError] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const query = useGetPapersQuery({
+  const papersQuery = useGetPapersQuery({
     page,
     pageSize: PAPER_PAGE_SIZE,
     keyword: keyword || undefined,
+    tag: tag || undefined,
+  });
+  const tagsQuery = useGetPaperTagsQuery({
+    page: 1,
+    pageSize: INITIAL_PAPER_TAG_PAGE_SIZE,
   });
 
   useEffect(() => {
@@ -39,16 +49,17 @@ export default function PapersPage() {
     setKeywordError(null);
   }, [keyword]);
   useEffect(() => {
-    const totalPages = query.data?.totalPages;
+    const totalPages = papersQuery.data?.totalPages;
     if (totalPages && page > totalPages)
-      setSearchParams(createPaperSearchParams({ keyword, page: totalPages }), {
-        replace: true,
-      });
+      setSearchParams(
+        createPaperSearchParams({ keyword, tag, page: totalPages }),
+        { replace: true },
+      );
     else if (totalPages === 0 && page !== 1)
-      setSearchParams(createPaperSearchParams({ keyword, page: 1 }), {
+      setSearchParams(createPaperSearchParams({ keyword, tag, page: 1 }), {
         replace: true,
       });
-  }, [keyword, page, query.data?.totalPages, setSearchParams]);
+  }, [keyword, page, papersQuery.data?.totalPages, setSearchParams, tag]);
 
   const updateSearch = (state: PaperSearchState, replace = false) =>
     setSearchParams(createPaperSearchParams(state), { replace });
@@ -59,9 +70,9 @@ export default function PapersPage() {
     if (hasPaperControlCharacters(next))
       return setKeywordError("搜索关键词包含无效字符。");
     setKeywordError(null);
-    updateSearch({ keyword: next, page: 1 });
+    updateSearch({ keyword: next, tag, page: 1 });
   };
-  const hasFilters = Boolean(keyword);
+  const hasFilters = Boolean(keyword || tag);
   const listPath = `/papers${searchParams.size ? `?${searchParams}` : ""}`;
 
   return (
@@ -78,18 +89,27 @@ export default function PapersPage() {
         </p>
       </header>
       <PaperFilters
+        hasMoreTags={(tagsQuery.data?.totalPages ?? 0) > 1}
         keywordDraft={keywordDraft}
         keywordError={keywordError}
+        selectedTag={tag}
+        tags={tagsQuery.data?.items ?? []}
+        tagsError={tagsQuery.error}
+        tagsLoading={tagsQuery.isLoading}
+        onClearKeyword={() => {
+          setKeywordDraft("");
+          setKeywordError(null);
+          updateSearch({ keyword: "", tag, page: 1 });
+        }}
         onKeywordChange={(value) => {
           setKeywordDraft(value);
           if (keywordError) setKeywordError(null);
         }}
+        onRetryTags={() => tagsQuery.refetch()}
         onSearch={submitSearch}
-        onClear={() => {
-          setKeywordDraft("");
-          setKeywordError(null);
-          updateSearch({ keyword: "", page: 1 });
-        }}
+        onSelectTag={(nextTag) =>
+          updateSearch({ keyword, tag: nextTag, page: 1 })
+        }
       />
       <section aria-labelledby="paper-results-heading" className="space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -103,12 +123,12 @@ export default function PapersPage() {
               试卷列表
             </h2>
             <p className="mt-1 text-sm text-base-content/65" aria-live="polite">
-              {query.data
-                ? `${hasFilters ? "当前筛选找到" : "共"} ${query.data.totalCount} 份试卷${keyword ? ` · “${keyword}”` : ""}`
+              {papersQuery.data
+                ? `${hasFilters ? "当前筛选找到" : "共"} ${papersQuery.data.totalCount} 份试卷${tag ? ` · #${tag}` : ""}${keyword ? ` · “${keyword}”` : ""}`
                 : "正在获取试卷数量..."}
             </p>
           </div>
-          {query.isFetching && !query.isLoading ? (
+          {papersQuery.isFetching && !papersQuery.isLoading ? (
             <span
               className="loading loading-spinner loading-sm"
               aria-label="正在刷新试卷"
@@ -116,7 +136,7 @@ export default function PapersPage() {
             />
           ) : null}
         </div>
-        {query.isLoading ? (
+        {papersQuery.isLoading ? (
           <div
             className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
             aria-label="试卷加载中"
@@ -136,33 +156,35 @@ export default function PapersPage() {
               </div>
             ))}
           </div>
-        ) : query.isError && !query.data ? (
+        ) : papersQuery.isError && !papersQuery.data ? (
           <div
             className="border-y border-base-300 py-12 text-center"
             role="alert"
           >
-            <p className="font-semibold">{getPaperErrorMessage(query.error)}</p>
+            <p className="font-semibold">
+              {getPaperErrorMessage(papersQuery.error)}
+            </p>
             <button
               className="btn btn-outline btn-sm mt-4"
               type="button"
-              onClick={() => query.refetch()}
+              onClick={() => papersQuery.refetch()}
             >
               <RotateCcw aria-hidden="true" className="size-4" />
               重新加载
             </button>
           </div>
-        ) : query.data?.items.length ? (
+        ) : papersQuery.data?.items.length ? (
           <>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {query.data.items.map((paper) => (
+              {papersQuery.data.items.map((paper) => (
                 <PaperCard key={paper.id} paper={paper} listPath={listPath} />
               ))}
             </div>
             <PaperPagination
               page={page}
-              totalPages={query.data.totalPages}
+              totalPages={papersQuery.data.totalPages}
               onPageChange={(next) => {
-                updateSearch({ keyword, page: next });
+                updateSearch({ keyword, tag, page: next });
                 requestAnimationFrame(() => {
                   headingRef.current?.focus({ preventScroll: true });
                   headingRef.current?.scrollIntoView({ block: "start" });
@@ -181,7 +203,7 @@ export default function PapersPage() {
             </h3>
             <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-base-content/65">
               {hasFilters
-                ? "可以清除当前筛选，或者换一个关键词重新搜索。"
+                ? "可以清除当前筛选，或者更换关键词或标签重新搜索。"
                 : "试卷发布后会显示在这里，请稍后再来看看。"}
             </p>
             {hasFilters ? (
@@ -190,7 +212,8 @@ export default function PapersPage() {
                 type="button"
                 onClick={() => {
                   setKeywordDraft("");
-                  updateSearch({ keyword: "", page: 1 });
+                  setKeywordError(null);
+                  updateSearch({ keyword: "", tag: null, page: 1 });
                 }}
               >
                 <RotateCcw aria-hidden="true" className="size-4" />

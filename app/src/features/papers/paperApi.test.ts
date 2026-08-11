@@ -115,7 +115,13 @@ describe("paperApi", () => {
           page: 2,
           pageSize: 12,
           keyword: "grammar",
+          tag: "cet-4",
         }),
+      )
+      .unwrap();
+    await store
+      .dispatch(
+        paperApi.endpoints.getPaperTags.initiate({ page: 1, pageSize: 6 }),
       )
       .unwrap();
     await store
@@ -156,6 +162,7 @@ describe("paperApi", () => {
 
     expect(requests.map((request) => [request.method, request.url])).toEqual([
       ["get", "/papers"],
+      ["get", "/paper-tags"],
       ["get", `/papers/${PAPER_ID}`],
       ["post", `/papers/${PAPER_ID}/attempts`],
       ["get", `/paper-attempts/${ATTEMPT_ID}`],
@@ -166,9 +173,17 @@ describe("paperApi", () => {
       ["get", `/paper-attempts/${ATTEMPT_ID}`],
     ]);
     expect(requests[0]).toMatchObject({
-      params: { page: 2, pageSize: 12, keyword: "grammar" },
+      params: {
+        page: 2,
+        pageSize: 12,
+        keyword: "grammar",
+        tag: "cet-4",
+      },
     });
-    expect(JSON.parse(requests[5]!.data as string)).toEqual({
+    expect(requests[1]).toMatchObject({
+      params: { page: 1, pageSize: 6 },
+    });
+    expect(JSON.parse(requests[6]!.data as string)).toEqual({
       selectedOptionId: OPTION_ID,
     });
     expect(

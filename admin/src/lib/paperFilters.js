@@ -17,6 +17,10 @@ function parseText(value, maximum) {
     : "";
 }
 
+function parseTag(value) {
+  return parseText(value, 30).toLowerCase();
+}
+
 /** Normalizes shareable administrator paper list filters. */
 export function readPaperFilters(searchParams) {
   const status = searchParams.get("status");
@@ -26,6 +30,7 @@ export function readPaperFilters(searchParams) {
     keyword: parseText(searchParams.get("keyword"), 200),
     language: parseText(searchParams.get("language"), 35),
     status: VALID_STATUSES.has(status) ? status : "",
+    tag: parseTag(searchParams.get("tag")),
   };
 }
 
@@ -33,7 +38,7 @@ export function writePaperFilters(filters) {
   const params = new URLSearchParams();
   if (filters.page !== 1) params.set("page", String(filters.page));
   if (filters.pageSize !== 20) params.set("pageSize", String(filters.pageSize));
-  for (const key of ["keyword", "language", "status"]) {
+  for (const key of ["keyword", "language", "status", "tag"]) {
     if (filters[key]) params.set(key, filters[key]);
   }
   return params;

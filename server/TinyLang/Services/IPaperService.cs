@@ -90,6 +90,19 @@ public interface IPaperService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 获取已发布试卷使用的公开标签目录。
+    /// </summary>
+    Task<PagedResponse<PaperTagSummaryResponse>> GetPublicTagListAsync(
+        PaperTagListRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取包含全部试卷状态的管理员标签目录。
+    /// </summary>
+    Task<PagedResponse<PaperTagSummaryResponse>> GetAdminTagListAsync(
+        PaperTagListRequest request,
+        CancellationToken cancellationToken = default);
+    /// <summary>
     /// 获取不包含题目答案的已发布试卷详情。
     /// </summary>
     Task<PaperDetailsResponse> GetDetailsAsync(

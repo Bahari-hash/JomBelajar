@@ -93,6 +93,22 @@ public sealed class OnlineQuizModelTests
     }
 
     /// <summary>
+    /// 验证试卷标签数组使用 PostgreSQL GIN 索引支持精确包含查询。
+    /// </summary>
+    [Fact]
+    public void ModelShouldConfigureGinIndexForPaperTags()
+    {
+        using var db = CreateDbContext();
+        var paperType = db.Model.FindEntityType(typeof(Paper))!;
+        var tagsIndex = paperType.GetIndexes().Single(index =>
+            index.Properties.Select(property => property.Name)
+                .SequenceEqual([nameof(Paper.Tags)]));
+
+        tagsIndex.FindAnnotation("Npgsql:IndexMethod")!.Value
+            .Should().Be("gin");
+    }
+
+    /// <summary>
     /// 创建使用隔离 InMemory 数据库的应用上下文。
     /// </summary>
     private static ApplicationDbContext CreateDbContext()

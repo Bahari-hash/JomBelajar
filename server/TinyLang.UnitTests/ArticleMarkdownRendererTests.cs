@@ -18,7 +18,7 @@ public sealed class ArticleMarkdownRendererTests
     [Fact]
     public void RenderShouldSupportTheCanonicalMarkdownSubset()
     {
-        const string imageUrl = "https://cdn.example.com/lesson.png";
+        const string imageUrl = "https://oss.example.com/lesson.png";
         var markdown = """
             # Heading
 
@@ -35,7 +35,7 @@ public sealed class ArticleMarkdownRendererTests
             Console.WriteLine("hello");
             ```
 
-            ![Lesson](https://cdn.example.com/lesson.png "Title")
+            ![Lesson](https://oss.example.com/lesson.png "Title")
             """;
 
         var result = _renderer.Render(markdown);

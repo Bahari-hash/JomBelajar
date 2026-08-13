@@ -50,12 +50,12 @@ public sealed class HtmlContentSanitizerTests
     [Fact]
     public void ShouldPreserveAllowedMarkupAndReturnDistinctImageSources()
     {
-        const string imageUrl = "https://cdn.example.com/articles/image.png";
+        const string imageUrl = "https://oss.example.com/articles/image.png";
         const string html = """
             <h2>Heading</h2>
             <p><strong>Text</strong> <a href="https://example.com">Link</a></p>
-            <img src="https://cdn.example.com/articles/image.png" alt="Image">
-            <img src="https://cdn.example.com/articles/image.png" alt="Repeated">
+            <img src="https://oss.example.com/articles/image.png" alt="Image">
+            <img src="https://oss.example.com/articles/image.png" alt="Repeated">
             """;
 
         var result = _sanitizer.Sanitize(html);

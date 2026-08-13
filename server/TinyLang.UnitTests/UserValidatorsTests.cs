@@ -58,7 +58,7 @@ public sealed class UserValidatorsTests
             {
                 Nickname = new string('n', 60),
                 Bio = new string('b', 500),
-                AvatarUrl = "https://cdn.example.test/avatar.jpg"
+                AvatarUrl = "https://oss.example.test/avatar.jpg"
             },
             TestContext.Current.CancellationToken);
 

@@ -25,7 +25,7 @@ public sealed class UserServiceTests
         await using var db = CreateDbContext();
         var user = CreateUser("alice", UserRole.Admin, Now.AddDays(-2));
         user.Nickname = "Alice";
-        user.AvatarUrl = "https://cdn.example.test/alice.jpg";
+        user.AvatarUrl = "https://oss.example.test/alice.jpg";
         user.Bio = "Learner";
         db.Users.Add(user);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);

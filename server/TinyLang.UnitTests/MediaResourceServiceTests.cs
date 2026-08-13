@@ -120,7 +120,7 @@ public sealed class MediaResourceServiceTests
                 cancellationToken))
             .Returns(Task.CompletedTask);
         storage.Setup(x => x.GetPublicUrl(It.IsAny<string>()))
-            .Returns<string>(key => $"https://cdn.example.com/{key}");
+            .Returns<string>(key => $"https://oss.example.com/{key}");
         var service = CreateService(db.Object, storage.Object);
         var expectedObjectName = $"avatars/2026/07/{resource.Id:N}.png";
 
@@ -131,7 +131,7 @@ public sealed class MediaResourceServiceTests
 
         confirmed.Status.Should().Be(ResourceStatus.Active);
         confirmed.ObjectName.Should().Be(expectedObjectName);
-        confirmed.Url.Should().Be($"https://cdn.example.com/{expectedObjectName}");
+        confirmed.Url.Should().Be($"https://oss.example.com/{expectedObjectName}");
         storage.Verify(x => x.CopyObjectAsync(
             "temp/upload.png",
             expectedObjectName,
@@ -257,7 +257,7 @@ public sealed class MediaResourceServiceTests
         storage.Setup(x => x.GetObjectMetadataAsync(finalObjectName, cancellationToken))
             .ReturnsAsync(new ObjectStorageMetadata(resource.Size, resource.ContentType));
         storage.Setup(x => x.GetPublicUrl(finalObjectName))
-            .Returns($"https://cdn.example.com/{finalObjectName}");
+            .Returns($"https://oss.example.com/{finalObjectName}");
         var service = CreateService(db.Object, storage.Object);
 
         var confirmed = await service.ConfirmAsync(
@@ -280,7 +280,7 @@ public sealed class MediaResourceServiceTests
         var resource = CreatePendingResource(uploaderId);
         resource.Status = ResourceStatus.Active;
         resource.ObjectName = $"avatars/2026/07/{resource.Id:N}.png";
-        resource.Url = $"https://cdn.example.com/{resource.ObjectName}";
+        resource.Url = $"https://oss.example.com/{resource.ObjectName}";
         var resources = CreateResourceSet(resource, cancellationToken);
         var db = CreateDb(resources, cancellationToken);
         var storage = new Mock<IObjectStorageService>();
@@ -313,7 +313,7 @@ public sealed class MediaResourceServiceTests
         storage.Setup(x => x.DeleteObjectAsync(resource.ObjectName, cancellationToken))
             .ThrowsAsync(new InvalidOperationException("Delete failed."));
         storage.Setup(x => x.GetPublicUrl(It.IsAny<string>()))
-            .Returns<string>(key => $"https://cdn.example.com/{key}");
+            .Returns<string>(key => $"https://oss.example.com/{key}");
         var service = CreateService(db.Object, storage.Object);
 
         var confirmed = await service.ConfirmAsync(

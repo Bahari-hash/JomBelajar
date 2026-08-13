@@ -1,53 +1,35 @@
 using FluentAssertions;
-using Microsoft.Extensions.Options;
 using Moq;
 using TinyLang.Infrastructure;
 using TinyLang.Interfaces;
-using TinyLang.Settings;
 
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证视频 delivery HMAC 固定向量、路径边界和对象存储直连。
+/// 验证视频和音频媒体使用 OSS 公共直链交付，以及对象路径边界校验。
 /// </summary>
 public sealed class VideoDeliveryUrlServiceTests
 {
-    private static readonly DateTimeOffset Now = new(
-        2026, 7, 27, 12, 0, 0, TimeSpan.Zero);
-
     [Fact]
-    public void SignedCdnShouldMatchFixedHmacVector()
+    public void DirectObjectStorageShouldUsePermanentObjectStorageUrl()
     {
-        var service = new VideoDeliveryUrlService(
-            Mock.Of<IObjectStorageService>(),
-            Options.Create(new VideoDeliverySettings
-            {
-                Mode = "SignedCdn",
-                CdnBaseUrl = "https://media.example.com",
-                KeyId = "key-2026-01",
-                SigningSecret = "0123456789abcdef0123456789abcdef",
-                TokenTtlSeconds = 300
-            }),
-            new TestTimeProvider(Now));
-        const string prefix =
-            "videos/11111111111111111111111111111111/outputs/22222222222222222222222222222222/";
+        var storage = new Mock<IObjectStorageService>();
+        storage.Setup(value => value.GetPublicUrl("videos/id/poster.jpg"))
+            .Returns("https://oss.example.com/media/videos/id/poster.jpg");
+        var service = new VideoDeliveryUrlService(storage.Object);
 
-        var result = service.CreateUrl($"{prefix}master.m3u8", prefix);
+        var result = service.CreateUrl(
+            "videos/id/poster.jpg",
+            "videos/id/");
 
-        result.ExpiresAt.Should().Be(Now.AddMinutes(5));
-        result.Url.Should().Be(
-            "https://media.example.com/auth/key-2026-01/" +
-            "Qt7Fs2T5qh_bhEU4TJBAfohzfu3f9JZd6q_IcclOxH8/1785153900/" +
-            $"{prefix}master.m3u8");
+        result.Url.Should().Be("https://oss.example.com/media/videos/id/poster.jpg");
+        result.ExpiresAt.Should().BeNull();
     }
 
     [Fact]
     public void ObjectOutsideProtectedPrefixShouldBeRejected()
     {
-        var service = new VideoDeliveryUrlService(
-            Mock.Of<IObjectStorageService>(),
-            Options.Create(new VideoDeliverySettings()),
-            new TestTimeProvider(Now));
+        var service = new VideoDeliveryUrlService(Mock.Of<IObjectStorageService>());
 
         var action = () => service.CreateUrl(
             "videos/other/master.m3u8",
@@ -57,62 +39,20 @@ public sealed class VideoDeliveryUrlServiceTests
     }
 
     [Fact]
-    public void DirectObjectStorageShouldUsePermanentObjectStorageUrl()
+    public void AudioObjectPrefixShouldUseTheSameDirectStorageContract()
     {
         var storage = new Mock<IObjectStorageService>();
-        storage.Setup(value => value.GetPublicUrl("videos/id/poster.jpg"))
-            .Returns("https://localhost/media/videos/id/poster.jpg");
-        var service = new VideoDeliveryUrlService(
-            storage.Object,
-            Options.Create(new VideoDeliverySettings()),
-            new TestTimeProvider(Now));
+        storage.Setup(value => value.GetPublicUrl(
+                "audios/id/outputs/version/audio.mp3"))
+            .Returns("https://oss.example.com/media/audios/id/outputs/version/audio.mp3");
+        var service = new VideoDeliveryUrlService(storage.Object);
 
         var result = service.CreateUrl(
-            "videos/id/poster.jpg",
-            "videos/id/");
+            "audios/id/outputs/version/audio.mp3",
+            "audios/id/outputs/version/");
 
-        result.Url.Should().Be("https://localhost/media/videos/id/poster.jpg");
+        result.Url.Should().Be(
+            "https://oss.example.com/media/audios/id/outputs/version/audio.mp3");
         result.ExpiresAt.Should().BeNull();
-    }
-
-    [Fact]
-    public void UnknownDeliveryModeShouldBeRejectedByRuntimeGuard()
-    {
-        var service = new VideoDeliveryUrlService(
-            Mock.Of<IObjectStorageService>(),
-            Options.Create(new VideoDeliverySettings { Mode = "Unknown" }),
-            new TestTimeProvider(Now));
-
-        var action = () => service.CreateUrl(
-            "videos/id/poster.jpg",
-            "videos/id/");
-
-        action.Should().Throw<InvalidOperationException>();
-    }
-
-    /// <summary>
-    /// 验证同一 delivery 实现可以签发不依赖 HLS 的音频对象前缀。
-    /// </summary>
-    [Fact]
-    public void AudioObjectPrefixShouldUseTheSameGenericSigningContract()
-    {
-        var service = new VideoDeliveryUrlService(
-            Mock.Of<IObjectStorageService>(),
-            Options.Create(new VideoDeliverySettings
-            {
-                Mode = "SignedCdn",
-                CdnBaseUrl = "https://media.example.com",
-                KeyId = "audio-key",
-                SigningSecret = "0123456789abcdef0123456789abcdef",
-                TokenTtlSeconds = 300
-            }),
-            new TestTimeProvider(Now));
-        const string prefix =
-            "audios/11111111111111111111111111111111/outputs/22222222222222222222222222222222/";
-
-        var result = service.CreateUrl($"{prefix}audio.mp3", prefix);
-
-        result.Url.Should().StartWith("https://media.example.com/auth/audio-key/");
-        result.Url.Should().EndWith($"/{prefix}audio.mp3");
     }
 }

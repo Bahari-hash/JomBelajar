@@ -39,7 +39,7 @@ public sealed class ArticleMediaFlowTests
                 It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ObjectStorageMetadata(1024, "image/png"));
         storage.Setup(x => x.GetPublicUrl(It.IsAny<string>()))
-            .Returns<string>(objectName => $"https://cdn.example.com/{objectName}");
+            .Returns<string>(objectName => $"https://oss.example.com/{objectName}");
 
         var mediaService = new MediaResourceService(
             Microsoft.Extensions.Logging.Abstractions.NullLogger<MediaResourceService>.Instance,
@@ -77,7 +77,7 @@ public sealed class ArticleMediaFlowTests
             TestContext.Current.CancellationToken);
 
         confirmed.Status.Should().Be(ResourceStatus.Active);
-        confirmed.Url.Should().StartWith("https://cdn.example.com/");
+        confirmed.Url.Should().StartWith("https://oss.example.com/");
         article.BodyMedia.Should().ContainSingle().Which.Id.Should().Be(confirmed.Id);
     }
 

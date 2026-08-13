@@ -304,7 +304,7 @@ public sealed class S3ObjectStorageServiceTests
         var result = service.GetPublicUrl("avatars/2026/07/profile picture.png");
 
         result.Should().Be(
-            "https://cdn.example.com/media/avatars/2026/07/profile%20picture.png");
+            "https://oss.example.com/media/avatars/2026/07/profile%20picture.png");
     }
 
     private static S3ObjectStorageService CreateService(IAmazonS3 s3Client)
@@ -312,7 +312,7 @@ public sealed class S3ObjectStorageServiceTests
         {
             Region = "us-east-1",
             Bucket = "tiny-lang-media",
-            PublicBaseUrl = "https://cdn.example.com/media",
+            PublicBaseUrl = "https://oss.example.com/media",
             PresignedUrlExpirySeconds = 900
         }));
 }

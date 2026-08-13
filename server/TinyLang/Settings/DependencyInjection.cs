@@ -130,21 +130,6 @@ public static class DependencyInjection
                 "Audio temporary directory must not resolve to a filesystem root.")
             .ValidateOnStart();
 
-        // services.AddOptions<VideoDeliverySettings>()
-        //     .Bind(configuration.GetSection(VideoDeliverySettings.SectionName))
-        //     .ValidateDataAnnotations()
-        //     .Validate(
-        //         settings => settings.Mode is "SignedCdn" or "DirectObjectStorage",
-        //         "Video delivery mode must be SignedCdn or DirectObjectStorage.")
-        //     .Validate(
-        //         settings => settings.Mode != "SignedCdn" ||
-        //             (Uri.TryCreate(settings.CdnBaseUrl, UriKind.Absolute, out var baseUri) &&
-        //                 baseUri.Scheme == Uri.UriSchemeHttps &&
-        //                 !string.IsNullOrWhiteSpace(settings.KeyId) &&
-        //                 settings.SigningSecret?.Length >= 32),
-        //         "SignedCdn requires an HTTPS base URL, key identifier, and 32-character secret.")
-        //     .ValidateOnStart();
-
         services.AddOptions<VideoProgressSettings>()
             .Bind(configuration.GetSection(VideoProgressSettings.SectionName))
             .ValidateDataAnnotations()

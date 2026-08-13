@@ -143,7 +143,7 @@ public sealed class ArticleDatabaseIntegrationTests
             Size = 100,
             Extension = ".png",
             ContentType = "image/png",
-            Url = $"https://cdn.example.com/{Guid.NewGuid():N}.png"
+            Url = $"https://oss.example.com/{Guid.NewGuid():N}.png"
         };
         db.AddRange(user, category, media);
         await db.SaveChangesAsync(cancellationToken);

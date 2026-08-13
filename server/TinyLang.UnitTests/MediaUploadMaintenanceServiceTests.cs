@@ -42,7 +42,7 @@ public sealed class MediaUploadMaintenanceServiceTests
                 resource.StagingObjectName!, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         storage.Setup(x => x.GetPublicUrl(resource.ObjectName))
-            .Returns($"https://cdn.example.com/{resource.ObjectName}");
+            .Returns($"https://oss.example.com/{resource.ObjectName}");
         var service = CreateService(db, storage.Object);
 
         var count = await service.FinalizeBatchAsync(
@@ -51,7 +51,7 @@ public sealed class MediaUploadMaintenanceServiceTests
         count.Should().Be(1);
         resource.Status.Should().Be(ResourceStatus.Active);
         resource.StagingObjectName.Should().BeNull();
-        resource.Url.Should().Be($"https://cdn.example.com/{resource.ObjectName}");
+        resource.Url.Should().Be($"https://oss.example.com/{resource.ObjectName}");
         session.Status.Should().Be(MultipartUploadStatus.Completed);
         session.LeaseOwner.Should().BeNull();
     }
@@ -71,7 +71,7 @@ public sealed class MediaUploadMaintenanceServiceTests
                 resource.StagingObjectName!, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         storage.Setup(x => x.GetPublicUrl(resource.ObjectName))
-            .Returns($"https://cdn.example.com/{resource.ObjectName}");
+            .Returns($"https://oss.example.com/{resource.ObjectName}");
         var service = CreateService(db, storage.Object);
 
         await service.FinalizeBatchAsync(TestContext.Current.CancellationToken);

@@ -30,22 +30,6 @@ public sealed record LoginRequest
 }
 
 /// <summary>
-/// 描述使用 refresh token 换取新令牌的请求。
-/// </summary>
-public sealed record RefreshTokenRequest
-{
-    public required string RefreshToken { get; init; }
-}
-
-/// <summary>
-/// 描述退出当前 refresh token 会话的请求。
-/// </summary>
-public sealed record LogoutRequest
-{
-    public required string RefreshToken { get; init; }
-}
-
-/// <summary>
 /// 返回认证流程所需的用户基本身份信息。
 /// </summary>
 /// <param name="Id">用户标识。</param>
@@ -60,8 +44,16 @@ public sealed record UserResponse(Guid Id, string Email, UserRole Role);
 /// <param name="RefreshToken">用于续期会话的 refresh token。</param>
 /// <param name="ExpiresIn">access token 剩余有效秒数。</param>
 /// <param name="User">令牌所属用户。</param>
-public sealed record AuthTokenResponse(
+public sealed record AuthTokenIssueResult(
     string Token,
     string RefreshToken,
+    long ExpiresIn,
+    UserResponse User);
+
+/// <summary>
+/// 返回浏览器可见的认证会话，不包含 refresh token。
+/// </summary>
+public sealed record AuthSessionResponse(
+    string Token,
     long ExpiresIn,
     UserResponse User);

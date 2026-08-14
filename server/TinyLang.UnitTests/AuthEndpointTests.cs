@@ -8,11 +8,14 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Moq;
 using TinyLang.Constants;
 using TinyLang.Dtos;
 using TinyLang.Endpoints;
+using TinyLang.Entities.Enums;
 using TinyLang.Services;
+using TinyLang.Settings;
 
 namespace TinyLang.UnitTests;
 
@@ -29,9 +32,13 @@ public sealed class AuthEndpointTests
         var authService = new Mock<IAuthService>();
         await using var app = await CreateAppAsync(authService.Object, userId, tokenId, expiresAt);
 
-        var response = await app.GetTestClient().PostAsJsonAsync(
+        var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add(
+            "Cookie",
+            $"tiny-lang.refresh={refreshToken}");
+        var response = await client.PostAsJsonAsync(
             "/api/auth/logout",
-            new LogoutRequest { RefreshToken = refreshToken },
+            new { },
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -69,6 +76,126 @@ public sealed class AuthEndpointTests
             .Should().Contain(data => data.Policy == AuthorizationPolicies.RequireAdmin);
         authService.Verify(value => value.RevokeUserAsync(
             userId,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LoginShouldReturnBrowserSessionAndSetHttpOnlyRefreshCookie()
+    {
+        var authService = new Mock<IAuthService>();
+        var issueResult = new AuthTokenIssueResult(
+            "access-token",
+            "refresh-token",
+            900,
+            new UserResponse(
+                Guid.NewGuid(),
+                "learner@example.test",
+                UserRole.User));
+        authService
+            .Setup(service => service.LoginAsync(
+                It.IsAny<LoginRequest>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(issueResult);
+        await using var app = await CreateAppAsync(
+            authService.Object,
+            Guid.NewGuid(),
+            Guid.NewGuid().ToString("N"),
+            DateTimeOffset.UtcNow.AddMinutes(10),
+            new JwtSettings
+            {
+                JwtSecret = new string('s', 32),
+                Issuer = "TinyLang.Backend",
+                Audience = "TinyLang.Frontend",
+                AccessTokenExpMinutes = 15,
+                RefreshTokenExpMinutes = 10080
+            });
+
+        var client = app.GetTestClient();
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new
+            {
+                email = "learner@example.test",
+                password = "secret-password"
+            },
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<AuthSessionResponse>(
+            TestContext.Current.CancellationToken);
+        body.Should().NotBeNull();
+        body!.Token.Should().Be("access-token");
+        body.User.Email.Should().Be("learner@example.test");
+        var responseText = await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+        responseText.Should().NotContain("refresh-token");
+        response.Headers.GetValues("Set-Cookie").Should().ContainSingle(
+            cookie => cookie.StartsWith("tiny-lang.refresh=refresh-token;", StringComparison.Ordinal) &&
+                cookie.Contains("httponly", StringComparison.OrdinalIgnoreCase) &&
+                cookie.Contains("SameSite=lax", StringComparison.OrdinalIgnoreCase) &&
+                cookie.Contains("path=/api/auth", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RefreshShouldReadCookieAndRotateWithoutReturningRefreshToken()
+    {
+        var authService = new Mock<IAuthService>();
+        var issueResult = new AuthTokenIssueResult(
+            "new-access-token",
+            "new-refresh-token",
+            900,
+            new UserResponse(
+                Guid.NewGuid(),
+                "learner@example.test",
+                UserRole.User));
+        authService
+            .Setup(service => service.RefreshAsync(
+                "current-refresh-token",
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(issueResult);
+        await using var app = await CreateAppAsync(
+            authService.Object,
+            Guid.NewGuid(),
+            Guid.NewGuid().ToString("N"),
+            DateTimeOffset.UtcNow.AddMinutes(10),
+            new JwtSettings
+            {
+                JwtSecret = new string('s', 32),
+                Issuer = "TinyLang.Backend",
+                Audience = "TinyLang.Frontend",
+                AccessTokenExpMinutes = 15,
+                RefreshTokenExpMinutes = 10080
+            });
+
+        var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add(
+            "Cookie",
+            "tiny-lang.refresh=current-refresh-token");
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/refresh",
+            new { },
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<AuthSessionResponse>(
+            TestContext.Current.CancellationToken);
+        body.Should().NotBeNull();
+        body!.Token.Should().Be("new-access-token");
+        var responseText = await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+        responseText.Should().NotContain("new-refresh-token");
+        response.Headers.GetValues("Set-Cookie").Should().ContainSingle(
+            cookie => cookie.StartsWith("tiny-lang.refresh=new-refresh-token;", StringComparison.Ordinal) &&
+                cookie.Contains("httponly", StringComparison.OrdinalIgnoreCase) &&
+                cookie.Contains("SameSite=lax", StringComparison.OrdinalIgnoreCase));
+        authService.Verify(service => service.RefreshAsync(
+            "current-refresh-token",
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -111,7 +238,8 @@ public sealed class AuthEndpointTests
         IAuthService authService,
         Guid userId,
         string tokenId,
-        DateTimeOffset expiresAt)
+        DateTimeOffset expiresAt,
+        JwtSettings? jwtSettings = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -124,6 +252,15 @@ public sealed class AuthEndpointTests
         });
         builder.Services.AddSingleton(authService);
         builder.Services.AddSingleton(Mock.Of<IAccountSecurityService>());
+        builder.Services.AddSingleton(
+            Options.Create(jwtSettings ?? new JwtSettings
+            {
+                JwtSecret = new string('s', 32),
+                Issuer = "TinyLang.Backend",
+                Audience = "TinyLang.Frontend",
+                AccessTokenExpMinutes = 15,
+                RefreshTokenExpMinutes = 10080
+            }));
         var app = builder.Build();
         app.Use(async (context, next) =>
         {

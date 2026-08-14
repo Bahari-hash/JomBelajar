@@ -3,10 +3,8 @@ import { Provider } from "react-redux";
 import { authApi, refreshAuthSession } from "@/features/auth/authApi";
 import { accountSecurityApi } from "@/features/auth/accountSecurityApi";
 import { toApiRequestError } from "@/features/auth/authErrors";
-import { readStoredRefreshToken } from "@/features/auth/authStorage";
 import {
   clearSession,
-  getRefreshToken,
   getSessionSnapshot,
   setSession,
   subscribeToSession,
@@ -43,13 +41,8 @@ let restorePromise: Promise<RestoreResult> | null = null;
 /** Shares one startup refresh across React StrictMode effect replays. */
 function restoreStoredSession() {
   restorePromise ??= (async (): Promise<RestoreResult> => {
-    const storedRefreshToken = readStoredRefreshToken();
-    if (!storedRefreshToken) {
-      return { kind: "anonymous" };
-    }
-
     try {
-      const response = await refreshAuthSession(storedRefreshToken);
+      const response = await refreshAuthSession();
       setSession(response);
       try {
         const profileResponse = await authApi.getCurrentProfile();
@@ -257,11 +250,8 @@ function AuthSessionProvider({ children }: AuthProviderProps) {
   };
 
   const logout = async () => {
-    const refreshToken = getRefreshToken();
     try {
-      if (refreshToken) {
-        await authApi.logout(refreshToken);
-      }
+      await authApi.logout();
     } catch {
       // Logout is best effort; local credentials must be cleared regardless of the response.
     } finally {

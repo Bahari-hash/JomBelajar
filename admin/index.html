@@ -5,33 +5,17 @@
     <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TinyLang 管理后台</title>
-    <script>
-      (function () {
-        var storageKey = "tinylang.admin.theme";
-        var mode = "system";
-
-        try {
-          var storedMode = window.localStorage.getItem(storageKey);
-          if (
-            storedMode === "light" ||
-            storedMode === "dark" ||
-            storedMode === "system"
-          ) {
-            mode = storedMode;
-          }
-        } catch {
-          mode = "system";
-        }
-
-        var prefersDark =
-          window.matchMedia &&
-          window.matchMedia("(prefers-color-scheme: dark)").matches;
-        var isDark = mode === "dark" || (mode === "system" && prefersDark);
-
-        document.documentElement.classList.toggle("dark", isDark);
-        document.documentElement.style.colorScheme = isDark ? "dark" : "light";
-      })();
-    </script>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self' https: wss:; font-src 'self' data:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta name="referrer" content="no-referrer" />
+    <meta
+      http-equiv="Permissions-Policy"
+      content="camera=(), microphone=(), geolocation=()"
+    />
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

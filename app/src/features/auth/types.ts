@@ -8,7 +8,6 @@ export interface UserResponse {
 
 export interface AuthTokenResponse {
   token: string;
-  refreshToken: string;
   expiresIn: number;
   user: UserResponse;
 }

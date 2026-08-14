@@ -32,6 +32,7 @@ export async function requestApi({
   body,
   accessToken,
   signal,
+  withCredentials = false,
 }) {
   validatePath(path);
 
@@ -43,6 +44,7 @@ export async function requestApi({
       headers: accessToken
         ? { Authorization: `Bearer ${accessToken}` }
         : undefined,
+      withCredentials,
       signal,
     });
 

@@ -19,7 +19,7 @@ const EMPTY_PAGE = {
 
 describe("baseApi reauthentication", () => {
   it("uses one refresh for concurrent 401 responses and retries each request once", async () => {
-    tokenVault.install("old-access", "old-refresh");
+    tokenVault.install("old-access");
     let resolveRefresh;
     const requestMock = mockHttpClient((config) => {
       if (config.url === "/auth/refresh") {
@@ -63,7 +63,7 @@ describe("baseApi reauthentication", () => {
   });
 
   it("returns 403 without attempting refresh", async () => {
-    tokenVault.install("access", "refresh");
+    tokenVault.install("access");
     const requestMock = mockHttpClient(() =>
       Promise.reject(axiosHttpError(undefined, 403)),
     );

@@ -30,7 +30,6 @@ export function mockHttpClient(implementation) {
 export function adminTokenResponse(overrides = {}) {
   return {
     token: "access-token",
-    refreshToken: "refresh-token",
     expiresIn: 900,
     user: {
       id: "11111111-1111-1111-1111-111111111111",

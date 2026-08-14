@@ -79,7 +79,7 @@ public sealed class AuthService(
     }
 
     /// <inheritdoc />
-    public async Task<AuthTokenResponse> LoginAsync(LoginRequest request, string? clientIp, string? deviceInfo, CancellationToken cancellationToken = default)
+    public async Task<AuthTokenIssueResult> LoginAsync(LoginRequest request, string? clientIp, string? deviceInfo, CancellationToken cancellationToken = default)
     {
         var email = NormalizeEmail(request.Email);
         var user = await db.Users.SingleOrDefaultAsync(x => x.Email == email && !x.IsDeleted, cancellationToken);
@@ -92,9 +92,14 @@ public sealed class AuthService(
     }
 
     /// <inheritdoc />
-    public async Task<AuthTokenResponse> RefreshAsync(RefreshTokenRequest request, string? clientIp, string? deviceInfo, CancellationToken cancellationToken = default)
+    public async Task<AuthTokenIssueResult> RefreshAsync(string? refreshToken, string? clientIp, string? deviceInfo, CancellationToken cancellationToken = default)
     {
-        var hash = jwtTokenService.HashRefreshToken(request.RefreshToken);
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            throw UnauthorizedException.Create(ErrorCodes.RefreshTokenInvalid);
+        }
+
+        var hash = jwtTokenService.HashRefreshToken(refreshToken);
         var stored = await db.RefreshTokens.AsNoTracking().Include(x => x.User)
             .SingleOrDefaultAsync(x => x.TokenHash == hash, cancellationToken);
         var now = DateTimeOffset.UtcNow;
@@ -105,6 +110,9 @@ public sealed class AuthService(
             throw UnauthorizedException.Create(ErrorCodes.RefreshTokenInvalid);
         }
 
+        // Allow overlapping page refreshes to reuse the old token for a short
+        // fixed window; after that window it expires instead of being revoked.
+        var graceExpiresAt = now.AddSeconds(_jwtSettings.RefreshTokenRotationGraceSeconds);
         var affectedRows = await db.RefreshTokens
             .Where(x => x.Id == stored.Id &&
                 !x.IsRevoked &&
@@ -113,8 +121,8 @@ public sealed class AuthService(
                 !x.User.IsDeleted &&
                 !x.User.IsBanned)
             .ExecuteUpdateAsync(setters => setters
-                .SetProperty(x => x.IsRevoked, true)
-                .SetProperty(x => x.RevokedAt, now)
+                .SetProperty(x => x.ExpiresAt,
+                    x => x.ExpiresAt < graceExpiresAt ? x.ExpiresAt : graceExpiresAt)
                 .SetProperty(x => x.LastUsedAt, now)
                 .SetProperty(x => x.UsageCount, x => x.UsageCount + 1), cancellationToken);
         if (affectedRows != 1)
@@ -122,7 +130,13 @@ public sealed class AuthService(
             throw UnauthorizedException.Create(ErrorCodes.RefreshTokenInvalid);
         }
 
-        await tokenBlacklist.AddRefreshTokenAsync(request.RefreshToken, stored.ExpiresAt, cancellationToken);
+        var revokedExpiresAt = stored.ExpiresAt < graceExpiresAt
+            ? stored.ExpiresAt
+            : graceExpiresAt;
+        await tokenBlacklist.AddRefreshTokenAsync(
+            refreshToken,
+            revokedExpiresAt,
+            cancellationToken);
         return await IssueTokensAsync(stored.User, clientIp, deviceInfo, cancellationToken);
     }
 
@@ -226,7 +240,7 @@ public sealed class AuthService(
     /// <param name="deviceInfo">客户端设备描述。</param>
     /// <param name="cancellationToken">用于取消持久化操作的令牌。</param>
     /// <returns>新签发的令牌及用户信息。</returns>
-    private async Task<AuthTokenResponse> IssueTokensAsync(User user, string? clientIp, string? deviceInfo, CancellationToken cancellationToken)
+    private async Task<AuthTokenIssueResult> IssueTokensAsync(User user, string? clientIp, string? deviceInfo, CancellationToken cancellationToken)
     {
         var (token, expiresAt) = jwtTokenService.CreateAccessToken(user);
         var refresh = jwtTokenService.CreateRefreshToken();
@@ -242,7 +256,7 @@ public sealed class AuthService(
             LoginAt = DateTimeOffset.UtcNow
         });
         await db.SaveChangesAsync(cancellationToken);
-        return new AuthTokenResponse(token, refresh, (long)(expiresAt - DateTimeOffset.UtcNow).TotalSeconds, ToResponse(user));
+        return new AuthTokenIssueResult(token, refresh, (long)(expiresAt - DateTimeOffset.UtcNow).TotalSeconds, ToResponse(user));
     }
 
     /// <summary>

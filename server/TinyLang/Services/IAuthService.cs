@@ -32,7 +32,7 @@ public interface IAuthService
     /// <param name="deviceInfo">客户端设备描述。</param>
     /// <param name="cancellationToken">用于取消操作的令牌。</param>
     /// <returns>新签发的令牌及用户信息。</returns>
-    Task<AuthTokenResponse> LoginAsync(LoginRequest request, string? clientIp, string? deviceInfo, CancellationToken cancellationToken = default);
+    Task<AuthTokenIssueResult> LoginAsync(LoginRequest request, string? clientIp, string? deviceInfo, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 验证并轮换 refresh token，签发新的令牌对。
@@ -42,7 +42,7 @@ public interface IAuthService
     /// <param name="deviceInfo">本次续期的设备描述。</param>
     /// <param name="cancellationToken">用于取消操作的令牌。</param>
     /// <returns>轮换后的令牌及用户信息。</returns>
-    Task<AuthTokenResponse> RefreshAsync(RefreshTokenRequest request, string? clientIp, string? deviceInfo, CancellationToken cancellationToken = default);
+    Task<AuthTokenIssueResult> RefreshAsync(string? refreshToken, string? clientIp, string? deviceInfo, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 撤销当前 access token，并在提供 refresh token 时撤销对应会话。

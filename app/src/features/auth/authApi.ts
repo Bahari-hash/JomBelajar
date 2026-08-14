@@ -1,4 +1,5 @@
 import { httpClient } from "@/services/httpClient";
+import { withRefreshLock } from "@/features/auth/refreshLock";
 import type {
   AvatarPresignRequest,
   AuthTokenResponse,
@@ -20,15 +21,23 @@ export const authApi = {
       verificationCode,
     }),
   login: (email: string, password: string) =>
-    httpClient.post<AuthTokenResponse>("/auth/login", { email, password }),
-  refresh: (refreshToken: string) =>
+    httpClient.post<AuthTokenResponse>(
+      "/auth/login",
+      { email, password },
+      { withCredentials: true },
+    ),
+  refresh: () =>
     httpClient.post<AuthTokenResponse>(
       "/auth/refresh",
-      { refreshToken },
-      { skipAuth: true },
+      {},
+      { skipAuth: true, withCredentials: true },
     ),
-  logout: (refreshToken: string) =>
-    httpClient.post<void>("/auth/logout", { refreshToken }),
+  logout: () =>
+    httpClient.post<void>(
+      "/auth/logout",
+      {},
+      { withCredentials: true },
+    ),
   getCurrentProfile: () => httpClient.get<CurrentUserProfile>("/users/me"),
   updateProfile: (request: UpdateProfileRequest) =>
     httpClient.put<CurrentUserProfile>("/users/me/profile", request),
@@ -54,7 +63,7 @@ export const authApi = {
     ),
 };
 
-export async function refreshAuthSession(refreshToken: string) {
-  const response = await authApi.refresh(refreshToken);
+export async function refreshAuthSession() {
+  const response = await withRefreshLock(() => authApi.refresh());
   return response.data;
 }

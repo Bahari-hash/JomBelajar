@@ -24,13 +24,6 @@ export function AuthBootstrap() {
       };
     }
 
-    if (!authSession.hasRefreshToken()) {
-      dispatch(sessionUnauthenticated());
-      return () => {
-        active = false;
-      };
-    }
-
     authSession
       .refresh()
       .then((session) => {

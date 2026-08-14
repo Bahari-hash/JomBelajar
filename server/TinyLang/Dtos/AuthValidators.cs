@@ -69,33 +69,3 @@ public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
             .MaximumLength(50).WithErrKey(ErrorCodes.PasswordLengthLimit);
     }
 }
-
-/// <summary>
-/// 校验令牌续期请求中的 refresh token。
-/// </summary>
-public sealed class RefreshTokenRequestValidator : AbstractValidator<RefreshTokenRequest>
-{
-    /// <summary>
-    /// 初始化令牌续期请求的校验规则。
-    /// </summary>
-    public RefreshTokenRequestValidator()
-    {
-        RuleFor(x => x.RefreshToken)
-            .NotEmpty().WithErrKey(ErrorCodes.RefreshTokenInvalid);
-    }
-}
-
-/// <summary>
-/// 校验退出登录请求中的 refresh token。
-/// </summary>
-public sealed class LogoutRequestValidator : AbstractValidator<LogoutRequest>
-{
-    /// <summary>
-    /// 初始化退出登录请求的校验规则。
-    /// </summary>
-    public LogoutRequestValidator()
-    {
-        RuleFor(x => x.RefreshToken)
-            .NotEmpty().WithErrKey(ErrorCodes.RefreshTokenInvalid);
-    }
-}

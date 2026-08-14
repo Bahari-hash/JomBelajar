@@ -36,7 +36,6 @@ describe("articleApi", () => {
     });
     setSession({
       token: "sensitive-access-token",
-      refreshToken: "sensitive-refresh-token",
       expiresIn: 300,
       user: { id: "user-1", email: "user@example.test", role: "User" },
     });

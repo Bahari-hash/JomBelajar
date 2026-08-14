@@ -19,14 +19,12 @@ describe("httpClient", () => {
     const originalAdapter = httpClient.defaults.adapter;
     const initial: AuthTokenResponse = {
       token: "access-old",
-      refreshToken: "refresh-old",
       expiresIn: 60,
       user: { id: "user-1", email: "user@example.test", role: "User" },
     };
     const next: AuthTokenResponse = {
       ...initial,
       token: "access-new",
-      refreshToken: "refresh-new",
     };
     setSession(initial);
     let requestCount = 0;
@@ -36,9 +34,8 @@ describe("httpClient", () => {
       release.current = resolve;
     });
 
-    configureAuthRefresh(async (refreshToken) => {
+    configureAuthRefresh(async () => {
       refreshCount += 1;
-      expect(refreshToken).toBe("refresh-old");
       await refreshGate;
       return next;
     });
@@ -84,7 +81,6 @@ describe("httpClient", () => {
     const originalAdapter = httpClient.defaults.adapter;
     setSession({
       token: "access",
-      refreshToken: "refresh",
       expiresIn: 60,
       user: { id: "user-1", email: "user@example.test", role: "User" },
     });
@@ -112,7 +108,6 @@ describe("httpClient", () => {
       "refresh failed",
     );
     expect(getAccessToken()).toBeNull();
-    expect(sessionStorage.getItem("tinylang.auth.session.v1")).toBeNull();
     clearSession();
     httpClient.defaults.adapter = originalAdapter;
   });
@@ -153,7 +148,6 @@ describe("httpClient", () => {
     let refreshCount = 0;
     setSession({
       token: "access",
-      refreshToken: "refresh",
       expiresIn: 60,
       user: { id: "user-1", email: "user@example.test", role: "User" },
     });
@@ -190,7 +184,6 @@ describe("httpClient", () => {
     const originalAdapter = httpClient.defaults.adapter;
     setSession({
       token: "access-secret",
-      refreshToken: "refresh-secret",
       expiresIn: 60,
       user: { id: "user-1", email: "user@example.test", role: "User" },
     });

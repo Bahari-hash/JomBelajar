@@ -5,6 +5,7 @@ import {
   requestRefresh,
 } from "@/services/authTransport.js";
 import { USER_ROLES } from "@/services/roles.js";
+import { withRefreshLock } from "@/services/refreshLock.js";
 import { tokenVault } from "@/services/tokenVault.js";
 
 let refreshPromise = null;
@@ -18,7 +19,6 @@ async function logoutWithTimeout(session, timeoutMilliseconds) {
   try {
     await requestLogout({
       token: session.token,
-      refreshToken: session.refreshToken,
       signal: controller.signal,
     });
   } finally {
@@ -44,36 +44,21 @@ async function acceptAdminSession(session) {
     });
   }
 
-  try {
-    tokenVault.install(session.token, session.refreshToken);
-  } catch (error) {
-    await bestEffortLogout(session);
-    throw error;
-  }
+  tokenVault.install(session.token);
 
   return { user: session.user, expiresIn: session.expiresIn };
 }
 
 async function rotateAdminSession(signal) {
-  const refreshToken = tokenVault.getRefreshToken();
-  if (!refreshToken) {
-    throw new ApiError("登录状态已失效，请重新登录。", {
-      status: 401,
-      kind: "session",
-    });
-  }
-
-  return acceptAdminSession(await requestRefresh(refreshToken, signal));
+  return withRefreshLock(async () => {
+    return acceptAdminSession(await requestRefresh(signal));
+  });
 }
 
 /** Coordinates login, single-flight refresh, and unconditional local logout. */
 export const authSession = Object.freeze({
   async login(credentials, signal) {
     return acceptAdminSession(await requestLogin(credentials, signal));
-  },
-
-  hasRefreshToken() {
-    return Boolean(tokenVault.getRefreshToken());
   },
 
   refresh(signal) {
@@ -88,10 +73,9 @@ export const authSession = Object.freeze({
 
   async logout() {
     const token = tokenVault.getAccessToken();
-    const refreshToken = tokenVault.getRefreshToken();
     try {
-      if (token && refreshToken) {
-        await logoutWithTimeout({ token, refreshToken }, 5000);
+      if (token) {
+        await logoutWithTimeout({ token }, 5000);
       }
     } catch {
       // Signing out locally must not depend on the remote revocation request succeeding.

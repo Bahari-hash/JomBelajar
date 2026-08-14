@@ -25,7 +25,6 @@ describe("authSession", () => {
       role: "Admin",
     });
     expect(tokenVault.getAccessToken()).toBe("access-token");
-    expect(tokenVault.getRefreshToken()).toBe("refresh-token");
     const [config] = requestMock.mock.calls[0];
     expect(config.method).toBe("POST");
     expect(config.data).toEqual({
@@ -60,11 +59,10 @@ describe("authSession", () => {
       headers: { Authorization: "Bearer access-token" },
     });
     expect(tokenVault.getAccessToken()).toBeNull();
-    expect(tokenVault.getRefreshToken()).toBeNull();
   });
 
   it("shares one rotating refresh request across concurrent callers", async () => {
-    tokenVault.install("old-access", "old-refresh");
+    tokenVault.install("old-access");
     let resolveRefresh;
     const requestMock = mockHttpClient(
       () =>
@@ -80,14 +78,12 @@ describe("authSession", () => {
 
     await expect(Promise.all([first, second])).resolves.toHaveLength(2);
     expect(tokenVault.getAccessToken()).toBe("access-token");
-    expect(requestMock.mock.calls[0][0].data).toEqual({
-      refreshToken: "old-refresh",
-    });
+    expect(requestMock.mock.calls[0][0].data).toEqual({});
   });
 
   it("clears the local session when remote logout times out", async () => {
     vi.useFakeTimers();
-    tokenVault.install("access-token", "refresh-token");
+    tokenVault.install("access-token");
     mockHttpClient(
       (config) =>
         new Promise((_resolve, reject) => {
@@ -104,7 +100,6 @@ describe("authSession", () => {
 
     await logoutExpectation;
     expect(tokenVault.getAccessToken()).toBeNull();
-    expect(tokenVault.getRefreshToken()).toBeNull();
     vi.useRealTimers();
   });
 });

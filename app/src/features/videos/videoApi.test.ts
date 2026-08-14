@@ -50,7 +50,6 @@ describe("videoApi", () => {
     }) as AxiosAdapter;
     setSession({
       token: "access",
-      refreshToken: "refresh",
       expiresIn: 300,
       user: { id: "user", email: "user@test", role: "User" },
     });
@@ -100,7 +99,6 @@ describe("videoApi", () => {
     }) as AxiosAdapter;
     setSession({
       token: "access",
-      refreshToken: "refresh",
       expiresIn: 300,
       user: { id: "user", email: "user@test", role: "User" },
     });

@@ -4,7 +4,6 @@ import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { authApi } from "@/features/auth/authApi";
 import { accountSecurityApi } from "@/features/auth/accountSecurityApi";
-import { authStorageKey } from "@/features/auth/authStorage";
 import { useAuth } from "@/hooks/useAuth";
 import AuthProvider from "@/providers/AuthProvider";
 import { AxiosHeaders } from "axios";
@@ -46,6 +45,7 @@ function AccountSecurityStatus() {
 
 describe("AuthProvider", () => {
   it("starts anonymous without a stored refresh token", async () => {
+    vi.spyOn(authApi, "refresh").mockRejectedValue(new Error("no cookie"));
     render(
       <StrictMode>
         <AuthProvider>
@@ -58,11 +58,9 @@ describe("AuthProvider", () => {
   });
 
   it("restores a rotated session and fetches the complete profile", async () => {
-    sessionStorage.setItem(authStorageKey, '{"refreshToken":"refresh-old"}');
     const refresh = vi.spyOn(authApi, "refresh").mockResolvedValue({
       data: {
         token: "access-new",
-        refreshToken: "refresh-new",
         expiresIn: 60,
         user: { id: "user-1", email: "user@example.test", role: "User" },
       },
@@ -105,17 +103,13 @@ describe("AuthProvider", () => {
     expect(reduxState).toContain('"status":"authenticated"');
     expect(reduxState).toContain("user@example.test");
     expect(reduxState).not.toContain("access-new");
-    expect(reduxState).not.toContain("refresh-new");
-    expect(refresh).toHaveBeenCalledWith("refresh-old");
+    expect(reduxState).not.toContain("refresh");
+    expect(refresh).toHaveBeenCalledWith();
     expect(refresh).toHaveBeenCalledOnce();
     expect(getCurrentProfile).toHaveBeenCalledOnce();
-    expect(sessionStorage.getItem(authStorageKey)).toBe(
-      '{"refreshToken":"refresh-new"}',
-    );
   });
 
   it("clears an invalid stored session and never exposes the refresh failure", async () => {
-    sessionStorage.setItem(authStorageKey, '{"refreshToken":"expired"}');
     vi.spyOn(authApi, "refresh").mockRejectedValue(new Error("refresh secret"));
 
     render(
@@ -126,15 +120,14 @@ describe("AuthProvider", () => {
 
     expect(await screen.findByText("anonymous:none")).toBeInTheDocument();
     expect(screen.queryByText("refresh secret")).not.toBeInTheDocument();
-    expect(sessionStorage.getItem(authStorageKey)).toBeNull();
   });
 
   it("clears Redux and persisted credentials after changing email", async () => {
     const user = userEvent.setup();
+    vi.spyOn(authApi, "refresh").mockRejectedValue(new Error("no cookie"));
     vi.spyOn(authApi, "login").mockResolvedValue({
       data: {
         token: "access",
-        refreshToken: "refresh",
         expiresIn: 60,
         user: { id: "user-1", email: "user@example.test", role: "User" },
       },
@@ -176,15 +169,14 @@ describe("AuthProvider", () => {
     await user.click(screen.getByRole("button", { name: "换绑命令" }));
 
     expect(await screen.findByText("anonymous")).toBeInTheDocument();
-    expect(sessionStorage.getItem(authStorageKey)).toBeNull();
   });
 
   it("clears Redux and persisted credentials after deleting the account", async () => {
     const user = userEvent.setup();
+    vi.spyOn(authApi, "refresh").mockRejectedValue(new Error("no cookie"));
     vi.spyOn(authApi, "login").mockResolvedValue({
       data: {
         token: "access",
-        refreshToken: "refresh",
         expiresIn: 60,
         user: { id: "user-1", email: "user@example.test", role: "User" },
       },
@@ -227,6 +219,5 @@ describe("AuthProvider", () => {
 
     expect(accountSecurityApi.deleteAccount).toHaveBeenCalledWith("123456");
     expect(await screen.findByText("anonymous")).toBeInTheDocument();
-    expect(sessionStorage.getItem(authStorageKey)).toBeNull();
   });
 });

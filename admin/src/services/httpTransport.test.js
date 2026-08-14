@@ -47,6 +47,7 @@ describe("httpTransport", () => {
       method: "POST",
       data: { role: "Admin" },
       headers: { Authorization: "Bearer access-token" },
+      withCredentials: false,
       signal: controller.signal,
     });
   });

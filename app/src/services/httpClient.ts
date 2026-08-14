@@ -3,7 +3,6 @@ import { apiBaseUrl } from "@/lib/env";
 import {
   clearSession,
   getAccessToken,
-  getRefreshToken,
   setSession,
 } from "@/features/auth/sessionStore";
 import type { AuthTokenResponse } from "@/features/auth/types";
@@ -24,7 +23,7 @@ export const httpClient = axios.create({
   },
 });
 
-type RefreshHandler = (refreshToken: string) => Promise<AuthTokenResponse>;
+type RefreshHandler = () => Promise<AuthTokenResponse>;
 let refreshHandler: RefreshHandler | null = null;
 let refreshPromise: Promise<AuthTokenResponse> | null = null;
 
@@ -64,13 +63,7 @@ httpClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) {
-      clearSession();
-      return Promise.reject(error);
-    }
-
-    refreshPromise ??= refreshHandler(refreshToken)
+    refreshPromise ??= refreshHandler()
       .then((response) => {
         setSession(response);
         return response;

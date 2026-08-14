@@ -3,9 +3,13 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using TinyLang.Constants;
 using TinyLang.Dtos;
+using TinyLang.Exceptions;
 using TinyLang.Services;
+using TinyLang.Settings;
 
 namespace TinyLang.Endpoints;
 
@@ -188,7 +192,7 @@ public static class AuthEndpoints
     /// <param name="httpContext">当前 HTTP 上下文。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>新签发令牌和用户信息的成功响应。</returns>
-    public static async Task<Ok<AuthTokenResponse>> LoginAsync(
+    public static async Task<Ok<AuthSessionResponse>> LoginAsync(
         LoginRequest request,
         IAuthService authService,
         HttpContext httpContext,
@@ -199,7 +203,11 @@ public static class AuthEndpoints
             httpContext.Connection.RemoteIpAddress?.ToString(),
             httpContext.Request.Headers.UserAgent.ToString(),
             cancellationToken);
-        return TypedResults.Ok(response);
+        SetRefreshTokenCookie(httpContext, response.RefreshToken);
+        return TypedResults.Ok(new AuthSessionResponse(
+            response.Token,
+            response.ExpiresIn,
+            response.User));
     }
 
     /// <summary>
@@ -210,18 +218,21 @@ public static class AuthEndpoints
     /// <param name="httpContext">当前 HTTP 上下文。</param>
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>轮换后令牌和用户信息的成功响应。</returns>
-    public static async Task<Ok<AuthTokenResponse>> RefreshAsync(
-        RefreshTokenRequest request,
+    public static async Task<Ok<AuthSessionResponse>> RefreshAsync(
         IAuthService authService,
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var response = await authService.RefreshAsync(
-            request,
+            ResolveRefreshToken(httpContext),
             httpContext.Connection.RemoteIpAddress?.ToString(),
             httpContext.Request.Headers.UserAgent.ToString(),
             cancellationToken);
-        return TypedResults.Ok(response);
+        SetRefreshTokenCookie(httpContext, response.RefreshToken);
+        return TypedResults.Ok(new AuthSessionResponse(
+            response.Token,
+            response.ExpiresIn,
+            response.User));
     }
 
     /// <summary>
@@ -233,8 +244,8 @@ public static class AuthEndpoints
     /// <param name="cancellationToken">请求取消令牌。</param>
     /// <returns>无响应体的成功结果。</returns>
     public static async Task<NoContent> LogoutAsync(
-        LogoutRequest request,
         IAuthService authService,
+        HttpContext httpContext,
         ClaimsPrincipal principal,
         CancellationToken cancellationToken)
     {
@@ -243,8 +254,9 @@ public static class AuthEndpoints
             accessToken.UserId,
             accessToken.TokenId,
             accessToken.ExpiresAt,
-            request.RefreshToken,
+            ResolveRefreshToken(httpContext),
             cancellationToken);
+        httpContext.Response.Cookies.Delete(RefreshTokenCookieName);
         return TypedResults.NoContent();
     }
 
@@ -262,5 +274,40 @@ public static class AuthEndpoints
     {
         await authService.RevokeUserAsync(userId, cancellationToken);
         return TypedResults.NoContent();
+    }
+
+    private const string RefreshTokenCookieName = "tiny-lang.refresh";
+
+    private static string ResolveRefreshToken(HttpContext httpContext)
+    {
+        var cookieToken = httpContext.Request.Cookies[RefreshTokenCookieName];
+        if (string.IsNullOrWhiteSpace(cookieToken))
+        {
+            throw UnauthorizedException.Create(ErrorCodes.RefreshTokenInvalid);
+        }
+        return cookieToken;
+    }
+
+    private static void SetRefreshTokenCookie(
+        HttpContext httpContext,
+        string refreshToken)
+    {
+        var jwtSettings = httpContext.RequestServices
+            .GetRequiredService<IOptions<JwtSettings>>()
+            .Value;
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(
+            jwtSettings.RefreshTokenExpMinutes);
+        httpContext.Response.Cookies.Append(
+            RefreshTokenCookieName,
+            refreshToken,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = httpContext.Request.IsHttps,
+                SameSite = SameSiteMode.Lax,
+                Path = "/api/auth",
+                Expires = expiresAt,
+                IsEssential = true
+            });
     }
 }

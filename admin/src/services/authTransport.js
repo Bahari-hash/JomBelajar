@@ -6,8 +6,6 @@ function normalizeTokenResponse(value) {
     !value ||
     typeof value.token !== "string" ||
     !value.token ||
-    typeof value.refreshToken !== "string" ||
-    !value.refreshToken ||
     !Number.isFinite(value.expiresIn)
   ) {
     throw new Error("API returned an invalid authentication response.");
@@ -15,7 +13,6 @@ function normalizeTokenResponse(value) {
 
   return {
     token: value.token,
-    refreshToken: value.refreshToken,
     expiresIn: value.expiresIn,
     user: normalizeAuthUser(value.user),
   };
@@ -28,28 +25,31 @@ export async function requestLogin(credentials, signal) {
       path: "/auth/login",
       method: "POST",
       body: credentials,
+      withCredentials: true,
       signal,
     }),
   );
 }
 
-export async function requestRefresh(refreshToken, signal) {
+export async function requestRefresh(signal) {
   return normalizeTokenResponse(
     await requestApi({
       path: "/auth/refresh",
       method: "POST",
-      body: { refreshToken },
+      body: {},
+      withCredentials: true,
       signal,
     }),
   );
 }
 
-export async function requestLogout({ token, refreshToken, signal }) {
+export async function requestLogout({ token, signal }) {
   return requestApi({
     path: "/auth/logout",
     method: "POST",
-    body: { refreshToken },
+    body: {},
     accessToken: token,
+    withCredentials: true,
     signal,
   });
 }

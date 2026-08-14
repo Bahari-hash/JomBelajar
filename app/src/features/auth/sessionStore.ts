@@ -1,18 +1,12 @@
 import type { AuthTokenResponse, UserResponse } from "@/features/auth/types";
-import {
-  clearStoredRefreshToken,
-  writeStoredRefreshToken,
-} from "@/features/auth/authStorage";
 
 interface SessionSnapshot {
   accessToken: string | null;
-  refreshToken: string | null;
   user: UserResponse | null;
 }
 
 let snapshot: SessionSnapshot = {
   accessToken: null,
-  refreshToken: null,
   user: null,
 };
 const listeners = new Set<() => void>();
@@ -25,31 +19,18 @@ function notify() {
 export function setSession(response: AuthTokenResponse) {
   snapshot = {
     accessToken: response.token,
-    refreshToken: response.refreshToken,
     user: response.user,
   };
-  writeStoredRefreshToken(response.refreshToken);
-  notify();
-}
-
-export function setRefreshToken(refreshToken: string) {
-  snapshot = { ...snapshot, refreshToken };
-  writeStoredRefreshToken(refreshToken);
   notify();
 }
 
 export function clearSession() {
-  snapshot = { accessToken: null, refreshToken: null, user: null };
-  clearStoredRefreshToken();
+  snapshot = { accessToken: null, user: null };
   notify();
 }
 
 export function getAccessToken() {
   return snapshot.accessToken;
-}
-
-export function getRefreshToken() {
-  return snapshot.refreshToken;
 }
 
 export function getSessionSnapshot() {

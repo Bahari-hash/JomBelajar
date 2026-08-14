@@ -13,7 +13,6 @@ export interface WordStudySession {
   actualCount: number;
   includePreviouslyStudied: boolean;
   selectionMode: "Sequential" | "Random";
-  languageTag: string | null;
   status: "Active" | "Completed" | "Abandoned";
   completedCount: number;
   rememberedCount: number;
@@ -26,9 +25,7 @@ export interface WordStudySession {
 
 export interface ExampleSentence {
   sentence: string;
-  languageTag: string;
   translation: string;
-  translationLanguageTag: string;
   audioClipId: string | null;
   sortOrder: number;
 }
@@ -36,7 +33,6 @@ export interface ExampleSentence {
 export interface WordSense {
   partOfSpeech: string;
   definition: string;
-  definitionLanguageTag: string;
   usageNote: string | null;
   sortOrder: number;
   examples: ExampleSentence[];
@@ -57,7 +53,6 @@ export interface WordStudyNextItem {
   actualCount: number;
   wordId: string;
   headword: string;
-  languageTag: string;
   senses: WordSense[];
   pronunciations: WordPronunciation[];
 }
@@ -88,6 +83,5 @@ export interface AudioPlayback {
   url: string;
   expiresAt: string | null;
   durationSeconds: number;
-  languageTag: string;
   audioClipKind: string;
 }

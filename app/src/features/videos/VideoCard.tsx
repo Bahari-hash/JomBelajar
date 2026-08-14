@@ -79,13 +79,6 @@ export default function VideoCard({ video, listPath }: VideoCardProps) {
         <p className="mt-2 line-clamp-3 min-h-18 text-sm leading-6 text-base-content/70">
           {video.description?.trim() || "这个视频暂未提供简介。"}
         </p>
-        {/* <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-base-content/60">
-          <span className="inline-flex items-center gap-1.5">
-            <Clock3 aria-hidden="true" className="size-3.5" />
-            {formatVideoDuration(video.durationSeconds)}
-          </span>
-          <span>{video.originalLanguage || "语言未知"}</span>
-        </div> */}
         <div className="mt-5 flex items-center gap-3 border-t border-base-300 pt-4">
           <UserAvatar
             className="size-9"

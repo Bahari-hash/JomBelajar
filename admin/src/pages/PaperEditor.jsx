@@ -76,7 +76,6 @@ const emptyForm = () => ({
   title: "",
   description: "",
   instructions: "",
-  languageTag: "ms",
   tags: [],
   passingScorePercentage: 60,
   concurrencyStamp: null,
@@ -122,7 +121,6 @@ function formFromPaper(paper) {
     title: paper.title,
     description: paper.description ?? "",
     instructions: paper.instructions ?? "",
-    languageTag: paper.languageTag,
     tags: paper.tags,
     passingScorePercentage: paper.passingScorePercentage,
     concurrencyStamp: paper.concurrencyStamp,
@@ -162,7 +160,6 @@ function payloadFromForm(form, includeStamp) {
     title: form.title,
     description: compactText(form.description),
     instructions: compactText(form.instructions),
-    languageTag: form.languageTag,
     tags: form.tags,
     passingScorePercentage: Number(form.passingScorePercentage),
     questions: form.questions.map((question, questionIndex) => ({
@@ -250,9 +247,6 @@ function basicValidate(form) {
   const errors = {};
   if (!form.title.trim()) errors.title = ["请输入试卷标题。"];
   if (form.title.length > 200) errors.title = ["标题不能超过 200 个字符。"];
-  if (!form.languageTag.trim()) errors.languageTag = ["请输入语言标签。"];
-  if (form.languageTag.length > 35)
-    errors.languageTag = ["语言标签不能超过 35 个字符。"];
   if (form.description.length > 2000)
     errors.description = ["说明不能超过 2,000 个字符。"];
   if (form.instructions.length > 5000)
@@ -809,20 +803,6 @@ function PaperBasics({ form, readOnly, fieldError, onChange }) {
             onChange={(event) => onChange({ title: event.target.value })}
           />
         </Field>
-        {/* <Field
-        label="语言标签"
-        required
-        error={fieldError("languageTag")}
-        path="languageTag"
-      >
-        <Input
-          value={form.languageTag}
-          maxLength={35}
-          disabled={readOnly}
-          placeholder="例如 en"
-          onChange={(event) => onChange({ languageTag: event.target.value })}
-        />
-      </Field> */}
       </div>
 
       <div className="w-full sm:w-1/2">
@@ -1484,9 +1464,6 @@ function PaperPreview({ form }) {
   return (
     <section className="space-y-5">
       <div className="border-y py-5">
-        <p className="text-sm text-muted-foreground">
-          {form.languageTag || "未设置语言"}
-        </p>
         <h2 className="mt-1 text-xl font-semibold">
           {form.title || "未命名试卷"}
         </h2>

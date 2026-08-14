@@ -1,11 +1,11 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TinyLang.Dtos;
 using TinyLang.Entities.Enums;
 
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证基础单词背诵请求的数量、语言和枚举边界。
+/// 验证基础单词背诵请求的数量和枚举边界。
 /// </summary>
 public sealed class WordStudyValidatorsTests
 {
@@ -17,7 +17,7 @@ public sealed class WordStudyValidatorsTests
     {
         var createResult = await new CreateWordStudySessionRequestValidator()
             .ValidateAsync(
-                new CreateWordStudySessionRequest { LanguageTag = "en-US" },
+                new CreateWordStudySessionRequest(),
                 TestContext.Current.CancellationToken);
         var rememberedResult = await new SubmitWordStudyResultRequestValidator()
             .ValidateAsync(
@@ -40,10 +40,10 @@ public sealed class WordStudyValidatorsTests
     }
 
     /// <summary>
-    /// 验证数量上下界之外、未定义模式和无效语言均被拒绝。
+    /// 验证数量上下界之外和未定义模式均被拒绝。
     /// </summary>
     [Fact]
-    public async Task CreateShouldRejectInvalidCountModeAndLanguage()
+    public async Task CreateShouldRejectInvalidCountAndMode()
     {
         var validator = new CreateWordStudySessionRequestValidator();
         var tooSmall = await validator.ValidateAsync(
@@ -58,18 +58,10 @@ public sealed class WordStudyValidatorsTests
                 SelectionMode = (WordStudySelectionMode)999
             },
             TestContext.Current.CancellationToken);
-        var whitespaceLanguage = await validator.ValidateAsync(
-            new CreateWordStudySessionRequest { LanguageTag = " " },
-            TestContext.Current.CancellationToken);
-        var invalidLanguage = await validator.ValidateAsync(
-            new CreateWordStudySessionRequest { LanguageTag = "english!" },
-            TestContext.Current.CancellationToken);
 
         tooSmall.IsValid.Should().BeFalse();
         tooLarge.IsValid.Should().BeFalse();
         invalidMode.IsValid.Should().BeFalse();
-        whitespaceLanguage.IsValid.Should().BeFalse();
-        invalidLanguage.IsValid.Should().BeFalse();
     }
 
     /// <summary>

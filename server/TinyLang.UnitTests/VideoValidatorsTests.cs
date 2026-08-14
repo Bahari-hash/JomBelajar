@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FluentAssertions;
 using TinyLang.Dtos;
 using TinyLang.Entities.Enums;
@@ -19,13 +19,11 @@ public sealed class VideoValidatorsTests
         {
             SourceMediaResourceId = Guid.Empty,
             Title = "video",
-            OriginalLanguage = "not_a_language"
         }, TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Select(value => value.PropertyName).Should().Contain([
             nameof(CreateVideoRequest.SourceMediaResourceId),
-            nameof(CreateVideoRequest.OriginalLanguage)
         ]);
     }
 
@@ -40,7 +38,6 @@ public sealed class VideoValidatorsTests
             {
                 SourceMediaResourceId = Guid.NewGuid(),
                 Title = "Video",
-                OriginalLanguage = "en",
                 CategoryIds = [categoryId, categoryId]
             },
             TestContext.Current.CancellationToken);
@@ -49,7 +46,6 @@ public sealed class VideoValidatorsTests
             {
                 SourceMediaResourceId = Guid.NewGuid(),
                 Title = "Video",
-                OriginalLanguage = "en",
                 CategoryIds = Enumerable.Range(0, 11)
                     .Select(_ => Guid.NewGuid())
                     .ToArray()
@@ -113,7 +109,6 @@ public sealed class VideoValidatorsTests
         var update = await updateValidator.ValidateAsync(new UpdateVideoRequest
         {
             Title = "Video",
-            OriginalLanguage = "en"
         }, TestContext.Current.CancellationToken);
 
         mutation.IsValid.Should().BeFalse();
@@ -133,7 +128,6 @@ public sealed class VideoValidatorsTests
         var result = await validator.ValidateAsync(new UpdateVideoRequest
         {
             Title = "Video",
-            OriginalLanguage = "en",
             CoverAction = action,
             CoverMediaResourceId = includeResourceId ? Guid.NewGuid() : null,
             ConcurrencyStamp = Guid.NewGuid()

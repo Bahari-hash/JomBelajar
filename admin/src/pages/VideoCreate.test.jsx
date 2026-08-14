@@ -113,7 +113,6 @@ describe("VideoCreate", () => {
       await screen.findByLabelText(/^标题/, {}, { timeout: 3000 }),
       "Bonjour",
     );
-    await user.type(screen.getByLabelText(/^原始语言/), "fr");
     await user.upload(
       screen.getByLabelText("自定义封面"),
       new File(["jpg"], "cover.jpg", { type: "image/jpeg" }),
@@ -154,7 +153,6 @@ describe("VideoCreate", () => {
       sourceMediaResourceId: RESOURCE_ID,
       coverMediaResourceId: COVER_RESOURCE_ID,
       title: "Bonjour",
-      originalLanguage: "fr",
     });
   });
 });

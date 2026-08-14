@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  formatLanguageTag,
   formatPaperDate,
   getPaperErrorMessage,
   getQuestionTypeLabel,
@@ -57,10 +56,4 @@ describe("paperUtils", () => {
     expect(isPaperSubmitRecoveryError(null)).toBe(false);
   });
 
-  it("formats language tags and safely falls back", () => {
-    expect(formatLanguageTag("")).toBe("语言未知");
-    expect(formatLanguageTag("   ")).toBe("语言未知");
-    expect(formatLanguageTag("en")).not.toBe("en");
-    expect(formatLanguageTag("not_a_language_tag")).toBe("not_a_language_tag");
-  });
 });

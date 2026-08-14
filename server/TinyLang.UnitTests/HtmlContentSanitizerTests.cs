@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TinyLang.Infrastructure;
 
 namespace TinyLang.UnitTests;

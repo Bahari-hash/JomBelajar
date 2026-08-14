@@ -14,18 +14,16 @@ public sealed class WordConfiguration : IEntityTypeConfiguration<Word>
     {
         builder.ToTable("words");
         builder.HasKey(value => value.Id);
-        builder.Property(value => value.LanguageTag).HasMaxLength(35).IsRequired();
         builder.Property(value => value.Headword).HasMaxLength(200).IsRequired();
         builder.Property(value => value.NormalizedHeadword).HasMaxLength(200).IsRequired();
         builder.Property(value => value.Status)
             .HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
 
-        builder.HasIndex(value => new { value.LanguageTag, value.NormalizedHeadword })
+        builder.HasIndex(value => value.NormalizedHeadword)
             .IsUnique();
         builder.HasIndex(value => new
         {
-            value.LanguageTag,
             value.Status,
             value.UpdatedAt,
             value.Id
@@ -33,7 +31,6 @@ public sealed class WordConfiguration : IEntityTypeConfiguration<Word>
         builder.HasIndex(value => new
         {
             value.Status,
-            value.LanguageTag,
             value.PublishedAt,
             value.Id
         });

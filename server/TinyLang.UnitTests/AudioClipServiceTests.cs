@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -39,13 +39,11 @@ public sealed class AudioClipServiceTests
             SourceMediaResourceId = source.Id,
             Title = "  Hello  ",
             Description = " native ",
-            LanguageTag = "EN-US",
             Kind = AudioClipKind.WordPronunciation
         }, TestContext.Current.CancellationToken);
 
         response.Title.Should().Be("Hello");
         response.Description.Should().Be("native");
-        response.LanguageTag.Should().Be("en-us");
         response.ProcessingStatus.Should().Be(AudioProcessingStatus.Queued);
         var job = await db.AudioProcessingJobs.SingleAsync(
             TestContext.Current.CancellationToken);
@@ -76,7 +74,6 @@ public sealed class AudioClipServiceTests
         {
             SourceMediaResourceId = source.Id,
             Title = "Audio",
-            LanguageTag = "en",
             Kind = AudioClipKind.Other
         }, TestContext.Current.CancellationToken);
 
@@ -102,7 +99,6 @@ public sealed class AudioClipServiceTests
         {
             SourceMediaResourceId = source.Id,
             Title = "Audio",
-            LanguageTag = "en",
             Kind = AudioClipKind.Other
         }, TestContext.Current.CancellationToken);
 
@@ -126,7 +122,6 @@ public sealed class AudioClipServiceTests
         {
             SourceMediaResourceId = existing.SourceMediaResourceId,
             Title = "Duplicate",
-            LanguageTag = "en",
             Kind = AudioClipKind.Other
         }, TestContext.Current.CancellationToken);
 
@@ -171,13 +166,10 @@ public sealed class AudioClipServiceTests
         await using var db = CreateDbContext();
         var ownerId = Guid.NewGuid();
         var expected = CreateAudioClip(ownerId);
-        expected.LanguageTag = "en-us";
         expected.Kind = AudioClipKind.WordPronunciation;
         var otherLanguage = CreateAudioClip(ownerId);
-        otherLanguage.LanguageTag = "en-gb";
         otherLanguage.Kind = AudioClipKind.WordPronunciation;
         var otherKind = CreateAudioClip(ownerId);
-        otherKind.LanguageTag = "en-us";
         otherKind.Kind = AudioClipKind.ExampleSentence;
         db.AudioClips.AddRange(expected, otherLanguage, otherKind);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -186,7 +178,6 @@ public sealed class AudioClipServiceTests
         var response = await service.GetAdminListAsync(
             new AdminAudioClipListRequest
             {
-                Language = "EN-US",
                 Kind = AudioClipKind.WordPronunciation
             },
             TestContext.Current.CancellationToken);
@@ -208,7 +199,6 @@ public sealed class AudioClipServiceTests
         await service.UpdateAsync(audioClip.Id, adminId, new UpdateAudioClipRequest
         {
             Title = "Updated",
-            LanguageTag = "en",
             Kind = AudioClipKind.Dialogue
         }, TestContext.Current.CancellationToken);
 
@@ -391,7 +381,6 @@ public sealed class AudioClipServiceTests
             SourceMediaResourceId = source.Id,
             SourceMediaResource = source,
             Title = "Audio",
-            LanguageTag = "en",
             Kind = AudioClipKind.Other
         };
     }

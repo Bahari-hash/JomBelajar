@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using TinyLang.Database;
@@ -175,7 +175,6 @@ public sealed class VideoCategoryServiceTests
             CreatedById = Guid.NewGuid(),
             SourceMediaResourceId = Guid.NewGuid(),
             Title = "Video",
-            OriginalLanguage = "en",
             ProcessingStatus = processingStatus,
             PublicationStatus = publicationStatus
         };

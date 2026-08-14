@@ -14,7 +14,6 @@ export interface PaperCatalogItem {
   id: string;
   title: string;
   description: string | null;
-  languageTag: string;
   tags: string[];
   questionCount: number;
   totalScore: number;
@@ -75,7 +74,6 @@ export interface PaperAttempt {
   title: string;
   description: string | null;
   instructions: string | null;
-  languageTag: string;
   questionCount: number;
   paperTotalScore: number;
   paperPassingScore: number;

@@ -199,7 +199,6 @@ function commonPaper(source) {
   const normalized = {
     id: uuid(source.id, "paper id"),
     title: string(source.title, "paper title"),
-    languageTag: nonEmptyString(source.languageTag, "paper language"),
     tags: paperTags(source.tags),
     status: enumeration(source.status, PAPER_STATUSES, "paper status"),
     totalScore: number(source.totalScore, "paper total score", {

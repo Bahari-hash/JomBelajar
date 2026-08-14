@@ -1,10 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TinyLang.Services;
 
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证词条 Unicode、大小写比较键和语言标签兼容规则。
+/// 验证词条 Unicode 和大小写比较键规范化规则。
 /// </summary>
 public sealed class WordTextNormalizerTests
 {
@@ -32,23 +32,5 @@ public sealed class WordTextNormalizerTests
         first.Should().Be("HELLO");
         second.Should().Be(first);
         compatibility.Should().Be(first);
-    }
-
-    /// <summary>
-    /// 验证相同标签和父子 subtag 兼容，而并列地区标签不兼容。
-    /// </summary>
-    [Theory]
-    [InlineData("en", "en-US", true)]
-    [InlineData("EN-us", "en-US", true)]
-    [InlineData("en-US", "en-GB", false)]
-    [InlineData("zh-Hans", "zh-Hant", false)]
-    [InlineData("fr", "en", false)]
-    public void LanguageCompatibilityShouldUseSubtagBoundaries(
-        string left,
-        string right,
-        bool expected)
-    {
-        WordTextNormalizer.AreLanguageTagsCompatible(left, right)
-            .Should().Be(expected);
     }
 }

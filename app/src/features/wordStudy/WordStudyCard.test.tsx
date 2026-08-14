@@ -23,15 +23,12 @@ function createItem(
             {
               partOfSpeech: "Interjection",
               definition: `释义 ${headword}`,
-              definitionLanguageTag: "zh",
               usageNote: `用法 ${headword}`,
               sortOrder: 0,
               examples: [
                 {
                   sentence: `Example ${headword}`,
-                  languageTag: "en",
                   translation: `例句 ${headword}`,
-                  translationLanguageTag: "zh",
                   audioClipId: null,
                   sortOrder: 0,
                 },

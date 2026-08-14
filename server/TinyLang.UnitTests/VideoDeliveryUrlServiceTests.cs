@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Moq;
 using TinyLang.Infrastructure;
 using TinyLang.Interfaces;

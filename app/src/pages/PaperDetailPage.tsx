@@ -6,7 +6,6 @@ import {
 } from "@/features/papers/paperApi";
 import { isPaperGuid } from "@/features/papers/paperSearchParams";
 import {
-  // formatLanguageTag,
   formatPaperDate,
   getPaperErrorMessage,
   isPaperNotFoundError,
@@ -104,9 +103,6 @@ export default function PaperDetailPage() {
               <ListCheck aria-hidden="true" className="size-5" />
             </span>
             <span className="badge badge-ghost">客观题</span>
-            {/* <span className="badge badge-outline">
-              {formatLanguageTag(paper.languageTag)}
-            </span> */}
           </div>
           <h1 className="wrap-break-word text-3xl font-bold leading-tight sm:text-4xl">
             {paper.title}

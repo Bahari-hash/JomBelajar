@@ -16,7 +16,6 @@ function paperListItem(overrides = {}) {
   return {
     id: PAPER_ID,
     title: "English basics",
-    languageTag: "en",
     tags: [],
     status: "Draft",
     questionCount: 2,
@@ -50,7 +49,7 @@ describe("Papers", () => {
     );
     const user = userEvent.setup();
     const { router } = renderAppAt("/papers", {
-      initialEntry: "/papers?status=Draft&language=en&tag=cet-4",
+      initialEntry: "/papers?status=Draft&tag=cet-4",
     });
 
     expect(

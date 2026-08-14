@@ -35,7 +35,6 @@ function buildListUrl(filters) {
     pageSize: String(filters.pageSize),
   });
   if (filters.keyword) params.set("keyword", filters.keyword);
-  if (filters.language) params.set("language", filters.language);
   if (filters.status) params.set("status", filters.status);
   if (filters.tag) params.set("tag", filters.tag);
   return `/admin/papers?${params.toString()}`;

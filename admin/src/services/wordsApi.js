@@ -42,7 +42,6 @@ function buildWordListUrl(filters) {
   });
   for (const key of [
     "keyword",
-    "language",
     "status",
     "partOfSpeech",
     "definition",
@@ -58,7 +57,6 @@ function buildAudioListUrl(filters) {
     kind: filters.kind,
   });
   if (filters.keyword) params.set("keyword", filters.keyword);
-  if (filters.language) params.set("language", filters.language);
   if (filters.processingStatus)
     params.set("processingStatus", filters.processingStatus);
   if (filters.publicationStatus)

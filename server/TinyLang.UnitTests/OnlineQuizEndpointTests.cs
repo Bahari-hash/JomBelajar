@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -69,7 +69,6 @@ public sealed class OnlineQuizEndpointTests
             new CreatePaperRequest
             {
                 Title = "Quiz",
-                LanguageTag = "en"
             },
             TestContext.Current.CancellationToken);
 
@@ -388,7 +387,6 @@ public sealed class OnlineQuizEndpointTests
             "Quiz",
             null,
             null,
-            "en",
             [],
             PaperPublicationStatus.Draft,
             60,
@@ -419,7 +417,6 @@ public sealed class OnlineQuizEndpointTests
             "Quiz",
             null,
             null,
-            "en",
             questionId.HasValue ? 1 : 0,
             1,
             1,

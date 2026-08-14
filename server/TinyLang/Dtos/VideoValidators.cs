@@ -34,12 +34,6 @@ public sealed class CreateVideoRequestValidator : AbstractValidator<CreateVideoR
             .MaximumLength(200).WithErrKey(ErrorCodes.VideoTitleLengthLimit);
         validator.RuleFor(x => x.Description)
             .MaximumLength(2000).WithErrKey(ErrorCodes.VideoDescriptionLengthLimit);
-        validator.RuleFor(x => x.OriginalLanguage)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty().WithErrKey(ErrorCodes.VideoLanguageInvalid)
-            .MaximumLength(35).WithErrKey(ErrorCodes.VideoLanguageInvalid)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .WithErrKey(ErrorCodes.VideoLanguageInvalid);
         validator.RuleFor(x => x.CategoryIds)
             .Cascade(CascadeMode.Stop)
             .NotNull().WithErrKey(ErrorCodes.VideoCategoryIdsInvalid)
@@ -68,12 +62,6 @@ public sealed class UpdateVideoRequestValidator : AbstractValidator<UpdateVideoR
             .MaximumLength(200).WithErrKey(ErrorCodes.VideoTitleLengthLimit);
         RuleFor(x => x.Description)
             .MaximumLength(2000).WithErrKey(ErrorCodes.VideoDescriptionLengthLimit);
-        RuleFor(x => x.OriginalLanguage)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty().WithErrKey(ErrorCodes.VideoLanguageInvalid)
-            .MaximumLength(35).WithErrKey(ErrorCodes.VideoLanguageInvalid)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .WithErrKey(ErrorCodes.VideoLanguageInvalid);
         RuleFor(x => x.CategoryIds)
             .Cascade(CascadeMode.Stop)
             .NotNull().WithErrKey(ErrorCodes.VideoCategoryIdsInvalid)

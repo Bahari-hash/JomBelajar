@@ -57,7 +57,6 @@ public sealed class PaperService : IPaperService
             Title = NormalizeRequired(request.Title),
             Description = NormalizeOptional(request.Description),
             Instructions = NormalizeOptional(request.Instructions),
-            LanguageTag = WordTextNormalizer.NormalizeLanguageTag(request.LanguageTag),
             Tags = PaperTagNormalizer.Normalize(request.Tags),
             PassingScorePercentage = request.PassingScorePercentage,
             CreatedById = adminId,
@@ -102,7 +101,6 @@ public sealed class PaperService : IPaperService
         paper.Title = NormalizeRequired(request.Title);
         paper.Description = NormalizeOptional(request.Description);
         paper.Instructions = NormalizeOptional(request.Instructions);
-        paper.LanguageTag = WordTextNormalizer.NormalizeLanguageTag(request.LanguageTag);
         paper.Tags = PaperTagNormalizer.Normalize(request.Tags);
         paper.PassingScorePercentage = request.PassingScorePercentage;
         paper.TotalScore = CalculateTotalScore(request.Questions);
@@ -312,11 +310,6 @@ public sealed class PaperService : IPaperService
             var tag = request.Tag.Trim().ToLowerInvariant();
             query = query.Where(value => value.Tags.Contains(tag));
         }
-        if (!string.IsNullOrWhiteSpace(request.Language))
-        {
-            var language = WordTextNormalizer.NormalizeLanguageTag(request.Language);
-            query = query.Where(value => value.LanguageTag == language);
-        }
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = request.Keyword.Trim().ToUpperInvariant();
@@ -332,7 +325,6 @@ public sealed class PaperService : IPaperService
             .Select(value => new AdminPaperListItemResponse(
                 value.Id,
                 value.Title,
-                value.LanguageTag,
                 value.Tags,
                 value.Status,
                 value.Questions.Count,
@@ -373,11 +365,6 @@ public sealed class PaperService : IPaperService
             var tag = request.Tag.Trim().ToLowerInvariant();
             query = query.Where(value => value.Tags.Contains(tag));
         }
-        if (!string.IsNullOrWhiteSpace(request.Language))
-        {
-            var language = WordTextNormalizer.NormalizeLanguageTag(request.Language);
-            query = query.Where(value => value.LanguageTag == language);
-        }
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = request.Keyword.Trim().ToUpperInvariant();
@@ -394,7 +381,6 @@ public sealed class PaperService : IPaperService
                 value.Id,
                 value.Title,
                 value.Description,
-                value.LanguageTag,
                 value.Tags,
                 value.Questions.Count,
                 value.TotalScore,
@@ -561,7 +547,6 @@ public sealed class PaperService : IPaperService
                 value.Title,
                 value.Description,
                 value.Instructions,
-                value.LanguageTag,
                 value.Tags,
                 value.Questions.Count,
                 value.TotalScore,
@@ -931,12 +916,6 @@ public sealed class PaperService : IPaperService
         {
             Add("title", ErrorCodes.PaperTitleLengthLimit);
         }
-        if (string.IsNullOrWhiteSpace(paper.LanguageTag) ||
-            paper.LanguageTag.Length > OnlineQuizConstraints.MaxLanguageTagLength)
-        {
-            Add("languageTag", ErrorCodes.PaperLanguageInvalid);
-        }
-
         var questions = paper.Questions.OrderBy(value => value.SortOrder)
             .ThenBy(value => value.Id).ToArray();
         if (questions.Length is < 1 or > OnlineQuizConstraints.MaxQuestionCount)
@@ -1186,7 +1165,6 @@ public sealed class PaperService : IPaperService
             paper.Title,
             paper.Description,
             paper.Instructions,
-            paper.LanguageTag,
             paper.Tags,
             paper.Status,
             paper.PassingScorePercentage,

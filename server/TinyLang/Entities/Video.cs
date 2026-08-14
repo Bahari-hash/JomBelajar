@@ -26,7 +26,6 @@ public sealed class Video : BaseAuditableEntity
     public MediaResource? CoverMediaResource { get; set; }
     public required string Title { get; set; }
     public string? Description { get; set; }
-    public required string OriginalLanguage { get; set; }
     public double? DurationSeconds { get; set; }
     public int? DisplayWidth { get; set; }
     public int? DisplayHeight { get; set; }

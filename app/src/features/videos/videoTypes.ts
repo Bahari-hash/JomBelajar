@@ -22,7 +22,6 @@ export interface VideoCatalogItem {
   id: string;
   title: string;
   description: string | null;
-  originalLanguage: string;
   durationSeconds: number;
   author: VideoUserSummary;
   coverUrl: string | null;
@@ -34,7 +33,6 @@ export interface VideoDetails {
   id: string;
   title: string;
   description: string | null;
-  originalLanguage: string;
   durationSeconds: number;
   displayWidth: number;
   displayHeight: number;

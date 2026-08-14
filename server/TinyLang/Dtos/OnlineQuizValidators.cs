@@ -29,13 +29,6 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
         RuleFor(value => value.Instructions)
             .MaximumLength(OnlineQuizConstraints.MaxInstructionsLength)
             .WithErrKey(ErrorCodes.PaperInstructionsLengthLimit);
-        RuleFor(value => value.LanguageTag)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty().WithErrKey(ErrorCodes.PaperLanguageInvalid)
-            .MaximumLength(OnlineQuizConstraints.MaxLanguageTagLength)
-            .WithErrKey(ErrorCodes.PaperLanguageInvalid)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .WithErrKey(ErrorCodes.PaperLanguageInvalid);
         RuleFor(value => value.Tags)
             .Cascade(CascadeMode.Stop)
             .NotNull().WithErrKey(ErrorCodes.PaperTagInvalid)
@@ -444,7 +437,6 @@ public sealed class AdminPaperListRequestValidator
             value => value.Page,
             value => value.PageSize,
             value => value.Keyword,
-            value => value.Language,
             value => value.Tag);
         RuleFor(value => value.Status)
             .Must(value => value is null || Enum.IsDefined(value.Value))
@@ -467,7 +459,6 @@ public sealed class PaperCatalogRequestValidator : AbstractValidator<PaperCatalo
             value => value.Page,
             value => value.PageSize,
             value => value.Keyword,
-            value => value.Language,
             value => value.Tag);
     }
 }
@@ -548,18 +539,16 @@ public sealed class SavePaperAttemptAnswerRequestValidator
 internal static class OnlineQuizListValidationRules
 {
     /// <summary>
-    /// 为具有分页、关键词和语言字段的请求添加共享规则。
+    /// 为具有分页、关键词和标签字段的请求添加共享规则。
     /// </summary>
     public static void Add<T>(
         AbstractValidator<T> validator,
         Expression<Func<T, int>> pageExpression,
         Expression<Func<T, int>> pageSizeExpression,
         Expression<Func<T, string?>> keywordExpression,
-        Expression<Func<T, string?>> languageExpression,
         Expression<Func<T, string?>> tagExpression)
         where T : class
     {
-        var getLanguage = languageExpression.Compile();
         validator.RuleFor(pageExpression)
             .GreaterThanOrEqualTo(1).WithErrKey(ErrorCodes.PageInvalid);
         validator.RuleFor(pageSizeExpression)
@@ -568,16 +557,6 @@ internal static class OnlineQuizListValidationRules
             .MaximumLength(200).WithErrKey(ErrorCodes.KeywordLengthLimit)
             .Must(value => string.IsNullOrEmpty(value) || !value.Any(char.IsControl))
             .WithErrKey(ErrorCodes.KeywordInvalid);
-        validator.RuleFor(languageExpression)
-            .Cascade(CascadeMode.Stop)
-            .MaximumLength(OnlineQuizConstraints.MaxLanguageTagLength)
-            .WithErrKey(ErrorCodes.PaperLanguageInvalid)
-            .Must(value => value is null || !string.IsNullOrWhiteSpace(value))
-            .WithErrKey(ErrorCodes.PaperLanguageInvalid);
-        validator.RuleFor(languageExpression)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .When(value => !string.IsNullOrWhiteSpace(getLanguage(value)))
-            .WithErrKey(ErrorCodes.PaperLanguageInvalid);
         validator.RuleFor(tagExpression)
             .MaximumLength(OnlineQuizConstraints.MaxPaperTagLength)
             .WithErrKey(ErrorCodes.PaperTagLengthLimit)

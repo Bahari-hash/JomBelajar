@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -387,7 +387,6 @@ public sealed class AudioProcessingServiceTests
             SourceMediaResourceId = resource.Id,
             SourceMediaResource = resource,
             Title = "Audio",
-            LanguageTag = "en",
             Kind = AudioClipKind.Other
         };
         var job = new AudioProcessingJob

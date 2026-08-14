@@ -117,7 +117,6 @@ public sealed class WordStudyService : IWordStudyService
             dailyCount,
             includePreviouslyStudied: true,
             WordStudySelectionMode.Sequential,
-            languageTag: null,
             cancellationToken);
         if (wordIds.Count == 0)
         {
@@ -167,10 +166,6 @@ public sealed class WordStudyService : IWordStudyService
         CancellationToken cancellationToken = default)
     {
         ValidateCreateRequest(request);
-        var languageTag = request.LanguageTag is null
-            ? null
-            : WordTextNormalizer.NormalizeLanguageTag(request.LanguageTag);
-
         await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
         if (await _db.WordStudySessions.AsNoTracking().AnyAsync(
             value => value.UserId == userId &&
@@ -185,7 +180,6 @@ public sealed class WordStudyService : IWordStudyService
             request.WordCount,
             request.IncludePreviouslyStudied,
             request.SelectionMode,
-            languageTag,
             cancellationToken);
         if (wordIds.Count == 0)
         {
@@ -200,7 +194,6 @@ public sealed class WordStudyService : IWordStudyService
             ActualCount = wordIds.Count,
             IncludePreviouslyStudied = request.IncludePreviouslyStudied,
             SelectionMode = request.SelectionMode,
-            LanguageTag = languageTag,
             StudyDateUtc = NormalizeStudyDate(now),
             StartedAt = now,
             Items = wordIds.Select((wordId, position) =>
@@ -294,16 +287,13 @@ public sealed class WordStudyService : IWordStudyService
                         .Select(sense => new WordSenseResponse(
                             sense.PartOfSpeech,
                             sense.Definition,
-                            sense.DefinitionLanguageTag,
                             sense.UsageNote,
                             sense.SortOrder,
                             sense.Examples.OrderBy(example => example.SortOrder)
                                 .ThenBy(example => example.Id)
                                 .Select(example => new ExampleSentenceResponse(
                                     example.Sentence,
-                                    example.LanguageTag,
                                     example.Translation,
-                                    example.TranslationLanguageTag,
                                     example.AudioClipId,
                                     example.SortOrder))
                                 .ToList()))
@@ -371,22 +361,18 @@ public sealed class WordStudyService : IWordStudyService
                 session.ActualCount,
                 word.Id,
                 word.Headword,
-                word.LanguageTag,
                 word.Senses.OrderBy(sense => sense.SortOrder)
                     .ThenBy(sense => sense.Id)
                     .Select(sense => new WordSenseResponse(
                         sense.PartOfSpeech,
                         sense.Definition,
-                        sense.DefinitionLanguageTag,
                         sense.UsageNote,
                         sense.SortOrder,
                         sense.Examples.OrderBy(example => example.SortOrder)
                             .ThenBy(example => example.Id)
                             .Select(example => new ExampleSentenceResponse(
                                 example.Sentence,
-                                example.LanguageTag,
                                 example.Translation,
-                                example.TranslationLanguageTag,
                                 example.AudioClipId,
                                 example.SortOrder))
                             .ToList()))
@@ -522,13 +508,6 @@ public sealed class WordStudyService : IWordStudyService
             throw new RequestValidationException(
                 ErrorCodes.WordStudySelectionModeInvalid);
         }
-        if (request.LanguageTag is { } languageTag &&
-            (string.IsNullOrWhiteSpace(languageTag) ||
-             languageTag.Length > WordConstraints.MaxLanguageTagLength ||
-             !MediaValidationPatterns.LanguageTag().IsMatch(languageTag)))
-        {
-            throw new RequestValidationException(ErrorCodes.WordLanguageInvalid);
-        }
     }
 
     /// <summary>
@@ -575,14 +554,9 @@ public sealed class WordStudyService : IWordStudyService
         int wordCount,
         bool includePreviouslyStudied,
         WordStudySelectionMode selectionMode,
-        string? languageTag,
         CancellationToken cancellationToken)
     {
         var visible = WordVisibilityPolicy.Apply(_db.Words.AsNoTracking());
-        if (languageTag is not null)
-        {
-            visible = visible.Where(value => value.LanguageTag == languageTag);
-        }
 
         if (selectionMode == WordStudySelectionMode.Random)
         {
@@ -888,7 +862,6 @@ public sealed class WordStudyService : IWordStudyService
             session.ActualCount,
             session.IncludePreviouslyStudied,
             session.SelectionMode,
-            session.LanguageTag,
             session.Status,
             session.Items.Count(item =>
                 item.Status != WordStudySessionItemStatus.Pending),

@@ -7,7 +7,7 @@ import { renderAppAt } from "@/test/renderApp.jsx";
 
 const PAYLOAD = {
   rows: [
-    { languageTag: "fr", headword: "bonjour", senses: [], pronunciations: [] },
+    { headword: "bonjour", senses: [], pronunciations: [] },
   ],
 };
 

@@ -796,7 +796,6 @@ public sealed class PaperAttemptService : IPaperAttemptService
             attempt.Paper!.Title,
             attempt.Paper.Description,
             attempt.Paper.Instructions,
-            attempt.Paper.LanguageTag,
             attempt.Paper.Questions.Count,
             attempt.PaperTotalScore,
             attempt.PaperPassingScore,

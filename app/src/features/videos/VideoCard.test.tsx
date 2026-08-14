@@ -8,7 +8,6 @@ const video: VideoCatalogItem = {
   id: "11111111-2222-3333-4444-555555555555",
   title: "Listening in context",
   description: "A practical listening lesson.",
-  originalLanguage: "en",
   durationSeconds: 95,
   author: {
     id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",

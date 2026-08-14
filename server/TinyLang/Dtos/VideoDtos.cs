@@ -12,7 +12,6 @@ public sealed record CreateVideoRequest
     public Guid? CoverMediaResourceId { get; init; }
     public required string Title { get; init; }
     public string? Description { get; init; }
-    public required string OriginalLanguage { get; init; }
     public IReadOnlyCollection<Guid> CategoryIds { get; init; } = [];
 }
 
@@ -23,7 +22,6 @@ public sealed record UpdateVideoRequest
 {
     public required string Title { get; init; }
     public string? Description { get; init; }
-    public required string OriginalLanguage { get; init; }
     public IReadOnlyCollection<Guid> CategoryIds { get; init; } = [];
     public VideoCoverAction CoverAction { get; init; } = VideoCoverAction.Keep;
     public Guid? CoverMediaResourceId { get; init; }
@@ -118,7 +116,6 @@ public sealed record UpdateVideoProgressRequest
 public sealed record AdminVideoListItemResponse(
     Guid Id,
     string Title,
-    string OriginalLanguage,
     VideoProcessingStatus ProcessingStatus,
     VideoPublicationStatus PublicationStatus,
     double? DurationSeconds,
@@ -226,7 +223,6 @@ public sealed record AdminVideoResponse(
     VideoCoverSummaryResponse? Cover,
     string Title,
     string? Description,
-    string OriginalLanguage,
     VideoProcessingStatus ProcessingStatus,
     VideoPublicationStatus PublicationStatus,
     double? DurationSeconds,
@@ -254,7 +250,6 @@ public sealed record VideoCatalogItemResponse(
     Guid Id,
     string Title,
     string? Description,
-    string OriginalLanguage,
     double DurationSeconds,
     VideoUserSummaryResponse Author,
     string? CoverUrl,
@@ -268,7 +263,6 @@ public sealed record VideoDetailsResponse(
     Guid Id,
     string Title,
     string? Description,
-    string OriginalLanguage,
     double DurationSeconds,
     int DisplayWidth,
     int DisplayHeight,

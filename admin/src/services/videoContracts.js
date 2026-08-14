@@ -153,7 +153,6 @@ function commonVideo(value) {
   return {
     id: uuid(source.id, "video id"),
     title: string(source.title, "video title"),
-    originalLanguage: string(source.originalLanguage, "video language"),
     processingStatus: enumeration(
       source.processingStatus,
       VIDEO_PROCESSING_STATUSES,

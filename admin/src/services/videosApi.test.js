@@ -75,7 +75,6 @@ describe("videosApi", () => {
     const metadata = {
       title: "French greetings",
       description: "Basic phrases",
-      originalLanguage: "fr",
       categoryIds: ["77777777-7777-4777-8777-777777777777"],
     };
     await store

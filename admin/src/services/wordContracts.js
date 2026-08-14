@@ -93,12 +93,7 @@ function example(value) {
   return {
     id: uuid(source.id, "word example id"),
     sentence: string(source.sentence, "word example sentence"),
-    languageTag: string(source.languageTag, "word example language"),
     translation: string(source.translation, "word example translation"),
-    translationLanguageTag: string(
-      source.translationLanguageTag,
-      "word example translation language",
-    ),
     audioClipId: uuid(source.audioClipId, "word example audio id", true),
     sortOrder: number(source.sortOrder, "word example sort order", {
       integer: true,
@@ -116,10 +111,6 @@ function sense(value) {
       "word part of speech",
     ),
     definition: string(source.definition, "word definition"),
-    definitionLanguageTag: string(
-      source.definitionLanguageTag,
-      "word definition language",
-    ),
     usageNote: string(source.usageNote, "word usage note", true),
     sortOrder: number(source.sortOrder, "word sense sort order", {
       integer: true,
@@ -146,7 +137,6 @@ export function normalizeWordListItem(value) {
   const source = object(value, "word list item");
   return {
     id: uuid(source.id, "word id"),
-    languageTag: string(source.languageTag, "word language"),
     headword: string(source.headword, "word headword"),
     status: enumeration(source.status, WORD_STATUSES, "word status"),
     primaryPartOfSpeech:
@@ -236,7 +226,6 @@ function audioOption(value) {
   return {
     id: uuid(source.id, "audio id"),
     title: string(source.title, "audio title"),
-    languageTag: string(source.languageTag, "audio language"),
     kind: enumeration(source.kind, AUDIO_KINDS, "audio kind"),
     processingStatus: enumeration(
       source.processingStatus,
@@ -266,7 +255,6 @@ export function normalizeAdminAudioClip(value) {
     ),
     title: string(source.title, "audio title"),
     description: string(source.description, "audio description", true),
-    languageTag: string(source.languageTag, "audio language"),
     kind: enumeration(source.kind, AUDIO_KINDS, "audio kind"),
     processingStatus: enumeration(
       source.processingStatus,
@@ -379,7 +367,6 @@ export function normalizeAudioPlayback(value) {
     url: httpUrl(source.url, "audio playback URL"),
     expiresAt: date(source.expiresAt, "audio playback expiry", true),
     durationSeconds: number(source.durationSeconds, "audio playback duration"),
-    languageTag: string(source.languageTag, "audio playback language"),
     audioClipKind: enumeration(
       source.audioClipKind,
       AUDIO_KINDS,
@@ -433,7 +420,6 @@ export function normalizeBatchValidation(value) {
 function normalizeWordInputPreview(value) {
   const source = object(value, "batch normalized word");
   return {
-    languageTag: string(source.languageTag, "batch word language"),
     headword: string(source.headword, "batch word headword"),
     senses: array(source.senses, normalizePreviewSense, "batch word senses"),
     pronunciations: array(
@@ -453,10 +439,6 @@ function normalizePreviewSense(value) {
       "batch word part of speech",
     ),
     definition: string(source.definition, "batch word definition"),
-    definitionLanguageTag: string(
-      source.definitionLanguageTag,
-      "batch word definition language",
-    ),
     usageNote: string(source.usageNote, "batch word usage note", true),
     sortOrder: number(source.sortOrder, "batch word sense sort order", {
       integer: true,
@@ -473,12 +455,7 @@ function normalizePreviewExample(value) {
   const source = object(value, "batch word example");
   return {
     sentence: string(source.sentence, "batch word example sentence"),
-    languageTag: string(source.languageTag, "batch word example language"),
     translation: string(source.translation, "batch word example translation"),
-    translationLanguageTag: string(
-      source.translationLanguageTag,
-      "batch word example translation language",
-    ),
     audioClipId: uuid(source.audioClipId, "batch word example audio id", true),
     sortOrder: number(source.sortOrder, "batch word example sort order", {
       integer: true,

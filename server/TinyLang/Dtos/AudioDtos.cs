@@ -10,7 +10,6 @@ public sealed record CreateAudioClipRequest
     public Guid SourceMediaResourceId { get; init; }
     public required string Title { get; init; }
     public string? Description { get; init; }
-    public required string LanguageTag { get; init; }
     public AudioClipKind Kind { get; init; }
 }
 
@@ -21,7 +20,6 @@ public sealed record UpdateAudioClipRequest
 {
     public required string Title { get; init; }
     public string? Description { get; init; }
-    public required string LanguageTag { get; init; }
     public AudioClipKind Kind { get; init; }
 }
 
@@ -33,7 +31,6 @@ public sealed record AdminAudioClipListRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
-    public string? Language { get; init; }
     public AudioProcessingStatus? ProcessingStatus { get; init; }
     public AudioPublicationStatus? PublicationStatus { get; init; }
     public AudioClipKind? Kind { get; init; }
@@ -45,7 +42,6 @@ public sealed record AdminAudioClipListRequest
 public sealed record AdminAudioClipListItemResponse(
     Guid Id,
     string Title,
-    string LanguageTag,
     AudioClipKind Kind,
     AudioProcessingStatus ProcessingStatus,
     AudioPublicationStatus PublicationStatus,
@@ -61,7 +57,6 @@ public sealed record AdminAudioClipResponse(
     Guid SourceMediaResourceId,
     string Title,
     string? Description,
-    string LanguageTag,
     AudioClipKind Kind,
     AudioProcessingStatus ProcessingStatus,
     AudioPublicationStatus PublicationStatus,
@@ -82,5 +77,4 @@ public sealed record AudioPlaybackResponse(
     string Url,
     DateTimeOffset? ExpiresAt,
     double DurationSeconds,
-    string LanguageTag,
     AudioClipKind AudioClipKind);

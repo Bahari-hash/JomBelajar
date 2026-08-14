@@ -56,7 +56,6 @@ describe("VideoDetailPage", () => {
         id: VIDEO_ID,
         title: "Listening in context",
         description: "A practical listening lesson.",
-        originalLanguage: "en",
         durationSeconds: 95,
         displayWidth: 1920,
         displayHeight: 1080,

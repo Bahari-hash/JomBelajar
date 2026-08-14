@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -28,8 +28,8 @@ public sealed class WordServiceTests
     public async Task CreateDraftShouldNormalizeAndPersistCompleteAggregate()
     {
         await using var db = CreateDbContext();
-        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation, "en-US");
-        var exampleAudio = CreateAudio(AudioClipKind.ExampleSentence, "en");
+        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation);
+        var exampleAudio = CreateAudio(AudioClipKind.ExampleSentence);
         db.AudioClips.AddRange(pronunciation, exampleAudio);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var adminId = Guid.NewGuid();
@@ -40,12 +40,10 @@ public sealed class WordServiceTests
             CreateCompleteRequest(pronunciation.Id, exampleAudio.Id) with
             {
                 Headword = "  Cafe\u0301  ",
-                LanguageTag = "EN-us"
             },
             TestContext.Current.CancellationToken);
 
         response.Headword.Should().Be("Caf\u00e9");
-        response.LanguageTag.Should().Be("en-us");
         response.CreatedBy.Id.Should().Be(adminId);
         response.LastEditor.Id.Should().Be(adminId);
         response.Senses.Should().ContainSingle();
@@ -59,30 +57,25 @@ public sealed class WordServiceTests
     }
 
     /// <summary>
-    /// 验证相同语言的规范化词头冲突，而不同语言可以共存。
+    /// 验证规范化词头在全局范围内保持唯一。
     /// </summary>
     [Fact]
-    public async Task NormalizedHeadwordShouldBeUniqueWithinLanguage()
+    public async Task NormalizedHeadwordShouldBeGloballyUnique()
     {
         await using var db = CreateDbContext();
         var service = CreateService(db);
         var adminId = Guid.NewGuid();
         await service.CreateDraftAsync(
             adminId,
-            new CreateWordRequest { Headword = " Hello ", LanguageTag = "en" },
+            new CreateWordRequest { Headword = " Hello " },
             TestContext.Current.CancellationToken);
 
         var duplicate = async () => await service.CreateDraftAsync(
             adminId,
-            new CreateWordRequest { Headword = "hello", LanguageTag = "EN" },
+            new CreateWordRequest { Headword = "hello" },
             TestContext.Current.CancellationToken);
-        await duplicate.Should().ThrowAsync<ConflictException>();
 
-        var otherLanguage = await service.CreateDraftAsync(
-            adminId,
-            new CreateWordRequest { Headword = "hello", LanguageTag = "fr" },
-            TestContext.Current.CancellationToken);
-        otherLanguage.LanguageTag.Should().Be("fr");
+        await duplicate.Should().ThrowAsync<ConflictException>();
     }
 
     /// <summary>
@@ -92,9 +85,9 @@ public sealed class WordServiceTests
     public async Task UpdateShouldSynchronizeCompleteTargetAndPreserveExistingIds()
     {
         await using var db = CreateDbContext();
-        var firstPronunciation = CreateAudio(AudioClipKind.WordPronunciation, "en");
-        var secondPronunciation = CreateAudio(AudioClipKind.WordPronunciation, "en-GB");
-        var exampleAudio = CreateAudio(AudioClipKind.ExampleSentence, "en");
+        var firstPronunciation = CreateAudio(AudioClipKind.WordPronunciation);
+        var secondPronunciation = CreateAudio(AudioClipKind.WordPronunciation);
+        var exampleAudio = CreateAudio(AudioClipKind.ExampleSentence);
         db.AudioClips.AddRange(firstPronunciation, secondPronunciation, exampleAudio);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -131,7 +124,6 @@ public sealed class WordServiceTests
             new UpdateWordRequest
             {
                 Headword = "hello",
-                LanguageTag = "en",
                 ConcurrencyStamp = created.ConcurrencyStamp,
                 Senses =
                 [
@@ -192,7 +184,7 @@ public sealed class WordServiceTests
     public async Task UpdateShouldRejectForeignChildAndStaleConcurrencyStamp()
     {
         await using var db = CreateDbContext();
-        var audio = CreateAudio(AudioClipKind.WordPronunciation, "en");
+        var audio = CreateAudio(AudioClipKind.WordPronunciation);
         db.AudioClips.Add(audio);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -211,7 +203,6 @@ public sealed class WordServiceTests
             new UpdateWordRequest
             {
                 Headword = "hello",
-                LanguageTag = "en",
                 ConcurrencyStamp = first.ConcurrencyStamp,
                 Senses =
                 [
@@ -228,7 +219,6 @@ public sealed class WordServiceTests
             new UpdateWordRequest
             {
                 Headword = "hello",
-                LanguageTag = "en",
                 ConcurrencyStamp = Guid.NewGuid()
             },
             TestContext.Current.CancellationToken);
@@ -236,19 +226,16 @@ public sealed class WordServiceTests
     }
 
     /// <summary>
-    /// 验证缺失、不可用、用途错误和语言不兼容的音频均不能关联。
+    /// 验证缺失、不可用和用途错误的音频均不能关联。
     /// </summary>
     [Fact]
-    public async Task AudioAssociationShouldEnforceExistenceStatusKindAndLanguage()
+    public async Task AudioAssociationShouldEnforceExistenceStatusAndKind()
     {
         await using var db = CreateDbContext();
-        var unavailable = CreateAudio(
-            AudioClipKind.WordPronunciation,
-            "en",
+        var unavailable = CreateAudio(AudioClipKind.WordPronunciation,
             AudioProcessingStatus.Processing);
-        var wrongKind = CreateAudio(AudioClipKind.ExampleSentence, "en");
-        var wrongLanguage = CreateAudio(AudioClipKind.WordPronunciation, "fr");
-        db.AudioClips.AddRange(unavailable, wrongKind, wrongLanguage);
+        var wrongKind = CreateAudio(AudioClipKind.ExampleSentence);
+        db.AudioClips.AddRange(unavailable, wrongKind);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
@@ -264,15 +251,10 @@ public sealed class WordServiceTests
             Guid.NewGuid(),
             CreateCompleteRequest(wrongKind.Id, null),
             TestContext.Current.CancellationToken);
-        var invalidLanguage = async () => await service.CreateDraftAsync(
-            Guid.NewGuid(),
-            CreateCompleteRequest(wrongLanguage.Id, null),
-            TestContext.Current.CancellationToken);
 
         await missing.Should().ThrowAsync<NotFoundException>();
         await invalidStatus.Should().ThrowAsync<ConflictException>();
         await invalidKind.Should().ThrowAsync<ConflictException>();
-        await invalidLanguage.Should().ThrowAsync<ConflictException>();
     }
 
     /// <summary>
@@ -282,7 +264,7 @@ public sealed class WordServiceTests
     public async Task PublicationLifecycleShouldBeIdempotentAndPreserveFirstPublishedAt()
     {
         await using var db = CreateDbContext();
-        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation, "en");
+        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation);
         db.AudioClips.Add(pronunciation);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -342,7 +324,7 @@ public sealed class WordServiceTests
     public async Task PublicationShouldRejectStaleStampBeforeIdempotentStateCheck()
     {
         await using var db = CreateDbContext();
-        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation, "en");
+        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation);
         db.AudioClips.Add(pronunciation);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -377,7 +359,7 @@ public sealed class WordServiceTests
         var service = CreateService(db);
         var created = await service.CreateDraftAsync(
             Guid.NewGuid(),
-            new CreateWordRequest { Headword = "archivable", LanguageTag = "en" },
+            new CreateWordRequest { Headword = "archivable" },
             TestContext.Current.CancellationToken);
 
         var archived = await service.ArchiveAsync(
@@ -408,7 +390,6 @@ public sealed class WordServiceTests
             new UpdateWordRequest
             {
                 Headword = "changed",
-                LanguageTag = "en",
                 ConcurrencyStamp = archived.ConcurrencyStamp
             },
             TestContext.Current.CancellationToken);
@@ -418,7 +399,6 @@ public sealed class WordServiceTests
             new UpdateWordRequest
             {
                 Headword = "changed",
-                LanguageTag = "en",
                 ConcurrencyStamp = Guid.NewGuid()
             },
             TestContext.Current.CancellationToken);
@@ -448,14 +428,12 @@ public sealed class WordServiceTests
             new CreateWordRequest
             {
                 Headword = "noun-word",
-                LanguageTag = "en",
                 Senses =
                 [
                     new WordSenseInput
                     {
                         PartOfSpeech = PartOfSpeech.Noun,
                         Definition = "A meaningful noun",
-                        DefinitionLanguageTag = "en",
                         SortOrder = 0
                     }
                 ]
@@ -466,14 +444,12 @@ public sealed class WordServiceTests
             new CreateWordRequest
             {
                 Headword = "verb-word",
-                LanguageTag = "en",
                 Senses =
                 [
                     new WordSenseInput
                     {
                         PartOfSpeech = PartOfSpeech.Verb,
                         Definition = "An action",
-                        DefinitionLanguageTag = "en",
                         SortOrder = 0
                     }
                 ]
@@ -508,7 +484,6 @@ public sealed class WordServiceTests
             [
                 new BatchWordRowRequest
                 {
-                    LanguageTag = "EN-us",
                     Headword = "  Hello  ",
                     Senses =
                     [
@@ -516,14 +491,12 @@ public sealed class WordServiceTests
                         {
                             PartOfSpeech = PartOfSpeech.Noun,
                             Definition = "  a greeting ",
-                            DefinitionLanguageTag = "EN",
                             SortOrder = 0
                         }
                     ]
                 },
                 new BatchWordRowRequest
                 {
-                    LanguageTag = "en",
                     Headword = "invalid",
                     Senses =
                     [
@@ -531,7 +504,6 @@ public sealed class WordServiceTests
                         {
                             PartOfSpeech = PartOfSpeech.Noun,
                             Definition = string.Empty,
-                            DefinitionLanguageTag = "en",
                             SortOrder = 0
                         }
                     ]
@@ -546,7 +518,6 @@ public sealed class WordServiceTests
             ?? throw new InvalidOperationException("Expected normalized preview.");
 
         response.IsValid.Should().BeFalse();
-        normalized.LanguageTag.Should().Be("en-us");
         normalized.Headword.Should().Be("Hello");
         normalized.Senses.Single().Definition.Should().Be("a greeting");
         response.Rows[1].Errors.Should().Contain(error =>
@@ -570,8 +541,8 @@ public sealed class WordServiceTests
             {
                 Rows =
                 [
-                    new BatchWordRowRequest { LanguageTag = "en", Headword = "alpha" },
-                    new BatchWordRowRequest { LanguageTag = "en", Headword = "beta" }
+                    new BatchWordRowRequest { Headword = "alpha" },
+                    new BatchWordRowRequest { Headword = "beta" }
                 ]
             },
             TestContext.Current.CancellationToken);
@@ -597,8 +568,8 @@ public sealed class WordServiceTests
         {
             Rows =
             [
-                new BatchWordRowRequest { LanguageTag = "en", Headword = "duplicate" },
-                new BatchWordRowRequest { LanguageTag = "EN", Headword = " duplicate " }
+                new BatchWordRowRequest { Headword = "duplicate" },
+                new BatchWordRowRequest { Headword = " duplicate " }
             ]
         };
 
@@ -619,9 +590,7 @@ public sealed class WordServiceTests
     public async Task BatchValidationShouldReportUnavailableAudio()
     {
         await using var db = CreateDbContext();
-        var unavailable = CreateAudio(
-            AudioClipKind.WordPronunciation,
-            "en",
+        var unavailable = CreateAudio(AudioClipKind.WordPronunciation,
             AudioProcessingStatus.Processing);
         db.AudioClips.Add(unavailable);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -633,7 +602,6 @@ public sealed class WordServiceTests
                 [
                     new BatchWordRowRequest
                     {
-                        LanguageTag = "en",
                         Headword = "audio-word",
                         Pronunciations =
                         [
@@ -663,7 +631,7 @@ public sealed class WordServiceTests
     public async Task UnavailableLinkedAudioShouldHidePublishedWordFromUsers()
     {
         await using var db = CreateDbContext();
-        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation, "en");
+        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation);
         db.AudioClips.Add(pronunciation);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -698,7 +666,7 @@ public sealed class WordServiceTests
     public async Task DeleteShouldProtectPublishedWordAndKeepAudioClip()
     {
         await using var db = CreateDbContext();
-        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation, "en");
+        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation);
         db.AudioClips.Add(pronunciation);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -762,7 +730,6 @@ public sealed class WordServiceTests
     /// </summary>
     private static AudioClip CreateAudio(
         AudioClipKind kind,
-        string languageTag,
         AudioProcessingStatus processingStatus = AudioProcessingStatus.Ready,
         AudioPublicationStatus publicationStatus = AudioPublicationStatus.Published)
     {
@@ -783,7 +750,6 @@ public sealed class WordServiceTests
             SourceMediaResourceId = source.Id,
             SourceMediaResource = source,
             Title = "Audio",
-            LanguageTag = languageTag,
             Kind = kind,
             ProcessingStatus = processingStatus,
             PublicationStatus = publicationStatus
@@ -799,7 +765,6 @@ public sealed class WordServiceTests
         => new()
         {
             Headword = "hello",
-            LanguageTag = "en",
             Senses = [CreateSenseInput(0, exampleAudioId)],
             Pronunciations =
             [
@@ -820,7 +785,6 @@ public sealed class WordServiceTests
         {
             PartOfSpeech = PartOfSpeech.Noun,
             Definition = "a greeting",
-            DefinitionLanguageTag = "en",
             SortOrder = sortOrder,
             Examples = [CreateExampleInput(0, audioClipId)]
         };
@@ -834,9 +798,7 @@ public sealed class WordServiceTests
         => new()
         {
             Sentence = "Hello there.",
-            LanguageTag = "en",
             Translation = "你好。",
-            TranslationLanguageTag = "zh-CN",
             AudioClipId = audioClipId,
             SortOrder = sortOrder
         };

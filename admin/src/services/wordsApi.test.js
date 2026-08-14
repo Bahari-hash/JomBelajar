@@ -23,7 +23,6 @@ function auditUser() {
 function detail(overrides = {}) {
   return {
     id: IDS.word,
-    languageTag: "fr",
     headword: "bonjour",
     status: "Draft",
     createdBy: auditUser(),
@@ -36,16 +35,13 @@ function detail(overrides = {}) {
         id: IDS.sense,
         partOfSpeech: "Interjection",
         definition: "你好",
-        definitionLanguageTag: "zh-CN",
         usageNote: null,
         sortOrder: 0,
         examples: [
           {
             id: IDS.example,
             sentence: "Bonjour, Marie!",
-            languageTag: "fr",
             translation: "你好，玛丽！",
-            translationLanguageTag: "zh-CN",
             audioClipId: null,
             sortOrder: 0,
           },
@@ -72,7 +68,6 @@ function listItem() {
   const value = detail();
   return {
     id: value.id,
-    languageTag: value.languageTag,
     headword: value.headword,
     status: value.status,
     primaryPartOfSpeech: "Interjection",
@@ -96,7 +91,6 @@ function audioDetails(overrides = {}) {
     sourceMediaResourceId: IDS.resource,
     title: "bonjour 发音",
     description: null,
-    languageTag: "fr",
     kind: "WordPronunciation",
     processingStatus: "Queued",
     publicationStatus: "Draft",
@@ -133,7 +127,6 @@ describe("wordsApi", () => {
         page: 2,
         pageSize: 20,
         keyword: "bonjour",
-        language: "fr",
         status: "Draft",
         partOfSpeech: "Interjection",
         definition: "你好",
@@ -143,7 +136,7 @@ describe("wordsApi", () => {
       items: [{ headword: "bonjour" }],
     });
     expect(requestMock.mock.calls[0][0].url).toBe(
-      "/admin/words?page=2&pageSize=20&keyword=bonjour&language=fr&status=Draft&partOfSpeech=Interjection&definition=%E4%BD%A0%E5%A5%BD",
+      "/admin/words?page=2&pageSize=20&keyword=bonjour&status=Draft&partOfSpeech=Interjection&definition=%E4%BD%A0%E5%A5%BD",
     );
     request.unsubscribe();
   });
@@ -171,7 +164,6 @@ describe("wordsApi", () => {
     });
     const store = createAppStore();
     const body = {
-      languageTag: "fr",
       headword: "bonjour",
       senses: [],
       pronunciations: [],
@@ -254,7 +246,6 @@ describe("wordsApi", () => {
                 url: "https://media.example.test/audio.mp3",
                 expiresAt: null,
                 durationSeconds: 1.2,
-                languageTag: "fr",
                 audioClipKind: "WordPronunciation",
               }
             : {
@@ -274,7 +265,6 @@ describe("wordsApi", () => {
           page: 1,
           pageSize: 20,
           keyword: "bonjour",
-          language: "fr",
           kind: "WordPronunciation",
         }),
       )
@@ -283,7 +273,7 @@ describe("wordsApi", () => {
       .dispatch(wordsApi.endpoints.getAudioPlayback.initiate(IDS.audio))
       .unwrap();
     expect(requestMock.mock.calls[0][0].url).toBe(
-      "/admin/audio?page=1&pageSize=20&kind=WordPronunciation&keyword=bonjour&language=fr",
+      "/admin/audio?page=1&pageSize=20&kind=WordPronunciation&keyword=bonjour",
     );
     expect(requestMock.mock.calls[1][0].url).toBe(
       `/audio/${IDS.audio}/playback`,
@@ -366,7 +356,6 @@ describe("wordsApi", () => {
       sourceMediaResourceId: IDS.resource,
       title: "bonjour 发音",
       description: null,
-      languageTag: "fr",
       kind: "WordPronunciation",
     };
     await store

@@ -16,7 +16,6 @@ public sealed class AudioClipConfiguration : IEntityTypeConfiguration<AudioClip>
         builder.HasKey(value => value.Id);
         builder.Property(value => value.Title).HasMaxLength(200).IsRequired();
         builder.Property(value => value.Description).HasMaxLength(2000);
-        builder.Property(value => value.LanguageTag).HasMaxLength(35).IsRequired();
         builder.Property(value => value.Kind)
             .HasConversion<string>().HasMaxLength(32).IsRequired();
         builder.Property(value => value.ContainerFormat).HasMaxLength(100);

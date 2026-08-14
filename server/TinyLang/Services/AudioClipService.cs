@@ -65,7 +65,6 @@ public sealed class AudioClipService : IAudioClipService
             SourceMediaResource = source,
             Title = request.Title.Trim(),
             Description = NormalizeOptional(request.Description),
-            LanguageTag = NormalizeLanguageTag(request.LanguageTag),
             Kind = request.Kind
         };
         audioClip.ProcessingJobs.Add(new AudioProcessingJob
@@ -107,11 +106,6 @@ public sealed class AudioClipService : IAudioClipService
         {
             query = query.Where(value => value.Kind == kind);
         }
-        if (!string.IsNullOrWhiteSpace(request.Language))
-        {
-            var language = NormalizeLanguageTag(request.Language);
-            query = query.Where(value => value.LanguageTag == language);
-        }
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = request.Keyword.Trim().ToUpperInvariant();
@@ -127,7 +121,6 @@ public sealed class AudioClipService : IAudioClipService
             .Select(value => new AdminAudioClipListItemResponse(
                 value.Id,
                 value.Title,
-                value.LanguageTag,
                 value.Kind,
                 value.ProcessingStatus,
                 value.PublicationStatus,
@@ -160,7 +153,6 @@ public sealed class AudioClipService : IAudioClipService
         var audioClip = await FindAudioClipAsync(audioClipId, cancellationToken);
         audioClip.Title = request.Title.Trim();
         audioClip.Description = NormalizeOptional(request.Description);
-        audioClip.LanguageTag = NormalizeLanguageTag(request.LanguageTag);
         audioClip.Kind = request.Kind;
         audioClip.LastEditorId = adminId;
         audioClip.ConcurrencyStamp = Guid.NewGuid();
@@ -286,7 +278,6 @@ public sealed class AudioClipService : IAudioClipService
             delivery.Url,
             delivery.ExpiresAt,
             durationSeconds,
-            audioClip.LanguageTag,
             audioClip.Kind);
     }
 
@@ -325,7 +316,6 @@ public sealed class AudioClipService : IAudioClipService
             audioClip.SourceMediaResourceId,
             audioClip.Title,
             audioClip.Description,
-            audioClip.LanguageTag,
             audioClip.Kind,
             audioClip.ProcessingStatus,
             audioClip.PublicationStatus,
@@ -359,12 +349,6 @@ public sealed class AudioClipService : IAudioClipService
     /// </summary>
     private static string? NormalizeOptional(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    /// <summary>
-    /// 以小写形式持久化已由 validator 验证的语言标签。
-    /// </summary>
-    private static string NormalizeLanguageTag(string value)
-        => value.Trim().ToLowerInvariant();
 
     /// <summary>
     /// 在业务边界防御无效音频用途枚举。

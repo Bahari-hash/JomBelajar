@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -70,7 +70,6 @@ public sealed class AudioEndpointTests
                 "https://media.example/audio.mp3",
                 DateTimeOffset.UtcNow.AddMinutes(5),
                 2,
-                "en",
                 AudioClipKind.Other));
         var context = new DefaultHttpContext();
 

@@ -33,7 +33,6 @@ function audioDetails() {
     sourceMediaResourceId: RESOURCE_ID,
     title: "bonjour",
     description: null,
-    languageTag: "fr",
     kind: "WordPronunciation",
     processingStatus: "Queued",
     publicationStatus: "Draft",
@@ -95,7 +94,6 @@ describe("WordAudioUploadControl", () => {
       <Provider store={createAppStore()}>
         <WordAudioUploadControl
           kind="WordPronunciation"
-          language="fr"
           onCreated={onCreated}
         />
       </Provider>,
@@ -147,7 +145,6 @@ describe("WordAudioUploadControl", () => {
           sourceMediaResourceId: RESOURCE_ID,
           title: "bonjour",
           description: null,
-          languageTag: "fr",
           kind: "WordPronunciation",
         },
       ],
@@ -163,7 +160,6 @@ describe("WordAudioUploadControl", () => {
       <Provider store={createAppStore()}>
         <WordAudioUploadControl
           kind="ExampleSentence"
-          language="fr"
           onCreated={() => {}}
         />
       </Provider>,
@@ -231,7 +227,6 @@ describe("WordAudioUploadControl", () => {
       <Provider store={createAppStore()}>
         <WordAudioUploadControl
           kind="WordPronunciation"
-          language="fr"
           onCreated={onCreated}
         />
       </Provider>,

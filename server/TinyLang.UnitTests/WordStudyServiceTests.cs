@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -33,9 +33,9 @@ public sealed class WordStudyServiceTests
         };
         db.Users.Add(user);
         db.Words.AddRange(
-            CreateVisibleWord("one", "en", Now),
-            CreateVisibleWord("two", "en", Now.AddMinutes(-1)),
-            CreateVisibleWord("three", "en", Now.AddMinutes(-2)));
+            CreateVisibleWord("one", Now),
+            CreateVisibleWord("two", Now.AddMinutes(-1)),
+            CreateVisibleWord("three", Now.AddMinutes(-2)));
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var userId = user.Id;
 
@@ -61,8 +61,8 @@ public sealed class WordStudyServiceTests
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var userId = user.Id;
         db.Words.AddRange(
-            CreateVisibleWord("old", "en", Now),
-            CreateVisibleWord("new", "en", Now.AddMinutes(-1)));
+            CreateVisibleWord("old", Now),
+            CreateVisibleWord("new", Now.AddMinutes(-1)));
         var oldSession = new WordStudySession
         {
             UserId = userId,
@@ -103,7 +103,7 @@ public sealed class WordStudyServiceTests
         db.Users.Add(user);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var userId = user.Id;
-        var word = CreateVisibleWord("same", "en", Now);
+        var word = CreateVisibleWord("same", Now);
         db.Words.Add(word);
         var session = new WordStudySession
         {
@@ -126,7 +126,7 @@ public sealed class WordStudyServiceTests
     }
 
     /// <summary>
-    /// 验证 Sequential 排除当前用户已有进度、应用语言筛选并如实返回候选不足。
+    /// 验证 Sequential 排除当前用户已有进度并如实返回候选不足。
     /// </summary>
     [Fact]
     public async Task SequentialCreationShouldExcludeStudiedAndReturnActualCount()
@@ -134,14 +134,11 @@ public sealed class WordStudyServiceTests
         await using var db = CreateDbContext();
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
-        var newest = CreateVisibleWord("newest", "en", Now.AddMinutes(-1));
-        var studied = CreateVisibleWord("studied", "en", Now.AddMinutes(-2));
-        var otherUserStudied = CreateVisibleWord(
-            "other-user",
-            "en",
-            Now.AddMinutes(-3));
-        var french = CreateVisibleWord("bonjour", "fr", Now.AddMinutes(-4));
-        db.Words.AddRange(newest, studied, otherUserStudied, french);
+        var newest = CreateVisibleWord("newest", Now.AddMinutes(-1));
+        var studied = CreateVisibleWord("studied", Now.AddMinutes(-2));
+        var otherUserStudied = CreateVisibleWord("other-user", Now.AddMinutes(-3));
+        var additional = CreateVisibleWord("bonjour", Now.AddMinutes(-4));
+        db.Words.AddRange(newest, studied, otherUserStudied, additional);
         db.UserWordProgress.AddRange(
             CreateProgress(userId, studied.Id, Now.AddDays(-1)),
             CreateProgress(otherUserId, otherUserStudied.Id, Now.AddDays(-1)));
@@ -153,21 +150,19 @@ public sealed class WordStudyServiceTests
             new CreateWordStudySessionRequest
             {
                 WordCount = 5,
-                LanguageTag = "EN",
                 SelectionMode = WordStudySelectionMode.Sequential
             },
             TestContext.Current.CancellationToken);
 
         response.RequestedCount.Should().Be(5);
-        response.ActualCount.Should().Be(2);
-        response.LanguageTag.Should().Be("en");
+        response.ActualCount.Should().Be(3);
         var items = await db.WordStudySessionItems.AsNoTracking()
             .Where(value => value.SessionId == response.Id)
             .OrderBy(value => value.Position)
             .ToListAsync(TestContext.Current.CancellationToken);
         items.Select(value => value.WordId).Should()
-            .Equal(newest.Id, otherUserStudied.Id);
-        items.Select(value => value.Position).Should().Equal(0, 1);
+            .Equal(newest.Id, otherUserStudied.Id, additional.Id);
+        items.Select(value => value.Position).Should().Equal(0, 1, 2);
         var active = await service.GetActiveSessionAsync(
             userId,
             TestContext.Current.CancellationToken);
@@ -186,9 +181,9 @@ public sealed class WordStudyServiceTests
     {
         await using var db = CreateDbContext();
         var userId = Guid.NewGuid();
-        var newWord = CreateVisibleWord("new", "en", Now);
-        var oldest = CreateVisibleWord("oldest", "en", Now.AddMinutes(-1));
-        var recent = CreateVisibleWord("recent", "en", Now.AddMinutes(-2));
+        var newWord = CreateVisibleWord("new", Now);
+        var oldest = CreateVisibleWord("oldest", Now.AddMinutes(-1));
+        var recent = CreateVisibleWord("recent", Now.AddMinutes(-2));
         db.Words.AddRange(newWord, oldest, recent);
         db.UserWordProgress.AddRange(
             CreateProgress(userId, oldest.Id, Now.AddDays(-10)),
@@ -223,12 +218,9 @@ public sealed class WordStudyServiceTests
         var userId = Guid.NewGuid();
         var allStudiedUserId = Guid.NewGuid();
         var eligible = Enumerable.Range(0, 3)
-            .Select(index => CreateVisibleWord(
-                $"eligible-{index}",
-                "en",
-                Now.AddMinutes(-index)))
+            .Select(index => CreateVisibleWord($"eligible-{index}", Now.AddMinutes(-index)))
             .ToArray();
-        var studied = CreateVisibleWord("studied", "en", Now.AddMinutes(-4));
+        var studied = CreateVisibleWord("studied", Now.AddMinutes(-4));
         db.Words.AddRange([.. eligible, studied]);
         db.UserWordProgress.Add(CreateProgress(userId, studied.Id, Now.AddDays(-1)));
         db.UserWordProgress.AddRange(
@@ -293,7 +285,7 @@ public sealed class WordStudyServiceTests
         var firstUserId = Guid.NewGuid();
         var secondUserId = Guid.NewGuid();
         var noEligibleUserId = Guid.NewGuid();
-        var word = CreateVisibleWord("only", "en", Now);
+        var word = CreateVisibleWord("only", Now);
         db.Words.Add(word);
         db.UserWordProgress.Add(
             CreateProgress(noEligibleUserId, word.Id, Now.AddDays(-1)));
@@ -332,20 +324,11 @@ public sealed class WordStudyServiceTests
     public async Task CreationShouldExcludeNonPublishedAndUnavailableWords()
     {
         await using var db = CreateDbContext();
-        var valid = CreateVisibleWord("valid", "en", Now);
-        var draft = CreateVisibleWord("draft", "en", Now.AddMinutes(-1));
-        var unpublished = CreateVisibleWord(
-            "unpublished",
-            "en",
-            Now.AddMinutes(-2));
-        var unavailable = CreateVisibleWord(
-            "unavailable-audio",
-            "en",
-            Now.AddMinutes(-3));
-        var archived = CreateVisibleWord(
-            "archived",
-            "en",
-            Now.AddMinutes(-4));
+        var valid = CreateVisibleWord("valid", Now);
+        var draft = CreateVisibleWord("draft", Now.AddMinutes(-1));
+        var unpublished = CreateVisibleWord("unpublished", Now.AddMinutes(-2));
+        var unavailable = CreateVisibleWord("unavailable-audio", Now.AddMinutes(-3));
+        var archived = CreateVisibleWord("archived", Now.AddMinutes(-4));
         draft.Status = WordPublicationStatus.Draft;
         draft.PublishedAt = null;
         unpublished.Status = WordPublicationStatus.Unpublished;
@@ -378,10 +361,10 @@ public sealed class WordStudyServiceTests
     {
         await using var db = CreateDbContext();
         var userId = Guid.NewGuid();
-        var first = CreateVisibleWord("first", "en", Now);
-        var second = CreateVisibleWord("second", "en", Now.AddMinutes(-1));
-        var third = CreateVisibleWord("third", "en", Now.AddMinutes(-2));
-        var fourth = CreateVisibleWord("fourth", "en", Now.AddMinutes(-3));
+        var first = CreateVisibleWord("first", Now);
+        var second = CreateVisibleWord("second", Now.AddMinutes(-1));
+        var third = CreateVisibleWord("third", Now.AddMinutes(-2));
+        var fourth = CreateVisibleWord("fourth", Now.AddMinutes(-3));
         var session = new WordStudySession
         {
             UserId = userId,
@@ -443,7 +426,7 @@ public sealed class WordStudyServiceTests
     {
         await using var db = CreateDbContext();
         var userId = Guid.NewGuid();
-        var word = CreateVisibleWord("hidden", "en", Now);
+        var word = CreateVisibleWord("hidden", Now);
         db.Words.Add(word);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -478,8 +461,8 @@ public sealed class WordStudyServiceTests
     {
         await using var db = CreateDbContext();
         var userId = Guid.NewGuid();
-        var first = CreateVisibleWord("first", "en", Now);
-        var second = CreateVisibleWord("second", "en", Now.AddMinutes(-1));
+        var first = CreateVisibleWord("first", Now);
+        var second = CreateVisibleWord("second", Now.AddMinutes(-1));
         db.Words.AddRange(first, second);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -542,7 +525,7 @@ public sealed class WordStudyServiceTests
     {
         await using var db = CreateDbContext();
         var userId = Guid.NewGuid();
-        var word = CreateVisibleWord("remember", "en", Now);
+        var word = CreateVisibleWord("remember", Now);
         db.Words.Add(word);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -614,7 +597,7 @@ public sealed class WordStudyServiceTests
         await using var db = CreateDbContext();
         var clock = new TestTimeProvider(Now);
         var userId = Guid.NewGuid();
-        var word = CreateVisibleWord("repeat", "en", Now);
+        var word = CreateVisibleWord("repeat", Now);
         db.Words.Add(word);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db, clock);
@@ -681,7 +664,7 @@ public sealed class WordStudyServiceTests
     {
         await using var db = CreateDbContext();
         var userId = Guid.NewGuid();
-        var word = CreateVisibleWord("unavailable", "en", Now);
+        var word = CreateVisibleWord("unavailable", Now);
         db.Words.Add(word);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -725,7 +708,7 @@ public sealed class WordStudyServiceTests
         await using var db = CreateDbContext();
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
-        var word = CreateVisibleWord("abandon", "en", Now);
+        var word = CreateVisibleWord("abandon", Now);
         db.Words.Add(word);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -801,7 +784,7 @@ public sealed class WordStudyServiceTests
         Guid itemId;
         await using (var setupDb = new ApplicationDbContext(options))
         {
-            setupDb.Words.Add(CreateVisibleWord("concurrent", "en", Now));
+            setupDb.Words.Add(CreateVisibleWord("concurrent", Now));
             await setupDb.SaveChangesAsync(TestContext.Current.CancellationToken);
             var setupService = CreateService(setupDb);
             var session = await setupService.CreateSessionAsync(
@@ -872,7 +855,6 @@ public sealed class WordStudyServiceTests
     /// </summary>
     private static Word CreateVisibleWord(
         string headword,
-        string languageTag,
         DateTimeOffset publishedAt)
     {
         var source = new MediaResource
@@ -892,14 +874,12 @@ public sealed class WordStudyServiceTests
             SourceMediaResourceId = source.Id,
             SourceMediaResource = source,
             Title = headword,
-            LanguageTag = languageTag,
             Kind = AudioClipKind.WordPronunciation,
             ProcessingStatus = AudioProcessingStatus.Ready,
             PublicationStatus = AudioPublicationStatus.Published
         };
         var word = new Word
         {
-            LanguageTag = languageTag,
             Headword = headword,
             NormalizedHeadword = headword.ToUpperInvariant(),
             Status = WordPublicationStatus.Published,
@@ -912,16 +892,13 @@ public sealed class WordStudyServiceTests
                 {
                     PartOfSpeech = PartOfSpeech.Noun,
                     Definition = $"definition of {headword}",
-                    DefinitionLanguageTag = "en",
                     SortOrder = 0,
                     Examples =
                     [
                         new ExampleSentence
                         {
                             Sentence = $"Use {headword}.",
-                            LanguageTag = languageTag,
                             Translation = headword,
-                            TranslationLanguageTag = "en",
                             SortOrder = 0
                         }
                     ]

@@ -23,7 +23,6 @@ function detail(overrides = {}) {
     title: "English basics",
     description: null,
     instructions: "Choose the answer.",
-    languageTag: "en",
     tags: ["grammar", "a2"],
     status: "Draft",
     passingScorePercentage: 60,
@@ -99,7 +98,6 @@ describe("papersApi", () => {
         page: 2,
         pageSize: 20,
         keyword: "English",
-        language: "en",
         status: "Draft",
         tag: "cet-4",
       }),
@@ -108,7 +106,7 @@ describe("papersApi", () => {
       items: [{ title: "English basics", tags: ["grammar", "a2"] }],
     });
     expect(requestMock.mock.calls[0][0].url).toBe(
-      "/admin/papers?page=2&pageSize=20&keyword=English&language=en&status=Draft&tag=cet-4",
+      "/admin/papers?page=2&pageSize=20&keyword=English&status=Draft&tag=cet-4",
     );
     request.unsubscribe();
   });
@@ -204,7 +202,6 @@ describe("papersApi", () => {
       title: "English basics",
       description: null,
       instructions: null,
-      languageTag: "en",
       tags: ["grammar", "a2"],
       passingScorePercentage: 60,
       questions: [],

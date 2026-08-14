@@ -24,7 +24,6 @@ public sealed class AudioClip : BaseAuditableEntity
     public required MediaResource SourceMediaResource { get; set; }
     public required string Title { get; set; }
     public string? Description { get; set; }
-    public required string LanguageTag { get; set; }
     public AudioClipKind Kind { get; set; }
     public double? DurationSeconds { get; set; }
     public int? SampleRate { get; set; }

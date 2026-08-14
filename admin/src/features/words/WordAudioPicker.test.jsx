@@ -33,7 +33,6 @@ function listAudio(overrides = {}) {
   return {
     id: IDS.published,
     title: "bonjour 发音",
-    languageTag: "fr",
     kind: "WordPronunciation",
     processingStatus: "Ready",
     publicationStatus: "Published",
@@ -51,7 +50,6 @@ function audioDetails(overrides = {}) {
     sourceMediaResourceId: IDS.resource,
     title: list.title,
     description: null,
-    languageTag: list.languageTag,
     kind: list.kind,
     processingStatus: list.processingStatus,
     publicationStatus: list.publicationStatus,
@@ -75,7 +73,6 @@ function renderPicker(options = {}) {
         <TooltipProvider>
           <WordAudioPicker
             kind="WordPronunciation"
-            language="fr"
             selectedId={null}
             onSelect={options.onSelect ?? (() => {})}
             onClose={options.onClose ?? (() => {})}
@@ -102,7 +99,6 @@ describe("WordAudioPicker", () => {
             url: "https://media.example.test/bonjour.mp3",
             expiresAt: null,
             durationSeconds: 1.5,
-            languageTag: "fr",
             audioClipKind: "WordPronunciation",
           }),
         );
@@ -137,7 +133,7 @@ describe("WordAudioPicker", () => {
       .map(([config]) => config)
       .find((config) => config.url.startsWith("/admin/audio?"));
     expect(listRequest.url).toBe(
-      "/admin/audio?page=1&pageSize=20&kind=WordPronunciation&language=fr",
+      "/admin/audio?page=1&pageSize=20&kind=WordPronunciation",
     );
     expect(
       requestMock.mock.calls.some(

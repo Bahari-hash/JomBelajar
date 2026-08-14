@@ -55,7 +55,6 @@ import {
 let draftSequence = 0;
 const draftKey = (type) => `${type}-draft-${Date.now()}-${draftSequence++}`;
 const emptyForm = () => ({
-  languageTag: "ms",
   headword: "",
   senses: [],
   pronunciations: [],
@@ -65,17 +64,14 @@ const createSense = () => ({
   id: null,
   partOfSpeech: "Noun",
   definition: "",
-  definitionLanguageTag: "ms",
   usageNote: "",
   examples: [],
 });
-const createExample = (languageTag) => ({
+const createExample = () => ({
   _key: draftKey("example"),
   id: null,
   sentence: "",
-  languageTag: "ms",
   translation: "",
-  translationLanguageTag: "ms",
   audioClipId: null,
 });
 const createPronunciation = () => ({
@@ -89,7 +85,6 @@ const createPronunciation = () => ({
 
 function formFromWord(word) {
   return {
-    languageTag: word.languageTag,
     headword: word.headword,
     senses: word.senses.map((sense) => ({
       ...sense,
@@ -111,21 +106,17 @@ function formFromWord(word) {
 
 function toPayload(form, concurrencyStamp) {
   const payload = {
-    languageTag: form.languageTag.trim(),
     headword: form.headword.trim(),
     senses: form.senses.map((sense, senseIndex) => ({
       ...(sense.id ? { id: sense.id } : {}),
       partOfSpeech: sense.partOfSpeech,
       definition: sense.definition.trim(),
-      definitionLanguageTag: sense.definitionLanguageTag.trim(),
       usageNote: sense.usageNote.trim() || null,
       sortOrder: senseIndex,
       examples: sense.examples.map((example, exampleIndex) => ({
         ...(example.id ? { id: example.id } : {}),
         sentence: example.sentence.trim(),
-        languageTag: example.languageTag.trim(),
         translation: example.translation.trim(),
-        translationLanguageTag: example.translationLanguageTag.trim(),
         audioClipId: example.audioClipId,
         sortOrder: exampleIndex,
       })),
@@ -144,25 +135,16 @@ function toPayload(form, concurrencyStamp) {
 
 function validateForm(form) {
   const errors = {};
-  if (!form.languageTag.trim()) errors.languageTag = ["请输入语言标签。"];
   if (!form.headword.trim()) errors.headword = ["请输入词头。"];
   form.senses.forEach((sense, senseIndex) => {
     if (!sense.definition.trim())
       errors[`senses[${senseIndex}].definition`] = ["请输入释义。"];
-    if (!sense.definitionLanguageTag.trim())
-      errors[`senses[${senseIndex}].definitionLanguageTag`] = [
-        "请输入释义语言。",
-      ];
     sense.examples.forEach((example, exampleIndex) => {
       const prefix = `senses[${senseIndex}].examples[${exampleIndex}]`;
       if (!example.sentence.trim())
         errors[`${prefix}.sentence`] = ["请输入例句。"];
-      if (!example.languageTag.trim())
-        errors[`${prefix}.languageTag`] = ["请输入例句语言。"];
       if (!example.translation.trim())
         errors[`${prefix}.translation`] = ["请输入译文。"];
-      if (!example.translationLanguageTag.trim())
-        errors[`${prefix}.translationLanguageTag`] = ["请输入译文语言。"];
     });
   });
   form.pronunciations.forEach((item, index) => {
@@ -241,7 +223,7 @@ function WordEditor() {
   };
 
   const addExample = (senseKey, afterExampleKey = null) => {
-    const example = createExample(form.languageTag);
+    const example = createExample();
     const sense = form.senses.find((value) => value._key === senseKey);
     if (!sense) return;
     const examples = [...sense.examples];
@@ -445,24 +427,6 @@ function WordEditor() {
         </Alert>
       ) : null}
       <section className="grid gap-4 border-y py-5 sm:grid-cols-2">
-        {/* <Field
-          id="word-languageTag"
-          label="语言标签"
-          required
-          error={fieldError("languageTag")}
-        >
-          <Input
-            id="word-languageTag"
-            value={form.languageTag}
-            maxLength={35}
-            disabled={readOnly}
-            aria-invalid={Boolean(fieldError("languageTag"))}
-            placeholder="例如 jp 或 fr"
-            onChange={(event) =>
-              setForm({ ...form, languageTag: event.target.value })
-            }
-          />
-        </Field> */}
         <Field
           id="word-headword"
           label="词头"
@@ -612,25 +576,6 @@ function WordEditor() {
                         }
                       />
                     </Field>
-                    {/* <Field
-                      label="释义语言"
-                      required
-                      error={fieldError(
-                        `senses[${senseIndex}].definitionLanguageTag`,
-                      )}
-                    >
-                      <Input
-                        value={sense.definitionLanguageTag}
-                        maxLength={35}
-                        disabled={readOnly}
-                        onChange={(event) =>
-                          updateSense(sense._key, (item) => ({
-                            ...item,
-                            definitionLanguageTag: event.target.value,
-                          }))
-                        }
-                      />
-                    </Field> */}
                   </div>
                   <Field
                     label="用法说明"
@@ -766,30 +711,6 @@ function WordEditor() {
                                     }
                                   />
                                 </Field>
-                                {/* <Field
-                                  label="原文语言"
-                                  required
-                                  error={fieldError(`${prefix}.languageTag`)}
-                                >
-                                  <Input
-                                    value={example.languageTag}
-                                    maxLength={35}
-                                    disabled={readOnly}
-                                    onChange={(event) =>
-                                      updateSense(sense._key, (item) => ({
-                                        ...item,
-                                        examples: item.examples.map((value) =>
-                                          value._key === example._key
-                                            ? {
-                                                ...value,
-                                                languageTag: event.target.value,
-                                              }
-                                            : value,
-                                        ),
-                                      }))
-                                    }
-                                  />
-                                </Field> */}
                                 <Field
                                   label="译文"
                                   required
@@ -815,33 +736,6 @@ function WordEditor() {
                                     }
                                   />
                                 </Field>
-                                {/* <Field
-                                  label="译文语言"
-                                  required
-                                  error={fieldError(
-                                    `${prefix}.translationLanguageTag`,
-                                  )}
-                                >
-                                  <Input
-                                    value={example.translationLanguageTag}
-                                    maxLength={35}
-                                    disabled={readOnly}
-                                    onChange={(event) =>
-                                      updateSense(sense._key, (item) => ({
-                                        ...item,
-                                        examples: item.examples.map((value) =>
-                                          value._key === example._key
-                                            ? {
-                                                ...value,
-                                                translationLanguageTag:
-                                                  event.target.value,
-                                              }
-                                            : value,
-                                        ),
-                                      }))
-                                    }
-                                  />
-                                </Field> */}
                                 <AudioReference
                                   value={example.audioClipId}
                                   label="例句音频"
@@ -853,7 +747,6 @@ function WordEditor() {
                                       senseKey: sense._key,
                                       itemKey: example._key,
                                       selectedId: example.audioClipId,
-                                      language: example.languageTag,
                                     })
                                   }
                                   onClear={() =>
@@ -1001,7 +894,6 @@ function WordEditor() {
                     type: "pronunciation",
                     itemKey: item._key,
                     selectedId: item.audioClipId,
-                    language: form.languageTag,
                   })
                 }
                 onClear={() =>

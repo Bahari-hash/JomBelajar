@@ -10,7 +10,6 @@ const WORD_ID = "11111111-1111-4111-8111-111111111111";
 function wordListItem() {
   return {
     id: WORD_ID,
-    languageTag: "fr",
     headword: "bonjour",
     status: "Draft",
     primaryPartOfSpeech: "Interjection",

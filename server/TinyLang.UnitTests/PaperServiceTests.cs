@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -36,13 +36,11 @@ public sealed class PaperServiceTests
             CreateCompleteRequest() with
             {
                 Title = "  Quiz  ",
-                LanguageTag = "EN-us",
                 Tags = [" Grammar ", "A2"]
             },
             TestContext.Current.CancellationToken);
 
         response.Title.Should().Be("Quiz");
-        response.LanguageTag.Should().Be("en-us");
         response.Tags.Should().Equal("grammar", "a2");
         (await db.Papers.SingleAsync(TestContext.Current.CancellationToken)).Tags.Should().Equal("grammar", "a2");
         response.TotalScore.Should().Be(9);
@@ -105,7 +103,6 @@ public sealed class PaperServiceTests
         {
             Title = "Updated",
             Description = "Description",
-            LanguageTag = "en",
             Tags = ["B1", " Reading "],
             PassingScorePercentage = 50,
             ConcurrencyStamp = created.ConcurrencyStamp,
@@ -423,7 +420,6 @@ public sealed class PaperServiceTests
             new CreatePaperRequest
             {
                 Title = "Incomplete",
-                LanguageTag = "en",
                 Questions =
                 [
                     new PaperQuestionInput
@@ -514,7 +510,6 @@ public sealed class PaperServiceTests
             new CreatePaperRequest
             {
                 Title = "Incomplete",
-                LanguageTag = "en",
                 Questions =
                 [
                     new PaperQuestionInput
@@ -687,7 +682,6 @@ public sealed class PaperServiceTests
             Title = "Online Quiz",
             Description = "Description",
             Instructions = "Instructions",
-            LanguageTag = "en",
             PassingScorePercentage = 60,
             Questions =
             [
@@ -751,7 +745,6 @@ public sealed class PaperServiceTests
             Title = response.Title,
             Description = response.Description,
             Instructions = response.Instructions,
-            LanguageTag = response.LanguageTag,
             PassingScorePercentage = response.PassingScorePercentage,
             ConcurrencyStamp = response.ConcurrencyStamp,
             Questions = response.Questions.Select(ToQuestionInput).ToArray()

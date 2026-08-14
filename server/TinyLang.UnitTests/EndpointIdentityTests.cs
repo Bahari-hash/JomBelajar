@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using FluentAssertions;
 using TinyLang.Constants;
 using TinyLang.Endpoints;

@@ -46,7 +46,6 @@ function installAdapter(
                   id: PAPER_ID,
                   title: "A2 Grammar Check",
                   description: "Check practical grammar knowledge.",
-                  languageTag: "en",
                   tags: paperTags,
                   questionCount: 12,
                   totalScore: 24,

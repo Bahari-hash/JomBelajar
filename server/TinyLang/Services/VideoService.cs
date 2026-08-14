@@ -77,8 +77,7 @@ public sealed class VideoService : IVideoService
             CoverMediaResourceId = cover?.Id,
             CoverMediaResource = cover,
             Title = request.Title.Trim(),
-            Description = NormalizeOptional(request.Description),
-            OriginalLanguage = NormalizeLanguageTag(request.OriginalLanguage)
+            Description = NormalizeOptional(request.Description)
         };
         video.ProcessingJobs.Add(new VideoProcessingJob
         {
@@ -154,7 +153,6 @@ public sealed class VideoService : IVideoService
             .Select(value => new AdminVideoListItemResponse(
                 value.Id,
                 value.Title,
-                value.OriginalLanguage,
                 value.ProcessingStatus,
                 value.PublicationStatus,
                 value.DurationSeconds,
@@ -244,7 +242,6 @@ public sealed class VideoService : IVideoService
         SynchronizeCategories(videoId, existingAssignments, categories);
         video.Title = request.Title.Trim();
         video.Description = NormalizeOptional(request.Description);
-        video.OriginalLanguage = NormalizeLanguageTag(request.OriginalLanguage);
         video.LastEditorId = adminId;
         video.ConcurrencyStamp = Guid.NewGuid();
         await SaveWithVideoConflictAsync(cancellationToken);
@@ -407,7 +404,6 @@ public sealed class VideoService : IVideoService
                 value.Id,
                 value.Title,
                 value.Description,
-                value.OriginalLanguage,
                 DurationSeconds = value.DurationSeconds!.Value,
                 Author = new VideoUserSummaryResponse(
                     value.CreatedById,
@@ -433,7 +429,6 @@ public sealed class VideoService : IVideoService
                 value.Id,
                 value.Title,
                 value.Description,
-                value.OriginalLanguage,
                 value.DurationSeconds,
                 value.Author,
                 ResolvePublishedCoverUrl(value.CustomCoverUrl, value.PosterObjectName),
@@ -455,7 +450,6 @@ public sealed class VideoService : IVideoService
                 value.Id,
                 value.Title,
                 value.Description,
-                value.OriginalLanguage,
                 DurationSeconds = value.DurationSeconds!.Value,
                 DisplayWidth = value.DisplayWidth!.Value,
                 DisplayHeight = value.DisplayHeight!.Value,
@@ -487,7 +481,6 @@ public sealed class VideoService : IVideoService
             row.Id,
             row.Title,
             row.Description,
-            row.OriginalLanguage,
             row.DurationSeconds,
             row.DisplayWidth,
             row.DisplayHeight,
@@ -730,7 +723,6 @@ public sealed class VideoService : IVideoService
                 : null,
             video.Title,
             video.Description,
-            video.OriginalLanguage,
             video.ProcessingStatus,
             video.PublicationStatus,
             video.DurationSeconds,
@@ -875,12 +867,6 @@ public sealed class VideoService : IVideoService
             });
         }
     }
-
-    /// <summary>
-    /// 以小写形式持久化已由 validator 验证的语言标签。
-    /// </summary>
-    private static string NormalizeLanguageTag(string value)
-        => value.Trim().ToLowerInvariant();
 
     /// <summary>
     /// 返回包含末尾斜杠的对象目录前缀。

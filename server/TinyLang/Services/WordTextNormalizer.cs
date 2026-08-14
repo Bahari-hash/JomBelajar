@@ -24,14 +24,6 @@ public static class WordTextNormalizer
         => value.Trim().Normalize(NormalizationForm.FormKC).ToUpperInvariant();
 
     /// <summary>
-    /// 将语言标签规范化为小写形式。
-    /// </summary>
-    /// <param name="value">已经通过格式校验的语言标签。</param>
-    /// <returns>去除首尾空白并转换为小写的标签。</returns>
-    public static string NormalizeLanguageTag(string value)
-        => value.Trim().ToLowerInvariant();
-
-    /// <summary>
     /// 规范化必填纯文本。
     /// </summary>
     /// <param name="value">必填文本。</param>
@@ -46,18 +38,4 @@ public static class WordTextNormalizer
     public static string? NormalizeOptionalText(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    /// <summary>
-    /// 判断两个语言标签是否相同，或是否仅相差更具体的 subtag。
-    /// </summary>
-    /// <param name="left">第一个有效语言标签。</param>
-    /// <param name="right">第二个有效语言标签。</param>
-    /// <returns>标签相同或其中一个是另一个在连字符边界上的前缀时返回 true。</returns>
-    public static bool AreLanguageTagsCompatible(string left, string right)
-    {
-        var normalizedLeft = NormalizeLanguageTag(left);
-        var normalizedRight = NormalizeLanguageTag(right);
-        return string.Equals(normalizedLeft, normalizedRight, StringComparison.Ordinal) ||
-            normalizedLeft.StartsWith($"{normalizedRight}-", StringComparison.Ordinal) ||
-            normalizedRight.StartsWith($"{normalizedLeft}-", StringComparison.Ordinal);
-    }
 }

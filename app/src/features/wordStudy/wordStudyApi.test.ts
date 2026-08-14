@@ -30,7 +30,6 @@ describe("wordStudyApi", () => {
             url: "https://media.example.test/audio.mp3",
             expiresAt: null,
             durationSeconds: 2,
-            languageTag: "en",
             audioClipKind: "WordPronunciation",
           }
         : config.url === `/word-study/sessions/${SESSION_ID}/items`

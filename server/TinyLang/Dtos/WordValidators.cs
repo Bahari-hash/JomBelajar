@@ -22,8 +22,6 @@ internal sealed class WordUpsertRequestValidator<T> : AbstractValidator<T>
             .NotEmpty().WithErrKey(ErrorCodes.WordHeadwordRequired)
             .MaximumLength(WordConstraints.MaxHeadwordLength)
             .WithErrKey(ErrorCodes.WordHeadwordLengthLimit);
-        AddLanguageRule(value => value.LanguageTag);
-
         RuleFor(value => value.Senses)
             .Cascade(CascadeMode.Stop)
             .NotNull().WithErrKey(ErrorCodes.WordChildCollectionInvalid)
@@ -54,22 +52,6 @@ internal sealed class WordUpsertRequestValidator<T> : AbstractValidator<T>
         RuleForEach(value => value.Pronunciations)
             .NotNull().WithErrKey(ErrorCodes.WordChildCollectionInvalid)
             .SetValidator(new WordPronunciationInputValidator());
-    }
-
-    /// <summary>
-    /// 添加必填 BCP-47 风格语言标签规则。
-    /// </summary>
-    /// <param name="expression">定位请求语言标签的表达式。</param>
-    private void AddLanguageRule(
-        Expression<Func<T, string>> expression)
-    {
-        RuleFor(expression)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty().WithErrKey(ErrorCodes.WordLanguageInvalid)
-            .MaximumLength(WordConstraints.MaxLanguageTagLength)
-            .WithErrKey(ErrorCodes.WordLanguageInvalid)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .WithErrKey(ErrorCodes.WordLanguageInvalid);
     }
 
     /// <summary>
@@ -204,7 +186,6 @@ public sealed class WordSenseInputValidator : AbstractValidator<WordSenseInput>
             .NotEmpty().WithErrKey(ErrorCodes.WordDefinitionRequired)
             .MaximumLength(WordConstraints.MaxTextLength)
             .WithErrKey(ErrorCodes.WordDefinitionLengthLimit);
-        AddLanguageRule(value => value.DefinitionLanguageTag);
         RuleFor(value => value.UsageNote)
             .MaximumLength(WordConstraints.MaxUsageNoteLength)
             .WithErrKey(ErrorCodes.WordUsageNoteLengthLimit);
@@ -225,20 +206,6 @@ public sealed class WordSenseInputValidator : AbstractValidator<WordSenseInput>
             .SetValidator(new ExampleSentenceInputValidator());
     }
 
-    /// <summary>
-    /// 添加释义语言标签规则。
-    /// </summary>
-    private void AddLanguageRule(
-        Expression<Func<WordSenseInput, string>> expression)
-    {
-        RuleFor(expression)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty().WithErrKey(ErrorCodes.WordLanguageInvalid)
-            .MaximumLength(WordConstraints.MaxLanguageTagLength)
-            .WithErrKey(ErrorCodes.WordLanguageInvalid)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .WithErrKey(ErrorCodes.WordLanguageInvalid);
-    }
 }
 
 /// <summary>
@@ -265,8 +232,6 @@ public sealed class ExampleSentenceInputValidator
             .NotEmpty().WithErrKey(ErrorCodes.WordTranslationRequired)
             .MaximumLength(WordConstraints.MaxTextLength)
             .WithErrKey(ErrorCodes.WordTranslationLengthLimit);
-        AddLanguageRule(value => value.LanguageTag);
-        AddLanguageRule(value => value.TranslationLanguageTag);
         RuleFor(value => value.AudioClipId)
             .Must(value => value is null || value != Guid.Empty)
             .WithErrKey(ErrorCodes.WordPronunciationAudioInvalid);
@@ -275,20 +240,6 @@ public sealed class ExampleSentenceInputValidator
             .WithErrKey(ErrorCodes.WordSortOrderInvalid);
     }
 
-    /// <summary>
-    /// 添加例句语言标签规则。
-    /// </summary>
-    private void AddLanguageRule(
-        Expression<Func<ExampleSentenceInput, string>> expression)
-    {
-        RuleFor(expression)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty().WithErrKey(ErrorCodes.WordLanguageInvalid)
-            .MaximumLength(WordConstraints.MaxLanguageTagLength)
-            .WithErrKey(ErrorCodes.WordLanguageInvalid)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .WithErrKey(ErrorCodes.WordLanguageInvalid);
-    }
 }
 
 /// <summary>
@@ -334,8 +285,7 @@ public sealed class AdminWordListRequestValidator
             this,
             value => value.Page,
             value => value.PageSize,
-            value => value.Keyword,
-            value => value.Language);
+            value => value.Keyword);
         RuleFor(value => value.Status)
             .Must(value => value is null || Enum.IsDefined(value.Value))
             .WithErrKey(ErrorCodes.WordStatusInvalid);
@@ -367,8 +317,7 @@ public sealed class WordListRequestValidator : AbstractValidator<WordListRequest
             this,
             value => value.Page,
             value => value.PageSize,
-            value => value.Keyword,
-            value => value.Language);
+            value => value.Keyword);
     }
 }
 
@@ -385,16 +334,13 @@ internal static class WordListValidationRules
     /// <param name="pageExpression">页码字段表达式。</param>
     /// <param name="pageSizeExpression">页大小字段表达式。</param>
     /// <param name="keywordExpression">关键词字段表达式。</param>
-    /// <param name="languageExpression">语言筛选字段表达式。</param>
     public static void Add<T>(
         AbstractValidator<T> validator,
         Expression<Func<T, int>> pageExpression,
         Expression<Func<T, int>> pageSizeExpression,
-        Expression<Func<T, string?>> keywordExpression,
-        Expression<Func<T, string?>> languageExpression)
+        Expression<Func<T, string?>> keywordExpression)
         where T : class
     {
-        var getLanguage = languageExpression.Compile();
         validator.RuleFor(pageExpression)
             .GreaterThanOrEqualTo(1).WithErrKey(ErrorCodes.PageInvalid);
         validator.RuleFor(pageSizeExpression)
@@ -403,15 +349,5 @@ internal static class WordListValidationRules
             .MaximumLength(200).WithErrKey(ErrorCodes.KeywordLengthLimit)
             .Must(value => string.IsNullOrEmpty(value) || !value.Any(char.IsControl))
             .WithErrKey(ErrorCodes.KeywordInvalid);
-        validator.RuleFor(languageExpression)
-            .Cascade(CascadeMode.Stop)
-            .MaximumLength(WordConstraints.MaxLanguageTagLength)
-            .WithErrKey(ErrorCodes.WordLanguageInvalid)
-            .Must(value => value is null || !string.IsNullOrWhiteSpace(value))
-            .WithErrKey(ErrorCodes.WordLanguageInvalid);
-        validator.RuleFor(languageExpression)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .When(value => !string.IsNullOrWhiteSpace(getLanguage(value)))
-            .WithErrKey(ErrorCodes.WordLanguageInvalid);
     }
 }

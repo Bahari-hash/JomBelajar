@@ -20,7 +20,6 @@ public sealed class WordSense : BaseEntity
     public Word? Word { get; set; }
     public PartOfSpeech PartOfSpeech { get; set; }
     public required string Definition { get; set; }
-    public required string DefinitionLanguageTag { get; set; }
     public string? UsageNote { get; set; }
     public int SortOrder { get; set; }
     public ICollection<ExampleSentence> Examples { get; set; } = [];

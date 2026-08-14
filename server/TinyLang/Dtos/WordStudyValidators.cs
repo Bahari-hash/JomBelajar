@@ -23,16 +23,6 @@ public sealed class CreateWordStudySessionRequestValidator
         RuleFor(value => value.SelectionMode)
             .Must(Enum.IsDefined)
             .WithErrKey(ErrorCodes.WordStudySelectionModeInvalid);
-        RuleFor(value => value.LanguageTag)
-            .Cascade(CascadeMode.Stop)
-            .MaximumLength(WordConstraints.MaxLanguageTagLength)
-            .WithErrKey(ErrorCodes.WordLanguageInvalid)
-            .Must(value => value is null || !string.IsNullOrWhiteSpace(value))
-            .WithErrKey(ErrorCodes.WordLanguageInvalid);
-        RuleFor(value => value.LanguageTag)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .When(value => !string.IsNullOrWhiteSpace(value.LanguageTag))
-            .WithErrKey(ErrorCodes.WordLanguageInvalid);
     }
 }
 

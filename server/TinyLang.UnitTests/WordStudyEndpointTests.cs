@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
@@ -246,7 +246,6 @@ public sealed class WordStudyEndpointTests
                 1,
                 Guid.NewGuid(),
                 "hello",
-                "en",
                 [],
                 [new WordPronunciationResponse(audioClipId, null, null, true, 0)]));
         await using var app = await CreateHttpAppAsync(service.Object, userId);
@@ -327,7 +326,6 @@ public sealed class WordStudyEndpointTests
             1,
             false,
             WordStudySelectionMode.Sequential,
-            null,
             status,
             status == WordStudySessionStatus.Active ? 0 : 1,
             0,

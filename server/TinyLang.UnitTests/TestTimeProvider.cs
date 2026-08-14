@@ -1,4 +1,4 @@
-namespace TinyLang.UnitTests;
+﻿namespace TinyLang.UnitTests;
 
 /// <summary>
 /// 为依赖 UTC 时间的上传测试提供可控时钟。

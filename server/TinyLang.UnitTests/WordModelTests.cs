@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using TinyLang.Database;
@@ -28,7 +28,7 @@ public sealed class WordModelTests
         word!.GetIndexes().Should().Contain(index =>
             index.IsUnique &&
             index.Properties.Select(value => value.Name).SequenceEqual(
-                new[] { nameof(Word.LanguageTag), nameof(Word.NormalizedHeadword) }));
+                new[] { nameof(Word.NormalizedHeadword) }));
         pronunciation!.GetIndexes().Should().Contain(index =>
             index.IsUnique && index.GetFilter() == "\"IsDefault\" = TRUE");
         pronunciation.GetIndexes().Should().Contain(index =>

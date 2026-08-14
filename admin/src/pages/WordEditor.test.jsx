@@ -15,7 +15,6 @@ function createdWord() {
   };
   return {
     id: WORD_ID,
-    languageTag: "fr",
     headword: "bonjour",
     status: "Draft",
     createdBy: user,
@@ -51,8 +50,7 @@ describe("WordEditor", () => {
     );
     expect(within(header).getByRole("button", { name: "保存" })).toBeVisible();
     expect(screen.getAllByRole("button", { name: "保存" })).toHaveLength(1);
-    await user.type(await screen.findByLabelText("语言标签 *"), "fr");
-    await user.type(screen.getByLabelText("词头 *"), "bonjour");
+    await user.type(await screen.findByLabelText("词头 *"), "bonjour");
     await user.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() =>
@@ -62,7 +60,6 @@ describe("WordEditor", () => {
       url: "/admin/words",
       method: "POST",
       data: {
-        languageTag: "fr",
         headword: "bonjour",
         senses: [],
         pronunciations: [],
@@ -74,13 +71,11 @@ describe("WordEditor", () => {
   it("keeps invalid nested content local and marks required fields", async () => {
     const user = userEvent.setup();
     renderAppAt("/words/new");
-    await user.type(await screen.findByLabelText("语言标签 *"), "fr");
-    await user.type(screen.getByLabelText("词头 *"), "bonjour");
+    await user.type(await screen.findByLabelText("词头 *"), "bonjour");
     await user.click(screen.getByRole("button", { name: "添加释义" }));
     await user.click(screen.getByRole("button", { name: "保存" }));
     expect(screen.getByText("请先修正标记的字段。")).toBeVisible();
     expect(screen.getByText("请输入释义。")).toBeVisible();
-    expect(screen.getByText("请输入释义语言。")).toBeVisible();
   });
 
   it("collapses a completed sense and adds the next sense in place", async () => {
@@ -132,16 +127,13 @@ describe("WordEditor", () => {
           id: "44444444-4444-4444-8444-444444444444",
           partOfSpeech: "Interjection",
           definition: "你好",
-          definitionLanguageTag: "zh-CN",
           usageNote: null,
           sortOrder: 0,
           examples: [
             {
               id: "55555555-5555-4555-8555-555555555555",
               sentence: "Bonjour!",
-              languageTag: "fr",
               translation: "你好！",
-              translationLanguageTag: "zh-CN",
               audioClipId: null,
               sortOrder: 0,
             },
@@ -213,7 +205,6 @@ describe("WordEditor", () => {
               {
                 id: audioId,
                 title: "bonjour 发音",
-                languageTag: "fr",
                 kind: "WordPronunciation",
                 processingStatus: "Ready",
                 publicationStatus: "Published",
@@ -249,8 +240,7 @@ describe("WordEditor", () => {
     });
     const user = userEvent.setup();
     renderAppAt("/words/new");
-    await user.type(await screen.findByLabelText("语言标签 *"), "fr");
-    await user.type(screen.getByLabelText("词头 *"), "bonjour");
+    await user.type(await screen.findByLabelText("词头 *"), "bonjour");
     await user.click(screen.getByRole("button", { name: "添加发音" }));
     await user.click(screen.getByRole("button", { name: "选择" }));
     expect(await screen.findByText("bonjour 发音")).toBeVisible();

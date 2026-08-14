@@ -9,7 +9,6 @@ namespace TinyLang.Dtos;
 /// </summary>
 public abstract record WordUpsertRequest
 {
-    public required string LanguageTag { get; init; }
     public required string Headword { get; init; }
     public IReadOnlyCollection<WordSenseInput> Senses { get; init; } = [];
     public IReadOnlyCollection<WordPronunciationInput> Pronunciations { get; init; } = [];
@@ -46,7 +45,6 @@ public sealed record WordSenseInput
     public Guid? Id { get; init; }
     public PartOfSpeech PartOfSpeech { get; init; }
     public required string Definition { get; init; }
-    public required string DefinitionLanguageTag { get; init; }
     public string? UsageNote { get; init; }
     public int SortOrder { get; init; }
     public IReadOnlyCollection<ExampleSentenceInput> Examples { get; init; } = [];
@@ -59,9 +57,7 @@ public sealed record ExampleSentenceInput
 {
     public Guid? Id { get; init; }
     public required string Sentence { get; init; }
-    public required string LanguageTag { get; init; }
     public required string Translation { get; init; }
-    public required string TranslationLanguageTag { get; init; }
     public Guid? AudioClipId { get; init; }
     public int SortOrder { get; init; }
 }
@@ -87,7 +83,6 @@ public sealed record AdminWordListRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
-    public string? Language { get; init; }
     public WordPublicationStatus? Status { get; init; }
     public PartOfSpeech? PartOfSpeech { get; init; }
     public string? Definition { get; init; }
@@ -101,7 +96,6 @@ public sealed record WordListRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
-    public string? Language { get; init; }
 }
 
 /// <summary>
@@ -110,9 +104,7 @@ public sealed record WordListRequest
 public sealed record AdminExampleSentenceResponse(
     Guid Id,
     string Sentence,
-    string LanguageTag,
     string Translation,
-    string TranslationLanguageTag,
     Guid? AudioClipId,
     int SortOrder);
 
@@ -123,7 +115,6 @@ public sealed record AdminWordSenseResponse(
     Guid Id,
     PartOfSpeech PartOfSpeech,
     string Definition,
-    string DefinitionLanguageTag,
     string? UsageNote,
     int SortOrder,
     IReadOnlyList<AdminExampleSentenceResponse> Examples);
@@ -144,7 +135,6 @@ public sealed record AdminWordPronunciationResponse(
 /// </summary>
 public sealed record AdminWordResponse(
     Guid Id,
-    string LanguageTag,
     string Headword,
     WordPublicationStatus Status,
     ContentAuditUserResponse CreatedBy,
@@ -162,7 +152,6 @@ public sealed record AdminWordResponse(
 /// </summary>
 public sealed record AdminWordListItemResponse(
     Guid Id,
-    string LanguageTag,
     string Headword,
     WordPublicationStatus Status,
     PartOfSpeech? PrimaryPartOfSpeech,
@@ -183,7 +172,6 @@ public sealed record AdminWordListItemResponse(
 /// </summary>
 public sealed record BatchWordRowRequest
 {
-    public required string LanguageTag { get; init; }
     public required string Headword { get; init; }
     public IReadOnlyCollection<BatchWordSenseInput> Senses { get; init; } = [];
     public IReadOnlyCollection<BatchWordPronunciationInput> Pronunciations { get; init; } = [];
@@ -196,7 +184,6 @@ public sealed record BatchWordSenseInput
 {
     public PartOfSpeech PartOfSpeech { get; init; }
     public required string Definition { get; init; }
-    public required string DefinitionLanguageTag { get; init; }
     public string? UsageNote { get; init; }
     public int SortOrder { get; init; }
     public IReadOnlyCollection<BatchExampleSentenceInput> Examples { get; init; } = [];
@@ -208,9 +195,7 @@ public sealed record BatchWordSenseInput
 public sealed record BatchExampleSentenceInput
 {
     public required string Sentence { get; init; }
-    public required string LanguageTag { get; init; }
     public required string Translation { get; init; }
-    public required string TranslationLanguageTag { get; init; }
     public Guid? AudioClipId { get; init; }
     public int SortOrder { get; init; }
 }
@@ -277,9 +262,7 @@ public sealed record BatchWordImportResponse(
 /// </summary>
 public sealed record ExampleSentenceResponse(
     string Sentence,
-    string LanguageTag,
     string Translation,
-    string TranslationLanguageTag,
     Guid? AudioClipId,
     int SortOrder);
 
@@ -289,7 +272,6 @@ public sealed record ExampleSentenceResponse(
 public sealed record WordSenseResponse(
     PartOfSpeech PartOfSpeech,
     string Definition,
-    string DefinitionLanguageTag,
     string? UsageNote,
     int SortOrder,
     IReadOnlyList<ExampleSentenceResponse> Examples);
@@ -309,11 +291,9 @@ public sealed record WordPronunciationResponse(
 /// </summary>
 public sealed record WordListItemResponse(
     Guid Id,
-    string LanguageTag,
     string Headword,
     PartOfSpeech PartOfSpeech,
     string Definition,
-    string DefinitionLanguageTag,
     WordPronunciationResponse DefaultPronunciation,
     DateTimeOffset PublishedAt);
 
@@ -322,7 +302,6 @@ public sealed record WordListItemResponse(
 /// </summary>
 public sealed record WordResponse(
     Guid Id,
-    string LanguageTag,
     string Headword,
     IReadOnlyList<WordSenseResponse> Senses,
     IReadOnlyList<WordPronunciationResponse> Pronunciations,
@@ -338,7 +317,6 @@ public static class WordConstraints
     public const int MaxUsageNoteLength = 1000;
     public const int MaxAccentTagLength = 100;
     public const int MaxIpaLength = 200;
-    public const int MaxLanguageTagLength = 35;
     public const int MaxSenseCount = 20;
     public const int MaxExampleCount = 20;
     public const int MaxPronunciationCount = 20;

@@ -21,7 +21,6 @@ public sealed class PaperConfiguration : IEntityTypeConfiguration<Paper>
         builder.Property(value => value.Title).HasMaxLength(200).IsRequired();
         builder.Property(value => value.Description).HasMaxLength(2000);
         builder.Property(value => value.Instructions).HasMaxLength(5000);
-        builder.Property(value => value.LanguageTag).HasMaxLength(35).IsRequired();
         builder.Property(value => value.Tags)
             .HasColumnType("text[]")
             .HasDefaultValueSql("'{}'::text[]")
@@ -36,7 +35,6 @@ public sealed class PaperConfiguration : IEntityTypeConfiguration<Paper>
         builder.HasIndex(value => new
         {
             value.Status,
-            value.LanguageTag,
             value.PublishedAt,
             value.Id
         });

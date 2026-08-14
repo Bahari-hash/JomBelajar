@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Moq;
 using StackExchange.Redis;
 using TinyLang.Infrastructure;

@@ -16,7 +16,7 @@ namespace TinyLang.Services;
 public sealed class WordService : IWordService
 {
     private const string HeadwordUniqueIndex =
-        "IX_words_LanguageTag_NormalizedHeadword";
+        "IX_words_NormalizedHeadword";
     private const string PronunciationAudioUniqueIndex =
         "IX_word_pronunciations_WordId_AudioClipId";
     private const string DefaultPronunciationUniqueIndex =
@@ -60,21 +60,18 @@ public sealed class WordService : IWordService
         CancellationToken cancellationToken = default)
     {
         ValidateTargetCollections(request, allowExistingIds: false);
-        var identity = NormalizeIdentity(request.Headword, request.LanguageTag);
+        var identity = NormalizeIdentity(request.Headword);
         await EnsureHeadwordUniqueAsync(
-            identity.LanguageTag,
             identity.NormalizedHeadword,
             excludedWordId: null,
             cancellationToken);
         await ValidateRequestedAudioAsync(
-            identity.LanguageTag,
             request.Senses,
             request.Pronunciations,
             cancellationToken);
 
         var word = new Word
         {
-            LanguageTag = identity.LanguageTag,
             Headword = identity.Headword,
             NormalizedHeadword = identity.NormalizedHeadword,
             CreatedById = adminId,
@@ -108,20 +105,17 @@ public sealed class WordService : IWordService
         }
 
         ValidateChildOwnership(word, request);
-        var identity = NormalizeIdentity(request.Headword, request.LanguageTag);
+        var identity = NormalizeIdentity(request.Headword);
         await EnsureHeadwordUniqueAsync(
-            identity.LanguageTag,
             identity.NormalizedHeadword,
             word.Id,
             cancellationToken);
         await ValidateRequestedAudioAsync(
-            identity.LanguageTag,
             request.Senses,
             request.Pronunciations,
             cancellationToken);
 
         await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
-        word.LanguageTag = identity.LanguageTag;
         word.Headword = identity.Headword;
         word.NormalizedHeadword = identity.NormalizedHeadword;
         word.LastEditorId = adminId;
@@ -290,7 +284,6 @@ public sealed class WordService : IWordService
         {
             var word = new Word
             {
-                LanguageTag = row.Identity.LanguageTag,
                 Headword = row.Identity.Headword,
                 NormalizedHeadword = row.Identity.NormalizedHeadword,
                 CreatedById = adminId,
@@ -349,11 +342,6 @@ public sealed class WordService : IWordService
         {
             query = query.Where(value => value.Status != WordPublicationStatus.Archived);
         }
-        if (!string.IsNullOrWhiteSpace(request.Language))
-        {
-            var language = WordTextNormalizer.NormalizeLanguageTag(request.Language);
-            query = query.Where(value => value.LanguageTag == language);
-        }
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = WordTextNormalizer.CreateHeadwordComparisonKey(request.Keyword);
@@ -379,7 +367,6 @@ public sealed class WordService : IWordService
             .Take(request.PageSize)
             .Select(value => new AdminWordListItemResponse(
                 value.Id,
-                value.LanguageTag,
                 value.Headword,
                 value.Status,
                 value.Senses.OrderBy(sense => sense.SortOrder)
@@ -433,11 +420,6 @@ public sealed class WordService : IWordService
         CancellationToken cancellationToken = default)
     {
         var query = WordVisibilityPolicy.Apply(_db.Words.AsNoTracking());
-        if (!string.IsNullOrWhiteSpace(request.Language))
-        {
-            var language = WordTextNormalizer.NormalizeLanguageTag(request.Language);
-            query = query.Where(value => value.LanguageTag == language);
-        }
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = WordTextNormalizer.CreateHeadwordComparisonKey(request.Keyword);
@@ -452,7 +434,6 @@ public sealed class WordService : IWordService
             .Take(request.PageSize)
             .Select(value => new WordListItemResponse(
                 value.Id,
-                value.LanguageTag,
                 value.Headword,
                 value.Senses.OrderBy(sense => sense.SortOrder)
                     .ThenBy(sense => sense.Id)
@@ -461,10 +442,6 @@ public sealed class WordService : IWordService
                 value.Senses.OrderBy(sense => sense.SortOrder)
                     .ThenBy(sense => sense.Id)
                     .Select(sense => sense.Definition)
-                    .First(),
-                value.Senses.OrderBy(sense => sense.SortOrder)
-                    .ThenBy(sense => sense.Id)
-                    .Select(sense => sense.DefinitionLanguageTag)
                     .First(),
                 value.Pronunciations.Where(pronunciation => pronunciation.IsDefault)
                     .OrderBy(pronunciation => pronunciation.SortOrder)
@@ -584,7 +561,7 @@ public sealed class WordService : IWordService
 
             try
             {
-                var identity = NormalizeIdentity(candidate.Headword, candidate.LanguageTag);
+                var identity = NormalizeIdentity(candidate.Headword);
                 var normalized = NormalizeCreateRequest(candidate, identity);
                 normalizedRows.Add(new BatchNormalizedRow(rowIndex, normalized, identity));
             }
@@ -602,11 +579,8 @@ public sealed class WordService : IWordService
                 ErrorCodes.WordBatchTextLengthLimit));
         }
 
-        foreach (var duplicateGroup in normalizedRows.GroupBy(row => new
-        {
-            row.Identity.LanguageTag,
-            row.Identity.NormalizedHeadword
-        }).Where(group => group.Count() > 1))
+        foreach (var duplicateGroup in normalizedRows.GroupBy(row =>
+            row.Identity.NormalizedHeadword).Where(group => group.Count() > 1))
         {
             foreach (var row in duplicateGroup)
             {
@@ -616,20 +590,16 @@ public sealed class WordService : IWordService
 
         if (normalizedRows.Count > 0)
         {
-            var languages = normalizedRows.Select(row => row.Identity.LanguageTag)
-                .Distinct().ToArray();
             var headwords = normalizedRows.Select(row => row.Identity.NormalizedHeadword)
                 .Distinct().ToArray();
             var existingKeys = await _db.Words.AsNoTracking()
-                .Where(word => languages.Contains(word.LanguageTag) &&
-                    headwords.Contains(word.NormalizedHeadword))
-                .Select(word => new { word.LanguageTag, word.NormalizedHeadword })
+                .Where(word => headwords.Contains(word.NormalizedHeadword))
+                .Select(word => word.NormalizedHeadword)
                 .ToListAsync(cancellationToken);
-            var existingSet = existingKeys.Select(value =>
-                    $"{value.LanguageTag}\u001f{value.NormalizedHeadword}")
+            var existingSet = existingKeys
                 .ToHashSet(StringComparer.Ordinal);
             foreach (var row in normalizedRows.Where(row => existingSet.Contains(
-                         $"{row.Identity.LanguageTag}\u001f{row.Identity.NormalizedHeadword}")))
+                         row.Identity.NormalizedHeadword)))
             {
                 AddBatchError(errorsByRow[row.RowIndex], "headword", ErrorCodes.WordDuplicate);
             }
@@ -681,8 +651,7 @@ public sealed class WordService : IWordService
                 var code = GetAudioErrorCode(
                     audioById,
                     pronunciation.AudioClipId,
-                    AudioClipKind.WordPronunciation,
-                    row.Identity.LanguageTag);
+                    AudioClipKind.WordPronunciation);
                 if (code.HasValue)
                 {
                     AddBatchError(
@@ -706,8 +675,7 @@ public sealed class WordService : IWordService
                     var code = GetAudioErrorCode(
                         audioById,
                         example.AudioClipId.Value,
-                        AudioClipKind.ExampleSentence,
-                        example.LanguageTag);
+                        AudioClipKind.ExampleSentence);
                     if (code.HasValue)
                     {
                         AddBatchError(
@@ -726,8 +694,7 @@ public sealed class WordService : IWordService
     private static ErrorCodes? GetAudioErrorCode(
         IReadOnlyDictionary<Guid, AudioClip> audioById,
         Guid audioId,
-        AudioClipKind expectedKind,
-        string expectedLanguageTag)
+        AudioClipKind expectedKind)
     {
         if (!audioById.TryGetValue(audioId, out var audio))
         {
@@ -742,27 +709,17 @@ public sealed class WordService : IWordService
         {
             return ErrorCodes.WordAudioKindMismatch;
         }
-        return WordTextNormalizer.AreLanguageTagsCompatible(
-            audio.LanguageTag,
-            expectedLanguageTag)
-            ? null
-            : ErrorCodes.WordAudioLanguageMismatch;
+        return null;
     }
 
     /// <summary>
-    /// 规范化并验证词头及语言唯一键的持久化形态。
+    /// 规范化并验证词头唯一键的持久化形态。
     /// </summary>
-    private static WordIdentity NormalizeIdentity(string headword, string languageTag)
+    private static WordIdentity NormalizeIdentity(string headword)
     {
         if (string.IsNullOrWhiteSpace(headword))
         {
             throw new RequestValidationException(ErrorCodes.WordHeadwordRequired);
-        }
-        if (string.IsNullOrWhiteSpace(languageTag) ||
-            languageTag.Length > WordConstraints.MaxLanguageTagLength ||
-            !MediaValidationPatterns.LanguageTag().IsMatch(languageTag))
-        {
-            throw new RequestValidationException(ErrorCodes.WordLanguageInvalid);
         }
 
         var display = WordTextNormalizer.NormalizeHeadwordForDisplay(headword);
@@ -772,23 +729,18 @@ public sealed class WordService : IWordService
         {
             throw new RequestValidationException(ErrorCodes.WordHeadwordLengthLimit);
         }
-        return new WordIdentity(
-            WordTextNormalizer.NormalizeLanguageTag(languageTag),
-            display,
-            comparisonKey);
+        return new WordIdentity(display, comparisonKey);
     }
 
     /// <summary>
     /// 在数据库约束之外提前识别规范化词头冲突。
     /// </summary>
     private async Task EnsureHeadwordUniqueAsync(
-        string languageTag,
         string normalizedHeadword,
         Guid? excludedWordId,
         CancellationToken cancellationToken)
     {
         if (await _db.Words.AsNoTracking().AnyAsync(value =>
-            value.LanguageTag == languageTag &&
             value.NormalizedHeadword == normalizedHeadword &&
             (!excludedWordId.HasValue || value.Id != excludedWordId.Value),
             cancellationToken))
@@ -916,7 +868,6 @@ public sealed class WordService : IWordService
     /// 批量加载并校验请求目标集合中的所有音频关联。
     /// </summary>
     private async Task ValidateRequestedAudioAsync(
-        string wordLanguageTag,
         IReadOnlyCollection<WordSenseInput> senses,
         IReadOnlyCollection<WordPronunciationInput> pronunciations,
         CancellationToken cancellationToken)
@@ -933,16 +884,14 @@ public sealed class WordService : IWordService
         {
             ValidateAudio(
                 audioById[pronunciation.AudioClipId],
-                AudioClipKind.WordPronunciation,
-                wordLanguageTag);
+                AudioClipKind.WordPronunciation);
         }
         foreach (var example in senses.SelectMany(value => value.Examples)
                      .Where(value => value.AudioClipId.HasValue))
         {
             ValidateAudio(
                 audioById[example.AudioClipId!.Value],
-                AudioClipKind.ExampleSentence,
-                example.LanguageTag);
+                AudioClipKind.ExampleSentence);
         }
     }
 
@@ -964,16 +913,14 @@ public sealed class WordService : IWordService
         {
             ValidateAudio(
                 audioById[pronunciation.AudioClipId],
-                AudioClipKind.WordPronunciation,
-                word.LanguageTag);
+                AudioClipKind.WordPronunciation);
         }
         foreach (var example in word.Senses.SelectMany(value => value.Examples)
                      .Where(value => value.AudioClipId.HasValue))
         {
             ValidateAudio(
                 audioById[example.AudioClipId!.Value],
-                AudioClipKind.ExampleSentence,
-                example.LanguageTag);
+                AudioClipKind.ExampleSentence);
         }
     }
 
@@ -1004,8 +951,7 @@ public sealed class WordService : IWordService
     /// </summary>
     private static void ValidateAudio(
         AudioClip audioClip,
-        AudioClipKind expectedKind,
-        string expectedLanguageTag)
+        AudioClipKind expectedKind)
     {
         if (audioClip.ProcessingStatus != AudioProcessingStatus.Ready ||
             audioClip.PublicationStatus != AudioPublicationStatus.Published)
@@ -1015,12 +961,6 @@ public sealed class WordService : IWordService
         if (audioClip.Kind != expectedKind)
         {
             throw ConflictException.Create(ErrorCodes.WordAudioKindMismatch);
-        }
-        if (!WordTextNormalizer.AreLanguageTagsCompatible(
-            audioClip.LanguageTag,
-            expectedLanguageTag))
-        {
-            throw ConflictException.Create(ErrorCodes.WordAudioLanguageMismatch);
         }
     }
 
@@ -1152,8 +1092,7 @@ public sealed class WordService : IWordService
         {
             WordId = word.Id,
             Word = word,
-            Definition = string.Empty,
-            DefinitionLanguageTag = string.Empty
+            Definition = string.Empty
         };
         ApplySenseValues(sense, input);
         foreach (var exampleInput in input.Examples)
@@ -1170,8 +1109,6 @@ public sealed class WordService : IWordService
     {
         sense.PartOfSpeech = input.PartOfSpeech;
         sense.Definition = WordTextNormalizer.NormalizeRequiredText(input.Definition);
-        sense.DefinitionLanguageTag = WordTextNormalizer.NormalizeLanguageTag(
-            input.DefinitionLanguageTag);
         sense.UsageNote = WordTextNormalizer.NormalizeOptionalText(input.UsageNote);
         sense.SortOrder = input.SortOrder;
     }
@@ -1188,9 +1125,7 @@ public sealed class WordService : IWordService
             WordSenseId = sense.Id,
             WordSense = sense,
             Sentence = string.Empty,
-            LanguageTag = string.Empty,
-            Translation = string.Empty,
-            TranslationLanguageTag = string.Empty
+            Translation = string.Empty
         };
         ApplyExampleValues(example, input);
         return example;
@@ -1204,10 +1139,7 @@ public sealed class WordService : IWordService
         ExampleSentenceInput input)
     {
         example.Sentence = WordTextNormalizer.NormalizeRequiredText(input.Sentence);
-        example.LanguageTag = WordTextNormalizer.NormalizeLanguageTag(input.LanguageTag);
         example.Translation = WordTextNormalizer.NormalizeRequiredText(input.Translation);
-        example.TranslationLanguageTag = WordTextNormalizer.NormalizeLanguageTag(
-            input.TranslationLanguageTag);
         example.AudioClipId = input.AudioClipId;
         example.SortOrder = input.SortOrder;
     }
@@ -1249,18 +1181,14 @@ public sealed class WordService : IWordService
     private static void EnsurePublishableContent(Word word)
     {
         if (string.IsNullOrWhiteSpace(word.Headword) ||
-            string.IsNullOrWhiteSpace(word.LanguageTag) ||
             word.Senses.Count == 0 ||
             word.Senses.Any(value =>
                 !Enum.IsDefined(value.PartOfSpeech) ||
                 string.IsNullOrWhiteSpace(value.Definition) ||
-                string.IsNullOrWhiteSpace(value.DefinitionLanguageTag) ||
                 value.Examples.Count == 0 ||
                 value.Examples.Any(example =>
                     string.IsNullOrWhiteSpace(example.Sentence) ||
-                    string.IsNullOrWhiteSpace(example.LanguageTag) ||
-                    string.IsNullOrWhiteSpace(example.Translation) ||
-                    string.IsNullOrWhiteSpace(example.TranslationLanguageTag))) ||
+                    string.IsNullOrWhiteSpace(example.Translation))) ||
             word.Pronunciations.Count == 0 ||
             word.Pronunciations.Count(value => value.IsDefault) != 1)
         {
@@ -1274,7 +1202,6 @@ public sealed class WordService : IWordService
     private static Expression<Func<Word, AdminWordResponse>> ToAdminResponseProjection()
         => word => new AdminWordResponse(
             word.Id,
-            word.LanguageTag,
             word.Headword,
             word.Status,
             new ContentAuditUserResponse(word.CreatedById, null, null),
@@ -1288,7 +1215,6 @@ public sealed class WordService : IWordService
                     sense.Id,
                     sense.PartOfSpeech,
                     sense.Definition,
-                    sense.DefinitionLanguageTag,
                     sense.UsageNote,
                     sense.SortOrder,
                     sense.Examples.OrderBy(example => example.SortOrder)
@@ -1296,9 +1222,7 @@ public sealed class WordService : IWordService
                         .Select(example => new AdminExampleSentenceResponse(
                             example.Id,
                             example.Sentence,
-                            example.LanguageTag,
                             example.Translation,
-                            example.TranslationLanguageTag,
                             example.AudioClipId,
                             example.SortOrder))
                         .ToList()))
@@ -1370,23 +1294,19 @@ public sealed class WordService : IWordService
     private static Expression<Func<Word, WordResponse>> ToUserResponseProjection()
         => word => new WordResponse(
             word.Id,
-            word.LanguageTag,
             word.Headword,
             word.Senses.OrderBy(sense => sense.SortOrder)
                 .ThenBy(sense => sense.Id)
                 .Select(sense => new WordSenseResponse(
                     sense.PartOfSpeech,
                     sense.Definition,
-                    sense.DefinitionLanguageTag,
                     sense.UsageNote,
                     sense.SortOrder,
                     sense.Examples.OrderBy(example => example.SortOrder)
                         .ThenBy(example => example.Id)
                         .Select(example => new ExampleSentenceResponse(
                             example.Sentence,
-                            example.LanguageTag,
                             example.Translation,
-                            example.TranslationLanguageTag,
                             example.AudioClipId,
                             example.SortOrder))
                         .ToList()))
@@ -1461,21 +1381,17 @@ public sealed class WordService : IWordService
     private static CreateWordRequest ToCreateRequest(BatchWordRowRequest row)
         => new()
         {
-            LanguageTag = row.LanguageTag,
             Headword = row.Headword,
             Senses = row.Senses.Select(sense => new WordSenseInput
             {
                 PartOfSpeech = sense.PartOfSpeech,
                 Definition = sense.Definition,
-                DefinitionLanguageTag = sense.DefinitionLanguageTag,
                 UsageNote = sense.UsageNote,
                 SortOrder = sense.SortOrder,
                 Examples = sense.Examples.Select(example => new ExampleSentenceInput
                 {
                     Sentence = example.Sentence,
-                    LanguageTag = example.LanguageTag,
                     Translation = example.Translation,
-                    TranslationLanguageTag = example.TranslationLanguageTag,
                     AudioClipId = example.AudioClipId,
                     SortOrder = example.SortOrder
                 }).ToArray()
@@ -1499,23 +1415,16 @@ public sealed class WordService : IWordService
         WordIdentity identity)
         => new()
         {
-            LanguageTag = identity.LanguageTag,
             Headword = identity.Headword,
             Senses = request.Senses.Select(sense => sense with
             {
                 Definition = WordTextNormalizer.NormalizeRequiredText(sense.Definition),
-                DefinitionLanguageTag = WordTextNormalizer.NormalizeLanguageTag(
-                    sense.DefinitionLanguageTag),
                 UsageNote = WordTextNormalizer.NormalizeOptionalText(sense.UsageNote),
                 Examples = sense.Examples.Select(example => example with
                 {
                     Sentence = WordTextNormalizer.NormalizeRequiredText(example.Sentence),
-                    LanguageTag = WordTextNormalizer.NormalizeLanguageTag(
-                        example.LanguageTag),
                     Translation = WordTextNormalizer.NormalizeRequiredText(
-                        example.Translation),
-                    TranslationLanguageTag = WordTextNormalizer.NormalizeLanguageTag(
-                        example.TranslationLanguageTag)
+                        example.Translation)
                 }).ToArray()
             }).ToArray(),
             Pronunciations = request.Pronunciations.Select(pronunciation =>
@@ -1532,17 +1441,13 @@ public sealed class WordService : IWordService
     /// </summary>
     private static int CountBatchCharacters(IEnumerable<BatchWordRowRequest> rows)
         => rows.Sum(row =>
-            TextLength(row.LanguageTag) +
             TextLength(row.Headword) +
             (row.Senses?.Sum(sense =>
                 TextLength(sense?.Definition) +
-                TextLength(sense?.DefinitionLanguageTag) +
                 TextLength(sense?.UsageNote) +
                 (sense?.Examples?.Sum(example =>
                     TextLength(example?.Sentence) +
-                    TextLength(example?.LanguageTag) +
-                    TextLength(example?.Translation) +
-                    TextLength(example?.TranslationLanguageTag)) ?? 0)) ?? 0) +
+                    TextLength(example?.Translation)) ?? 0)) ?? 0) +
             (row.Pronunciations?.Sum(pronunciation =>
                 TextLength(pronunciation?.AccentTag) +
                 TextLength(pronunciation?.Ipa)) ?? 0));
@@ -1551,17 +1456,13 @@ public sealed class WordService : IWordService
     /// 统计规范化单条请求中所有会持久化的文本字符数。
     /// </summary>
     private static int CountRequestCharacters(CreateWordRequest request)
-        => TextLength(request.LanguageTag) +
-            TextLength(request.Headword) +
+        => TextLength(request.Headword) +
             request.Senses.Sum(sense =>
                 TextLength(sense.Definition) +
-                TextLength(sense.DefinitionLanguageTag) +
                 TextLength(sense.UsageNote) +
                 sense.Examples.Sum(example =>
                     TextLength(example.Sentence) +
-                    TextLength(example.LanguageTag) +
-                    TextLength(example.Translation) +
-                    TextLength(example.TranslationLanguageTag))) +
+                    TextLength(example.Translation))) +
             request.Pronunciations.Sum(pronunciation =>
                 TextLength(pronunciation.AccentTag) + TextLength(pronunciation.Ipa));
 
@@ -1656,7 +1557,6 @@ public sealed class WordService : IWordService
     /// 保存规范化后的词条唯一身份字段。
     /// </summary>
     private readonly record struct WordIdentity(
-        string LanguageTag,
         string Headword,
         string NormalizedHeadword);
 

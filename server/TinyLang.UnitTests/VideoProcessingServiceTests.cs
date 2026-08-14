@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -495,7 +495,6 @@ public sealed class VideoProcessingServiceTests
             SourceMediaResourceId = resource.Id,
             SourceMediaResource = resource,
             Title = "Video",
-            OriginalLanguage = "en"
         };
         var job = new VideoProcessingJob
         {

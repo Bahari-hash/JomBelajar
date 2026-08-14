@@ -1,4 +1,4 @@
-using TinyLang.Settings;
+﻿using TinyLang.Settings;
 
 namespace TinyLang.UnitTests;
 

@@ -66,7 +66,7 @@ function stageText(stage, progress) {
 }
 
 /** Uploads an Audio media resource and creates the matching word AudioClip. */
-export function WordAudioUploadControl({ kind, language, onCreated }) {
+export function WordAudioUploadControl({ kind, onCreated }) {
   const inputRef = useRef(null);
   const controllerRef = useRef(null);
   const requestRef = useRef(null);
@@ -127,12 +127,7 @@ export function WordAudioUploadControl({ kind, language, onCreated }) {
 
   const handleUpload = async () => {
     if (uploading || !file || !capability) return;
-    const normalizedLanguage = language?.trim() ?? "";
     const normalizedTitle = title.trim();
-    if (!normalizedLanguage) {
-      setError("请先填写当前发音或例句的语言标签。");
-      return;
-    }
     if (!normalizedTitle) {
       setError("请输入音频标题。");
       return;
@@ -171,7 +166,6 @@ export function WordAudioUploadControl({ kind, language, onCreated }) {
         sourceMediaResourceId: resource.id,
         title: normalizedTitle,
         description: null,
-        languageTag: normalizedLanguage,
         kind,
       });
       const audio = await requestRef.current.unwrap();
@@ -287,7 +281,7 @@ export function WordAudioUploadControl({ kind, language, onCreated }) {
         <Button
           type="button"
           size="sm"
-          disabled={!file || uploading || !language?.trim()}
+          disabled={!file || uploading}
           onClick={handleUpload}
         >
           <Upload aria-hidden="true" />

@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -67,7 +67,7 @@ public sealed class WordEndpointTests
 
         var response = await app.GetTestClient().PostAsJsonAsync(
             "/api/admin/words",
-            new CreateWordRequest { Headword = "hello", LanguageTag = "en" },
+            new CreateWordRequest { Headword = "hello" },
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -92,7 +92,7 @@ public sealed class WordEndpointTests
         await using var app = await CreateHttpAppAsync(service.Object, Guid.NewGuid());
 
         var response = await app.GetTestClient().GetAsync(
-            "/api/words?page=2&pageSize=5&keyword=hello&language=en",
+            "/api/words?page=2&pageSize=5&keyword=hello",
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -100,8 +100,8 @@ public sealed class WordEndpointTests
             It.Is<WordListRequest>(request =>
                 request.Page == 2 &&
                 request.PageSize == 5 &&
-                request.Keyword == "hello" &&
-                request.Language == "en"),
+                request.Keyword == "hello"
+            ),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -239,7 +239,6 @@ public sealed class WordEndpointTests
     private static AdminWordResponse CreateAdminResponse(Guid wordId, Guid adminId)
         => new(
             wordId,
-            "en",
             "hello",
             WordPublicationStatus.Draft,
             new ContentAuditUserResponse(adminId, null, null),

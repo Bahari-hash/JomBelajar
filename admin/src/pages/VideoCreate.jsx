@@ -55,7 +55,6 @@ function VideoCreate() {
   const [form, setForm] = useState({
     title: "",
     description: "",
-    originalLanguage: "ms",
     categoryIds: [],
   });
   const [file, setFile] = useState(null);
@@ -96,14 +95,6 @@ function VideoCreate() {
       localErrors.title = ["标题不能超过 200 个字符。"];
     if (form.description.length > 2000)
       localErrors.description = ["描述不能超过 2000 个字符。"];
-    if (
-      !/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/.test(
-        form.originalLanguage.trim(),
-      )
-    )
-      localErrors.originalLanguage = [
-        "请输入有效的语言标签，例如 en 或 zh-CN。",
-      ];
     if (form.categoryIds.length > 10)
       localErrors.categoryIds = ["视频最多选择 10 个分类。"];
     const fileError = validateFile(file, capability);
@@ -122,7 +113,6 @@ function VideoCreate() {
         coverMediaResourceId: coverResource?.id ?? null,
         title: form.title,
         description: form.description.trim() || null,
-        originalLanguage: form.originalLanguage.trim(),
         categoryIds: form.categoryIds,
       }).unwrap();
       navigate(`/videos/${saved.id}`, { replace: true });
@@ -207,25 +197,6 @@ function VideoCreate() {
             {fieldError("title") ?? `${form.title.length}/200`}
           </p>
         </div>
-        {/* <div className="space-y-1.5">
-          <Label htmlFor="video-language">
-            原始语言 <span aria-hidden="true">*</span>
-          </Label>
-          <Input
-            id="video-language"
-            value={form.originalLanguage}
-            maxLength={35}
-            placeholder="例如 en、fr 或 zh-CN"
-            aria-invalid={Boolean(fieldError("originalLanguage"))}
-            disabled={busy}
-            onChange={(event) =>
-              setForm({ ...form, originalLanguage: event.target.value })
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            {fieldError("originalLanguage") ?? "使用标准 BCP 47 语言标签。"}
-          </p>
-        </div> */}
       </section>
       <div className="space-y-1.5">
         <Label htmlFor="video-description">描述</Label>

@@ -51,17 +51,3 @@ export function isPaperSubmitRecoveryError(error: unknown) {
     isPlainObject(error) && error.code === "PaperAttemptConcurrencyConflict"
   );
 }
-
-export function formatLanguageTag(value: string | null | undefined) {
-  const languageTag = value?.trim();
-  if (!languageTag) return "语言未知";
-
-  try {
-    return (
-      new Intl.DisplayNames(["zh-CN"], { type: "language" }).of(languageTag) ??
-      languageTag
-    );
-  } catch {
-    return languageTag;
-  }
-}

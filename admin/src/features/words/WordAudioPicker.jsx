@@ -53,7 +53,6 @@ function isSelectable(audio) {
 /** Uploads, processes and selects word audio within the word workflow. */
 export function WordAudioPicker({
   kind,
-  language,
   selectedId,
   onSelect,
   onClose,
@@ -63,7 +62,6 @@ export function WordAudioPicker({
     page: 1,
     pageSize: 20,
     keyword: "",
-    language: language?.trim() ?? "",
     kind,
   });
   const [playback, setPlayback] = useState(null);
@@ -147,20 +145,11 @@ export function WordAudioPicker({
           <DialogTitle>上传或选择音频</DialogTitle>
           <DialogDescription>
             {kind === "WordPronunciation" ? "单词发音" : "例句音频"}
-            {filters.language ? ` · ${filters.language}` : ""}
             。新音频处理完成并发布后才能用于单词。
           </DialogDescription>
         </DialogHeader>
-        {!filters.language ? (
-          <Alert variant="destructive">
-            <AlertDescription>
-              请先关闭窗口并填写当前单词或例句的语言标签。
-            </AlertDescription>
-          </Alert>
-        ) : null}
         <WordAudioUploadControl
           kind={kind}
-          language={filters.language}
           onCreated={(audio) => {
             setNotice(`“${audio.title}”已上传，正在等待后台处理。`);
             setFilters((current) => ({ ...current, page: 1, keyword: "" }));
@@ -243,7 +232,7 @@ export function WordAudioPicker({
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{audio.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {audio.languageTag} · {formatDateTime(audio.updatedAt)}
+                      {formatDateTime(audio.updatedAt)}
                       {audio.durationSeconds === null
                         ? ""
                         : ` · ${audio.durationSeconds.toFixed(1)} 秒`}
@@ -282,7 +271,6 @@ export function WordAudioPicker({
                       variant={
                         selectedId === audio.id ? "secondary" : "outline"
                       }
-                      disabled={!filters.language}
                       onClick={() => {
                         onSelect(audio);
                         onClose();
@@ -294,7 +282,7 @@ export function WordAudioPicker({
                     <Button
                       type="button"
                       size="sm"
-                      disabled={actionPending || !filters.language}
+                      disabled={actionPending}
                       onClick={() => handlePublishAndSelect(audio)}
                     >
                       {active && publishState.isLoading

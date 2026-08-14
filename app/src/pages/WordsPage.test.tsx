@@ -32,7 +32,6 @@ function session(
     actualCount: 3,
     includePreviouslyStudied: true,
     selectionMode: "Sequential",
-    languageTag: null,
     status,
     completedCount,
     rememberedCount: status === "Completed" ? 2 : 1,
@@ -64,7 +63,6 @@ function item(
             {
               partOfSpeech: "Interjection",
               definition: `释义 ${headword}`,
-              definitionLanguageTag: "zh",
               usageNote: null,
               sortOrder: 0,
               examples: [],

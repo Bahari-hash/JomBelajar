@@ -16,7 +16,6 @@ public sealed class Word : BaseAuditableEntity
         Id = Guid.NewGuid();
     }
 
-    public required string LanguageTag { get; set; }
     public required string Headword { get; set; }
     public required string NormalizedHeadword { get; set; }
     public WordPublicationStatus Status { get; set; } = WordPublicationStatus.Draft;

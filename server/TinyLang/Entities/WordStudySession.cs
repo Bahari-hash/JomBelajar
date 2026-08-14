@@ -23,7 +23,6 @@ public sealed class WordStudySession : BaseAuditableEntity
     public DateTimeOffset StudyDateUtc { get; set; }
     public bool IncludePreviouslyStudied { get; set; }
     public WordStudySelectionMode SelectionMode { get; set; }
-    public string? LanguageTag { get; set; }
     public WordStudySessionStatus Status { get; set; } = WordStudySessionStatus.Active;
     public DateTimeOffset StartedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }

@@ -42,7 +42,6 @@ function formFromVideo(video) {
   return {
     title: video.title,
     description: video.description ?? "",
-    originalLanguage: video.originalLanguage,
     categoryIds: video.categories.map(({ id }) => id),
     cover: video.cover,
     coverAction: "Keep",
@@ -134,12 +133,6 @@ function VideoDetails() {
       localErrors.title = ["标题不能超过 200 个字符。"];
     if (form.description.length > 2000)
       localErrors.description = ["描述不能超过 2000 个字符。"];
-    if (
-      !/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/.test(
-        form.originalLanguage.trim(),
-      )
-    )
-      localErrors.originalLanguage = ["请输入有效的语言标签。"];
     if (form.categoryIds.length > 10)
       localErrors.categoryIds = ["视频最多选择 10 个分类。"];
     if (Object.keys(localErrors).length) {
@@ -152,7 +145,6 @@ function VideoDetails() {
         videoId,
         title: form.title,
         description: form.description.trim() || null,
-        originalLanguage: form.originalLanguage.trim(),
         categoryIds: form.categoryIds,
         coverAction: form.coverAction,
         coverMediaResourceId:
@@ -366,24 +358,6 @@ function VideoDetails() {
             {fieldError("title") ?? `${form.title.length}/200`}
           </p>
         </div>
-        {/* <div className="space-y-1.5">
-          <Label htmlFor="detail-language">
-            原始语言 <span aria-hidden="true">*</span>
-          </Label>
-          <Input
-            id="detail-language"
-            value={form.originalLanguage}
-            maxLength={35}
-            disabled={readOnly}
-            aria-invalid={Boolean(fieldError("originalLanguage"))}
-            onChange={(event) =>
-              setForm({ ...form, originalLanguage: event.target.value })
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            {fieldError("originalLanguage") ?? "BCP 47 语言标签"}
-          </p>
-        </div> */}
       </section>
       <div className="space-y-1.5">
         <Label htmlFor="detail-description">描述</Label>

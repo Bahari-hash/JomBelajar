@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FluentAssertions;
 using TinyLang.Dtos;
 using TinyLang.Entities.Enums;
@@ -23,7 +23,6 @@ public sealed class AudioValidatorsTests
             SourceMediaResourceId = Guid.NewGuid(),
             Title = "Pronunciation",
             Description = "Native speaker",
-            LanguageTag = "en-US",
             Kind = AudioClipKind.WordPronunciation
         }, TestContext.Current.CancellationToken);
 
@@ -42,14 +41,12 @@ public sealed class AudioValidatorsTests
         {
             SourceMediaResourceId = Guid.Empty,
             Title = string.Empty,
-            LanguageTag = "not_a_language",
             Kind = (AudioClipKind)999
         }, TestContext.Current.CancellationToken);
 
         result.Errors.Select(value => value.PropertyName).Should().Contain([
             nameof(CreateAudioClipRequest.SourceMediaResourceId),
             nameof(CreateAudioClipRequest.Title),
-            nameof(CreateAudioClipRequest.LanguageTag),
             nameof(CreateAudioClipRequest.Kind)
         ]);
     }
@@ -66,7 +63,6 @@ public sealed class AudioValidatorsTests
         {
             Title = new string('t', 201),
             Description = new string('d', 2001),
-            LanguageTag = "en",
             Kind = AudioClipKind.Other
         }, TestContext.Current.CancellationToken);
 
@@ -98,21 +94,17 @@ public sealed class AudioValidatorsTests
     }
 
     /// <summary>
-    /// 验证管理员音频语言筛选遵循 BCP-47 格式并允许合法大小写输入。
+    /// 验证管理员音频列表的默认筛选请求有效。
     /// </summary>
     [Fact]
-    public async Task AdminAudioListShouldValidateLanguageFilter()
+    public async Task AdminAudioListShouldAcceptDefaultFilters()
     {
         var validator = new AdminAudioClipListRequestValidator();
 
-        var valid = await validator.ValidateAsync(
-            new AdminAudioClipListRequest { Language = "EN-us" },
-            TestContext.Current.CancellationToken);
-        var invalid = await validator.ValidateAsync(
-            new AdminAudioClipListRequest { Language = "bad_tag" },
+        var result = await validator.ValidateAsync(
+            new AdminAudioClipListRequest(),
             TestContext.Current.CancellationToken);
 
-        valid.IsValid.Should().BeTrue();
-        invalid.IsValid.Should().BeFalse();
+        result.IsValid.Should().BeTrue();
     }
 }

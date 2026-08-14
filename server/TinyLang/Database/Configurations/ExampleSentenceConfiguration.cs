@@ -16,9 +16,7 @@ public sealed class ExampleSentenceConfiguration
         builder.ToTable("example_sentences");
         builder.HasKey(value => value.Id);
         builder.Property(value => value.Sentence).HasMaxLength(2000).IsRequired();
-        builder.Property(value => value.LanguageTag).HasMaxLength(35).IsRequired();
         builder.Property(value => value.Translation).HasMaxLength(2000).IsRequired();
-        builder.Property(value => value.TranslationLanguageTag).HasMaxLength(35).IsRequired();
         builder.HasIndex(value => new { value.WordSenseId, value.SortOrder }).IsUnique();
         builder.HasOne(value => value.WordSense)
             .WithMany(value => value.Examples)

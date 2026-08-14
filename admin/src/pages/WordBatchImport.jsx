@@ -18,21 +18,17 @@ const EXAMPLE = JSON.stringify(
   {
     rows: [
       {
-        languageTag: "fr",
         headword: "bonjour",
         senses: [
           {
             partOfSpeech: "Interjection",
             definition: "你好",
-            definitionLanguageTag: "zh-CN",
             usageNote: "用于见面问候。",
             sortOrder: 0,
             examples: [
               {
                 sentence: "Bonjour, Marie!",
-                languageTag: "fr",
                 translation: "你好，玛丽！",
-                translationLanguageTag: "zh-CN",
                 audioClipId: null,
                 sortOrder: 0,
               },
@@ -272,7 +268,7 @@ function ValidationResult({ validation }) {
               <h3 className="font-medium">第 {row.rowIndex + 1} 行</h3>
               <span className="text-sm text-muted-foreground">
                 {row.normalized
-                  ? `${row.normalized.headword} · ${row.normalized.languageTag}`
+                  ? row.normalized.headword
                   : "无法生成预览"}
               </span>
             </div>

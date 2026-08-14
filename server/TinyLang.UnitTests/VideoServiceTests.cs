@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -38,11 +38,9 @@ public sealed class VideoServiceTests
             SourceMediaResourceId = source.Id,
             Title = "  Listening lesson  ",
             Description = " practice ",
-            OriginalLanguage = "EN-US"
         }, TestContext.Current.CancellationToken);
 
         response.Title.Should().Be("Listening lesson");
-        response.OriginalLanguage.Should().Be("en-us");
         response.ProcessingStatus.Should().Be(VideoProcessingStatus.Queued);
         (await db.VideoProcessingJobs.SingleAsync(
             TestContext.Current.CancellationToken)).OutputVersion.Should().NotBeEmpty();
@@ -69,7 +67,6 @@ public sealed class VideoServiceTests
             SourceMediaResourceId = source.Id,
             CoverMediaResourceId = cover.Id,
             Title = "Covered lesson",
-            OriginalLanguage = "en"
         }, TestContext.Current.CancellationToken);
 
         response.Cover.Should().Be(new VideoCoverSummaryResponse(
@@ -107,7 +104,6 @@ public sealed class VideoServiceTests
             SourceMediaResourceId = source.Id,
             CoverMediaResourceId = cover.Id,
             Title = "Lesson",
-            OriginalLanguage = "en"
         }, TestContext.Current.CancellationToken);
 
         var exception = await action.Should().ThrowAsync<ConflictException>();
@@ -133,14 +129,12 @@ public sealed class VideoServiceTests
         var kept = await service.UpdateAsync(video.Id, adminId, new UpdateVideoRequest
         {
             Title = "Kept",
-            OriginalLanguage = "en",
             CoverAction = VideoCoverAction.Keep,
             ConcurrencyStamp = video.ConcurrencyStamp
         }, TestContext.Current.CancellationToken);
         var replaced = await service.UpdateAsync(video.Id, adminId, new UpdateVideoRequest
         {
             Title = "Replaced",
-            OriginalLanguage = "en",
             CoverAction = VideoCoverAction.Set,
             CoverMediaResourceId = second.Id,
             ConcurrencyStamp = kept.ConcurrencyStamp
@@ -148,7 +142,6 @@ public sealed class VideoServiceTests
         var cleared = await service.UpdateAsync(video.Id, adminId, new UpdateVideoRequest
         {
             Title = "Cleared",
-            OriginalLanguage = "en",
             CoverAction = VideoCoverAction.Clear,
             ConcurrencyStamp = replaced.ConcurrencyStamp
         }, TestContext.Current.CancellationToken);
@@ -175,7 +168,6 @@ public sealed class VideoServiceTests
         {
             SourceMediaResourceId = source.Id,
             Title = "Lesson",
-            OriginalLanguage = "en",
             CategoryIds = [second.Id, first.Id]
         }, TestContext.Current.CancellationToken);
 
@@ -207,7 +199,6 @@ public sealed class VideoServiceTests
         await service.UpdateAsync(video.Id, ownerId, new UpdateVideoRequest
         {
             Title = "Updated",
-            OriginalLanguage = "en",
             CategoryIds = [second.Id],
             ConcurrencyStamp = video.ConcurrencyStamp
         }, TestContext.Current.CancellationToken);
@@ -231,7 +222,6 @@ public sealed class VideoServiceTests
         await service.UpdateAsync(video.Id, adminId, new UpdateVideoRequest
         {
             Title = "Updated",
-            OriginalLanguage = "en",
             ConcurrencyStamp = video.ConcurrencyStamp
         }, TestContext.Current.CancellationToken);
 
@@ -260,7 +250,6 @@ public sealed class VideoServiceTests
         {
             SourceMediaResourceId = source.Id,
             Title = "Lesson",
-            OriginalLanguage = "en",
             CategoryIds = [category.Id]
         }, TestContext.Current.CancellationToken);
 
@@ -611,7 +600,6 @@ public sealed class VideoServiceTests
         var action = () => service.UpdateAsync(video.Id, Guid.NewGuid(), new UpdateVideoRequest
         {
             Title = "Updated",
-            OriginalLanguage = "en",
             ConcurrencyStamp = Guid.NewGuid()
         }, TestContext.Current.CancellationToken);
 
@@ -632,7 +620,6 @@ public sealed class VideoServiceTests
         var action = () => service.UpdateAsync(video.Id, Guid.NewGuid(), new UpdateVideoRequest
         {
             Title = "Updated",
-            OriginalLanguage = "en",
             ConcurrencyStamp = video.ConcurrencyStamp
         }, TestContext.Current.CancellationToken);
 
@@ -780,7 +767,6 @@ public sealed class VideoServiceTests
             LastEditorId = ownerId,
             SourceMediaResourceId = Guid.NewGuid(),
             Title = "Video",
-            OriginalLanguage = "en",
             MasterPlaylistObjectName = "videos/id/outputs/version/master.m3u8"
         };
 

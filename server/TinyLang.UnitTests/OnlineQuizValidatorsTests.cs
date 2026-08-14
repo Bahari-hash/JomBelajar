@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FluentAssertions;
 using TinyLang.Dtos;
 using TinyLang.Entities.Enums;
@@ -20,7 +20,6 @@ public sealed class OnlineQuizValidatorsTests
         var request = new CreatePaperRequest
         {
             Title = "Draft",
-            LanguageTag = "en",
             PassingScorePercentage = 60
         };
 
@@ -308,7 +307,6 @@ public sealed class OnlineQuizValidatorsTests
         => new()
         {
             Title = "Language Quiz",
-            LanguageTag = "en",
             PassingScorePercentage = 60,
             Questions =
             [

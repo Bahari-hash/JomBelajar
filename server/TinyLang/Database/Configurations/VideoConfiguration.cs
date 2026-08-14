@@ -16,7 +16,6 @@ public sealed class VideoConfiguration : IEntityTypeConfiguration<Video>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Title).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Description).HasMaxLength(2000);
-        builder.Property(x => x.OriginalLanguage).HasMaxLength(35).IsRequired();
         builder.Property(x => x.ContainerFormat).HasMaxLength(100);
         builder.Property(x => x.VideoCodec).HasMaxLength(64);
         builder.Property(x => x.AudioCodec).HasMaxLength(64);

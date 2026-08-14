@@ -11,7 +11,6 @@ public sealed record CreateWordStudySessionRequest
     public bool IncludePreviouslyStudied { get; init; }
     public WordStudySelectionMode SelectionMode { get; init; } =
         WordStudySelectionMode.Sequential;
-    public string? LanguageTag { get; init; }
 }
 
 /// <summary>
@@ -31,7 +30,6 @@ public sealed record WordStudySessionResponse(
     int ActualCount,
     bool IncludePreviouslyStudied,
     WordStudySelectionMode SelectionMode,
-    string? LanguageTag,
     WordStudySessionStatus Status,
     int CompletedCount,
     int RememberedCount,
@@ -70,7 +68,6 @@ public sealed record WordStudyNextItemResponse(
     int ActualCount,
     Guid WordId,
     string Headword,
-    string LanguageTag,
     IReadOnlyList<WordSenseResponse> Senses,
     IReadOnlyList<WordPronunciationResponse> Pronunciations);
 

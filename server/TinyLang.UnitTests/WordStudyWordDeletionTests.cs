@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -105,7 +105,6 @@ public sealed class WordStudyWordDeletionTests
     private static Word CreateDraft(string headword, Guid adminId)
         => new()
         {
-            LanguageTag = "en",
             Headword = headword,
             NormalizedHeadword = headword.ToUpperInvariant(),
             CreatedById = adminId,

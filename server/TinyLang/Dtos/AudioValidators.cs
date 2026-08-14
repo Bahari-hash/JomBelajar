@@ -23,12 +23,6 @@ public sealed class CreateAudioClipRequestValidator
             .MaximumLength(200).WithErrKey(ErrorCodes.AudioTitleLengthLimit);
         RuleFor(value => value.Description)
             .MaximumLength(2000).WithErrKey(ErrorCodes.AudioDescriptionLengthLimit);
-        RuleFor(value => value.LanguageTag)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty().WithErrKey(ErrorCodes.AudioLanguageInvalid)
-            .MaximumLength(35).WithErrKey(ErrorCodes.AudioLanguageInvalid)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .WithErrKey(ErrorCodes.AudioLanguageInvalid);
         RuleFor(value => value.Kind)
             .Must(Enum.IsDefined)
             .WithErrKey(ErrorCodes.AudioKindInvalid);
@@ -52,12 +46,6 @@ public sealed class UpdateAudioClipRequestValidator
             .MaximumLength(200).WithErrKey(ErrorCodes.AudioTitleLengthLimit);
         RuleFor(value => value.Description)
             .MaximumLength(2000).WithErrKey(ErrorCodes.AudioDescriptionLengthLimit);
-        RuleFor(value => value.LanguageTag)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty().WithErrKey(ErrorCodes.AudioLanguageInvalid)
-            .MaximumLength(35).WithErrKey(ErrorCodes.AudioLanguageInvalid)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .WithErrKey(ErrorCodes.AudioLanguageInvalid);
         RuleFor(value => value.Kind)
             .Must(Enum.IsDefined)
             .WithErrKey(ErrorCodes.AudioKindInvalid);
@@ -90,14 +78,5 @@ public sealed class AdminAudioClipListRequestValidator
         RuleFor(value => value.Kind)
             .Must(value => value is null || Enum.IsDefined(value.Value))
             .WithErrKey(ErrorCodes.AudioKindInvalid);
-        RuleFor(value => value.Language)
-            .Cascade(CascadeMode.Stop)
-            .MaximumLength(35).WithErrKey(ErrorCodes.AudioLanguageInvalid)
-            .Must(value => value is null || !string.IsNullOrWhiteSpace(value))
-            .WithErrKey(ErrorCodes.AudioLanguageInvalid);
-        RuleFor(value => value.Language)
-            .Matches(MediaValidationPatterns.LanguageTag())
-            .When(value => !string.IsNullOrWhiteSpace(value.Language))
-            .WithErrKey(ErrorCodes.AudioLanguageInvalid);
     }
 }

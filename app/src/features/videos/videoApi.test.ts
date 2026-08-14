@@ -26,7 +26,6 @@ describe("videoApi", () => {
               id: VIDEO_ID,
               title: "Listening lesson",
               description: "Practice in context.",
-              originalLanguage: "en",
               durationSeconds: 90,
               author: {
                 id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",

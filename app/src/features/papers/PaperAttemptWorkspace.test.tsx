@@ -11,7 +11,6 @@ const attempt = {
   title: "Test",
   description: null,
   instructions: null,
-  languageTag: "en",
   questionCount: 2,
   paperTotalScore: 2,
   paperPassingScore: 1,

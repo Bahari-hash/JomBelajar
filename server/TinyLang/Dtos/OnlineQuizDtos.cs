@@ -12,7 +12,6 @@ public abstract record PaperUpsertRequest
     public required string Title { get; init; }
     public string? Description { get; init; }
     public string? Instructions { get; init; }
-    public required string LanguageTag { get; init; }
     public IReadOnlyCollection<string> Tags { get; init; } = [];
     public int PassingScorePercentage { get; init; } = 60;
     public IReadOnlyCollection<PaperQuestionInput> Questions { get; init; } = [];
@@ -86,7 +85,6 @@ public sealed record AdminPaperListRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
-    public string? Language { get; init; }
     public string? Tag { get; init; }
     public PaperPublicationStatus? Status { get; init; }
 }
@@ -99,7 +97,6 @@ public sealed record PaperCatalogRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
-    public string? Language { get; init; }
     public string? Tag { get; init; }
 }
 
@@ -193,7 +190,6 @@ public sealed record AdminPaperResponse(
     string Title,
     string? Description,
     string? Instructions,
-    string LanguageTag,
     IReadOnlyList<string> Tags,
     PaperPublicationStatus Status,
     int PassingScorePercentage,
@@ -215,7 +211,6 @@ public sealed record AdminPaperResponse(
 public sealed record AdminPaperListItemResponse(
     Guid Id,
     string Title,
-    string LanguageTag,
     IReadOnlyList<string> Tags,
     PaperPublicationStatus Status,
     int QuestionCount,
@@ -237,7 +232,6 @@ public sealed record PaperCatalogItemResponse(
     Guid Id,
     string Title,
     string? Description,
-    string LanguageTag,
     IReadOnlyList<string> Tags,
     int QuestionCount,
     int TotalScore,
@@ -252,7 +246,6 @@ public sealed record PaperDetailsResponse(
     string Title,
     string? Description,
     string? Instructions,
-    string LanguageTag,
     IReadOnlyList<string> Tags,
     int QuestionCount,
     int TotalScore,
@@ -299,7 +292,6 @@ public sealed record UserPaperAttemptResponse(
     string Title,
     string? Description,
     string? Instructions,
-    string LanguageTag,
     int QuestionCount,
     int PaperTotalScore,
     int PaperPassingScore,
@@ -385,7 +377,6 @@ public static class OnlineQuizConstraints
     public const int MaxExplanationLength = 5000;
     public const int MaxOptionTextLength = 2000;
     public const int MaxAnswerTextLength = 1000;
-    public const int MaxLanguageTagLength = 35;
     public const int MaxPaperTagCount = 10;
     public const int MaxPaperTagLength = 30;
     public const int MaxQuestionCount = 200;

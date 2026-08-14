@@ -24,7 +24,6 @@ public sealed class WordStudySessionConfiguration
         builder.Property(value => value.Status)
             .HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(value => value.StudyDateUtc).IsRequired();
-        builder.Property(value => value.LanguageTag).HasMaxLength(35);
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
 
         builder.HasIndex(value => value.UserId)

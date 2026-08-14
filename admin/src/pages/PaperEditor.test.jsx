@@ -18,7 +18,6 @@ function paperDetail(overrides = {}) {
     title: "English basics",
     description: null,
     instructions: null,
-    languageTag: "en",
     tags: [],
     status: "Draft",
     passingScore: 0,
@@ -88,7 +87,6 @@ describe("PaperEditor", () => {
       title: "English basics",
       description: null,
       instructions: null,
-      languageTag: "ms",
       tags: ["a2"],
       passingScorePercentage: 60,
       questions: [

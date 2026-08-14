@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FluentAssertions;
 using TinyLang.Dtos;
 using TinyLang.Entities.Enums;
@@ -17,7 +17,7 @@ public sealed class WordValidatorsTests
     public async Task EmptyDraftShouldBeValid()
     {
         var result = await new CreateWordRequestValidator().ValidateAsync(
-            new CreateWordRequest { Headword = "hello", LanguageTag = "en-US" },
+            new CreateWordRequest { Headword = "hello" },
             TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeTrue();
@@ -54,7 +54,6 @@ public sealed class WordValidatorsTests
         var request = new UpdateWordRequest
         {
             Headword = "hello",
-            LanguageTag = "en",
             Senses =
             [
                 CreateSense(0),
@@ -95,23 +94,19 @@ public sealed class WordValidatorsTests
         var request = new CreateWordRequest
         {
             Headword = "word",
-            LanguageTag = "invalid_tag",
             Senses =
             [
                 new WordSenseInput
                 {
                     PartOfSpeech = (PartOfSpeech)999,
                     Definition = string.Empty,
-                    DefinitionLanguageTag = "bad_tag",
                     SortOrder = -1,
                     Examples =
                     [
                         new ExampleSentenceInput
                         {
                             Sentence = string.Empty,
-                            LanguageTag = "bad_tag",
                             Translation = string.Empty,
-                            TranslationLanguageTag = "bad_tag",
                             SortOrder = -1
                         }
                     ]
@@ -146,12 +141,11 @@ public sealed class WordValidatorsTests
             {
                 Page = 0,
                 PageSize = 101,
-                Language = "bad_tag",
                 Status = (WordPublicationStatus)999
             },
             TestContext.Current.CancellationToken);
         var userResult = await new WordListRequestValidator().ValidateAsync(
-            new WordListRequest { Page = 0, PageSize = 101, Language = "bad_tag" },
+            new WordListRequest { Page = 0, PageSize = 101 },
             TestContext.Current.CancellationToken);
 
         adminResult.IsValid.Should().BeFalse();
@@ -207,7 +201,6 @@ public sealed class WordValidatorsTests
         => new()
         {
             Headword = "hello",
-            LanguageTag = "en",
             Senses = [CreateSense(0)],
             Pronunciations =
             [
@@ -228,16 +221,13 @@ public sealed class WordValidatorsTests
         {
             PartOfSpeech = PartOfSpeech.Noun,
             Definition = "a greeting",
-            DefinitionLanguageTag = "en",
             SortOrder = sortOrder,
             Examples =
             [
                 new ExampleSentenceInput
                 {
                     Sentence = "Hello there.",
-                    LanguageTag = "en",
                     Translation = "你好。",
-                    TranslationLanguageTag = "zh-CN",
                     SortOrder = 0
                 }
             ]

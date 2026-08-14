@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MassTransit;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;

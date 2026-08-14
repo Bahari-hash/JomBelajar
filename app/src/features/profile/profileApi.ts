@@ -1,5 +1,6 @@
 import { authApi } from "@/features/auth/authApi";
 import { ApiRequestError } from "@/features/auth/authErrors";
+import type { MediaResourceResponse } from "@/features/auth/types";
 
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
 const MAX_FILE_NAME_LENGTH = 255;
@@ -15,7 +16,7 @@ const AVATAR_TYPE_BY_EXTENSION: Record<string, string> = {
 export async function uploadAvatar(
   file: File,
   onProgress?: (progress: number) => void,
-) {
+): Promise<MediaResourceResponse> {
   if (!isSafeFileName(file.name)) {
     throwAvatarValidationError("头像文件名无效，请重新选择文件。");
   }
@@ -54,11 +55,10 @@ export async function uploadAvatar(
   const confirmedResponse = await authApi.confirmUpload(
     presignResponse.data.resourceId,
   );
-  const url = confirmedResponse.data.url;
-  if (!url) {
+  if (!confirmedResponse.data.url) {
     throw new ApiRequestError("头像上传已完成，但服务端没有返回头像地址。");
   }
-  return url;
+  return confirmedResponse.data;
 }
 
 function getFileExtension(fileName: string) {
@@ -81,6 +81,6 @@ function isSafeFileName(fileName: string) {
 
 function throwAvatarValidationError(message: string): never {
   throw new ApiRequestError(message, {
-    fieldErrors: { avatarUrl: message },
+    fieldErrors: { avatarMediaResourceId: message },
   });
 }

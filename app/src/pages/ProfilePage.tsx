@@ -15,7 +15,6 @@ import {
   toApiRequestError,
   type FieldErrors,
 } from "@/features/auth/authErrors";
-import type { UpdateProfileRequest } from "@/features/auth/types";
 import { uploadAvatar } from "@/features/profile/profileApi";
 import AccountSecurityPanel from "@/features/profile/AccountSecurityPanel";
 import WordStudySettingsPanel from "@/features/wordStudy/WordStudySettingsPanel";
@@ -24,17 +23,19 @@ import {
   getRoleLabel,
   normalizeProfileDraft,
   profileToDraft,
+  type ProfileDraft,
 } from "@/features/profile/profileUtils";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
-const emptyDraft: UpdateProfileRequest = {
+const emptyDraft: ProfileDraft = {
   nickname: "",
-  avatarUrl: "",
+  avatarMediaResourceId: null,
+  avatarUrl: null,
   bio: "",
 };
 
-function validate(draft: UpdateProfileRequest): FieldErrors {
+function validate(draft: ProfileDraft): FieldErrors {
   const errors: FieldErrors = {};
   if ((draft.nickname?.length ?? 0) > 60) {
     errors.nickname = "昵称不能超过 60 个字符。";
@@ -54,7 +55,7 @@ export default function ProfilePage() {
     refreshProfile,
     updateProfile,
   } = useAuth();
-  const [draft, setDraft] = useState<UpdateProfileRequest>(() =>
+  const [draft, setDraft] = useState<ProfileDraft>(() =>
     profile ? profileToDraft(profile) : emptyDraft,
   );
   const [dirty, setDirty] = useState(false);
@@ -104,7 +105,7 @@ export default function ProfilePage() {
 
   const displayName = profile.nickname || "未设置昵称";
 
-  const handleChange = (field: keyof UpdateProfileRequest, value: string) => {
+  const handleChange = (field: "nickname" | "bio", value: string) => {
     setDraft({ ...draft, [field]: value });
     setFieldErrors((current) => clearFieldError(current, field));
     setDirty(true);
@@ -132,8 +133,16 @@ export default function ProfilePage() {
     setFieldErrors({});
     setMessage(null);
     try {
-      const avatarUrl = await uploadAvatar(file, setUploadProgress);
-      handleChange("avatarUrl", avatarUrl);
+      const resource = await uploadAvatar(file, setUploadProgress);
+      setDraft((current) => ({
+        ...current,
+        avatarMediaResourceId: resource.id,
+        avatarUrl: resource.url,
+      }));
+      setFieldErrors((current) =>
+        clearFieldError(current, "avatarMediaResourceId"),
+      );
+      setDirty(true);
       setMessage("头像已上传，请保存资料以应用。");
     } catch (error) {
       const requestError = toApiRequestError(error, "头像上传失败，请重试。");
@@ -261,9 +270,9 @@ export default function ProfilePage() {
                 type="file"
                 onChange={(event) => void handleAvatarChange(event)}
               />
-              {getFieldError(fieldErrors, "avatarUrl") ? (
+              {getFieldError(fieldErrors, "avatarMediaResourceId") ? (
                 <span className="label pt-1 text-error">
-                  {getFieldError(fieldErrors, "avatarUrl")}
+                  {getFieldError(fieldErrors, "avatarMediaResourceId")}
                 </span>
               ) : null}
             </div>

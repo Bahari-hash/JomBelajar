@@ -20,6 +20,13 @@ export function getRoleLabel(role: UserRole) {
   return role === "Admin" ? "管理员" : "学习者";
 }
 
+export interface ProfileDraft {
+  nickname: string;
+  avatarMediaResourceId: string | null;
+  avatarUrl: string | null;
+  bio: string;
+}
+
 export function formatProfileDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -34,21 +41,22 @@ export function formatProfileDate(value: string) {
 
 export function profileToDraft(
   profile: CurrentUserProfile,
-): UpdateProfileRequest {
+): ProfileDraft {
   return {
     nickname: profile.nickname ?? "",
-    avatarUrl: profile.avatarUrl ?? "",
+    avatarMediaResourceId: null,
+    avatarUrl: profile.avatarUrl,
     bio: profile.bio ?? "",
   };
 }
 
 export function normalizeProfileDraft(
-  draft: UpdateProfileRequest,
+  draft: ProfileDraft,
 ): UpdateProfileRequest {
   const optional = (value: string | null) => value?.trim() || null;
   return {
     nickname: optional(draft.nickname),
-    avatarUrl: optional(draft.avatarUrl),
+    avatarMediaResourceId: draft.avatarMediaResourceId,
     bio: optional(draft.bio),
   };
 }

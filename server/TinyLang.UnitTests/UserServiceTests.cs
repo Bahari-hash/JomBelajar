@@ -235,7 +235,6 @@ public sealed class UserServiceTests
             new UpdateProfileRequest
             {
                 Nickname = "  Learner  ",
-                AvatarUrl = "   ",
                 Bio = "  Studying English  "
             },
             TestContext.Current.CancellationToken);
@@ -248,6 +247,54 @@ public sealed class UserServiceTests
         response.AvatarUrl.Should().BeNull();
         response.Bio.Should().Be("Studying English");
         await missingAction.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task UpdateProfileShouldAcceptOwnedActiveAvatarResource()
+    {
+        await using var db = CreateDbContext();
+        var user = CreateUser("profile", UserRole.User, Now);
+        db.Users.Add(user);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var avatar = CreateAvatarResource(user.Id, ResourceStatus.Active);
+        db.MediaResources.Add(avatar);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var response = await service.UpdateProfileAsync(
+            user.Id,
+            new UpdateProfileRequest
+            {
+                AvatarMediaResourceId = avatar.Id
+            },
+            TestContext.Current.CancellationToken);
+
+        response.AvatarUrl.Should().Be(avatar.Url);
+    }
+
+    [Fact]
+    public async Task UpdateProfileShouldRejectOtherUsersAvatarResource()
+    {
+        await using var db = CreateDbContext();
+        var user = CreateUser("profile", UserRole.User, Now);
+        db.Users.Add(user);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var avatar = CreateAvatarResource(Guid.NewGuid(), ResourceStatus.Active);
+        db.MediaResources.Add(avatar);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var action = async () => await service.UpdateProfileAsync(
+            user.Id,
+            new UpdateProfileRequest
+            {
+                AvatarMediaResourceId = avatar.Id
+            },
+            TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<RequestValidationException>()
+            .WithMessage(ErrorCodes.AvatarResourceOwnershipMismatch.GetMessage());
+        user.AvatarUrl.Should().BeNull();
     }
 
     [Fact]
@@ -513,4 +560,22 @@ public sealed class UserServiceTests
             IsRevoked = isRevoked,
             TokenVersion = tokenVersion
         });
+
+    private static MediaResource CreateAvatarResource(
+        Guid uploaderId,
+        ResourceStatus status)
+        => new()
+        {
+            UploaderId = uploaderId,
+            ObjectName = $"avatars/{Guid.NewGuid():N}.png",
+            OriginalName = "avatar.png",
+            Module = ResourceModule.Avatar,
+            Status = status,
+            Size = 1024,
+            Extension = ".png",
+            ContentType = "image/png",
+            Url = status == ResourceStatus.Active
+                ? $"https://oss.example.test/avatars/{Guid.NewGuid():N}.png"
+                : null
+        };
 }

@@ -14,15 +14,28 @@ describe("profileApi", () => {
     const directUpload = vi
       .spyOn(authApi, "uploadToPresignedUrl")
       .mockResolvedValue({} as never);
-    const confirm = vi.spyOn(authApi, "confirmUpload").mockResolvedValue({
-      data: { url: "https://storage.example.test/avatars/avatar.png" },
-    } as never);
     const file = new File(["avatar"], "avatar.png", { type: "image/png" });
+    const confirm = vi.spyOn(authApi, "confirmUpload").mockResolvedValue({
+      data: {
+        id: "resource-1",
+        uploaderId: "user-1",
+        objectName: "avatars/avatar.png",
+        originalName: "avatar.png",
+        module: "Avatar",
+        status: "Active",
+        size: file.size,
+        extension: ".png",
+        contentType: "image/png",
+        url: "https://storage.example.test/avatars/avatar.png",
+        createdAt: "2026-08-01T00:00:00Z",
+      },
+    } as never);
     const progress = vi.fn();
 
-    await expect(uploadAvatar(file, progress)).resolves.toBe(
-      "https://storage.example.test/avatars/avatar.png",
-    );
+    await expect(uploadAvatar(file, progress)).resolves.toMatchObject({
+      id: "resource-1",
+      url: "https://storage.example.test/avatars/avatar.png",
+    });
     expect(presign).toHaveBeenCalledWith({
       originalName: "avatar.png",
       extension: ".png",

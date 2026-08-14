@@ -141,7 +141,10 @@ public sealed class UserService(
         }
 
         user.Nickname = NormalizeOptional(request.Nickname);
-        user.AvatarUrl = NormalizeOptional(request.AvatarUrl);
+        user.AvatarUrl = await ResolveAvatarUrlAsync(
+            userId,
+            request.AvatarMediaResourceId,
+            cancellationToken);
         user.Bio = NormalizeOptional(request.Bio);
 
         await db.SaveChangesAsync(cancellationToken);
@@ -351,6 +354,36 @@ public sealed class UserService(
             user.AvatarUrl,
             user.Bio,
             user.CreatedAt);
+
+    /// <summary>
+    /// 验证头像媒体资源属于当前用户、处于 Active 状态并返回服务端派生地址。
+    /// </summary>
+    private async Task<string?> ResolveAvatarUrlAsync(
+        Guid userId,
+        Guid? mediaResourceId,
+        CancellationToken cancellationToken)
+    {
+        if (mediaResourceId is null)
+        {
+            return null;
+        }
+
+        var resource = await db.MediaResources.AsNoTracking()
+            .SingleOrDefaultAsync(candidate =>
+                candidate.Id == mediaResourceId &&
+                candidate.UploaderId == userId &&
+                candidate.Module == ResourceModule.Avatar &&
+                candidate.Status == ResourceStatus.Active &&
+                candidate.Url != null,
+                cancellationToken);
+        if (resource is null)
+        {
+            throw new RequestValidationException(
+                ErrorCodes.AvatarResourceOwnershipMismatch);
+        }
+
+        return resource.Url;
+    }
 
     /// <summary>
     /// 规范化并防御性验证管理员提交的封禁原因。

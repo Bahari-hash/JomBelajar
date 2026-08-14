@@ -60,7 +60,7 @@ describe("ProfilePage", () => {
 
     expect(updateProfile).toHaveBeenCalledWith({
       nickname: "新昵称",
-      avatarUrl: null,
+      avatarMediaResourceId: null,
       bio: "正在学习外语。",
     });
     expect(await screen.findByText("个人资料已保存。")).toBeInTheDocument();
@@ -70,7 +70,19 @@ describe("ProfilePage", () => {
     const user = userEvent.setup();
     const uploadAvatar = vi
       .spyOn(profileApi, "uploadAvatar")
-      .mockResolvedValue("https://cdn.example.test/avatar.png");
+      .mockResolvedValue({
+        id: "resource-1",
+        uploaderId: "user-1",
+        objectName: "avatars/avatar.png",
+        originalName: "avatar.png",
+        module: "Avatar",
+        status: "Active",
+        size: 123,
+        extension: ".png",
+        contentType: "image/png",
+        url: "https://cdn.example.test/avatar.png",
+        createdAt: "2026-08-01T00:00:00Z",
+      });
     const updateProfile = vi.fn().mockResolvedValue({
       ...profile,
       avatarUrl: "https://cdn.example.test/avatar.png",
@@ -95,7 +107,7 @@ describe("ProfilePage", () => {
     await user.click(screen.getByRole("button", { name: "保存资料" }));
     expect(updateProfile).toHaveBeenCalledWith({
       nickname: "学习者",
-      avatarUrl: "https://cdn.example.test/avatar.png",
+      avatarMediaResourceId: "resource-1",
       bio: "正在学习外语。",
     });
     uploadAvatar.mockRestore();

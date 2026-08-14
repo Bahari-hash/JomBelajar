@@ -35,12 +35,12 @@ public sealed class UserValidatorsTests
     }
 
     [Fact]
-    public async Task ProfileShouldRejectNonHttpAvatarUrl()
+    public async Task ProfileShouldRejectEmptyAvatarResourceId()
     {
         var validator = new UpdateProfileRequestValidator();
         var request = new UpdateProfileRequest
         {
-            AvatarUrl = "javascript:alert(1)"
+            AvatarMediaResourceId = Guid.Empty
         };
 
         var result = await validator.ValidateAsync(request, TestContext.Current.CancellationToken);
@@ -58,7 +58,7 @@ public sealed class UserValidatorsTests
             {
                 Nickname = new string('n', 60),
                 Bio = new string('b', 500),
-                AvatarUrl = "https://oss.example.test/avatar.jpg"
+                AvatarMediaResourceId = Guid.NewGuid()
             },
             TestContext.Current.CancellationToken);
 
@@ -75,12 +75,12 @@ public sealed class UserValidatorsTests
             {
                 Nickname = new string('n', 61),
                 Bio = new string('b', 501),
-                AvatarUrl = $"https://example.test/{new string('a', 490)}"
+                AvatarMediaResourceId = null
             },
             TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().HaveCount(3);
+        result.Errors.Should().HaveCount(2);
     }
 
     [Theory]

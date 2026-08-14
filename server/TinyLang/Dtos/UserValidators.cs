@@ -21,25 +21,9 @@ public sealed class UpdateProfileRequestValidator : AbstractValidator<UpdateProf
         RuleFor(x => x.Bio)
             .MaximumLength(500).WithErrKey(ErrorCodes.BioLengthLimit);
 
-        RuleFor(x => x.AvatarUrl)
-            .MaximumLength(500).WithErrKey(ErrorCodes.AvatarUrlLengthLimit)
-            .Must(BeValidAvatarUrl).WithErrKey(ErrorCodes.AvatarUrlFormatInvalid);
-    }
-
-    /// <summary>
-    /// 判断头像地址是否为空或为绝对 HTTP/HTTPS URL。
-    /// </summary>
-    /// <param name="value">待校验的头像地址。</param>
-    /// <returns>地址为空或格式受支持时返回 <see langword="true"/>。</returns>
-    private static bool BeValidAvatarUrl(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return true;
-        }
-
-        return Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
-            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+        RuleFor(x => x.AvatarMediaResourceId)
+            .Must(id => id is null || id != Guid.Empty)
+            .WithErrKey(ErrorCodes.AvatarResourceOwnershipMismatch);
     }
 }
 

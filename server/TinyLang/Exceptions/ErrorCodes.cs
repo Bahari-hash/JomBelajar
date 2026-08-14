@@ -83,11 +83,8 @@ public enum ErrorCodes
     [Description("用户简介最大长度不超过500个字符.")]
     BioLengthLimit,
 
-    [Description("头像链接最大长度不能超过500个字符.")]
-    AvatarUrlLengthLimit,
-
-    [Description("头像链接必须是有效的 HTTP 或 HTTPS 地址.")]
-    AvatarUrlFormatInvalid,
+    [Description("头像资源无效或不属于当前用户.")]
+    AvatarResourceOwnershipMismatch,
 
     [Description("角色不能为空.")]
     RoleRequired,

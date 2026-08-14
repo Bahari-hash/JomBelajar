@@ -23,6 +23,10 @@ public sealed class VerificationCodeStoreTests
                 It.IsAny<When>(),
                 It.IsAny<CommandFlags>()))
             .ReturnsAsync(true);
+        database.Setup(x => x.KeyDeleteAsync(
+                It.IsAny<RedisKey>(),
+                It.IsAny<CommandFlags>()))
+            .ReturnsAsync(true);
         var store = CreateStore(connection.Object, 10);
 
         await store.SaveAsync(
@@ -37,6 +41,10 @@ public sealed class VerificationCodeStoreTests
             It.Is<TimeSpan?>(expiry => expiry == TimeSpan.FromMinutes(10)),
             false,
             When.Always,
+            CommandFlags.None),
+            Times.Once);
+        database.Verify(x => x.KeyDeleteAsync(
+            "tiny-langverification_code_failures:v2:user@example.com:Register",
             CommandFlags.None),
             Times.Once);
     }
@@ -87,6 +95,78 @@ public sealed class VerificationCodeStoreTests
             It.Is<RedisKey[]>(keys => keys.Length == 1 &&
                 keys[0].ToString() == "tiny-langverification_code:v2:user@example.com:Register"),
             It.Is<RedisValue[]>(values => values.Length == 1 && values[0] == "hashed-code"),
+            CommandFlags.None),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ShouldAtomicallyIncrementFailureCountWithExpiration()
+    {
+        var database = new Mock<IDatabase>();
+        var connection = CreateConnection(database);
+        database.Setup(x => x.ScriptEvaluateAsync(
+                It.IsAny<string>(),
+                It.IsAny<RedisKey[]>(),
+                It.IsAny<RedisValue[]>(),
+                It.IsAny<CommandFlags>()))
+            .ReturnsAsync(RedisResult.Create((RedisValue)3));
+        var store = CreateStore(connection.Object, 10);
+
+        var result = await store.IncrementFailureAsync(
+            "user@example.com",
+            VerificationCodePurpose.ResetPassword,
+            TestContext.Current.CancellationToken);
+
+        result.Should().Be(3);
+        database.Verify(x => x.ScriptEvaluateAsync(
+            It.Is<string>(script => script.Contains("INCR") && script.Contains("EXPIRE")),
+            It.Is<RedisKey[]>(keys => keys.Length == 1 &&
+                keys[0].ToString() == "tiny-langverification_code_failures:v2:user@example.com:ResetPassword"),
+            It.Is<RedisValue[]>(values => values.Length == 1 && values[0] == "600"),
+            CommandFlags.None),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ShouldResetFailureCountForTargetPurpose()
+    {
+        var database = new Mock<IDatabase>();
+        var connection = CreateConnection(database);
+        database.Setup(x => x.KeyDeleteAsync(
+                It.IsAny<RedisKey>(),
+                It.IsAny<CommandFlags>()))
+            .ReturnsAsync(true);
+        var store = CreateStore(connection.Object, 10);
+
+        await store.ResetFailuresAsync(
+            "user@example.com",
+            VerificationCodePurpose.ChangeEmail,
+            TestContext.Current.CancellationToken);
+
+        database.Verify(x => x.KeyDeleteAsync(
+            "tiny-langverification_code_failures:v2:user@example.com:ChangeEmail",
+            CommandFlags.None),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ShouldDeleteVerificationCodeForTargetPurpose()
+    {
+        var database = new Mock<IDatabase>();
+        var connection = CreateConnection(database);
+        database.Setup(x => x.KeyDeleteAsync(
+                It.IsAny<RedisKey>(),
+                It.IsAny<CommandFlags>()))
+            .ReturnsAsync(true);
+        var store = CreateStore(connection.Object, 10);
+
+        await store.DeleteAsync(
+            "user@example.com",
+            VerificationCodePurpose.DeleteAccount,
+            TestContext.Current.CancellationToken);
+
+        database.Verify(x => x.KeyDeleteAsync(
+            "tiny-langverification_code:v2:user@example.com:DeleteAccount",
             CommandFlags.None),
             Times.Once);
     }

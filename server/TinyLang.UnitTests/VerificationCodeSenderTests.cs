@@ -1,6 +1,7 @@
 using System.Linq;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
+using Moq;
 using TinyLang.Enums;
 using TinyLang.Infrastructure;
 using TinyLang.Interfaces;
@@ -34,6 +35,100 @@ public sealed class VerificationCodeSenderTests
         results.Count(x => x).Should().Be(1);
     }
 
+    [Fact]
+    public async Task ReachingFailureThresholdShouldInvalidateVerificationCode()
+    {
+        var hasher = new SecretHasher();
+        var code = "123456";
+        var store = new Mock<IVerificationCodeStore>();
+        store.Setup(x => x.GetAsync(
+                "user@example.com",
+                VerificationCodePurpose.Register,
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(hasher.Hash(code));
+        store.Setup(x => x.TryConsumeAsync(
+                "user@example.com",
+                VerificationCodePurpose.Register,
+                It.IsAny<string>(),
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(false);
+        store.Setup(x => x.IncrementFailureAsync(
+                "user@example.com",
+                VerificationCodePurpose.Register,
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(5);
+        var sender = new VerificationCodeSender(
+            new VerificationCodeGenerator(),
+            store.Object,
+            Options.Create(new VerificationCodeSettings
+            {
+                CodeLength = 6,
+                ExpMinutes = 10,
+                MaxFailedAttempts = 5
+            }),
+            hasher,
+            MockTemplateRenderer.Instance,
+            MockEmailSender.Instance);
+
+        var result = await sender.VerifyCodeAsync(
+            "user@example.com",
+            VerificationCodePurpose.Register,
+            "000000",
+            TestContext.Current.CancellationToken);
+
+        result.Should().BeFalse();
+        store.Verify(x => x.DeleteAsync(
+            "user@example.com",
+            VerificationCodePurpose.Register,
+            TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact]
+    public async Task SuccessfulVerificationShouldResetFailureCounter()
+    {
+        var hasher = new SecretHasher();
+        var code = "123456";
+        var store = new Mock<IVerificationCodeStore>();
+        store.Setup(x => x.GetAsync(
+                "user@example.com",
+                VerificationCodePurpose.Register,
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(hasher.Hash(code));
+        store.Setup(x => x.TryConsumeAsync(
+                "user@example.com",
+                VerificationCodePurpose.Register,
+                It.IsAny<string>(),
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(true);
+        var sender = new VerificationCodeSender(
+            new VerificationCodeGenerator(),
+            store.Object,
+            Options.Create(new VerificationCodeSettings
+            {
+                CodeLength = 6,
+                ExpMinutes = 10
+            }),
+            hasher,
+            MockTemplateRenderer.Instance,
+            MockEmailSender.Instance);
+
+        var result = await sender.VerifyCodeAsync(
+            "user@example.com",
+            VerificationCodePurpose.Register,
+            code,
+            TestContext.Current.CancellationToken);
+
+        result.Should().BeTrue();
+        store.Verify(x => x.ResetFailuresAsync(
+            "user@example.com",
+            VerificationCodePurpose.Register,
+            TestContext.Current.CancellationToken), Times.Once);
+        store.Verify(x => x.IncrementFailureAsync(
+            It.IsAny<string>(),
+            It.IsAny<VerificationCodePurpose>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private sealed class AtomicStore(string? value) : IVerificationCodeStore
     {
         private readonly object _sync = new();
@@ -60,6 +155,30 @@ public sealed class VerificationCodeSenderTests
                 _value = null;
                 return Task.FromResult(true);
             }
+        }
+
+        public Task<int> IncrementFailureAsync(
+            string email,
+            VerificationCodePurpose purpose,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(1);
+
+        public Task ResetFailuresAsync(
+            string email,
+            VerificationCodePurpose purpose,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task DeleteAsync(
+            string email,
+            VerificationCodePurpose purpose,
+            CancellationToken cancellationToken = default)
+        {
+            lock (_sync)
+            {
+                _value = null;
+            }
+            return Task.CompletedTask;
         }
     }
 

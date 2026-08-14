@@ -58,15 +58,47 @@ public sealed class VerificationCodeSender(
         string email, VerificationCodePurpose purpose, string code, CancellationToken cancellationToken = default)
     {
         var value = await codeStore.GetAsync(email, purpose, cancellationToken);
-        if (value is null || !secretHasher.Verify(code, value))
+        if (value is null)
         {
+            await RecordFailureAsync(email, purpose, cancellationToken);
+            return false;
+        }
+        if (!secretHasher.Verify(code, value))
+        {
+            await RecordFailureAsync(email, purpose, cancellationToken);
             return false;
         }
 
-        return await codeStore.TryConsumeAsync(
+        var consumed = await codeStore.TryConsumeAsync(
             email,
             purpose,
             value,
             cancellationToken);
+        if (!consumed)
+        {
+            await RecordFailureAsync(email, purpose, cancellationToken);
+            return false;
+        }
+
+        await codeStore.ResetFailuresAsync(email, purpose, cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// 以邮箱和用途为主键累加失败次数，并在达到阈值后立即使验证码失效。
+    /// </summary>
+    private async Task RecordFailureAsync(
+        string email,
+        VerificationCodePurpose purpose,
+        CancellationToken cancellationToken)
+    {
+        var attempts = await codeStore.IncrementFailureAsync(
+            email,
+            purpose,
+            cancellationToken);
+        if (attempts >= _settings.MaxFailedAttempts)
+        {
+            await codeStore.DeleteAsync(email, purpose, cancellationToken);
+        }
     }
 }

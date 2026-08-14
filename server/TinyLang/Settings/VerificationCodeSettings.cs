@@ -14,4 +14,7 @@ public sealed record VerificationCodeSettings
 
     [Range(5, 60, ErrorMessage = "The expiration of verification code must between {1} and {2} minutes.")]
     public required int ExpMinutes { get; init; }
+
+    [Range(1, 20)]
+    public int MaxFailedAttempts { get; init; } = 5;
 }

@@ -46,4 +46,28 @@ public interface IVerificationCodeStore
         VerificationCodePurpose purpose,
         string expectedValue,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 原子递增指定邮箱和用途的验证码失败次数。
+    /// </summary>
+    Task<int> IncrementFailureAsync(
+        string email,
+        VerificationCodePurpose purpose,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 清除指定验证码的失败次数。
+    /// </summary>
+    Task ResetFailuresAsync(
+        string email,
+        VerificationCodePurpose purpose,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 幂等删除指定验证码，使其无法继续消费。
+    /// </summary>
+    Task DeleteAsync(
+        string email,
+        VerificationCodePurpose purpose,
+        CancellationToken cancellationToken = default);
 }

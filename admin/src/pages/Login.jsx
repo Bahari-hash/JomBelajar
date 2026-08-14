@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useDispatch } from "react-redux";
-import { Eye, EyeOff, Languages, LoaderCircle, LogIn } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle, LogIn } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ThemeMenu } from "@/components/ThemeMenu.jsx";
 import { Alert, AlertDescription } from "@/components/ui/alert.jsx";
@@ -111,9 +111,11 @@ function Login() {
       <div className="w-full max-w-sm">
         <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Languages aria-hidden="true" className="size-5" />
-            </span>
+            <img
+              src="/logo.png"
+              alt=""
+              className="size-9 rounded-lg object-contain"
+            />
             <div>
               <p className="text-sm font-semibold">TinyLang</p>
               <p className="text-xs text-muted-foreground">管理后台</p>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Languages, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Outlet, useLocation } from "react-router-dom";
 import { AccountMenu } from "@/components/AccountMenu.jsx";
 import { AdminNavigation } from "@/components/AdminNavigation.jsx";
@@ -31,9 +31,11 @@ import { AdminPageContext } from "@/lib/adminPageContext.js";
 function Brand() {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-        <Languages aria-hidden="true" className="size-4" />
-      </span>
+      <img
+        src="/logo.png"
+        alt=""
+        className="size-8 shrink-0 rounded-lg object-contain"
+      />
       <span className="min-w-0">
         <span className="block truncate text-sm font-semibold">TinyLang</span>
         <span className="block truncate text-xs text-muted-foreground">

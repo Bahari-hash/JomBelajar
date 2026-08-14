@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Languages, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import ThemeControl from "@/components/ThemeControl";
 import AuthControls from "@/components/AuthControls";
@@ -98,9 +98,11 @@ export default function AppLayout() {
             className="flex shrink-0 items-center gap-2 text-lg font-bold"
             to="/"
           >
-            <span className="grid size-9 place-items-center rounded-md bg-primary text-primary-content">
-              <Languages aria-hidden="true" className="size-5" />
-            </span>
+            <img
+              src="/logo.png"
+              alt=""
+              className="size-9 shrink-0 rounded-md object-contain"
+            />
             <span>TinyLang</span>
           </NavLink>
 

@@ -64,6 +64,8 @@ public sealed class MediaResourceService : IMediaResourceService
             throw new RequestValidationException(ErrorCodes.MultipartUploadRequired);
         }
 
+        await EnsureIncompleteUploadQuotaAsync(uploaderId, size, cancellationToken);
+
         var now = _timeProvider.GetUtcNow();
         var normalizedExtension = MediaUploadPolicy.NormalizeExtension(extension);
         var normalizedContentType = MediaUploadPolicy.NormalizeContentType(contentType);
@@ -447,13 +449,112 @@ public sealed class MediaResourceService : IMediaResourceService
             finalObjectName,
             cancellationToken);
 
+        var publicUrl = _objectStorage.GetPublicUrl(finalObjectName);
+        if (resource.Module == ResourceModule.Avatar)
+        {
+            return await ActivateAvatarAsync(
+                resource,
+                uploaderId,
+                finalObjectName,
+                stagingObjectName,
+                stagingDeleted,
+                publicUrl,
+                cancellationToken);
+        }
+
         resource.ObjectName = finalObjectName;
         resource.StagingObjectName = stagingDeleted ? null : stagingObjectName;
-        resource.Url = _objectStorage.GetPublicUrl(finalObjectName);
+        resource.Url = publicUrl;
         resource.Status = ResourceStatus.Active;
         resource.UploadExpiresAt = null;
         resource.ConcurrencyStamp = Guid.NewGuid();
         await SaveWithConcurrencyMappingAsync(cancellationToken);
+        return resource;
+    }
+
+    /// <summary>
+    /// 串行化头像激活，只在新对象归档成功后退休并清理旧 active 头像。
+    /// </summary>
+    private async Task<MediaResource> ActivateAvatarAsync(
+        MediaResource resource,
+        Guid uploaderId,
+        string finalObjectName,
+        string stagingObjectName,
+        bool stagingDeleted,
+        string publicUrl,
+        CancellationToken cancellationToken)
+    {
+        var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        if (transaction is null)
+        {
+            resource.ObjectName = finalObjectName;
+            resource.StagingObjectName = stagingDeleted ? null : stagingObjectName;
+            resource.Url = publicUrl;
+            resource.Status = ResourceStatus.Active;
+            resource.UploadExpiresAt = null;
+            resource.ConcurrencyStamp = Guid.NewGuid();
+            await SaveWithConcurrencyMappingAsync(cancellationToken);
+            return resource;
+        }
+
+        IReadOnlyList<MediaResource> oldAvatars = [];
+        try
+        {
+            await _db.AcquireUploaderActivationLockAsync(
+                uploaderId,
+                cancellationToken);
+            oldAvatars = await _db.MediaResources
+                .Where(candidate =>
+                    candidate.UploaderId == uploaderId &&
+                    candidate.Module == ResourceModule.Avatar &&
+                    candidate.Status == ResourceStatus.Active &&
+                    candidate.Id != resource.Id)
+                .ToListAsync(cancellationToken);
+
+            foreach (var oldAvatar in oldAvatars)
+            {
+                oldAvatar.Status = ResourceStatus.Expired;
+                oldAvatar.Url = null;
+                oldAvatar.StagingObjectName = oldAvatar.ObjectName;
+                oldAvatar.ConcurrencyStamp = Guid.NewGuid();
+            }
+
+            resource.ObjectName = finalObjectName;
+            resource.StagingObjectName = stagingDeleted ? null : stagingObjectName;
+            resource.Url = publicUrl;
+            resource.Status = ResourceStatus.Active;
+            resource.UploadExpiresAt = null;
+            resource.ConcurrencyStamp = Guid.NewGuid();
+            await SaveWithConcurrencyMappingAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            _db.ClearTrackedChanges();
+            throw;
+        }
+        finally
+        {
+            await transaction.DisposeAsync();
+        }
+
+        foreach (var oldAvatar in oldAvatars)
+        {
+            try
+            {
+                await _objectStorage.DeleteObjectAsync(
+                    oldAvatar.ObjectName,
+                    cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                _logger.LogWarning(
+                    "Failed to delete retired avatar {ObjectName}; maintenance will retry: {FailureType}",
+                    oldAvatar.ObjectName,
+                    exception.GetType().Name);
+            }
+        }
+
         return resource;
     }
 
@@ -646,8 +747,8 @@ public sealed class MediaResourceService : IMediaResourceService
             resource.UploaderId == uploaderId &&
             (resource.Status == ResourceStatus.Pending ||
                 resource.Status == ResourceStatus.Finalizing));
-        var count = await incomplete.CountAsync(cancellationToken);
-        var bytes = await incomplete.SumAsync(resource => (long?)resource.Size, cancellationToken) ?? 0;
+        var count = incomplete.Count();
+        var bytes = incomplete.Sum(resource => (long?)resource.Size) ?? 0;
         if (count >= _multipartSettings.MaxIncompleteUploadCountPerUser ||
             bytes + requestedSize > Megabytes(_multipartSettings.MaxIncompleteUploadMBPerUser))
         {

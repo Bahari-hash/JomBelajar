@@ -54,4 +54,10 @@ public interface IApplicationDbContext
     /// 清除失败事务遗留的 tracked 状态，以便重新读取数据库最终结果。
     /// </summary>
     void ClearTrackedChanges();
+    /// <summary>
+    /// 在当前事务内为指定上传者取得串行化媒体激活检查的 PostgreSQL advisory lock。
+    /// </summary>
+    Task AcquireUploaderActivationLockAsync(
+        Guid uploaderId,
+        CancellationToken cancellationToken = default);
 }

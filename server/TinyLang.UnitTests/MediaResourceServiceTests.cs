@@ -1,7 +1,10 @@
+using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Moq;
+using TinyLang.Database;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
 using TinyLang.Exceptions;
@@ -18,11 +21,7 @@ public sealed class MediaResourceServiceTests
     public async Task ShouldCreatePendingResourceWithImmutableFinalAndStagingNames()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var resources = new Mock<DbSet<MediaResource>>();
-        MediaResource? savedResource = null;
-        resources.Setup(x => x.Add(It.IsAny<MediaResource>()))
-            .Callback<MediaResource>(resource => savedResource = resource);
-        var db = CreateDb(resources, cancellationToken);
+        await using var db = CreateDbContext();
         var storage = new Mock<IObjectStorageService>();
         storage.Setup(x => x.PresignPutObjectAsync(
                 It.IsAny<string>(),
@@ -30,7 +29,7 @@ public sealed class MediaResourceServiceTests
                 1024,
                 cancellationToken))
             .ReturnsAsync("https://storage.example.com/presigned");
-        var service = CreateService(db.Object, storage.Object);
+        var service = CreateService(db, storage.Object);
 
         var result = await service.CreatePendingResourceAndPresignAsync(
             Guid.NewGuid(),
@@ -41,8 +40,8 @@ public sealed class MediaResourceServiceTests
             ResourceModule.Avatar,
             cancellationToken);
 
-        savedResource.Should().NotBeNull();
-        savedResource!.ObjectName.Should().MatchRegex(
+        var savedResource = await db.MediaResources.SingleAsync(cancellationToken);
+        savedResource.ObjectName.Should().MatchRegex(
             @"^avatars/[0-9]{4}/[0-9]{2}/[0-9a-f]{32}\.webp$");
         savedResource.StagingObjectName.Should().MatchRegex(
             @"^staging/[0-9a-f]{32}/[0-9a-f]{32}\.webp$");
@@ -51,7 +50,6 @@ public sealed class MediaResourceServiceTests
         savedResource.Status.Should().Be(ResourceStatus.Pending);
         savedResource.Url.Should().BeNull();
         result.PresignedUrl.Should().Be("https://storage.example.com/presigned");
-        db.Verify(x => x.SaveChangesAsync(cancellationToken), Times.Once);
     }
 
     [Fact]
@@ -86,21 +84,19 @@ public sealed class MediaResourceServiceTests
     public async Task ShouldWrapPresigningFailureAfterPersistingCleanupRecord()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var resources = new Mock<DbSet<MediaResource>>();
-        var db = CreateDb(resources, cancellationToken);
+        await using var db = CreateDbContext();
         var storage = new Mock<IObjectStorageService>();
         storage.Setup(x => x.PresignPutObjectAsync(
                 It.IsAny<string>(), "image/png", 1024, cancellationToken))
             .ThrowsAsync(new InvalidOperationException("Storage unavailable."));
-        var service = CreateService(db.Object, storage.Object);
+        var service = CreateService(db, storage.Object);
 
         var action = async () => await service.CreatePendingResourceAndPresignAsync(
             Guid.NewGuid(), "avatar.png", ".png", 1024, "image/png",
             ResourceModule.Avatar, cancellationToken);
 
         await action.Should().ThrowAsync<UnexpectedException>();
-        resources.Verify(x => x.Add(It.IsAny<MediaResource>()), Times.Once);
-        db.Verify(x => x.SaveChangesAsync(cancellationToken), Times.Once);
+        (await db.MediaResources.CountAsync(cancellationToken)).Should().Be(1);
     }
 
     [Fact]
@@ -323,6 +319,155 @@ public sealed class MediaResourceServiceTests
         confirmed.StagingObjectName.Should().Be("temp/upload.png");
     }
 
+    [Fact]
+    public async Task AvatarConfirmationShouldRetireAndDeletePreviousActiveAvatar()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var db = CreateDbContext();
+        var uploaderId = Guid.NewGuid();
+        var oldAvatar = new MediaResource
+        {
+            UploaderId = uploaderId,
+            ObjectName = $"avatars/2026/07/{Guid.NewGuid():N}.png",
+            OriginalName = "old.png",
+            Module = ResourceModule.Avatar,
+            Status = ResourceStatus.Active,
+            Size = 1024,
+            Extension = ".png",
+            ContentType = "image/png",
+            Url = "https://oss.example.com/old.png"
+        };
+        var pending = CreatePendingResource(uploaderId);
+        db.MediaResources.AddRange(oldAvatar, pending);
+        await db.SaveChangesAsync(cancellationToken);
+        var storage = new Mock<IObjectStorageService>();
+        storage.Setup(x => x.GetObjectMetadataAsync(
+                pending.ObjectName,
+                cancellationToken))
+            .ReturnsAsync(new ObjectStorageMetadata(
+                pending.Size,
+                pending.ContentType));
+        storage.Setup(x => x.CopyObjectAsync(
+                pending.ObjectName,
+                It.IsAny<string>(),
+                cancellationToken))
+            .Returns(Task.CompletedTask);
+        storage.Setup(x => x.DeleteObjectAsync(
+                pending.ObjectName,
+                cancellationToken))
+            .Returns(Task.CompletedTask);
+        storage.Setup(x => x.DeleteObjectAsync(
+                oldAvatar.ObjectName,
+                cancellationToken))
+            .Returns(Task.CompletedTask);
+        storage.Setup(x => x.GetPublicUrl(It.IsAny<string>()))
+            .Returns<string>(key => $"https://oss.example.com/{key}");
+        var service = CreateService(db, storage.Object);
+
+        var confirmed = await service.ConfirmAsync(
+            pending.Id,
+            uploaderId,
+            cancellationToken);
+
+        confirmed.Status.Should().Be(ResourceStatus.Active);
+        oldAvatar.Status.Should().Be(ResourceStatus.Expired);
+        oldAvatar.Url.Should().BeNull();
+        oldAvatar.StagingObjectName.Should().Be(oldAvatar.ObjectName);
+        storage.Verify(x => x.DeleteObjectAsync(
+            oldAvatar.ObjectName,
+            cancellationToken), Times.Once);
+    }
+
+    [Fact]
+    public async Task FailedAvatarUploadShouldKeepPreviousActiveAvatar()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var db = CreateDbContext();
+        var uploaderId = Guid.NewGuid();
+        var oldAvatar = new MediaResource
+        {
+            UploaderId = uploaderId,
+            ObjectName = $"avatars/2026/07/{Guid.NewGuid():N}.png",
+            OriginalName = "old.png",
+            Module = ResourceModule.Avatar,
+            Status = ResourceStatus.Active,
+            Size = 1024,
+            Extension = ".png",
+            ContentType = "image/png",
+            Url = "https://oss.example.com/old.png"
+        };
+        var pending = CreatePendingResource(uploaderId);
+        db.MediaResources.AddRange(oldAvatar, pending);
+        await db.SaveChangesAsync(cancellationToken);
+        var storage = new Mock<IObjectStorageService>();
+        storage.Setup(x => x.GetObjectMetadataAsync(
+                pending.ObjectName,
+                cancellationToken))
+            .ReturnsAsync((ObjectStorageMetadata?)null);
+        var service = CreateService(db, storage.Object);
+
+        var action = async () => await service.ConfirmAsync(
+            pending.Id,
+            uploaderId,
+            cancellationToken);
+
+        await action.Should().ThrowAsync<ConflictException>();
+        oldAvatar.Status.Should().Be(ResourceStatus.Active);
+        oldAvatar.Url.Should().Be("https://oss.example.com/old.png");
+        storage.Verify(x => x.DeleteObjectAsync(
+            oldAvatar.ObjectName,
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SimpleAvatarPresignShouldRespectIncompleteUploadQuota()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var db = CreateDbContext();
+        var uploaderId = Guid.NewGuid();
+        var settings = TestMultipartUploadSettings.Create();
+        for (var index = 0; index < settings.MaxIncompleteUploadCountPerUser; index++)
+        {
+            db.MediaResources.Add(new MediaResource
+            {
+                UploaderId = uploaderId,
+                ObjectName = $"avatars/2026/07/{Guid.NewGuid():N}.png",
+                OriginalName = $"avatar-{index}.png",
+                Module = ResourceModule.Avatar,
+                Status = ResourceStatus.Pending,
+                Size = 1024,
+                Extension = ".png",
+                ContentType = "image/png"
+            });
+        }
+        await db.SaveChangesAsync(cancellationToken);
+        var storage = new Mock<IObjectStorageService>();
+        var service = new MediaResourceService(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<MediaResourceService>.Instance,
+            db,
+            storage.Object,
+            new MediaUploadPolicy(Options.Create(TestUploadSettings.Create())),
+            Options.Create(settings),
+            TimeProvider.System);
+
+        var action = async () => await service.CreatePendingResourceAndPresignAsync(
+            uploaderId,
+            "new.png",
+            ".png",
+            1024,
+            "image/png",
+            ResourceModule.Avatar,
+            cancellationToken);
+
+        await action.Should().ThrowAsync<ConflictException>()
+            .WithMessage(ErrorCodes.MultipartUploadQuotaExceeded.GetMessage());
+        storage.Verify(x => x.PresignPutObjectAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<long>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static MediaResourceService CreateService(
         IApplicationDbContext db,
         IObjectStorageService storage)
@@ -341,8 +486,14 @@ public sealed class MediaResourceServiceTests
         var db = new Mock<IApplicationDbContext>();
         db.SetupGet(x => x.MediaResources).Returns(resources.Object);
         db.Setup(x => x.SaveChangesAsync(cancellationToken)).ReturnsAsync(1);
+        SetupQueryable(resources, []);
         return db;
     }
+
+    private static ApplicationDbContext CreateDbContext()
+        => new(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options);
 
     private static Mock<DbSet<MediaResource>> CreateResourceSet(
         MediaResource resource,
@@ -351,7 +502,27 @@ public sealed class MediaResourceServiceTests
         var resources = new Mock<DbSet<MediaResource>>();
         resources.Setup(x => x.FindAsync(new object?[] { resource.Id }, cancellationToken))
             .Returns(new ValueTask<MediaResource?>(resource));
+        SetupQueryable(resources, [resource]);
         return resources;
+    }
+
+    private static void SetupQueryable(
+        Mock<DbSet<MediaResource>> resources,
+        IEnumerable<MediaResource> items)
+    {
+        var queryable = items.AsQueryable();
+        resources.As<IQueryable<MediaResource>>()
+            .Setup(x => x.Provider)
+            .Returns(queryable.Provider);
+        resources.As<IQueryable<MediaResource>>()
+            .Setup(x => x.Expression)
+            .Returns(queryable.Expression);
+        resources.As<IQueryable<MediaResource>>()
+            .Setup(x => x.ElementType)
+            .Returns(queryable.ElementType);
+        resources.As<IQueryable<MediaResource>>()
+            .Setup(x => x.GetEnumerator())
+            .Returns(queryable.GetEnumerator());
     }
 
     private static MediaResource CreatePendingResource(Guid uploaderId)

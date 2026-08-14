@@ -65,6 +65,22 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// <inheritdoc />
     public void ClearTrackedChanges() => ChangeTracker.Clear();
 
+    /// <inheritdoc />
+    public async Task AcquireUploaderActivationLockAsync(
+        Guid uploaderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Database.IsRelational())
+        {
+            return;
+        }
+
+        var lockName = $"uploader-activation:{uploaderId:N}";
+        await Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock(CAST(hashtext({lockName}) AS bigint))",
+            cancellationToken);
+    }
+
     /// <summary>
     /// 将 EF Core relational transaction 适配为应用事务契约。
     /// </summary>

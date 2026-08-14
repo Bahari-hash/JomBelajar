@@ -114,6 +114,12 @@ export const routes = [
                 lazy: lazyComponent(() => import("@/pages/PaperEditor.jsx")),
               },
               {
+                path: "settings",
+                lazy: lazyComponent(
+                  () => import("@/pages/SystemSettings.jsx"),
+                ),
+              },
+              {
                 path: "*",
                 lazy: lazyComponent(() => import("@/pages/NotFound.jsx")),
               },

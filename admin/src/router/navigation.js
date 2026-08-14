@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Languages,
   ListChecks,
+  Settings,
   Tags,
   Users,
 } from "lucide-react";
@@ -27,6 +28,12 @@ export const NAVIGATION_GROUPS = Object.freeze([
       { label: "视频分类", href: "/video-categories", icon: Tags },
       { label: "单词管理", href: "/words", icon: Languages },
       { label: "试卷管理", href: "/papers", icon: ListChecks },
+    ],
+  },
+  {
+    label: "设置",
+    items: [
+      { label: "系统设置", href: "/settings", icon: Settings },
     ],
   },
 ]);

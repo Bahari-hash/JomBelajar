@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { renderAppAt } from "@/test/renderApp.jsx";
@@ -53,5 +53,21 @@ describe("admin routes", () => {
     expect(screen.getByRole("link", { name: "视频管理" })).toBeVisible();
     expect(screen.getByRole("link", { name: "视频分类" })).toBeVisible();
     expect(screen.getByRole("link", { name: "单词管理" })).toBeVisible();
+  });
+
+  it("opens the bottom system settings module from the sidebar", async () => {
+    renderAppAt("/settings");
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "系统设置" }),
+    ).toBeVisible();
+    const navigation = screen.getByRole("navigation", { name: "主导航" });
+    expect(
+      within(navigation).getByRole("link", { name: "系统设置" }),
+    ).toHaveAttribute(
+      "href",
+      "/settings",
+    );
+    expect(screen.getByText("暂无系统设置项")).toBeVisible();
   });
 });

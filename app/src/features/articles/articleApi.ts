@@ -21,13 +21,11 @@ export const articleApi = createApi({
       query: ({ page, pageSize, keyword, categoryId }) => ({
         url: "/articles",
         params: { page, pageSize, keyword, categoryId },
-        skipAuth: true,
       }),
     }),
     getArticle: builder.query<PublicArticle, string>({
       query: (articleId) => ({
         url: `/articles/${articleId}`,
-        skipAuth: true,
       }),
     }),
     getArticleCategories: builder.query<
@@ -37,7 +35,6 @@ export const articleApi = createApi({
       query: ({ page, pageSize, keyword }) => ({
         url: "/article-categories",
         params: { page, pageSize, keyword },
-        skipAuth: true,
       }),
     }),
   }),

@@ -64,22 +64,32 @@ export const routes: RouteObject[] = [
         ],
       },
       {
-        index: true,
-        lazy: async () => ({
-          Component: (await import("@/pages/HomePage")).default,
-        }),
+        Component: ProtectedRoute,
+        children: [
+          {
+            index: true,
+            lazy: async () => ({
+              Component: (await import("@/pages/HomePage")).default,
+            }),
+          },
+        ],
       },
       {
-        path: "articles",
-        lazy: async () => ({
-          Component: (await import("@/pages/ArticlesPage")).default,
-        }),
-      },
-      {
-        path: "articles/:articleId",
-        lazy: async () => ({
-          Component: (await import("@/pages/ArticleDetailPage")).default,
-        }),
+        Component: ProtectedRoute,
+        children: [
+          {
+            path: "articles",
+            lazy: async () => ({
+              Component: (await import("@/pages/ArticlesPage")).default,
+            }),
+          },
+          {
+            path: "articles/:articleId",
+            lazy: async () => ({
+              Component: (await import("@/pages/ArticleDetailPage")).default,
+            }),
+          },
+        ],
       },
       {
         Component: ProtectedRoute,
@@ -110,10 +120,15 @@ export const routes: RouteObject[] = [
         ],
       },
       {
-        path: "*",
-        lazy: async () => ({
-          Component: (await import("@/pages/NotFoundPage")).default,
-        }),
+        Component: ProtectedRoute,
+        children: [
+          {
+            path: "*",
+            lazy: async () => ({
+              Component: (await import("@/pages/NotFoundPage")).default,
+            }),
+          },
+        ],
       },
     ],
   },

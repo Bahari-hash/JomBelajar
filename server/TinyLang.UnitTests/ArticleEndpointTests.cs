@@ -54,7 +54,9 @@ public sealed class ArticleEndpointTests
         {
             var matching = routes.Where(x => x.RoutePattern.RawText == pattern).ToArray();
             matching.Should().NotBeEmpty("available routes: {0}", string.Join(", ", routes.Select(x => x.RoutePattern.RawText)));
-            matching.Should().OnlyContain(endpoint => endpoint.Metadata.GetMetadata<IAuthorizeData>() == null);
+            matching.Should().OnlyContain(endpoint => endpoint.Metadata
+                    .GetOrderedMetadata<IAuthorizeData>()
+                    .Any(data => data.Policy == AuthorizationPolicies.RequireUser));
         }
         foreach (var pattern in ContentAdminRoutes)
         {

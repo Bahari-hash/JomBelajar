@@ -21,11 +21,14 @@ public static class ArticleEndpoints
     /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapArticlesApi(this RouteGroupBuilder endpoints)
     {
-        endpoints.MapGet("/articles", GetPublicArticlesAsync);
+        endpoints.MapGet("/articles", GetPublicArticlesAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        endpoints.MapGet("/articles/{id:guid}", GetPublicArticleAsync);
+        endpoints.MapGet("/articles/{id:guid}", GetPublicArticleAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        endpoints.MapGet("/article-categories", GetPublicArticleCategoriesAsync);
+        endpoints.MapGet("/article-categories", GetPublicArticleCategoriesAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
         var adminGroup = endpoints.MapGroup("/admin")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);

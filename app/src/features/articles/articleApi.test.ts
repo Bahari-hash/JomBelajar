@@ -25,7 +25,7 @@ function responseAdapter(
 }
 
 describe("articleApi", () => {
-  it("uses exact public Axios contracts without sending authentication", async () => {
+  it("uses authenticated Axios contracts for article discovery", async () => {
     const requests: InternalAxiosRequestConfig[] = [];
     httpClient.defaults.adapter = responseAdapter((config) => {
       requests.push(config);
@@ -66,7 +66,6 @@ describe("articleApi", () => {
     expect(requests[0]).toMatchObject({
       url: "/articles",
       method: "get",
-      skipAuth: true,
       params: {
         page: 2,
         pageSize: 12,
@@ -77,12 +76,11 @@ describe("articleApi", () => {
     expect(requests[1]).toMatchObject({
       url: "/article-categories",
       method: "get",
-      skipAuth: true,
       params: { page: 1, pageSize: 100, keyword: "language" },
     });
-    expect(requests.every((request) => !request.headers.Authorization)).toBe(
-      true,
-    );
+    expect(requests.every((request) =>
+      request.headers.Authorization === "Bearer sensitive-access-token"
+    )).toBe(true);
   });
 
   it("maps Problem Details into a safe RTK Query error", async () => {

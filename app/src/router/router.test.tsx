@@ -23,10 +23,7 @@ function renderRoute(path: string) {
 describe("consumer routes", () => {
   beforeEach(() => clearSession());
   it.each([
-    ["/", "今天想练习什么？"],
-    ["/articles", "文章"],
     ["/forgot-password", "重置密码"],
-    ["/missing", "页面未找到"],
   ])("renders %s inside the shared layout", async (path, heading) => {
     renderRoute(path);
 
@@ -40,6 +37,13 @@ describe("consumer routes", () => {
   });
 
   it.each([
+    ["/", "%2F"],
+    ["/articles", "%2Farticles"],
+    [
+      "/articles/11111111-2222-3333-4444-555555555555",
+      "%2Farticles%2F11111111-2222-3333-4444-555555555555",
+    ],
+    ["/missing", "%2Fmissing"],
     ["/videos?page=2", "%2Fvideos%3Fpage%3D2"],
     ["/words", "%2Fwords"],
     [
@@ -67,26 +71,9 @@ describe("consumer routes", () => {
     expect(router.state.location.search).toContain(`returnTo=${returnTo}`);
   });
 
-  it("supports navigation and browser history", async () => {
-    const user = userEvent.setup();
-    const router = renderRoute("/");
-    const articleLinks = await screen.findAllByRole("link", { name: /文章/ });
-    await user.click(articleLinks[0]!);
-
-    expect(
-      await screen.findByRole("heading", { name: "文章", level: 1 }),
-    ).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/articles");
-
-    await router.navigate(-1);
-    expect(
-      await screen.findByRole("heading", { name: "今天想练习什么？" }),
-    ).toBeInTheDocument();
-  });
-
   it("opens the mobile menu, closes it with Escape, and restores focus", async () => {
     const user = userEvent.setup();
-    renderRoute("/");
+    renderRoute("/forgot-password");
     const openButton = await screen.findByRole("button", {
       name: "打开导航菜单",
     });

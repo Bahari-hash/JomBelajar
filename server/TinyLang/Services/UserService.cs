@@ -141,10 +141,13 @@ public sealed class UserService(
         }
 
         user.Nickname = NormalizeOptional(request.Nickname);
-        user.AvatarUrl = await ResolveAvatarUrlAsync(
-            userId,
-            request.AvatarMediaResourceId,
-            cancellationToken);
+        if (request.AvatarMediaResourceId is { } avatarMediaResourceId)
+        {
+            user.AvatarUrl = await ResolveAvatarUrlAsync(
+                userId,
+                avatarMediaResourceId,
+                cancellationToken);
+        }
         user.Bio = NormalizeOptional(request.Bio);
 
         await db.SaveChangesAsync(cancellationToken);

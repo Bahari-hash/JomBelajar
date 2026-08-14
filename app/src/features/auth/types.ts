@@ -24,7 +24,7 @@ export interface CurrentUserProfile {
 
 export interface UpdateProfileRequest {
   nickname: string | null;
-  avatarMediaResourceId: string | null;
+  avatarMediaResourceId?: string | null;
   bio: string | null;
 }
 

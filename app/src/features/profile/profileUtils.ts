@@ -54,9 +54,12 @@ export function normalizeProfileDraft(
   draft: ProfileDraft,
 ): UpdateProfileRequest {
   const optional = (value: string | null) => value?.trim() || null;
-  return {
+  const request: UpdateProfileRequest = {
     nickname: optional(draft.nickname),
-    avatarMediaResourceId: draft.avatarMediaResourceId,
     bio: optional(draft.bio),
   };
+  if (draft.avatarMediaResourceId) {
+    request.avatarMediaResourceId = draft.avatarMediaResourceId;
+  }
+  return request;
 }

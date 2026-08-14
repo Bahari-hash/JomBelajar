@@ -226,6 +226,7 @@ public sealed class UserServiceTests
     {
         await using var db = CreateDbContext();
         var user = CreateUser("profile", UserRole.User, Now);
+        user.AvatarUrl = "https://media.example.test/old-avatar.png";
         db.Users.Add(user);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -244,7 +245,7 @@ public sealed class UserServiceTests
             TestContext.Current.CancellationToken);
 
         response.Nickname.Should().Be("Learner");
-        response.AvatarUrl.Should().BeNull();
+        response.AvatarUrl.Should().Be("https://media.example.test/old-avatar.png");
         response.Bio.Should().Be("Studying English");
         await missingAction.Should().ThrowAsync<NotFoundException>();
     }

@@ -60,7 +60,6 @@ describe("ProfilePage", () => {
 
     expect(updateProfile).toHaveBeenCalledWith({
       nickname: "新昵称",
-      avatarMediaResourceId: null,
       bio: "正在学习外语。",
     });
     expect(await screen.findByText("个人资料已保存。")).toBeInTheDocument();

@@ -18,9 +18,6 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.Username)
-            .HasMaxLength(100)
-            .IsRequired();
         builder.Property(x => x.Email)
             .HasMaxLength(100)
             .IsRequired();
@@ -44,8 +41,6 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(500);
 
         builder.HasIndex(x => x.Email)
-            .IsUnique();
-        builder.HasIndex(x => x.Username)
             .IsUnique();
 
         builder.HasIndex(x => new { x.IsDeleted, x.CreatedAt, x.Id });

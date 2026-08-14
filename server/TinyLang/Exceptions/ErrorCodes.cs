@@ -17,15 +17,6 @@ public enum ErrorCodes
 
     // --** User Errors **--
 
-    [Description("用户名不能为空.")]
-    UsernameRequired,
-
-    [Description("用户名长度最大不超过30个字符.")]
-    UsernameLengthLimit,
-
-    [Description("用户名只能由字母, 数字, 下划线, 分隔符构成.")]
-    UsernameFormatInvalid,
-
     [Description("邮箱不能为空.")]
     EmailRequired,
 
@@ -65,14 +56,8 @@ public enum ErrorCodes
     [Description("新邮箱不能与当前邮箱相同.")]
     EmailUnchanged,
 
-    [Description("用户名已经被占用.")]
-    UsernameAlreadyExists,
-
     [Description("用户不存在.")]
     UserNotFound,
-
-    [Description("用户名或密码错误.")]
-    UsernameOrPasswordWrong,
 
     [Description("邮箱或密码错误.")]
     InvalidCredentials,

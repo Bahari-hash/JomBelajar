@@ -579,7 +579,6 @@ public sealed class PaperServiceTests
         await using var db = CreateDbContext();
         var admin = new User
         {
-            Username = "paper-admin",
             Email = "paper-admin@example.test",
             PasswordHash = "not-used",
             Nickname = "Paper Admin",

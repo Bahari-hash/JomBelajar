@@ -54,19 +54,13 @@ export function UserTable({ users, currentUserId, onAction }) {
               <TableRow key={user.id}>
                 <TableCell className="max-w-72 pl-4 whitespace-normal">
                   <div className="min-w-0">
-                    <p className="truncate font-medium" title={user.username}>
-                      {user.username}
+                    <p className="truncate font-medium" title={user.email}>
+                      {user.email}
                       {isSelf ? (
                         <span className="ml-1 text-xs text-muted-foreground">
                           （当前）
                         </span>
                       ) : null}
-                    </p>
-                    <p
-                      className="truncate text-xs text-muted-foreground"
-                      title={user.email}
-                    >
-                      {user.email}
                     </p>
                     {user.nickname ? (
                       <p

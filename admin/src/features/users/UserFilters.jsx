@@ -56,7 +56,7 @@ export function UserFilters({ filters, onApply, onReset }) {
             value={keyword}
             maxLength={200}
             onChange={(event) => setKeyword(event.target.value)}
-            placeholder="邮箱、用户名、昵称或用户 ID"
+            placeholder="邮箱、昵称或用户 ID"
           />
         </div>
 

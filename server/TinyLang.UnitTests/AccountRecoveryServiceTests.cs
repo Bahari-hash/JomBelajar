@@ -158,7 +158,6 @@ public sealed class AccountRecoveryServiceTests
     private static User CreateUser(string email)
         => new()
         {
-            Username = email,
             Email = email,
             PasswordHash = "old-hash"
         };

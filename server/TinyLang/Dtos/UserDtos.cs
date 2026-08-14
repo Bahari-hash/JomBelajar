@@ -89,7 +89,6 @@ public sealed record PublicUserProfileResponse(
 /// </summary>
 public sealed record AdminUserListItemResponse(
     Guid Id,
-    string Username,
     string Email,
     UserRole Role,
     string? Nickname,
@@ -109,7 +108,6 @@ public sealed record AdminUserListItemResponse(
 /// </summary>
 public sealed record AdminUserDetailResponse(
     Guid Id,
-    string Username,
     string Email,
     UserRole Role,
     string? Nickname,

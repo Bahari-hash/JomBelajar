@@ -123,7 +123,6 @@ public sealed class AccountSecurityService(
         var identifier = user.Id.ToString("N");
         user.IsDeleted = true;
         user.DeletedAt = deletedAt;
-        user.Username = $"deleted-{identifier}";
         user.Email = $"deleted-{identifier}@deleted.invalid";
         await userSessionService.InvalidateAllAsync(user, cancellationToken);
     }

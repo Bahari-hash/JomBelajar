@@ -26,7 +26,6 @@ public sealed class JwtTokenServiceTests
     {
         var user = new User
         {
-            Username = "learner@example.com",
             Email = "learner@example.com",
             PasswordHash = "hash",
             Role = UserRole.User,
@@ -51,7 +50,6 @@ public sealed class JwtTokenServiceTests
     {
         var user = new User
         {
-            Username = "learner@example.com",
             Email = "learner@example.com",
             PasswordHash = "hash",
             Role = UserRole.User

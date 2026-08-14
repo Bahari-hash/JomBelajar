@@ -67,7 +67,6 @@ public sealed class UserService(
             .Take(request.PageSize)
             .Select(user => new AdminUserListItemResponse(
                 user.Id,
-                user.Username,
                 user.Email,
                 user.Role,
                 user.Nickname,
@@ -106,7 +105,6 @@ public sealed class UserService(
             .Where(user => user.Id == userId)
             .Select(user => new AdminUserDetailResponse(
                 user.Id,
-                user.Username,
                 user.Email,
                 user.Role,
                 user.Nickname,
@@ -320,14 +318,12 @@ public sealed class UserService(
             return query.Where(user =>
                 user.Id == userId ||
                 user.Email.ToUpper().Contains(normalizedKeyword) ||
-                user.Username.ToUpper().Contains(normalizedKeyword) ||
                 (user.Nickname != null &&
                     user.Nickname.ToUpper().Contains(normalizedKeyword)));
         }
 
         return query.Where(user =>
             user.Email.ToUpper().Contains(normalizedKeyword) ||
-            user.Username.ToUpper().Contains(normalizedKeyword) ||
             (user.Nickname != null &&
                 user.Nickname.ToUpper().Contains(normalizedKeyword)));
     }

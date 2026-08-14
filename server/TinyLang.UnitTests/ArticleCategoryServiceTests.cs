@@ -121,7 +121,6 @@ public sealed class ArticleCategoryServiceTests
     private static User CreateUser()
         => new()
         {
-            Username = "admin@example.com",
             Email = "admin@example.com",
             PasswordHash = "hash",
             Role = UserRole.Admin

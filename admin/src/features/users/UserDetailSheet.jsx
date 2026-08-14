@@ -100,7 +100,6 @@ export function UserDetailSheet({ userId, open, onOpenChange }) {
                   </Button>
                 </span>
               </DetailRow>
-              <DetailRow label="用户名">{user.username}</DetailRow>
               <DetailRow label="邮箱">{user.email}</DetailRow>
               <DetailRow label="昵称">{user.nickname}</DetailRow>
               <DetailRow label="角色">

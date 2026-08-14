@@ -60,7 +60,6 @@ public sealed class AuthService(
 
         var user = new User
         {
-            Username = email,
             Email = email,
             PasswordHash = secretHasher.Hash(request.Password),
             Role = UserRole.User
@@ -72,8 +71,7 @@ public sealed class AuthService(
         }
         catch (DbUpdateException exception) when (databaseExceptionClassifier.IsUniqueConstraintViolation(
             exception,
-            "IX_users_Email",
-            "IX_users_Username"))
+            "IX_users_Email"))
         {
             throw ConflictException.Create(ErrorCodes.EmailAlreadyExists);
         }

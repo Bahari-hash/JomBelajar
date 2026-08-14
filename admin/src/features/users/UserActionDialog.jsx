@@ -29,7 +29,7 @@ import {
 } from "@/services/usersApi.js";
 
 function getDialogCopy(action, user, isSelf) {
-  const identity = user.email || user.username;
+  const identity = user.email;
   switch (action) {
     case "ban":
       return {

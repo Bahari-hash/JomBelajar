@@ -27,7 +27,6 @@ public sealed class WordStudyServiceTests
         await using var db = CreateDbContext();
         var user = new User
         {
-            Username = "daily",
             Email = "daily@example.test",
             PasswordHash = "hash",
             DailyWordStudyCount = 2
@@ -54,7 +53,6 @@ public sealed class WordStudyServiceTests
         await using var db = CreateDbContext();
         var user = new User
         {
-            Username = "cross-day",
             Email = "cross-day@example.test",
             PasswordHash = "hash",
             DailyWordStudyCount = 1
@@ -98,7 +96,6 @@ public sealed class WordStudyServiceTests
         await using var db = CreateDbContext();
         var user = new User
         {
-            Username = "same-day",
             Email = "same-day@example.test",
             PasswordHash = "hash",
             DailyWordStudyCount = 1

@@ -44,7 +44,6 @@ export function adminTokenResponse(overrides = {}) {
 export function userListItem(overrides = {}) {
   return {
     id: "22222222-2222-2222-2222-222222222222",
-    username: "alice",
     email: "alice@example.test",
     role: "User",
     nickname: "Alice",

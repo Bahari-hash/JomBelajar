@@ -542,7 +542,6 @@ public sealed class ArticleServiceTests
     private static User CreateUser(string email)
         => new()
         {
-            Username = email,
             Email = email,
             PasswordHash = "hash",
             Role = UserRole.Admin

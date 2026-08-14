@@ -490,7 +490,6 @@ public sealed class UserServiceTests
         DateTimeOffset createdAt)
         => new()
         {
-            Username = username,
             Email = $"{username}@example.test",
             PasswordHash = "not-used",
             Role = role,

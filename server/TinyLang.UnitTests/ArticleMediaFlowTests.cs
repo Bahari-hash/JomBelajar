@@ -23,7 +23,6 @@ public sealed class ArticleMediaFlowTests
         await using var db = CreateDbContext();
         var admin = new User
         {
-            Username = "admin@example.com",
             Email = "admin@example.com",
             PasswordHash = "hash",
             Role = UserRole.Admin

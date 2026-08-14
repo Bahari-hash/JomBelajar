@@ -706,14 +706,12 @@ public sealed class VideoServiceTests
         await using var db = CreateDbContext();
         var creator = new User
         {
-            Username = "creator",
             Email = "creator@example.com",
             PasswordHash = "hash",
             Nickname = "Creator"
         };
         var editor = new User
         {
-            Username = "editor",
             Email = "editor@example.com",
             PasswordHash = "hash",
             Nickname = "Editor"
@@ -792,7 +790,6 @@ public sealed class VideoServiceTests
         string? avatarUrl = null)
         => new()
         {
-            Username = username,
             Email = $"{username}@example.test",
             PasswordHash = "hash",
             Nickname = nickname,

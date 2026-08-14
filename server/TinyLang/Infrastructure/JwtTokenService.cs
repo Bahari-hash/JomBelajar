@@ -32,7 +32,7 @@ public sealed class JwtTokenService(IOptions<JwtSettings> options) : IJwtTokenSe
             Subject = new ClaimsIdentity([
                 new Claim(JwtClaimNamesExtension.UserId, user.Id.ToString()),
                 new Claim(JwtClaimNamesExtension.TokenId, Guid.NewGuid().ToString("N")),
-                new Claim(JwtClaimNamesExtension.Name, user.Username),
+                new Claim(JwtClaimNamesExtension.Name, user.Email),
                 new Claim(JwtClaimNamesExtension.Role, user.Role.ToString()),
                 new Claim(JwtClaimNamesExtension.TokenVersion, user.TokenVersion.ToString())
             ]),

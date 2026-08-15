@@ -26,9 +26,7 @@ public static class SecurityEndpoints
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
         group.MapPut("/me/reset-password", ResetPasswordAsync);
-
         group.MapPut("/me/change-email", ChangeEmailAsync);
-
         group.MapDelete("/me/delete-account", DeleteAccountAsync)
             .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
 

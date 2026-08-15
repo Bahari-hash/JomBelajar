@@ -21,29 +21,23 @@ public static class UserEndpoints
     /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapUsersApi(this RouteGroupBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/users")
+        var userGroup = endpoints.MapGroup("/")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        group.MapGet("/me", GetCurrentProfileAsync);
+        userGroup.MapGet("/users/me", GetCurrentProfileAsync);
+        userGroup.MapPut("/users/me/profile", UpdateProfileAsync);
+        userGroup.MapGet("/users/me/word-study-settings", GetWordStudySettingsAsync);
+        userGroup.MapPut("/users/me/word-study-settings", UpdateWordStudySettingsAsync);
+        userGroup.MapGet("/users/{id:guid}/profile", GetPublicProfileAsync);
 
-        group.MapPut("/me/profile", UpdateProfileAsync);
-        group.MapGet("/me/word-study-settings", GetWordStudySettingsAsync);
-        group.MapPut("/me/word-study-settings", UpdateWordStudySettingsAsync);
-
-        group.MapGet("/{id:guid}/profile", GetPublicProfileAsync);
-
-        var adminGroup = endpoints.MapGroup("/admin/users")
+        var adminGroup = endpoints.MapGroup("/admin")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
-        adminGroup.MapGet("", GetAdminUsersAsync);
-
-        adminGroup.MapGet("/{id:guid}", GetAdminUserAsync);
-
-        adminGroup.MapPost("/{id:guid}/ban", BanUserAsync);
-
-        adminGroup.MapPost("/{id:guid}/unban", UnbanUserAsync);
-
-        adminGroup.MapPost("/{id:guid}/role", UpdateUserRoleAsync);
+        adminGroup.MapGet("/users", GetAdminUsersAsync);
+        adminGroup.MapGet("/users/{id:guid}", GetAdminUserAsync);
+        adminGroup.MapPost("/users/{id:guid}/ban", BanUserAsync);
+        adminGroup.MapPost("/users/{id:guid}/unban", UnbanUserAsync);
+        adminGroup.MapPost("/users/{id:guid}/role", UpdateUserRoleAsync);
 
         return endpoints;
     }

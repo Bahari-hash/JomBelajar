@@ -21,27 +21,30 @@ public static class VideoEndpoints
     /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapVideosApi(this RouteGroupBuilder endpoints)
     {
-        var admin = endpoints.MapGroup("/admin/videos")
+        var userGroup = endpoints.MapGroup("/")
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
+            
+        userGroup.MapGet("/videos", GetCatalogAsync);
+        userGroup.MapGet("/videos/{id:guid}", GetDetailsAsync);
+        userGroup.MapPost("/videos/{id:guid}/playback", GetPlaybackAsync)
+            .RequireRateLimiting(RateLimitPolicies.VideoPlaybackLimit);
+        userGroup.MapPut("/videos/{id:guid}/progress", UpdateProgressAsync)
+            .RequireRateLimiting(RateLimitPolicies.VideoProgressLimit);
+
+        var adminGroup = endpoints.MapGroup("/admin")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
-        admin.MapPost("", CreateVideoAsync);
-        admin.MapGet("", GetAdminVideosAsync);
-        admin.MapGet("/{id:guid}", GetAdminVideoAsync);
-        admin.MapPut("/{id:guid}", UpdateVideoAsync);
-        admin.MapPost("/{id:guid}/publish", PublishVideoAsync);
-        admin.MapPost("/{id:guid}/unpublish", UnpublishVideoAsync);
-        admin.MapPost("/{id:guid}/retry", RetryVideoAsync);
-        admin.MapPost("/{id:guid}/archive", ArchiveVideoAsync);
-        admin.MapPost("/{id:guid}/playback", GetAdminPlaybackAsync)
+
+        adminGroup.MapPost("/videos", CreateVideoAsync);
+        adminGroup.MapGet("/videos", GetAdminVideosAsync);
+        adminGroup.MapGet("/videos/{id:guid}", GetAdminVideoAsync);
+        adminGroup.MapPut("/videos/{id:guid}", UpdateVideoAsync);
+        adminGroup.MapPost("/videos/{id:guid}/publish", PublishVideoAsync);
+        adminGroup.MapPost("/videos/{id:guid}/unpublish", UnpublishVideoAsync);
+        adminGroup.MapPost("/videos/{id:guid}/retry", RetryVideoAsync);
+        adminGroup.MapPost("/videos/{id:guid}/archive", ArchiveVideoAsync);
+        adminGroup.MapPost("/videos/{id:guid}/playback", GetAdminPlaybackAsync)
             .RequireRateLimiting(RateLimitPolicies.VideoPlaybackLimit);
 
-        var videos = endpoints.MapGroup("/videos")
-            .RequireAuthorization(AuthorizationPolicies.RequireUser);
-        videos.MapGet("", GetCatalogAsync);
-        videos.MapGet("/{id:guid}", GetDetailsAsync);
-        videos.MapPost("/{id:guid}/playback", GetPlaybackAsync)
-            .RequireRateLimiting(RateLimitPolicies.VideoPlaybackLimit);
-        videos.MapPut("/{id:guid}/progress", UpdateProgressAsync)
-            .RequireRateLimiting(RateLimitPolicies.VideoProgressLimit);
         return endpoints;
     }
 

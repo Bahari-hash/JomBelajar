@@ -21,16 +21,20 @@ public static class VideoCategoryEndpoints
     public static RouteGroupBuilder MapVideoCategoriesApi(
         this RouteGroupBuilder endpoints)
     {
-        endpoints.MapGet("/video-categories", GetPublicListAsync)
+        var userGroup = endpoints.MapGroup("/")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        var admin = endpoints.MapGroup("/admin/video-categories")
+        userGroup.MapGet("/video-categories", GetPublicListAsync);
+
+        var admin = endpoints.MapGroup("/admin")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
-        admin.MapGet("", GetAdminListAsync);
-        admin.MapPost("", CreateAsync);
-        admin.MapPut("/{id:guid}", UpdateAsync);
-        admin.MapDelete("/{id:guid}", DeleteAsync);
-        admin.MapDelete("/{id:guid}/videos", ClearVideosAsync);
+
+        admin.MapGet("/video-categories", GetAdminListAsync);
+        admin.MapPost("/video-categories", CreateAsync);
+        admin.MapPut("/video-categories/{id:guid}", UpdateAsync);
+        admin.MapDelete("/video-categories/{id:guid}", DeleteAsync);
+        admin.MapDelete("/video-categories/{id:guid}/videos", ClearVideosAsync);
+        
         return endpoints;
     }
 

@@ -22,23 +22,26 @@ public static class WordEndpoints
     /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapWordsApi(this RouteGroupBuilder endpoints)
     {
-        var admin = endpoints.MapGroup("/admin/words")
-            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
-        admin.MapPost("", CreateWordAsync);
-        admin.MapPost("/batch/validate", ValidateBatchAsync);
-        admin.MapPost("/batch", ImportBatchAsync);
-        admin.MapGet("", GetAdminWordsAsync);
-        admin.MapGet("/{id:guid}", GetAdminWordAsync);
-        admin.MapPut("/{id:guid}", UpdateWordAsync);
-        admin.MapPost("/{id:guid}/publish", PublishWordAsync);
-        admin.MapPost("/{id:guid}/unpublish", UnpublishWordAsync);
-        admin.MapPost("/{id:guid}/archive", ArchiveWordAsync);
-        admin.MapDelete("/{id:guid}", DeleteWordAsync);
-
-        var user = endpoints.MapGroup("/words")
+        var userGroup = endpoints.MapGroup("/")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
-        user.MapGet("", GetWordsAsync);
-        user.MapGet("/{id:guid}", GetWordAsync);
+
+        userGroup.MapGet("/words", GetWordsAsync);
+        userGroup.MapGet("/words/{id:guid}", GetWordAsync);
+
+        var adminGroup = endpoints.MapGroup("/admin")
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+
+        adminGroup.MapPost("/words", CreateWordAsync);
+        adminGroup.MapPost("/words/batch/validate", ValidateBatchAsync);
+        adminGroup.MapPost("/words/batch", ImportBatchAsync);
+        adminGroup.MapGet("/words", GetAdminWordsAsync);
+        adminGroup.MapGet("/words/{id:guid}", GetAdminWordAsync);
+        adminGroup.MapPut("/words/{id:guid}", UpdateWordAsync);
+        adminGroup.MapPost("/words/{id:guid}/publish", PublishWordAsync);
+        adminGroup.MapPost("/words/{id:guid}/unpublish", UnpublishWordAsync);
+        adminGroup.MapPost("/words/{id:guid}/archive", ArchiveWordAsync);
+        adminGroup.MapDelete("/words/{id:guid}", DeleteWordAsync);
+
         return endpoints;
     }
 

@@ -22,40 +22,37 @@ public static class OnlineQuizEndpoints
     /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapOnlineQuizApi(this RouteGroupBuilder endpoints)
     {
-        var admin = endpoints.MapGroup("/admin/papers")
-            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
-        admin.MapPost("", CreatePaperAsync);
-        admin.MapGet("", GetAdminPapersAsync);
-        admin.MapGet("/{paperId:guid}", GetAdminPaperAsync);
-        admin.MapPut("/{paperId:guid}", UpdatePaperAsync);
-        admin.MapPost("/{paperId:guid}/validate", ValidatePaperAsync);
-        admin.MapPost("/{paperId:guid}/publish", PublishPaperAsync);
-        admin.MapPost("/{paperId:guid}/unpublish", UnpublishPaperAsync);
-        admin.MapPost("/{paperId:guid}/archive", ArchivePaperAsync);
-        admin.MapDelete("/{paperId:guid}", DeletePaperAsync);
-        endpoints.MapGet("/paper-tags", GetPaperTagsAsync)
+        var userGroup = endpoints.MapGroup("/")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
-        endpoints.MapGet("/admin/paper-tags", GetAdminPaperTagsAsync)
+
+        userGroup.MapGet("/paper-tags", GetPaperTagsAsync);
+
+        userGroup.MapGet("/papers", GetPapersAsync);
+        userGroup.MapGet("/papers/{paperId:guid}", GetPaperAsync);
+        userGroup.MapPost("/papers/{paperId:guid}/attempts", StartAttemptAsync);
+        userGroup.MapGet("/papers/{paperId:guid}/attempts", GetAttemptHistoryAsync);
+
+        userGroup.MapGet("/paper-attempts/{attemptId:guid}", GetAttemptAsync);
+        userGroup.MapPut("/paper-attempts/{attemptId:guid}/answers/{questionId:guid}", SaveAnswerAsync);
+        userGroup.MapDelete("/paper-attempts/{attemptId:guid}/answers/{questionId:guid}", ClearAnswerAsync);
+        userGroup.MapPost("/paper-attempts/{attemptId:guid}/submit", SubmitAttemptAsync);
+        userGroup.MapGet("/paper-attempts/{attemptId:guid}/result", GetAttemptResultAsync);
+
+        var adminGroup = endpoints.MapGroup("/admin")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
-        var papers = endpoints.MapGroup("/papers")
-            .RequireAuthorization(AuthorizationPolicies.RequireUser);
-        papers.MapGet("", GetPapersAsync);
-        papers.MapGet("/{paperId:guid}", GetPaperAsync);
-        papers.MapPost("/{paperId:guid}/attempts", StartAttemptAsync);
-        papers.MapGet("/{paperId:guid}/attempts", GetAttemptHistoryAsync);
+        adminGroup.MapGet("/paper-tags", GetAdminPaperTagsAsync);
 
-        var attempts = endpoints.MapGroup("/paper-attempts")
-            .RequireAuthorization(AuthorizationPolicies.RequireUser);
-        attempts.MapGet("/{attemptId:guid}", GetAttemptAsync);
-        attempts.MapPut(
-            "/{attemptId:guid}/answers/{questionId:guid}",
-            SaveAnswerAsync);
-        attempts.MapDelete(
-            "/{attemptId:guid}/answers/{questionId:guid}",
-            ClearAnswerAsync);
-        attempts.MapPost("/{attemptId:guid}/submit", SubmitAttemptAsync);
-        attempts.MapGet("/{attemptId:guid}/result", GetAttemptResultAsync);
+        adminGroup.MapPost("/papers", CreatePaperAsync);
+        adminGroup.MapGet("/papers", GetAdminPapersAsync);
+        adminGroup.MapGet("/papers/{paperId:guid}", GetAdminPaperAsync);
+        adminGroup.MapPut("/papers/{paperId:guid}", UpdatePaperAsync);
+        adminGroup.MapPost("/papers/{paperId:guid}/validate", ValidatePaperAsync);
+        adminGroup.MapPost("/papers/{paperId:guid}/publish", PublishPaperAsync);
+        adminGroup.MapPost("/papers/{paperId:guid}/unpublish", UnpublishPaperAsync);
+        adminGroup.MapPost("/papers/{paperId:guid}/archive", ArchivePaperAsync);
+        adminGroup.MapDelete("/papers/{paperId:guid}", DeletePaperAsync);
+
         return endpoints;
     }
 

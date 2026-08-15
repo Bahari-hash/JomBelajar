@@ -19,20 +19,23 @@ public static class AudioEndpoints
     /// </summary>
     public static RouteGroupBuilder MapAudioApi(this RouteGroupBuilder endpoints)
     {
-        var admin = endpoints.MapGroup("/admin/audio")
-            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
-        admin.MapPost("", CreateAudioAsync);
-        admin.MapGet("", GetAdminAudioAsync);
-        admin.MapGet("/{id:guid}", GetAdminAudioByIdAsync);
-        admin.MapPut("/{id:guid}", UpdateAudioAsync);
-        admin.MapPost("/{id:guid}/publish", PublishAudioAsync);
-        admin.MapPost("/{id:guid}/unpublish", UnpublishAudioAsync);
-        admin.MapPost("/{id:guid}/retry", RetryAudioAsync);
+        var userGroup = endpoints.MapGroup("/")
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        endpoints.MapGroup("/audio")
-            .RequireAuthorization(AuthorizationPolicies.RequireUser)
-            .MapPost("/{id:guid}/playback", GetPlaybackAsync)
+        userGroup.MapPost("/audio/{id:guid}/playback", GetPlaybackAsync)
             .RequireRateLimiting(RateLimitPolicies.AudioPlaybackLimit);
+
+        var adminGroup = endpoints.MapGroup("/admin")
+            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+
+        adminGroup.MapPost("/audio", CreateAudioAsync);
+        adminGroup.MapGet("/audio", GetAdminAudioAsync);
+        adminGroup.MapGet("/audio/{id:guid}", GetAdminAudioByIdAsync);
+        adminGroup.MapPut("/audio/{id:guid}", UpdateAudioAsync);
+        adminGroup.MapPost("/audio/{id:guid}/publish", PublishAudioAsync);
+        adminGroup.MapPost("/audio/{id:guid}/unpublish", UnpublishAudioAsync);
+        adminGroup.MapPost("/audio/{id:guid}/retry", RetryAudioAsync);
+
         return endpoints;
     }
 

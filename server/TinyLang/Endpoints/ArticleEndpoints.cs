@@ -21,44 +21,29 @@ public static class ArticleEndpoints
     /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapArticlesApi(this RouteGroupBuilder endpoints)
     {
-        endpoints.MapGet("/articles", GetPublicArticlesAsync)
+        var userGroup = endpoints.MapGroup("/")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        endpoints.MapGet("/articles/{id:guid}", GetPublicArticleAsync)
-            .RequireAuthorization(AuthorizationPolicies.RequireUser);
-
-        endpoints.MapGet("/article-categories", GetPublicArticleCategoriesAsync)
-            .RequireAuthorization(AuthorizationPolicies.RequireUser);
+        userGroup.MapGet("/articles", GetPublicArticlesAsync);
+        userGroup.MapGet("/articles/{id:guid}", GetPublicArticleAsync);
+        userGroup.MapGet("/article-categories", GetPublicArticleCategoriesAsync);
 
         var adminGroup = endpoints.MapGroup("/admin")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+
         adminGroup.MapPost("/articles", CreateArticleDraftAsync);
-
         adminGroup.MapPost("/articles/preview", PreviewArticleAsync);
-
         adminGroup.MapGet("/articles", GetAdminArticlesAsync);
-
         adminGroup.MapGet("/articles/{id:guid}", GetAdminArticleAsync);
-
         adminGroup.MapPut("/articles/{id:guid}", UpdateArticleAsync);
-
         adminGroup.MapPost("/articles/{id:guid}/publish", PublishArticleAsync);
-
         adminGroup.MapPost("/articles/{id:guid}/unpublish", UnpublishArticleAsync);
-
         adminGroup.MapDelete("/articles/{id:guid}", ArchiveArticleAsync);
-
         adminGroup.MapGet("/article-categories", GetAdminArticleCategoriesAsync);
-
         adminGroup.MapPost("/article-categories", CreateArticleCategoryAsync);
-
         adminGroup.MapPut("/article-categories/{id:guid}", UpdateArticleCategoryAsync);
-
         adminGroup.MapDelete("/article-categories/{id:guid}", DeleteArticleCategoryAsync);
-
-        adminGroup.MapDelete(
-            "/article-categories/{id:guid}/articles",
-            ClearArticleCategoryArticlesAsync);
+        adminGroup.MapDelete("/article-categories/{id:guid}/articles", ClearArticleCategoryArticlesAsync);
 
         return endpoints;
     }

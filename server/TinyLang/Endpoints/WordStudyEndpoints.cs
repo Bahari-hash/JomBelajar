@@ -21,19 +21,19 @@ public static class WordStudyEndpoints
     /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapWordStudyApi(this RouteGroupBuilder endpoints)
     {
-        var study = endpoints.MapGroup("/word-study")
+        var userGroup = endpoints.MapGroup("/")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
-        study.MapPost("/sessions", CreateSessionAsync);
-        study.MapGet("/today", GetTodayAsync);
-        study.MapPost("/today/start", StartTodayAsync);
-        study.MapGet("/sessions/active", GetActiveSessionAsync);
-        study.MapGet("/sessions/{sessionId:guid}", GetSessionAsync);
-        study.MapGet("/sessions/{sessionId:guid}/items", GetSessionItemsAsync);
-        study.MapGet("/sessions/{sessionId:guid}/next", GetNextItemAsync);
-        study.MapPost(
-            "/sessions/{sessionId:guid}/items/{itemId:guid}/result",
-            SubmitResultAsync);
-        study.MapPost("/sessions/{sessionId:guid}/abandon", AbandonSessionAsync);
+
+        userGroup.MapPost("/word-study/sessions", CreateSessionAsync);
+        userGroup.MapGet("/word-study/today", GetTodayAsync);
+        userGroup.MapPost("/word-study/today/start", StartTodayAsync);
+        userGroup.MapGet("/word-study/sessions/active", GetActiveSessionAsync);
+        userGroup.MapGet("/word-study/sessions/{sessionId:guid}", GetSessionAsync);
+        userGroup.MapGet("/word-study/sessions/{sessionId:guid}/items", GetSessionItemsAsync);
+        userGroup.MapGet("/word-study/sessions/{sessionId:guid}/next", GetNextItemAsync);
+        userGroup.MapPost("/word-study/sessions/{sessionId:guid}/items/{itemId:guid}/result", SubmitResultAsync);
+        userGroup.MapPost("/word-study/sessions/{sessionId:guid}/abandon", AbandonSessionAsync);
+
         return endpoints;
     }
 

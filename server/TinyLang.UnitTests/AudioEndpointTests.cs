@@ -82,6 +82,39 @@ public sealed class AudioEndpointTests
     }
 
     [Fact]
+    public async Task AdminAudioResourceRoutesShouldExposeOnlyCurrentContract()
+    {
+        await using var app = CreateApp();
+        var routes = GetRoutes(app);
+
+        foreach (var (pattern, method) in new[]
+        {
+            ("/api/admin/audio", "GET"),
+            ("/api/admin/audio/{id:guid}", "GET"),
+            ("/api/admin/audio/{id:guid}/name", "PATCH"),
+            ("/api/admin/audio/{id:guid}/retry-upload", "POST"),
+            ("/api/admin/audio/{id:guid}/reprocess", "POST"),
+            ("/api/admin/audio/{id:guid}", "DELETE")
+        })
+        {
+            GetRoute(routes, pattern, method)
+                .Metadata.GetOrderedMetadata<IAuthorizeData>()
+                .Should().Contain(data => data.Policy == AuthorizationPolicies.RequireAdmin);
+        }
+
+        routes.Where(value => value.RoutePattern.RawText == "/api/admin/audio")
+            .SelectMany(value => value.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods)
+            .Should().NotContain("POST");
+        routes.Where(value => value.RoutePattern.RawText == "/api/admin/audio/{id:guid}")
+            .SelectMany(value => value.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods)
+            .Should().NotContain("PUT");
+        routes.Should().NotContain(value =>
+            value.RoutePattern.RawText!.Contains("/publish", StringComparison.Ordinal) ||
+            value.RoutePattern.RawText.Contains("/unpublish", StringComparison.Ordinal) ||
+            value.RoutePattern.RawText.EndsWith("/retry", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task SimpleUploadInitializationShouldReturnAudioAndMediaIds()
     {
         var adminId = Guid.NewGuid();
@@ -226,15 +259,14 @@ public sealed class AudioEndpointTests
     [Fact]
     public async Task PlaybackResponseShouldUsePrivateNoStore()
     {
-        var audioService = new Mock<IAudioClipService>();
+        var audioService = new Mock<IAudioResourceService>();
         audioService.Setup(value => value.GetPlaybackAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AudioPlaybackResponse(
+            .ReturnsAsync(new AudioResourcePlaybackResponse(
                 "https://media.example/audio.mp3",
                 DateTimeOffset.UtcNow.AddMinutes(5),
-                2,
-                AudioClipKind.Other));
+                2));
         var context = new DefaultHttpContext();
 
         await AudioEndpoints.GetPlaybackAsync(
@@ -253,7 +285,6 @@ public sealed class AudioEndpointTests
     private static WebApplication CreateApp()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Services.AddSingleton(Mock.Of<IAudioClipService>());
         builder.Services.AddSingleton(Mock.Of<IAudioResourceService>());
         builder.Services.AddSingleton(Mock.Of<IMediaResourceService>());
         var app = builder.Build();

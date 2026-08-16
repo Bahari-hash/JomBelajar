@@ -117,7 +117,7 @@ public sealed class OpenApiContractTests
 
         var adminVideo = GetSchema(schemas, "AdminVideoResponse");
         var videoPlayback = GetSchema(schemas, "VideoPlaybackResponse");
-        var audioPlayback = GetSchema(schemas, "AudioPlaybackResponse");
+        var audioPlayback = GetSchema(schemas, "AudioResourcePlaybackResponse");
         adminVideo.GetProperty("properties").TryGetProperty("subtitles", out _)
             .Should().BeFalse();
         videoPlayback.GetProperty("properties").TryGetProperty("subtitles", out _)
@@ -140,6 +140,39 @@ public sealed class OpenApiContractTests
                 "CourseVideo");
     }
 
+    [Fact]
+    public async Task OpenApiShouldExposeAudioResourceContractWithoutAudioClipTypes()
+    {
+        await using var app = await CreateAppAsync();
+        var json = await app.GetTestClient().GetStringAsync(
+            "/openapi/v1.json",
+            TestContext.Current.CancellationToken);
+        using var document = JsonDocument.Parse(json);
+        var paths = document.RootElement.GetProperty("paths");
+
+        foreach (var path in new[]
+        {
+            "/api/admin/audio",
+            "/api/admin/audio/{id}",
+            "/api/admin/audio/{id}/name",
+            "/api/admin/audio/{id}/retry-upload",
+            "/api/admin/audio/{id}/reprocess",
+            "/api/audio/{id}/playback"
+        })
+        {
+            paths.TryGetProperty(path, out _).Should().BeTrue();
+        }
+
+        paths.EnumerateObject().Should().NotContain(path =>
+            path.Name.StartsWith("/api/admin/audio", StringComparison.Ordinal) &&
+            (path.Name.Contains("/publish", StringComparison.Ordinal) ||
+             path.Name.Contains("/unpublish", StringComparison.Ordinal) ||
+             path.Name.EndsWith("/retry", StringComparison.Ordinal)));
+        document.RootElement.GetProperty("components").GetProperty("schemas")
+            .EnumerateObject().Should().NotContain(schema =>
+                schema.Name.Contains("AudioClip", StringComparison.Ordinal));
+    }
+
     /// <summary>
     /// 创建只承载目标 endpoints 和 OpenAPI 文档的内存 Web 应用。
     /// </summary>
@@ -152,7 +185,6 @@ public sealed class OpenApiContractTests
         builder.Services.AddAuthorizationPolicy();
         builder.Services.AddSingleton(Mock.Of<IVideoService>());
         builder.Services.AddSingleton(Mock.Of<IVideoCategoryService>());
-        builder.Services.AddSingleton(Mock.Of<IAudioClipService>());
         builder.Services.AddSingleton(Mock.Of<IAudioResourceService>());
         builder.Services.AddSingleton(Mock.Of<IWordService>());
         builder.Services.AddSingleton(Mock.Of<IPaperService>());

@@ -5,7 +5,7 @@ using TinyLang.Interfaces;
 namespace TinyLang.Infrastructure;
 
 /// <summary>
-/// 通过 PostgreSQL SQLSTATE 和约束名称识别唯一约束冲突。
+/// 通过 PostgreSQL SQLSTATE 和约束名称识别唯一键、外键约束冲突。
 /// </summary>
 public sealed class PostgresDatabaseExceptionClassifier : IDatabaseExceptionClassifier
 {
@@ -40,6 +40,7 @@ public sealed class PostgresDatabaseExceptionClassifier : IDatabaseExceptionClas
             return false;
         }
 
-        return constraintNames.Contains(constraintName, StringComparer.OrdinalIgnoreCase);
+        return constraintNames.Length == 0 ||
+            constraintNames.Contains(constraintName, StringComparer.OrdinalIgnoreCase);
     }
 }

@@ -14,4 +14,13 @@ public interface IVideoDeliveryUrlService
     /// <param name="protectedPrefix">token 必须覆盖的规范化对象前缀。</param>
     /// <returns>访问地址；永久直链的失效时间为 null。</returns>
     VideoDeliveryUrl CreateUrl(string objectName, string protectedPrefix);
+
+    /// <summary>
+    /// 为受保护前缀内的对象创建临时读取地址。
+    /// </summary>
+    Task<VideoDeliveryUrl> CreateTemporaryUrlAsync(
+        string objectName,
+        string protectedPrefix,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default);
 }

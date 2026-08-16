@@ -101,6 +101,30 @@ public sealed class S3ObjectStorageServiceTests
     }
 
     [Fact]
+    public async Task PresignedGetShouldUseRequestedObjectAndExpiration()
+    {
+        GetPreSignedUrlRequest? capturedRequest = null;
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(5);
+        var s3Client = new Mock<IAmazonS3>();
+        s3Client.Setup(value => value.GetPreSignedURLAsync(
+                It.IsAny<GetPreSignedUrlRequest>()))
+            .Callback<GetPreSignedUrlRequest>(request => capturedRequest = request)
+            .ReturnsAsync("https://s3.example.com/presigned-audio");
+        var service = CreateService(s3Client.Object);
+
+        var result = await service.PresignGetObjectAsync(
+            "audios/id/outputs/version/audio.mp3",
+            expiresAt,
+            TestContext.Current.CancellationToken);
+
+        result.Should().Be("https://s3.example.com/presigned-audio");
+        capturedRequest.Should().NotBeNull();
+        capturedRequest!.Key.Should().Be("audios/id/outputs/version/audio.mp3");
+        capturedRequest.Verb.Should().Be(HttpVerb.GET);
+        capturedRequest.Expires.Should().Be(expiresAt.UtcDateTime);
+    }
+
+    [Fact]
     public async Task ShouldLockContentTypeInPutPresignedUrl()
     {
         GetPreSignedUrlRequest? capturedRequest = null;

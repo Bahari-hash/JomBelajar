@@ -55,4 +55,27 @@ public sealed class VideoDeliveryUrlServiceTests
             "https://oss.example.com/media/audios/id/outputs/version/audio.mp3");
         result.ExpiresAt.Should().BeNull();
     }
+
+    [Fact]
+    public async Task TemporaryAudioUrlShouldUsePresignedGetAndReturnExpiration()
+    {
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(5);
+        var storage = new Mock<IObjectStorageService>();
+        storage.Setup(value => value.PresignGetObjectAsync(
+                "audios/id/outputs/version/audio.mp3",
+                expiresAt,
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync("https://s3.example.com/presigned-audio");
+        var service = new VideoDeliveryUrlService(storage.Object);
+
+        var result = await service.CreateTemporaryUrlAsync(
+            "audios/id/outputs/version/audio.mp3",
+            "audios/id/outputs/version/",
+            expiresAt,
+            TestContext.Current.CancellationToken);
+
+        result.Should().Be(new TinyLang.Models.VideoDeliveryUrl(
+            "https://s3.example.com/presigned-audio",
+            expiresAt));
+    }
 }

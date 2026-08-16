@@ -41,6 +41,22 @@ public sealed class S3ObjectStorageService(
     }
 
     /// <inheritdoc />
+    public async Task<string> PresignGetObjectAsync(
+        string objectName,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await s3Client.GetPreSignedURLAsync(new GetPreSignedUrlRequest
+        {
+            BucketName = _settings.Bucket,
+            Key = objectName,
+            Verb = HttpVerb.GET,
+            Expires = expiresAt.UtcDateTime
+        });
+    }
+
+    /// <inheritdoc />
     public string GetPublicUrl(string objectName)
     {
         var encodedObjectName = string.Join(

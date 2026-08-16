@@ -20,7 +20,7 @@ public interface IDatabaseExceptionClassifier
     /// </summary>
     /// <param name="exception">EF Core 更新异常。</param>
     /// <param name="constraintNames">允许匹配的数据库约束名称。</param>
-    /// <returns>异常对应任一指定外键约束时返回 <see langword="true"/>。</returns>
+    /// <returns>未指定约束名时匹配任意外键冲突；否则仅匹配指定约束。</returns>
     bool IsForeignKeyConstraintViolation(
         DbUpdateException exception,
         params string[] constraintNames);

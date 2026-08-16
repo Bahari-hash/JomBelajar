@@ -24,6 +24,18 @@ public interface IObjectStorageService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 为指定对象创建在明确时间失效的临时 GET 地址。
+    /// </summary>
+    /// <param name="objectName">待读取的对象名称。</param>
+    /// <param name="expiresAt">地址的 UTC 失效时间。</param>
+    /// <param name="cancellationToken">用于取消请求的令牌。</param>
+    /// <returns>对象存储预签名读取地址。</returns>
+    Task<string> PresignGetObjectAsync(
+        string objectName,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 读取指定对象的大小和媒体类型。
     /// </summary>
     /// <param name="objectName">对象名称。</param>

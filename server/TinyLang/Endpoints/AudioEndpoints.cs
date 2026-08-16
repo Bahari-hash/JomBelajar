@@ -29,13 +29,12 @@ public static class AudioEndpoints
         var adminGroup = endpoints.MapGroup("/admin")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
-        adminGroup.MapPost("/audio", CreateAudioAsync);
         adminGroup.MapGet("/audio", GetAdminAudioAsync);
         adminGroup.MapGet("/audio/{id:guid}", GetAdminAudioByIdAsync);
-        adminGroup.MapPut("/audio/{id:guid}", UpdateAudioAsync);
-        adminGroup.MapPost("/audio/{id:guid}/publish", PublishAudioAsync);
-        adminGroup.MapPost("/audio/{id:guid}/unpublish", UnpublishAudioAsync);
-        adminGroup.MapPost("/audio/{id:guid}/retry", RetryAudioAsync);
+        adminGroup.MapPatch("/audio/{id:guid}/name", RenameAudioAsync);
+        adminGroup.MapPost("/audio/{id:guid}/retry-upload", RetryAudioUploadAsync);
+        adminGroup.MapPost("/audio/{id:guid}/reprocess", ReprocessAudioAsync);
+        adminGroup.MapDelete("/audio/{id:guid}", DeleteAudioAsync);
         adminGroup.MapPost("/audio/uploads/simple", InitializeSimpleUploadAsync)
             .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
         adminGroup.MapPost("/audio/uploads/multipart", InitializeMultipartUploadAsync)
@@ -137,105 +136,90 @@ public static class AudioEndpoints
     }
 
     /// <summary>
-    /// 创建音频草稿和首个持久化处理任务。
+    /// 返回音频资源管理分页列表。
     /// </summary>
-    public static async Task<Created<AdminAudioClipResponse>> CreateAudioAsync(
-        CreateAudioClipRequest request,
-        ClaimsPrincipal principal,
-        IAudioClipService audioService,
-        CancellationToken cancellationToken)
-    {
-        var response = await audioService.CreateAsync(
-            EndpointIdentity.GetUserId(principal),
-            request,
-            cancellationToken);
-        return TypedResults.Created($"/api/admin/audio/{response.Id}", response);
-    }
-
-    /// <summary>
-    /// 返回当前管理员的音频管理分页列表。
-    /// </summary>
-    public static async Task<Ok<PagedResponse<AdminAudioClipListItemResponse>>>
+    public static async Task<Ok<PagedResponse<AdminAudioResourceListItemResponse>>>
         GetAdminAudioAsync(
-            [AsParameters] AdminAudioClipListRequest request,
-            IAudioClipService audioService,
+            [AsParameters] AdminAudioResourceListRequest request,
+            IAudioResourceService audioService,
             CancellationToken cancellationToken)
         => TypedResults.Ok(await audioService.GetAdminListAsync(
             request,
             cancellationToken));
 
     /// <summary>
-    /// 返回当前管理员拥有的音频管理详情。
+    /// 返回音频资源管理详情。
     /// </summary>
-    public static async Task<Ok<AdminAudioClipResponse>> GetAdminAudioByIdAsync(
+    public static async Task<Ok<AdminAudioResourceResponse>> GetAdminAudioByIdAsync(
         Guid id,
-        IAudioClipService audioService,
+        IAudioResourceService audioService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await audioService.GetAdminByIdAsync(
             id,
             cancellationToken));
 
     /// <summary>
-    /// 更新当前管理员音频的展示元数据。
+    /// 修改音频资源的显示文件名。
     /// </summary>
-    public static async Task<Ok<AdminAudioClipResponse>> UpdateAudioAsync(
+    public static async Task<Ok<AdminAudioResourceResponse>> RenameAudioAsync(
         Guid id,
-        UpdateAudioClipRequest request,
+        RenameAudioResourceRequest request,
         ClaimsPrincipal principal,
-        IAudioClipService audioService,
+        IAudioResourceService audioService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await audioService.UpdateAsync(
+        => TypedResults.Ok(await audioService.RenameAsync(
             id,
             EndpointIdentity.GetUserId(principal),
             request,
             cancellationToken));
 
     /// <summary>
-    /// 幂等发布一个处理就绪的音频。
+    /// 为失败资源创建新的上传源并返回继续上传所需信息。
     /// </summary>
-    public static async Task<Ok<AdminAudioClipResponse>> PublishAudioAsync(
+    public static async Task<Ok<AudioUploadInitializationResponse>> RetryAudioUploadAsync(
+        Guid id,
+        InitializeAudioUploadRequest request,
+        ClaimsPrincipal principal,
+        IAudioResourceService audioService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await audioService.RetryUploadAsync(
+            id,
+            EndpointIdentity.GetUserId(principal),
+            request,
+            cancellationToken));
+
+    /// <summary>
+    /// 使用已有有效源重新处理失败资源。
+    /// </summary>
+    public static async Task<Ok<AdminAudioResourceResponse>> ReprocessAudioAsync(
         Guid id,
         ClaimsPrincipal principal,
-        IAudioClipService audioService,
+        IAudioResourceService audioService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await audioService.PublishAsync(
+        => TypedResults.Ok(await audioService.ReprocessAsync(
             id,
             EndpointIdentity.GetUserId(principal),
             cancellationToken));
 
     /// <summary>
-    /// 幂等下架一个已经发布的音频。
+    /// 删除未被业务模块引用的音频资源。
     /// </summary>
-    public static async Task<Ok<AdminAudioClipResponse>> UnpublishAudioAsync(
+    public static async Task<NoContent> DeleteAudioAsync(
         Guid id,
-        ClaimsPrincipal principal,
-        IAudioClipService audioService,
+        IAudioResourceService audioService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await audioService.UnpublishAsync(
-            id,
-            EndpointIdentity.GetUserId(principal),
-            cancellationToken));
-
-    /// <summary>
-    /// 为失败音频创建新的不可变输出版本任务。
-    /// </summary>
-    public static async Task<Ok<AdminAudioClipResponse>> RetryAudioAsync(
-        Guid id,
-        ClaimsPrincipal principal,
-        IAudioClipService audioService,
-        CancellationToken cancellationToken)
-        => TypedResults.Ok(await audioService.RetryAsync(
-            id,
-            EndpointIdentity.GetUserId(principal),
-            cancellationToken));
+    {
+        await audioService.DeleteAsync(id, cancellationToken);
+        return TypedResults.NoContent();
+    }
 
     /// <summary>
     /// 返回短期 MP3 地址并禁止播放授权响应缓存。
     /// </summary>
-    public static async Task<Ok<AudioPlaybackResponse>> GetPlaybackAsync(
+    public static async Task<Ok<AudioResourcePlaybackResponse>> GetPlaybackAsync(
         Guid id,
         HttpContext httpContext,
-        IAudioClipService audioService,
+        IAudioResourceService audioService,
         CancellationToken cancellationToken)
     {
         var response = await audioService.GetPlaybackAsync(id, cancellationToken);

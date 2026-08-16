@@ -56,7 +56,8 @@ public sealed class AudioResourceServiceTests
             media.Object,
             Mock.Of<IVideoDeliveryUrlService>(),
             Mock.Of<IDatabaseExceptionClassifier>(),
-            TimeProvider.System);
+            TimeProvider.System,
+            Mock.Of<IObjectStorageService>());
 
         var response = await service.InitializeSimpleUploadAsync(
             adminId,
@@ -103,7 +104,8 @@ public sealed class AudioResourceServiceTests
             media.Object,
             Mock.Of<IVideoDeliveryUrlService>(),
             Mock.Of<IDatabaseExceptionClassifier>(),
-            TimeProvider.System);
+            TimeProvider.System,
+            Mock.Of<IObjectStorageService>());
 
         await service.InitializeSimpleUploadAsync(adminId, new InitializeAudioUploadRequest
         {
@@ -172,6 +174,64 @@ public sealed class AudioResourceServiceTests
     }
 
     [Fact]
+    public async Task AdminListShouldSearchNormalizedNameAndReturnOriginalFullFileName()
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var expectedSource = CreateAudioMediaResource(adminId);
+        var otherSource = CreateAudioMediaResource(adminId);
+        var expected = AudioResource.Create(
+            adminId, "Lesson FINAL.MP3", expectedSource.Id);
+        expected.SourceMediaResource = expectedSource;
+        expected.Status = AudioResourceStatus.Ready;
+        var other = AudioResource.Create(adminId, "dialogue.mp3", otherSource.Id);
+        other.SourceMediaResource = otherSource;
+        other.Status = AudioResourceStatus.Ready;
+        db.AddRange(expectedSource, otherSource, expected, other);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db, Mock.Of<IMediaResourceService>());
+
+        var response = await service.GetAdminListAsync(
+            new AdminAudioResourceListRequest
+            {
+                Keyword = " lesson final ",
+                Status = AudioResourceStatus.Ready
+            },
+            TestContext.Current.CancellationToken);
+
+        response.Items.Should().ContainSingle().Which.Name
+            .Should().Be("Lesson FINAL.MP3");
+    }
+
+    [Fact]
+    public async Task RenameShouldPreserveDisplayNameAndUpdateNormalizedName()
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var source = CreateAudioMediaResource(adminId);
+        var audio = AudioResource.Create(adminId, "lesson.mp3", source.Id);
+        audio.SourceMediaResource = source;
+        db.AddRange(source, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db, Mock.Of<IMediaResourceService>());
+
+        var response = await service.RenameAsync(
+            audio.Id,
+            adminId,
+            new RenameAudioResourceRequest { Name = "Lesson FINAL.MP3" },
+            TestContext.Current.CancellationToken);
+
+        response.Name.Should().Be("Lesson FINAL.MP3");
+        audio.NormalizedName.Should().Be("lesson final.mp3");
+    }
+
+    [Fact]
     public async Task ConfirmUploadShouldQueueExactlyOneProcessingJob()
     {
         await using var db = new ApplicationDbContext(
@@ -190,7 +250,8 @@ public sealed class AudioResourceServiceTests
                 adminId,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(source);
-        var service = CreateService(db, media.Object);
+        var storage = new Mock<IObjectStorageService>();
+        var service = CreateService(db, media.Object, storage.Object);
 
         await service.ConfirmUploadAsync(
             audio.Id, adminId, TestContext.Current.CancellationToken);
@@ -416,7 +477,8 @@ public sealed class AudioResourceServiceTests
             Mock.Of<IMediaResourceService>(),
             Mock.Of<IVideoDeliveryUrlService>(),
             Mock.Of<IDatabaseExceptionClassifier>(),
-            TimeProvider.System);
+            TimeProvider.System,
+            Mock.Of<IObjectStorageService>());
 
         await service.ReprocessAsync(
             audio.Id,
@@ -476,7 +538,8 @@ public sealed class AudioResourceServiceTests
                 newSource.Id,
                 "https://media.example/retry",
                 newSource.StagingObjectName!));
-        var service = CreateService(db, media.Object);
+        var storage = new Mock<IObjectStorageService>();
+        var service = CreateService(db, media.Object, storage.Object);
 
         object response = await service.RetryUploadAsync(
             audio.Id,
@@ -497,8 +560,15 @@ public sealed class AudioResourceServiceTests
         upload.PresignedUrl.Should().Be("https://media.example/retry");
         audio.SourceMediaResourceId.Should().Be(newSource.Id);
         audio.Status.Should().Be(AudioResourceStatus.Uploading);
-        oldSource.Status.Should().Be(ResourceStatus.Expired);
-        oldSource.StagingObjectName.Should().Be("staging/audios/old-source.mp3");
+        (await db.MediaResources.AnyAsync(
+            value => value.Id == oldSource.Id,
+            TestContext.Current.CancellationToken)).Should().BeFalse();
+        storage.Verify(value => value.DeleteObjectAsync(
+            oldSource.ObjectName,
+            It.IsAny<CancellationToken>()), Times.Once);
+        storage.Verify(value => value.DeleteObjectAsync(
+            oldSource.StagingObjectName,
+            It.IsAny<CancellationToken>()), Times.Once);
         audio.CurrentOutputVersion.Should().Be(oldVersion);
         audio.OutputObjectName.Should().Be(oldOutput);
     }
@@ -552,7 +622,8 @@ public sealed class AudioResourceServiceTests
             media.Object,
             Mock.Of<IVideoDeliveryUrlService>(),
             Mock.Of<IDatabaseExceptionClassifier>(),
-            TimeProvider.System);
+            TimeProvider.System,
+            Mock.Of<IObjectStorageService>());
 
         await service.RetryUploadAsync(
             audio.Id,
@@ -575,15 +646,367 @@ public sealed class AudioResourceServiceTests
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task DeleteShouldRemoveResourceJobsAndSourceMediaRecord()
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var source = CreateAudioMediaResource(adminId);
+        var audio = AudioResource.Create(adminId, "lesson.mp3", source.Id);
+        audio.SourceMediaResource = source;
+        var job = new AudioProcessingJob
+        {
+            AudioResourceId = audio.Id,
+            AudioResource = audio,
+            OutputVersion = Guid.NewGuid()
+        };
+        db.AddRange(source, audio, job);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db, Mock.Of<IMediaResourceService>());
+
+        await service.DeleteAsync(audio.Id, TestContext.Current.CancellationToken);
+
+        (await db.AudioResources.CountAsync(TestContext.Current.CancellationToken))
+            .Should().Be(0);
+        (await db.AudioProcessingJobs.CountAsync(TestContext.Current.CancellationToken))
+            .Should().Be(0);
+        (await db.MediaResources.CountAsync(TestContext.Current.CancellationToken))
+            .Should().Be(0);
+    }
+
+    [Fact]
+    public async Task DeleteShouldNotMapUnrelatedDatabaseFailureToAudioInUse()
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var source = CreateAudioMediaResource(adminId);
+        var audio = AudioResource.Create(adminId, "lesson.mp3", source.Id);
+        audio.SourceMediaResource = source;
+        db.AddRange(source, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var failure = new DbUpdateException("write failed");
+        var context = new Mock<IApplicationDbContext>();
+        context.SetupGet(value => value.AudioResources).Returns(db.AudioResources);
+        context.SetupGet(value => value.AudioProcessingJobs).Returns(db.AudioProcessingJobs);
+        context.SetupGet(value => value.MediaResources).Returns(db.MediaResources);
+        context.Setup(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(failure);
+        var classifier = new Mock<IDatabaseExceptionClassifier>();
+        var service = new AudioResourceService(
+            context.Object,
+            Mock.Of<IMediaResourceService>(),
+            Mock.Of<IVideoDeliveryUrlService>(),
+            classifier.Object,
+            TimeProvider.System,
+            Mock.Of<IObjectStorageService>());
+
+        var action = () => service.DeleteAsync(
+            audio.Id,
+            TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<DbUpdateException>()
+            .Where(value => ReferenceEquals(value, failure));
+        classifier.Verify(value => value.IsForeignKeyConstraintViolation(
+            failure,
+            It.Is<string[]>(constraints => constraints.Length == 0)), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReadyPlaybackShouldReturnShortTermDeliveryWithoutObjectName()
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var source = CreateAudioMediaResource(adminId);
+        var audio = AudioResource.Create(adminId, "lesson.mp3", source.Id);
+        var version = Guid.NewGuid();
+        var objectName = $"audios/{audio.Id:N}/outputs/{version:N}/audio.mp3";
+        audio.SourceMediaResource = source;
+        audio.Status = AudioResourceStatus.Ready;
+        audio.DurationSeconds = 3.5;
+        audio.CurrentOutputVersion = version;
+        audio.OutputObjectName = objectName;
+        db.AddRange(source, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(5);
+        var delivery = new Mock<IVideoDeliveryUrlService>();
+        delivery.Setup(value => value.CreateTemporaryUrlAsync(
+                objectName,
+                $"audios/{audio.Id:N}/outputs/{version:N}/",
+                It.Is<DateTimeOffset>(value => value > DateTimeOffset.UtcNow),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VideoDeliveryUrl(
+                "https://media.example/audio.mp3",
+                expiresAt));
+        var service = new AudioResourceService(
+            db,
+            Mock.Of<IMediaResourceService>(),
+            delivery.Object,
+            Mock.Of<IDatabaseExceptionClassifier>(),
+            TimeProvider.System,
+            Mock.Of<IObjectStorageService>());
+
+        var response = await service.GetPlaybackAsync(
+            audio.Id,
+            TestContext.Current.CancellationToken);
+
+        response.Should().Be(new AudioResourcePlaybackResponse(
+            "https://media.example/audio.mp3",
+            expiresAt,
+            3.5));
+        typeof(AudioResourcePlaybackResponse).GetProperties()
+            .Select(value => value.Name)
+            .Should().NotContain("ObjectName");
+    }
+
+    [Theory]
+    [InlineData(AudioResourceStatus.Uploading)]
+    [InlineData(AudioResourceStatus.Queued)]
+    [InlineData(AudioResourceStatus.Processing)]
+    [InlineData(AudioResourceStatus.Failed)]
+    public async Task PlaybackShouldRejectNonReadyResource(AudioResourceStatus status)
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var source = CreateAudioMediaResource(adminId);
+        var audio = AudioResource.Create(adminId, "lesson.mp3", source.Id);
+        audio.SourceMediaResource = source;
+        audio.Status = status;
+        db.AddRange(source, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db, Mock.Of<IMediaResourceService>());
+
+        var action = () => service.GetPlaybackAsync(
+            audio.Id,
+            TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<ConflictException>();
+        exception.Which.ErrorCode.Should().Be(ErrorCodes.AudioNotReady);
+    }
+
+    [Fact]
+    public async Task PlaybackShouldRejectOutputOutsideCurrentVersionPrefix()
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var source = CreateAudioMediaResource(adminId);
+        var audio = AudioResource.Create(adminId, "lesson.mp3", source.Id);
+        audio.SourceMediaResource = source;
+        audio.Status = AudioResourceStatus.Ready;
+        audio.DurationSeconds = 3.5;
+        audio.CurrentOutputVersion = Guid.NewGuid();
+        audio.OutputObjectName = $"audios/{Guid.NewGuid():N}/outputs/{Guid.NewGuid():N}/audio.mp3";
+        db.AddRange(source, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db, Mock.Of<IMediaResourceService>());
+
+        var action = () => service.GetPlaybackAsync(
+            audio.Id,
+            TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<ConflictException>();
+        exception.Which.ErrorCode.Should().Be(ErrorCodes.AudioNotReady);
+    }
+
+    [Fact]
+    public async Task DeleteShouldCleanSourceStagingAndEveryKnownOutputVersionBeforeCommit()
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var source = CreateAudioMediaResource(adminId);
+        source.StagingObjectName = $"staging/{source.Id:N}/upload.mp3";
+        var audio = AudioResource.Create(adminId, "lesson.mp3", source.Id);
+        var oldVersion = Guid.NewGuid();
+        var currentVersion = Guid.NewGuid();
+        audio.SourceMediaResource = source;
+        audio.CurrentOutputVersion = currentVersion;
+        audio.OutputObjectName =
+            $"audios/{audio.Id:N}/outputs/{currentVersion:N}/audio.mp3";
+        var oldJob = new AudioProcessingJob
+        {
+            AudioResourceId = audio.Id,
+            AudioResource = audio,
+            OutputVersion = oldVersion,
+            Status = AudioProcessingJobStatus.Failed
+        };
+        var currentJob = new AudioProcessingJob
+        {
+            AudioResourceId = audio.Id,
+            AudioResource = audio,
+            OutputVersion = currentVersion,
+            Status = AudioProcessingJobStatus.Completed
+        };
+        db.AddRange(source, audio, oldJob, currentJob);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var oldObjectName =
+            $"audios/{audio.Id:N}/outputs/{oldVersion:N}/audio.mp3";
+        var currentObjectName =
+            $"audios/{audio.Id:N}/outputs/{currentVersion:N}/audio.mp3";
+        var storage = new Mock<IObjectStorageService>();
+        var service = CreateServiceWithOptionalStorage(
+            db,
+            storage.Object);
+
+        await service.DeleteAsync(audio.Id, TestContext.Current.CancellationToken);
+
+        storage.Verify(value => value.DeleteObjectAsync(
+            source.ObjectName, It.IsAny<CancellationToken>()), Times.Once);
+        storage.Verify(value => value.DeleteObjectAsync(
+            source.StagingObjectName, It.IsAny<CancellationToken>()), Times.Once);
+        storage.Verify(value => value.DeleteObjectAsync(
+            oldObjectName, It.IsAny<CancellationToken>()), Times.Once);
+        storage.Verify(value => value.DeleteObjectAsync(
+            currentObjectName, It.IsAny<CancellationToken>()), Times.Once);
+        storage.Verify(value => value.ListObjectNamesAsync(
+            It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteShouldNotCommitWhenOutputStorageCleanupFails()
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var source = CreateAudioMediaResource(adminId);
+        var audio = AudioResource.Create(adminId, "lesson.mp3", source.Id);
+        var version = Guid.NewGuid();
+        audio.SourceMediaResource = source;
+        var job = new AudioProcessingJob
+        {
+            AudioResourceId = audio.Id,
+            AudioResource = audio,
+            OutputVersion = version,
+            Status = AudioProcessingJobStatus.Failed
+        };
+        db.AddRange(source, audio, job);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var outputObjectName =
+            $"audios/{audio.Id:N}/outputs/{version:N}/audio.mp3";
+        var storage = new Mock<IObjectStorageService>();
+        var failure = new InvalidOperationException("storage unavailable");
+        storage.Setup(value => value.DeleteObjectAsync(
+                outputObjectName,
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(failure);
+        var transaction = new Mock<IApplicationDbTransaction>();
+        var context = new Mock<IApplicationDbContext>();
+        context.SetupGet(value => value.AudioResources).Returns(db.AudioResources);
+        context.SetupGet(value => value.AudioProcessingJobs)
+            .Returns(db.AudioProcessingJobs);
+        context.SetupGet(value => value.MediaResources).Returns(db.MediaResources);
+        context.Setup(value => value.BeginTransactionAsync(
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction.Object);
+        context.Setup(value => value.AcquireAudioResourceLockAsync(
+                audio.Id,
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        context.Setup(value => value.SaveChangesAsync(
+                It.IsAny<CancellationToken>()))
+            .Returns((CancellationToken token) => db.SaveChangesAsync(token));
+        var service = CreateServiceWithOptionalStorage(
+            context.Object,
+            storage.Object);
+
+        var action = () => service.DeleteAsync(
+            audio.Id,
+            TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<InvalidOperationException>()
+            .Where(value => ReferenceEquals(value, failure));
+        transaction.Verify(value => value.CommitAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteShouldNotCommitWhenSourceStorageCleanupFails()
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var source = CreateAudioMediaResource(adminId);
+        var audio = AudioResource.Create(adminId, "lesson.mp3", source.Id);
+        audio.SourceMediaResource = source;
+        db.AddRange(source, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var storage = new Mock<IObjectStorageService>();
+        storage.Setup(value => value.DeleteObjectAsync(
+                source.ObjectName,
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("storage unavailable"));
+        var transaction = new Mock<IApplicationDbTransaction>();
+        var context = new Mock<IApplicationDbContext>();
+        context.SetupGet(value => value.AudioResources).Returns(db.AudioResources);
+        context.SetupGet(value => value.AudioProcessingJobs)
+            .Returns(db.AudioProcessingJobs);
+        context.SetupGet(value => value.MediaResources).Returns(db.MediaResources);
+        context.Setup(value => value.BeginTransactionAsync(
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction.Object);
+        context.Setup(value => value.AcquireAudioResourceLockAsync(
+                audio.Id,
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        context.Setup(value => value.SaveChangesAsync(
+                It.IsAny<CancellationToken>()))
+            .Returns((CancellationToken token) => db.SaveChangesAsync(token));
+        var service = CreateServiceWithOptionalStorage(
+            context.Object,
+            storage.Object);
+
+        var action = () => service.DeleteAsync(
+            audio.Id,
+            TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<InvalidOperationException>();
+        transaction.Verify(value => value.CommitAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static AudioResourceService CreateService(
         ApplicationDbContext db,
-        IMediaResourceService mediaResourceService)
+        IMediaResourceService mediaResourceService,
+        IObjectStorageService? objectStorageService = null)
         => new(
             db,
             mediaResourceService,
             Mock.Of<IVideoDeliveryUrlService>(),
             Mock.Of<IDatabaseExceptionClassifier>(),
-            TimeProvider.System);
+            TimeProvider.System,
+            objectStorageService ?? Mock.Of<IObjectStorageService>());
+
+    private static AudioResourceService CreateServiceWithOptionalStorage(
+        IApplicationDbContext db,
+        IObjectStorageService objectStorage)
+        => new(
+            db,
+            Mock.Of<IMediaResourceService>(),
+            Mock.Of<IVideoDeliveryUrlService>(),
+            Mock.Of<IDatabaseExceptionClassifier>(),
+            TimeProvider.System,
+            objectStorage);
 
     private static MediaResource CreateAudioMediaResource(Guid adminId)
         => new()

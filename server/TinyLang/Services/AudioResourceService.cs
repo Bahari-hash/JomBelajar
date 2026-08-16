@@ -15,24 +15,28 @@ namespace TinyLang.Services;
 public sealed class AudioResourceService : IAudioResourceService
 {
     private const int MaximumAudioNameLength = 255;
+    private static readonly TimeSpan PlaybackUrlLifetime = TimeSpan.FromMinutes(5);
     private readonly IApplicationDbContext _db;
     private readonly IMediaResourceService _mediaResourceService;
     private readonly IVideoDeliveryUrlService _deliveryUrlService;
     private readonly IDatabaseExceptionClassifier _databaseExceptionClassifier;
     private readonly TimeProvider _timeProvider;
+    private readonly IObjectStorageService _objectStorage;
 
     public AudioResourceService(
         IApplicationDbContext db,
         IMediaResourceService mediaResourceService,
         IVideoDeliveryUrlService deliveryUrlService,
         IDatabaseExceptionClassifier databaseExceptionClassifier,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IObjectStorageService objectStorage)
     {
         _db = db;
         _mediaResourceService = mediaResourceService;
         _deliveryUrlService = deliveryUrlService;
         _databaseExceptionClassifier = databaseExceptionClassifier;
         _timeProvider = timeProvider;
+        _objectStorage = objectStorage;
     }
 
     public async Task<AudioUploadInitializationResponse> InitializeSimpleUploadAsync(
@@ -296,13 +300,20 @@ public sealed class AudioResourceService : IAudioResourceService
             : throw new RequestValidationException(ErrorCodes.AudioUploadIncomplete);
         var source = await _db.MediaResources.SingleAsync(
             value => value.Id == media.ResourceId, cancellationToken);
-        previousSource.Status = ResourceStatus.Expired;
-        previousSource.Url = null;
-        previousSource.StagingObjectName ??= previousSource.ObjectName;
-        previousSource.UploadExpiresAt = null;
-        previousSource.ConcurrencyStamp = Guid.NewGuid();
+        var previousSourceObjectNames = new HashSet<string>(StringComparer.Ordinal)
+        {
+            previousSource.ObjectName
+        };
+        if (previousSource.StagingObjectName is { } previousStagingObjectName)
+            previousSourceObjectNames.Add(previousStagingObjectName);
         resource.ReplaceSource(adminId, source);
+        _db.MediaResources.Remove(previousSource);
         await SaveAsync(cancellationToken);
+        await CleanupDeletedObjectsAsync(
+            resource.Id,
+            previousSourceObjectNames,
+            [],
+            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new AudioUploadInitializationResponse(
             resource.Id,
@@ -354,16 +365,43 @@ public sealed class AudioResourceService : IAudioResourceService
         Guid audioResourceId,
         CancellationToken cancellationToken = default)
     {
+        await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        await _db.AcquireAudioResourceLockAsync(audioResourceId, cancellationToken);
         var resource = await FindAudioResourceAsync(audioResourceId, cancellationToken);
+        var source = await _db.MediaResources.SingleAsync(
+            value => value.Id == resource.SourceMediaResourceId,
+            cancellationToken);
+        var jobs = await _db.AudioProcessingJobs
+            .Where(value => value.AudioResourceId == resource.Id)
+            .ToListAsync(cancellationToken);
+        var outputVersions = jobs.Select(value => value.OutputVersion).ToHashSet();
+        if (resource.CurrentOutputVersion is { } currentOutputVersion)
+            outputVersions.Add(currentOutputVersion);
+        var sourceObjectNames = new HashSet<string>(StringComparer.Ordinal)
+        {
+            source.ObjectName
+        };
+        if (source.StagingObjectName is { } stagingObjectName)
+            sourceObjectNames.Add(stagingObjectName);
+        _db.AudioProcessingJobs.RemoveRange(jobs);
         _db.AudioResources.Remove(resource);
+        _db.MediaResources.Remove(source);
         try
         {
             await SaveAsync(cancellationToken);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (
+            _databaseExceptionClassifier.IsForeignKeyConstraintViolation(exception))
         {
             throw ConflictException.Create(ErrorCodes.AudioInUse);
         }
+
+        await CleanupDeletedObjectsAsync(
+            resource.Id,
+            sourceObjectNames,
+            outputVersions,
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<AudioResourcePlaybackResponse> GetPlaybackAsync(
@@ -383,7 +421,12 @@ public sealed class AudioResourceService : IAudioResourceService
         var expectedObjectName = $"{prefix}audio.mp3";
         if (!string.Equals(resource.OutputObjectName, expectedObjectName, StringComparison.Ordinal))
             throw ConflictException.Create(ErrorCodes.AudioNotReady);
-        var delivery = _deliveryUrlService.CreateUrl(expectedObjectName, prefix);
+        var expiresAt = _timeProvider.GetUtcNow().Add(PlaybackUrlLifetime);
+        var delivery = await _deliveryUrlService.CreateTemporaryUrlAsync(
+            expectedObjectName,
+            prefix,
+            expiresAt,
+            cancellationToken);
         return new AudioResourcePlaybackResponse(delivery.Url, delivery.ExpiresAt, duration);
     }
 
@@ -432,6 +475,22 @@ public sealed class AudioResourceService : IAudioResourceService
         }
 
         throw ConflictException.Create(ErrorCodes.AudioNameConflict);
+    }
+
+    private async Task CleanupDeletedObjectsAsync(
+        Guid audioResourceId,
+        IReadOnlyCollection<string> sourceObjectNames,
+        IReadOnlyCollection<Guid> outputVersions,
+        CancellationToken cancellationToken)
+    {
+        foreach (var objectName in sourceObjectNames)
+            await _objectStorage.DeleteObjectAsync(objectName, cancellationToken);
+
+        foreach (var outputVersion in outputVersions)
+        {
+            var objectName = $"{GetOutputPrefix(audioResourceId, outputVersion)}audio.mp3";
+            await _objectStorage.DeleteObjectAsync(objectName, cancellationToken);
+        }
     }
 
     private static string CreateNameCandidate(string originalName, int sequence)

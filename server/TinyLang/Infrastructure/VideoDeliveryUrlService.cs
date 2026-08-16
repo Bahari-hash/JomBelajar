@@ -35,6 +35,29 @@ public sealed class VideoDeliveryUrlService : IVideoDeliveryUrlService
             ExpiresAt: null);
     }
 
+    /// <inheritdoc />
+    public async Task<VideoDeliveryUrl> CreateTemporaryUrlAsync(
+        string objectName,
+        string protectedPrefix,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedObjectName = NormalizeObjectPath(objectName, allowTrailingSlash: false);
+        var normalizedPrefix = NormalizeObjectPath(protectedPrefix, allowTrailingSlash: true);
+        if (!normalizedObjectName.StartsWith(normalizedPrefix, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "The object name is outside the protected prefix.",
+                nameof(objectName));
+        }
+
+        var url = await _objectStorage.PresignGetObjectAsync(
+            normalizedObjectName,
+            expiresAt,
+            cancellationToken);
+        return new VideoDeliveryUrl(url, expiresAt);
+    }
+
     /// <summary>
     /// 规范化服务端对象路径并拒绝绝对路径、空段和目录穿越。
     /// </summary>

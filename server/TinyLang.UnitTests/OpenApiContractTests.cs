@@ -153,6 +153,7 @@ public sealed class OpenApiContractTests
         builder.Services.AddSingleton(Mock.Of<IVideoService>());
         builder.Services.AddSingleton(Mock.Of<IVideoCategoryService>());
         builder.Services.AddSingleton(Mock.Of<IAudioClipService>());
+        builder.Services.AddSingleton(Mock.Of<IAudioResourceService>());
         builder.Services.AddSingleton(Mock.Of<IWordService>());
         builder.Services.AddSingleton(Mock.Of<IPaperService>());
         builder.Services.AddSingleton(Mock.Of<IPaperAttemptService>());

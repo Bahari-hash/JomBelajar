@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.EntityFrameworkCore;
 using TinyLang.Dtos;
 using TinyLang.Entities;
@@ -13,6 +14,7 @@ namespace TinyLang.Services;
 /// </summary>
 public sealed class AudioResourceService : IAudioResourceService
 {
+    private const int MaximumAudioNameLength = 255;
     private readonly IApplicationDbContext _db;
     private readonly IMediaResourceService _mediaResourceService;
     private readonly IVideoDeliveryUrlService _deliveryUrlService;
@@ -38,6 +40,7 @@ public sealed class AudioResourceService : IAudioResourceService
         InitializeAudioUploadRequest request,
         CancellationToken cancellationToken = default)
     {
+        await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
         var media = await _mediaResourceService.CreatePendingResourceAndPresignAsync(
             adminId,
             request.OriginalName,
@@ -46,17 +49,18 @@ public sealed class AudioResourceService : IAudioResourceService
             request.ContentType,
             ResourceModule.Audio,
             cancellationToken);
-        return await CreateAudioResourceAsync(
+        var response = await CreateAudioResourceAsync(
             adminId,
             request.OriginalName,
             media.ResourceId,
             media.PresignedUrl,
-            media.ObjectName,
             null,
             null,
             null,
             null,
             cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return response;
     }
 
     public async Task<AudioUploadInitializationResponse> InitializeMultipartUploadAsync(
@@ -64,6 +68,7 @@ public sealed class AudioResourceService : IAudioResourceService
         InitializeAudioUploadRequest request,
         CancellationToken cancellationToken = default)
     {
+        await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
         var multipart = await _mediaResourceService.CreateMultipartUploadAsync(
             adminId,
             request.OriginalName,
@@ -72,19 +77,29 @@ public sealed class AudioResourceService : IAudioResourceService
             request.ContentType,
             ResourceModule.Audio,
             cancellationToken);
-        var media = await _db.MediaResources.AsNoTracking()
-            .SingleAsync(value => value.Id == multipart.ResourceId, cancellationToken);
-        return await CreateAudioResourceAsync(
-            adminId,
-            request.OriginalName,
-            multipart.ResourceId,
-            null,
-            media.StagingObjectName ?? media.ObjectName,
-            multipart.SessionId,
-            checked((int)multipart.PartSize),
-            multipart.PartCount,
-            multipart.ExpiresAt,
-            cancellationToken);
+        try
+        {
+            var response = await CreateAudioResourceAsync(
+                adminId,
+                request.OriginalName,
+                multipart.ResourceId,
+                null,
+                multipart.SessionId,
+                checked((int)multipart.PartSize),
+                multipart.PartCount,
+                multipart.ExpiresAt,
+                cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return response;
+        }
+        catch
+        {
+            await TryAbortMultipartAsync(
+                multipart.SessionId,
+                adminId,
+                cancellationToken);
+            throw;
+        }
     }
 
     public async Task ConfirmUploadAsync(
@@ -92,17 +107,31 @@ public sealed class AudioResourceService : IAudioResourceService
         Guid adminId,
         CancellationToken cancellationToken = default)
     {
+        await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        await _db.AcquireAudioResourceLockAsync(audioResourceId, cancellationToken);
         var resource = await FindAudioResourceAsync(audioResourceId, cancellationToken);
         if (resource.Status is AudioResourceStatus.Queued or
             AudioResourceStatus.Processing or
             AudioResourceStatus.Ready)
+        {
+            await transaction.CommitAsync(cancellationToken);
             return;
+        }
         if (resource.Status != AudioResourceStatus.Uploading)
             throw ConflictException.Create(ErrorCodes.AudioStatusConflict);
-        await _mediaResourceService.ConfirmAsync(
-            resource.SourceMediaResourceId,
-            adminId,
-            cancellationToken);
+        try
+        {
+            await _mediaResourceService.ConfirmAsync(
+                resource.SourceMediaResourceId,
+                adminId,
+                cancellationToken);
+        }
+        catch (ConflictException exception) when (
+            exception.ErrorCode is ErrorCodes.MediaResourceUploadIncomplete or
+                ErrorCodes.MediaResourceFinalizing)
+        {
+            throw ConflictException.Create(ErrorCodes.AudioUploadIncomplete);
+        }
         resource.Queue(adminId);
         var activeJob = await _db.AudioProcessingJobs.AnyAsync(
             value => value.AudioResourceId == resource.Id &&
@@ -117,6 +146,49 @@ public sealed class AudioResourceService : IAudioResourceService
                 OutputVersion = Guid.NewGuid()
             });
         await SaveAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MultipartPartPresignResult>> PresignMultipartPartsAsync(
+        Guid sessionId,
+        Guid adminId,
+        IReadOnlyCollection<int> partNumbers,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAudioMultipartSessionAsync(sessionId, adminId, cancellationToken);
+        return await _mediaResourceService.PresignMultipartPartsAsync(
+            sessionId, adminId, partNumbers, cancellationToken);
+    }
+
+    public async Task<MultipartUploadStatusResult> GetMultipartUploadAsync(
+        Guid sessionId,
+        Guid adminId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAudioMultipartSessionAsync(sessionId, adminId, cancellationToken);
+        return await _mediaResourceService.GetMultipartUploadAsync(
+            sessionId, adminId, cancellationToken);
+    }
+
+    public async Task<MultipartUploadStatusResult> CompleteMultipartUploadAsync(
+        Guid sessionId,
+        Guid adminId,
+        IReadOnlyCollection<ObjectStorageUploadedPart> parts,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAudioMultipartSessionAsync(sessionId, adminId, cancellationToken);
+        return await _mediaResourceService.CompleteMultipartUploadAsync(
+            sessionId, adminId, parts, cancellationToken);
+    }
+
+    public async Task AbortMultipartUploadAsync(
+        Guid sessionId,
+        Guid adminId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAudioMultipartSessionAsync(sessionId, adminId, cancellationToken);
+        await _mediaResourceService.AbortMultipartUploadAsync(
+            sessionId, adminId, cancellationToken);
     }
 
     public async Task<PagedResponse<AdminAudioResourceListItemResponse>> GetAdminListAsync(
@@ -271,35 +343,106 @@ public sealed class AudioResourceService : IAudioResourceService
         string originalName,
         Guid mediaResourceId,
         string? presignedUrl,
-        string objectName,
         Guid? sessionId,
         int? partSize,
         int? partCount,
         DateTimeOffset? expiresAt,
         CancellationToken cancellationToken)
     {
-        var resource = AudioResource.Create(adminId, originalName, mediaResourceId);
-        _db.AudioResources.Add(resource);
+        for (var sequence = 1; sequence < int.MaxValue; sequence++)
+        {
+            var candidateName = CreateNameCandidate(originalName, sequence);
+            var normalizedName = AudioResource.NormalizeName(candidateName);
+            if (await _db.AudioResources.AsNoTracking()
+                    .AnyAsync(value => value.NormalizedName == normalizedName, cancellationToken))
+            {
+                continue;
+            }
+
+            var resource = AudioResource.Create(adminId, candidateName, mediaResourceId);
+            _db.AudioResources.Add(resource);
+            try
+            {
+                await SaveAsync(cancellationToken);
+                return new AudioUploadInitializationResponse(
+                    resource.Id,
+                    mediaResourceId,
+                    presignedUrl,
+                    sessionId,
+                    partSize,
+                    partCount,
+                    expiresAt);
+            }
+            catch (DbUpdateException exception) when (
+                _databaseExceptionClassifier.IsUniqueConstraintViolation(
+                    exception,
+                    "IX_audio_resources_NormalizedName"))
+            {
+                _db.AudioResources.Remove(resource);
+            }
+        }
+
+        throw ConflictException.Create(ErrorCodes.AudioNameConflict);
+    }
+
+    private static string CreateNameCandidate(string originalName, int sequence)
+    {
+        var displayName = originalName.Trim();
+        if (sequence == 1)
+            return displayName;
+
+        var extension = Path.GetExtension(displayName);
+        var stem = Path.GetFileNameWithoutExtension(displayName);
+        var suffix = $" ({sequence})";
+        var maximumStemLength = MaximumAudioNameLength - suffix.Length - extension.Length;
+        if (stem.Length > maximumStemLength)
+            stem = stem[..maximumStemLength];
+        return $"{stem}{suffix}{extension}";
+    }
+
+    private async Task TryAbortMultipartAsync(
+        Guid sessionId,
+        Guid adminId,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            await SaveAsync(cancellationToken);
+            await _mediaResourceService.AbortMultipartUploadAsync(
+                sessionId,
+                adminId,
+                cancellationToken);
         }
-        catch (DbUpdateException exception) when (
-            _databaseExceptionClassifier.IsUniqueConstraintViolation(
-                exception,
-                "IX_audio_resources_NormalizedName"))
+        catch (Exception exception) when (
+            exception is not OperationCanceledException)
         {
-            throw ConflictException.Create(ErrorCodes.AudioNameConflict);
+            // The initialization failure remains authoritative; maintenance can clean an orphaned provider session.
         }
-        return new AudioUploadInitializationResponse(
-            resource.Id,
-            mediaResourceId,
-            presignedUrl,
-            objectName,
-            sessionId,
-            partSize,
-            partCount,
-            expiresAt);
+    }
+
+    private async Task EnsureAudioMultipartSessionAsync(
+        Guid sessionId,
+        Guid adminId,
+        CancellationToken cancellationToken)
+    {
+        var session = await _db.MultipartUploadSessions.AsNoTracking()
+            .Where(value => value.Id == sessionId)
+            .Select(value => new
+            {
+                value.UploaderId,
+                value.MediaResourceId,
+                value.MediaResource.Module
+            })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.MultipartUploadNotFound);
+        if (session.UploaderId != adminId)
+            throw ForbiddenException.Create(ErrorCodes.MultipartUploadOwnershipMismatch);
+        if (session.Module != ResourceModule.Audio ||
+            !await _db.AudioResources.AsNoTracking().AnyAsync(
+                value => value.SourceMediaResourceId == session.MediaResourceId,
+                cancellationToken))
+        {
+            throw NotFoundException.Create(ErrorCodes.MultipartUploadNotFound);
+        }
     }
 
     private async Task<AudioResource> FindAudioResourceAsync(

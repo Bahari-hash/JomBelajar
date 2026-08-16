@@ -1,4 +1,5 @@
 using TinyLang.Dtos;
+using TinyLang.Models;
 
 namespace TinyLang.Services;
 
@@ -19,6 +20,28 @@ public interface IAudioResourceService
 
     Task ConfirmUploadAsync(
         Guid audioResourceId,
+        Guid adminId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<MultipartPartPresignResult>> PresignMultipartPartsAsync(
+        Guid sessionId,
+        Guid adminId,
+        IReadOnlyCollection<int> partNumbers,
+        CancellationToken cancellationToken = default);
+
+    Task<MultipartUploadStatusResult> GetMultipartUploadAsync(
+        Guid sessionId,
+        Guid adminId,
+        CancellationToken cancellationToken = default);
+
+    Task<MultipartUploadStatusResult> CompleteMultipartUploadAsync(
+        Guid sessionId,
+        Guid adminId,
+        IReadOnlyCollection<ObjectStorageUploadedPart> parts,
+        CancellationToken cancellationToken = default);
+
+    Task AbortMultipartUploadAsync(
+        Guid sessionId,
         Guid adminId,
         CancellationToken cancellationToken = default);
 

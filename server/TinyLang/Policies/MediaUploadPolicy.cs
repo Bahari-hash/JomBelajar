@@ -156,6 +156,7 @@ public sealed class MediaUploadPolicy(IOptions<UploadSettings> options)
     public static bool IsSafeFileName(string? originalName)
         => !string.IsNullOrWhiteSpace(originalName) &&
             originalName is not "." and not ".." &&
+            !originalName.Any(char.IsControl) &&
             !originalName.Contains('/') &&
             !originalName.Contains('\\');
 

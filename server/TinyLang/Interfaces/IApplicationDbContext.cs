@@ -61,4 +61,10 @@ public interface IApplicationDbContext
     Task AcquireUploaderActivationLockAsync(
         Guid uploaderId,
         CancellationToken cancellationToken = default);
+    /// <summary>
+    /// 在当前事务内串行化同一音频资源的上传确认。
+    /// </summary>
+    Task AcquireAudioResourceLockAsync(
+        Guid audioResourceId,
+        CancellationToken cancellationToken = default);
 }

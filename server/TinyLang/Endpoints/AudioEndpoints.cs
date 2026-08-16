@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using TinyLang.Constants;
 using TinyLang.Dtos;
+using TinyLang.Models;
 using TinyLang.Services;
 
 namespace TinyLang.Endpoints;
@@ -35,8 +36,104 @@ public static class AudioEndpoints
         adminGroup.MapPost("/audio/{id:guid}/publish", PublishAudioAsync);
         adminGroup.MapPost("/audio/{id:guid}/unpublish", UnpublishAudioAsync);
         adminGroup.MapPost("/audio/{id:guid}/retry", RetryAudioAsync);
+        adminGroup.MapPost("/audio/uploads/simple", InitializeSimpleUploadAsync)
+            .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
+        adminGroup.MapPost("/audio/uploads/multipart", InitializeMultipartUploadAsync)
+            .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
+        adminGroup.MapPut("/audio/{id:guid}/upload/confirm", ConfirmAudioUploadAsync);
+        adminGroup.MapPost("/audio/multipart/{sessionId:guid}/parts/presign", PresignAudioMultipartPartsAsync)
+            .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
+        adminGroup.MapGet("/audio/multipart/{sessionId:guid}", GetAudioMultipartUploadAsync);
+        adminGroup.MapPost("/audio/multipart/{sessionId:guid}/complete", CompleteAudioMultipartUploadAsync)
+            .RequireRateLimiting(RateLimitPolicies.UploadCommandLimit);
+        adminGroup.MapDelete("/audio/multipart/{sessionId:guid}", AbortAudioMultipartUploadAsync)
+            .RequireRateLimiting(RateLimitPolicies.UploadCommandLimit);
 
         return endpoints;
+    }
+
+    public static async Task<Created<AudioUploadInitializationResponse>> InitializeSimpleUploadAsync(
+        InitializeAudioUploadRequest request,
+        ClaimsPrincipal principal,
+        IAudioResourceService audioService,
+        CancellationToken cancellationToken)
+    {
+        var response = await audioService.InitializeSimpleUploadAsync(
+            EndpointIdentity.GetUserId(principal), request, cancellationToken);
+        return TypedResults.Created($"/api/admin/audio/{response.AudioResourceId}", response);
+    }
+
+    public static async Task<Created<AudioUploadInitializationResponse>> InitializeMultipartUploadAsync(
+        InitializeAudioUploadRequest request,
+        ClaimsPrincipal principal,
+        IAudioResourceService audioService,
+        CancellationToken cancellationToken)
+    {
+        var response = await audioService.InitializeMultipartUploadAsync(
+            EndpointIdentity.GetUserId(principal), request, cancellationToken);
+        return TypedResults.Created($"/api/admin/audio/{response.AudioResourceId}", response);
+    }
+
+    public static async Task<NoContent> ConfirmAudioUploadAsync(
+        Guid id,
+        ClaimsPrincipal principal,
+        IAudioResourceService audioService,
+        CancellationToken cancellationToken)
+    {
+        await audioService.ConfirmUploadAsync(
+            id, EndpointIdentity.GetUserId(principal), cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    public static async Task<Ok<IReadOnlyList<MultipartPartPresignResponse>>> PresignAudioMultipartPartsAsync(
+        Guid sessionId,
+        MultipartPartPresignRequest request,
+        ClaimsPrincipal principal,
+        IAudioResourceService audioResourceService,
+        CancellationToken cancellationToken)
+    {
+        var results = await audioResourceService.PresignMultipartPartsAsync(
+            sessionId, EndpointIdentity.GetUserId(principal), request.PartNumbers, cancellationToken);
+        return TypedResults.Ok<IReadOnlyList<MultipartPartPresignResponse>>(
+            results.Select(value => new MultipartPartPresignResponse(
+                value.PartNumber, value.PresignedUrl, value.ContentLength, value.ExpiresAt)).ToArray());
+    }
+
+    public static async Task<Ok<MultipartUploadStatusResponse>> GetAudioMultipartUploadAsync(
+        Guid sessionId,
+        ClaimsPrincipal principal,
+        IAudioResourceService audioResourceService,
+        CancellationToken cancellationToken)
+    {
+        var result = await audioResourceService.GetMultipartUploadAsync(
+            sessionId, EndpointIdentity.GetUserId(principal), cancellationToken);
+        return TypedResults.Ok(ToMultipartResponse(result));
+    }
+
+    public static async Task<Accepted<MultipartUploadStatusResponse>> CompleteAudioMultipartUploadAsync(
+        Guid sessionId,
+        CompleteMultipartUploadRequest request,
+        ClaimsPrincipal principal,
+        IAudioResourceService audioResourceService,
+        CancellationToken cancellationToken)
+    {
+        var result = await audioResourceService.CompleteMultipartUploadAsync(
+            sessionId,
+            EndpointIdentity.GetUserId(principal),
+            request.Parts.Select(value => new ObjectStorageUploadedPart(value.PartNumber, value.ETag)).ToArray(),
+            cancellationToken);
+        return TypedResults.Accepted($"/api/admin/audio/multipart/{sessionId}", ToMultipartResponse(result));
+    }
+
+    public static async Task<NoContent> AbortAudioMultipartUploadAsync(
+        Guid sessionId,
+        ClaimsPrincipal principal,
+        IAudioResourceService audioResourceService,
+        CancellationToken cancellationToken)
+    {
+        await audioResourceService.AbortMultipartUploadAsync(
+            sessionId, EndpointIdentity.GetUserId(principal), cancellationToken);
+        return TypedResults.NoContent();
     }
 
     /// <summary>
@@ -145,4 +242,18 @@ public static class AudioEndpoints
         httpContext.Response.Headers.CacheControl = "private, no-store";
         return TypedResults.Ok(response);
     }
+
+    private static MultipartUploadStatusResponse ToMultipartResponse(
+        MultipartUploadStatusResult result)
+        => new(
+            result.ResourceId,
+            result.SessionId,
+            result.Status,
+            result.PartSize,
+            result.PartCount,
+            result.ExpiresAt,
+            result.UploadedParts.Select(value => new UploadedMultipartPartResponse(
+                value.PartNumber,
+                value.ETag,
+                value.Size)).ToArray());
 }

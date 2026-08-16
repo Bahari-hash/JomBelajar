@@ -97,7 +97,6 @@ public sealed record AudioUploadInitializationResponse(
     Guid AudioResourceId,
     Guid MediaResourceId,
     string? PresignedUrl,
-    string ObjectName,
     Guid? MultipartSessionId,
     int? PartSize,
     int? PartCount,

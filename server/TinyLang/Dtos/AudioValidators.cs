@@ -1,8 +1,57 @@
 using FluentValidation;
+using TinyLang.Entities.Enums;
 using TinyLang.Exceptions;
 using TinyLang.Extensions;
+using TinyLang.Policies;
 
 namespace TinyLang.Dtos;
+
+/// <summary>
+/// 根据音频模块上传策略校验初始化请求的文件元数据。
+/// </summary>
+public sealed class InitializeAudioUploadRequestValidator
+    : AbstractValidator<InitializeAudioUploadRequest>
+{
+    public InitializeAudioUploadRequestValidator(
+        MediaUploadPolicy policy)
+    {
+        RuleFor(x => x.OriginalName)
+            .Cascade(CascadeMode.Stop)
+            .NotEmpty().WithErrKey(ErrorCodes.MediaOriginalNameRequired)
+            .MaximumLength(255).WithErrKey(ErrorCodes.MediaOriginalNameLengthLimit)
+            .Must(MediaUploadPolicy.IsSafeFileName)
+            .WithErrKey(ErrorCodes.MediaOriginalNameInvalid);
+
+        RuleFor(x => x.Extension)
+            .Cascade(CascadeMode.Stop)
+            .NotEmpty().WithErrKey(ErrorCodes.MediaExtensionRequired)
+            .MaximumLength(16).WithErrKey(ErrorCodes.MediaExtensionInvalid)
+            .Must(extension => policy.IsExtensionAllowed(ResourceModule.Audio, extension))
+            .WithErrKey(ErrorCodes.MediaExtensionInvalid);
+
+        RuleFor(x => x.Extension)
+            .Must((request, extension) => MediaUploadPolicy.ExtensionMatchesName(
+                request.OriginalName,
+                extension))
+            .WithErrKey(ErrorCodes.MediaExtensionMismatch);
+
+        RuleFor(x => x.ContentType)
+            .Cascade(CascadeMode.Stop)
+            .NotEmpty().WithErrKey(ErrorCodes.MediaContentTypeRequired)
+            .MaximumLength(100).WithErrKey(ErrorCodes.MediaContentTypeInvalid)
+            .Must((request, contentType) => policy.IsContentTypeAllowed(
+                ResourceModule.Audio,
+                request.Extension,
+                contentType))
+            .WithErrKey(ErrorCodes.MediaContentTypeInvalid);
+
+        RuleFor(x => x.Size)
+            .Cascade(CascadeMode.Stop)
+            .GreaterThan(0).WithErrKey(ErrorCodes.MediaSizeInvalid)
+            .Must(size => policy.IsSizeAllowed(ResourceModule.Audio, size))
+            .WithErrKey(ErrorCodes.MediaSizeLimitExceeded);
+    }
+}
 
 /// <summary>
 /// 校验管理员重命名音频资源的显示名称。

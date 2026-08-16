@@ -82,6 +82,22 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task AcquireAudioResourceLockAsync(
+        Guid audioResourceId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Database.IsRelational())
+        {
+            return;
+        }
+
+        var lockName = $"audio-resource-confirm:{audioResourceId:N}";
+        await Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock(CAST(hashtext({lockName}) AS bigint))",
+            cancellationToken);
+    }
+
     /// <summary>
     /// 将 EF Core relational transaction 适配为应用事务契约。
     /// </summary>

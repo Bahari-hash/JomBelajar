@@ -28,6 +28,8 @@ public sealed class AdminRouteAuthorizationTests
     [InlineData("GET", "/api/admin/papers")]
     [InlineData("GET", "/api/admin/videos")]
     [InlineData("GET", "/api/admin/audio")]
+    [InlineData("POST", "/api/admin/audio/uploads/simple")]
+    [InlineData("POST", "/api/admin/audio/uploads/multipart")]
     [InlineData("POST", "/api/uploads/admin/media/presign")]
     [InlineData("POST", "/api/uploads/admin/media/multipart")]
     [InlineData("GET", "/api/uploads/admin/media/capabilities?module=CourseVideo")]
@@ -51,6 +53,8 @@ public sealed class AdminRouteAuthorizationTests
     [InlineData("GET", "/api/admin/papers")]
     [InlineData("GET", "/api/admin/videos")]
     [InlineData("GET", "/api/admin/audio")]
+    [InlineData("POST", "/api/admin/audio/uploads/simple")]
+    [InlineData("POST", "/api/admin/audio/uploads/multipart")]
     [InlineData("POST", "/api/uploads/admin/media/presign")]
     [InlineData("POST", "/api/uploads/admin/media/multipart")]
     [InlineData("GET", "/api/uploads/admin/media/capabilities?module=CourseVideo")]
@@ -109,6 +113,7 @@ public sealed class AdminRouteAuthorizationTests
         builder.Services.AddSingleton(Mock.Of<IPaperAttemptService>());
         builder.Services.AddSingleton(Mock.Of<IVideoService>());
         builder.Services.AddSingleton(Mock.Of<IAudioClipService>());
+        builder.Services.AddSingleton(Mock.Of<IAudioResourceService>());
         builder.Services.AddSingleton(Mock.Of<IMediaResourceService>());
         var app = builder.Build();
         app.UseAuthentication();

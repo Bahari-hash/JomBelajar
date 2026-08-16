@@ -10,6 +10,42 @@ namespace TinyLang.UnitTests;
 /// </summary>
 public sealed class AudioValidatorsTests
 {
+    [Fact]
+    public async Task RenameShouldRejectBlankAndControlCharacters()
+    {
+        var validator = new RenameAudioResourceRequestValidator();
+
+        (await validator.ValidateAsync(
+            new RenameAudioResourceRequest { Name = " " },
+            TestContext.Current.CancellationToken)).IsValid.Should().BeFalse();
+        (await validator.ValidateAsync(
+            new RenameAudioResourceRequest { Name = "lesson\n.mp3" },
+            TestContext.Current.CancellationToken)).IsValid.Should().BeFalse();
+        (await validator.ValidateAsync(
+            new RenameAudioResourceRequest { Name = "lesson (2).mp3" },
+            TestContext.Current.CancellationToken)).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AdminListShouldValidateAudioResourceStatus()
+    {
+        var validator = new AdminAudioResourceListRequestValidator();
+
+        (await validator.ValidateAsync(
+            new AdminAudioResourceListRequest
+            {
+                Status = (AudioResourceStatus)999
+            },
+            TestContext.Current.CancellationToken)).IsValid.Should().BeFalse();
+        (await validator.ValidateAsync(
+            new AdminAudioResourceListRequest
+            {
+                Status = AudioResourceStatus.Ready,
+                Keyword = "lesson.mp3"
+            },
+            TestContext.Current.CancellationToken)).IsValid.Should().BeTrue();
+    }
+
     /// <summary>
     /// 验证合法音频元数据和 BCP 47 风格语言标签可通过。
     /// </summary>

@@ -1,12 +1,6 @@
 import { baseApi } from "@/services/baseApi.js";
 import {
   normalizeAdminWord,
-  normalizeAdminAudioClip,
-  normalizeAudioOptionPage,
-  normalizeAudioPlayback,
-  normalizeAudioPresign,
-  normalizeAudioUploadCapability,
-  normalizeConfirmedAudioResource,
   normalizeWordPage,
 } from "@/services/wordContracts.js";
 
@@ -38,43 +32,9 @@ function buildWordListUrl(filters) {
     page: String(filters.page),
     pageSize: String(filters.pageSize),
   });
-  for (const key of [
-    "keyword",
-    "status",
-    "partOfSpeech",
-    "definition",
-  ])
+  for (const key of ["keyword", "status", "partOfSpeech", "definition"])
     if (filters[key]) params.set(key, filters[key]);
   return `/admin/words?${params.toString()}`;
-}
-
-function buildAudioListUrl(filters) {
-  const params = new URLSearchParams({
-    page: String(filters.page),
-    pageSize: String(filters.pageSize),
-    kind: filters.kind,
-  });
-  if (filters.keyword) params.set("keyword", filters.keyword);
-  if (filters.processingStatus)
-    params.set("processingStatus", filters.processingStatus);
-  if (filters.publicationStatus)
-    params.set("publicationStatus", filters.publicationStatus);
-  return `/admin/audio?${params.toString()}`;
-}
-
-function audioFileMetadata(file) {
-  const dot = file.name.lastIndexOf(".");
-  return {
-    originalName: file.name,
-    extension: dot >= 0 ? file.name.slice(dot).toLowerCase() : "",
-    contentType: file.type,
-    size: file.size,
-    module: "Audio",
-  };
-}
-
-function invalidateAudio(_result, error) {
-  return error ? [] : [{ type: "AudioClip", id: "LIST" }];
 }
 
 function invalidateWord(_result, error, { wordId }) {
@@ -86,7 +46,7 @@ function invalidateWord(_result, error, { wordId }) {
       ];
 }
 
-/** RTK Query endpoints for global word management and referenced audio playback. */
+/** RTK Query endpoints for global word management. */
 export const wordsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getAdminWords: builder.query({
@@ -169,98 +129,16 @@ export const wordsApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: invalidateWord,
     }),
-    getWordAudioOptions: builder.query({
-      queryFn: normalizedQuery(
-        (filters) => ({ url: buildAudioListUrl(filters) }),
-        normalizeAudioOptionPage,
-      ),
-      providesTags: (result) =>
-        result
-          ? [
-              { type: "AudioClip", id: "LIST" },
-              ...result.items.map(({ id }) => ({ type: "AudioClip", id })),
-            ]
-          : [{ type: "AudioClip", id: "LIST" }],
-    }),
-    getAudioUploadCapability: builder.query({
-      queryFn: normalizedQuery(
-        () => ({ url: "/uploads/admin/media/capabilities?module=Audio" }),
-        normalizeAudioUploadCapability,
-      ),
-    }),
-    presignWordAudio: builder.mutation({
-      queryFn: normalizedQuery(
-        (file) => ({
-          url: "/uploads/admin/media/presign",
-          method: "POST",
-          body: audioFileMetadata(file),
-        }),
-        normalizeAudioPresign,
-      ),
-    }),
-    confirmWordAudioResource: builder.mutation({
-      queryFn: normalizedQuery(
-        (resourceId) => ({
-          url: `/uploads/resources/${resourceId}/confirm`,
-          method: "PUT",
-        }),
-        normalizeConfirmedAudioResource,
-      ),
-    }),
-    createWordAudio: builder.mutation({
-      queryFn: normalizedQuery(
-        (body) => ({ url: "/admin/audio", method: "POST", body }),
-        normalizeAdminAudioClip,
-      ),
-      invalidatesTags: invalidateAudio,
-    }),
-    publishWordAudio: builder.mutation({
-      queryFn: normalizedQuery(
-        (audioClipId) => ({
-          url: `/admin/audio/${audioClipId}/publish`,
-          method: "POST",
-        }),
-        normalizeAdminAudioClip,
-      ),
-      invalidatesTags: invalidateAudio,
-    }),
-    retryWordAudio: builder.mutation({
-      queryFn: normalizedQuery(
-        (audioClipId) => ({
-          url: `/admin/audio/${audioClipId}/retry`,
-          method: "POST",
-        }),
-        normalizeAdminAudioClip,
-      ),
-      invalidatesTags: invalidateAudio,
-    }),
-    getAudioPlayback: builder.mutation({
-      queryFn: normalizedQuery(
-        (audioClipId) => ({
-          url: `/audio/${audioClipId}/playback`,
-          method: "POST",
-        }),
-        normalizeAudioPlayback,
-      ),
-    }),
   }),
 });
 
 export const {
   useArchiveWordMutation,
   useCreateWordMutation,
-  useCreateWordAudioMutation,
-  useConfirmWordAudioResourceMutation,
   useDeleteWordMutation,
   useGetAdminWordQuery,
   useGetAdminWordsQuery,
-  useGetAudioPlaybackMutation,
-  useGetAudioUploadCapabilityQuery,
-  useGetWordAudioOptionsQuery,
   usePublishWordMutation,
-  usePresignWordAudioMutation,
-  usePublishWordAudioMutation,
-  useRetryWordAudioMutation,
   useUnpublishWordMutation,
   useUpdateWordMutation,
 } = wordsApi;

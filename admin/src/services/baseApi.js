@@ -60,7 +60,6 @@ export const baseApi = createApi({
     "Video",
     "VideoCategory",
     "Word",
-    "AudioClip",
     "AudioResource",
     "Paper",
   ],

@@ -6,7 +6,6 @@ import {
   Plus,
   Save,
   Trash2,
-  Volume2,
   Send,
   ChevronDown,
   ChevronUp,
@@ -40,7 +39,6 @@ import {
   getWordStatusLabel,
 } from "@/constants/wordStatus.js";
 import { WordActionDialog } from "@/features/words/WordActionDialog.jsx";
-import { WordAudioPicker } from "@/features/words/WordAudioPicker.jsx";
 import { WordUnsavedChangesDialog } from "@/features/words/WordUnsavedChangesDialog.jsx";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges.js";
@@ -74,12 +72,10 @@ const createExample = () => ({
   id: null,
   sentence: "",
   translation: "",
-  audioClipId: null,
 });
 const createPronunciation = () => ({
   _key: draftKey("pronunciation"),
   id: null,
-  audioClipId: null,
   accentTag: "",
   ipa: "",
   isDefault: false,
@@ -119,13 +115,11 @@ function toPayload(form, concurrencyStamp) {
         ...(example.id ? { id: example.id } : {}),
         sentence: example.sentence.trim(),
         translation: example.translation.trim(),
-        audioClipId: example.audioClipId,
         sortOrder: exampleIndex,
       })),
     })),
     pronunciations: form.pronunciations.map((item, index) => ({
       ...(item.id ? { id: item.id } : {}),
-      audioClipId: item.audioClipId,
       accentTag: item.accentTag.trim() || null,
       ipa: item.ipa.trim() || null,
       isDefault: item.isDefault,
@@ -148,10 +142,6 @@ function validateForm(form) {
       if (!example.translation.trim())
         errors[`${prefix}.translation`] = ["请输入译文。"];
     });
-  });
-  form.pronunciations.forEach((item, index) => {
-    if (!item.audioClipId)
-      errors[`pronunciations[${index}].audioClipId`] = ["请选择发音音频。"];
   });
   return errors;
 }
@@ -180,7 +170,6 @@ function WordEditor() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [audioTarget, setAudioTarget] = useState(null);
   const [statusAction, setStatusAction] = useState(null);
   const [concurrencyConflict, setConcurrencyConflict] = useState(false);
   const { data, error, isLoading, refetch } = useGetAdminWordQuery(wordId, {
@@ -741,30 +730,6 @@ function WordEditor() {
                                     }
                                   />
                                 </Field>
-                                <AudioReference
-                                  value={example.audioClipId}
-                                  label="例句音频"
-                                  disabled={readOnly}
-                                  error={fieldError(`${prefix}.audioClipId`)}
-                                  onChoose={() =>
-                                    setAudioTarget({
-                                      type: "example",
-                                      senseKey: sense._key,
-                                      itemKey: example._key,
-                                      selectedId: example.audioClipId,
-                                    })
-                                  }
-                                  onClear={() =>
-                                    updateSense(sense._key, (item) => ({
-                                      ...item,
-                                      examples: item.examples.map((value) =>
-                                        value._key === example._key
-                                          ? { ...value, audioClipId: null }
-                                          : value,
-                                      ),
-                                    }))
-                                  }
-                                />
                                 <div className="flex justify-end border-t pt-3">
                                   <Button
                                     type="button"
@@ -810,9 +775,6 @@ function WordEditor() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold">发音</h2>
-            <p className="text-sm text-muted-foreground">
-              发音必须引用已处理并发布的单词发音音频。
-            </p>
           </div>
           <Button
             type="button"
@@ -888,26 +850,6 @@ function WordEditor() {
                   />
                 </Field>
               </div>
-              <AudioReference
-                value={item.audioClipId}
-                label="发音音频"
-                required
-                disabled={readOnly}
-                error={fieldError(`pronunciations[${index}].audioClipId`)}
-                onChoose={() =>
-                  setAudioTarget({
-                    type: "pronunciation",
-                    itemKey: item._key,
-                    selectedId: item.audioClipId,
-                  })
-                }
-                onClear={() =>
-                  updatePronunciation(item._key, (value) => ({
-                    ...value,
-                    audioClipId: null,
-                  }))
-                }
-              />
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
                   checked={item.isDefault}
@@ -948,34 +890,6 @@ function WordEditor() {
         </section>
       ) : null}
       <WordUnsavedChangesDialog blocker={blocker} />
-      {audioTarget ? (
-        <WordAudioPicker
-          kind={
-            audioTarget.type === "pronunciation"
-              ? "WordPronunciation"
-              : "ExampleSentence"
-          }
-          language={audioTarget.language}
-          selectedId={audioTarget.selectedId}
-          onClose={() => setAudioTarget(null)}
-          onSelect={(audio) => {
-            if (audioTarget.type === "pronunciation")
-              updatePronunciation(audioTarget.itemKey, (value) => ({
-                ...value,
-                audioClipId: audio.id,
-              }));
-            else
-              updateSense(audioTarget.senseKey, (sense) => ({
-                ...sense,
-                examples: sense.examples.map((value) =>
-                  value._key === audioTarget.itemKey
-                    ? { ...value, audioClipId: audio.id }
-                    : value,
-                ),
-              }));
-          }}
-        />
-      ) : null}
       {concurrencyConflict ? (
         <AlertDialog
           open
@@ -1081,59 +995,6 @@ function OrderButtons({ label, index, count, disabled, onMove, onDelete }) {
       >
         <Trash2 aria-hidden="true" />
       </Button>
-    </div>
-  );
-}
-function AudioReference({
-  value,
-  label,
-  required,
-  disabled,
-  error,
-  onChoose,
-  onClear,
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label>
-        {label}
-        {required ? <span aria-hidden="true"> *</span> : null}
-      </Label>
-      <div
-        className="flex flex-wrap items-center gap-2"
-        role="group"
-        aria-label={label}
-      >
-        <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-2 text-xs">
-          {value ?? "未选择音频"}
-        </code>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={disabled}
-          onClick={onChoose}
-        >
-          <Volume2 aria-hidden="true" />
-          {value ? "更换" : "选择"}
-        </Button>
-        {value ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={disabled}
-            onClick={onClear}
-          >
-            清除
-          </Button>
-        ) : null}
-      </div>
-      {error ? (
-        <p className="text-xs text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
     </div>
   );
 }

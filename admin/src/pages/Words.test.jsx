@@ -57,8 +57,10 @@ describe("Words", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "单词管理" }),
     ).toBeVisible();
-    expect(await screen.findByRole("link", { name: "bonjour" })).toBeVisible();
+    const wordLink = await screen.findByRole("link", { name: "bonjour" });
+    expect(wordLink).toBeVisible();
     expect(screen.getByText("你好")).toBeVisible();
+    expect(wordLink.closest("tr")).toHaveTextContent("1 发音");
     expect(screen.queryByRole("link", { name: "批量录入" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "重置筛选" }));
     await waitFor(() => expect(router.state.location.search).toBe(""));

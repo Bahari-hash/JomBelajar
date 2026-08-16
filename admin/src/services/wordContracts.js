@@ -1,22 +1,6 @@
 import dayjs from "dayjs";
 import { PARTS_OF_SPEECH, WORD_STATUSES } from "@/constants/wordStatus.js";
 
-export const AUDIO_KINDS = Object.freeze([
-  "WordPronunciation",
-  "ExampleSentence",
-]);
-
-export const AUDIO_PROCESSING_STATUSES = Object.freeze([
-  "Queued",
-  "Processing",
-  "Ready",
-  "Failed",
-]);
-export const AUDIO_PUBLICATION_STATUSES = Object.freeze([
-  "Draft",
-  "Published",
-  "Unpublished",
-]);
 const UUID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
 const HTTP_PROTOCOLS = new Set(["http:", "https:"]);
@@ -94,7 +78,6 @@ function example(value) {
     id: uuid(source.id, "word example id"),
     sentence: string(source.sentence, "word example sentence"),
     translation: string(source.translation, "word example translation"),
-    audioClipId: uuid(source.audioClipId, "word example audio id", true),
     sortOrder: number(source.sortOrder, "word example sort order", {
       integer: true,
     }),
@@ -123,7 +106,6 @@ function pronunciation(value) {
   const source = object(value, "word pronunciation");
   return {
     id: uuid(source.id, "word pronunciation id"),
-    audioClipId: uuid(source.audioClipId, "word pronunciation audio id"),
     accentTag: string(source.accentTag, "word accent tag", true),
     ipa: string(source.ipa, "word IPA", true),
     isDefault: boolean(source.isDefault, "word default pronunciation"),
@@ -221,135 +203,6 @@ export function normalizeWordPage(value) {
   return page(value, normalizeWordListItem, "word");
 }
 
-function audioOption(value) {
-  const source = object(value, "audio option");
-  return {
-    id: uuid(source.id, "audio id"),
-    title: string(source.title, "audio title"),
-    kind: enumeration(source.kind, AUDIO_KINDS, "audio kind"),
-    processingStatus: enumeration(
-      source.processingStatus,
-      AUDIO_PROCESSING_STATUSES,
-      "audio processing status",
-    ),
-    publicationStatus: enumeration(
-      source.publicationStatus,
-      AUDIO_PUBLICATION_STATUSES,
-      "audio publication status",
-    ),
-    durationSeconds: number(source.durationSeconds, "audio duration", {
-      nullable: true,
-    }),
-    failureCode: string(source.failureCode, "audio failure code", true),
-    updatedAt: date(source.updatedAt, "audio updated at"),
-  };
-}
-
-export function normalizeAdminAudioClip(value) {
-  const source = object(value, "audio details");
-  return {
-    id: uuid(source.id, "audio id"),
-    sourceMediaResourceId: uuid(
-      source.sourceMediaResourceId,
-      "audio source media resource id",
-    ),
-    title: string(source.title, "audio title"),
-    description: string(source.description, "audio description", true),
-    kind: enumeration(source.kind, AUDIO_KINDS, "audio kind"),
-    processingStatus: enumeration(
-      source.processingStatus,
-      AUDIO_PROCESSING_STATUSES,
-      "audio processing status",
-    ),
-    publicationStatus: enumeration(
-      source.publicationStatus,
-      AUDIO_PUBLICATION_STATUSES,
-      "audio publication status",
-    ),
-    durationSeconds: number(source.durationSeconds, "audio duration", {
-      nullable: true,
-    }),
-    sampleRate: number(source.sampleRate, "audio sample rate", {
-      nullable: true,
-      integer: true,
-    }),
-    channels: number(source.channels, "audio channels", {
-      nullable: true,
-      integer: true,
-    }),
-    containerFormat: string(
-      source.containerFormat,
-      "audio container format",
-      true,
-    ),
-    sourceCodec: string(source.sourceCodec, "audio source codec", true),
-    failureCode: string(source.failureCode, "audio failure code", true),
-    publishedAt: date(source.publishedAt, "audio published at", true),
-    createdAt: date(source.createdAt, "audio created at"),
-    updatedAt: date(source.updatedAt, "audio updated at"),
-  };
-}
-
-export function normalizeAudioUploadCapability(value) {
-  const source = object(value, "Audio upload capability");
-  if (source.module !== "Audio") invalid("Audio upload capability module");
-  return {
-    module: source.module,
-    maxSizeBytes: number(source.maxSizeBytes, "Audio maximum upload size", {
-      integer: true,
-      positive: true,
-    }),
-    allowedTypes: array(
-      source.allowedTypes,
-      (item) => {
-        const allowed = object(item, "Audio allowed media type");
-        return {
-          extension: string(allowed.extension, "Audio allowed extension"),
-          contentTypes: array(
-            allowed.contentTypes,
-            (contentType) => string(contentType, "Audio allowed content type"),
-            "Audio allowed content types",
-          ),
-        };
-      },
-      "Audio allowed types",
-    ),
-    multipartThresholdBytes: number(
-      source.multipartThresholdBytes,
-      "Audio multipart threshold",
-      { integer: true, positive: true },
-    ),
-  };
-}
-
-export function normalizeAudioPresign(value) {
-  const source = object(value, "Audio upload presign");
-  return {
-    resourceId: uuid(source.resourceId, "Audio media resource id"),
-    presignedUrl: httpUrl(source.presignedUrl, "Audio presigned URL"),
-  };
-}
-
-export function normalizeConfirmedAudioResource(value) {
-  const source = object(value, "confirmed Audio media resource");
-  if (source.module !== "Audio" || source.status !== "Active")
-    invalid("active Audio media resource");
-  return {
-    id: uuid(source.id, "Audio media resource id"),
-    originalName: string(source.originalName, "Audio original name"),
-    size: number(source.size, "Audio media size", {
-      integer: true,
-      positive: true,
-    }),
-    extension: string(source.extension, "Audio media extension"),
-    contentType: string(source.contentType, "Audio media content type"),
-  };
-}
-
-export function normalizeAudioOptionPage(value) {
-  return page(value, audioOption, "audio");
-}
-
 function httpUrl(value, name, nullable = false) {
   if (nullable && value === null) return null;
   const result = string(value, name);
@@ -359,18 +212,4 @@ function httpUrl(value, name, nullable = false) {
     invalid(name);
   }
   return result;
-}
-
-export function normalizeAudioPlayback(value) {
-  const source = object(value, "audio playback");
-  return {
-    url: httpUrl(source.url, "audio playback URL"),
-    expiresAt: date(source.expiresAt, "audio playback expiry", true),
-    durationSeconds: number(source.durationSeconds, "audio playback duration"),
-    audioClipKind: enumeration(
-      source.audioClipKind,
-      AUDIO_KINDS,
-      "audio playback kind",
-    ),
-  };
 }

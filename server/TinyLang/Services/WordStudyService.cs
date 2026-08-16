@@ -294,14 +294,12 @@ public sealed class WordStudyService : IWordStudyService
                                 .Select(example => new ExampleSentenceResponse(
                                     example.Sentence,
                                     example.Translation,
-                                    example.AudioClipId,
                                     example.SortOrder))
                                 .ToList()))
                         .ToList(),
                     word.Pronunciations.OrderBy(value => value.SortOrder)
                         .ThenBy(value => value.Id)
                         .Select(value => new WordPronunciationResponse(
-                            value.AudioClipId,
                             value.AccentTag,
                             value.Ipa,
                             value.IsDefault,
@@ -373,14 +371,12 @@ public sealed class WordStudyService : IWordStudyService
                             .Select(example => new ExampleSentenceResponse(
                                 example.Sentence,
                                 example.Translation,
-                                example.AudioClipId,
                                 example.SortOrder))
                             .ToList()))
                     .ToList(),
                 word.Pronunciations.OrderBy(value => value.SortOrder)
                     .ThenBy(value => value.Id)
                     .Select(value => new WordPronunciationResponse(
-                        value.AudioClipId,
                         value.AccentTag,
                         value.Ipa,
                         value.IsDefault,

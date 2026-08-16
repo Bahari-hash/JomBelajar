@@ -57,7 +57,6 @@ public sealed record ExampleSentenceInput
     public Guid? Id { get; init; }
     public required string Sentence { get; init; }
     public required string Translation { get; init; }
-    public Guid? AudioClipId { get; init; }
     public int SortOrder { get; init; }
 }
 
@@ -67,7 +66,6 @@ public sealed record ExampleSentenceInput
 public sealed record WordPronunciationInput
 {
     public Guid? Id { get; init; }
-    public Guid AudioClipId { get; init; }
     public string? AccentTag { get; init; }
     public string? Ipa { get; init; }
     public bool IsDefault { get; init; }
@@ -104,7 +102,6 @@ public sealed record AdminExampleSentenceResponse(
     Guid Id,
     string Sentence,
     string Translation,
-    Guid? AudioClipId,
     int SortOrder);
 
 /// <summary>
@@ -123,7 +120,6 @@ public sealed record AdminWordSenseResponse(
 /// </summary>
 public sealed record AdminWordPronunciationResponse(
     Guid Id,
-    Guid AudioClipId,
     string? AccentTag,
     string? Ipa,
     bool IsDefault,
@@ -167,12 +163,11 @@ public sealed record AdminWordListItemResponse(
     Guid ConcurrencyStamp);
 
 /// <summary>
-/// 返回用户可见的例句纯文本和可选播放音频标识。
+/// 返回用户可见的例句纯文本。
 /// </summary>
 public sealed record ExampleSentenceResponse(
     string Sentence,
     string Translation,
-    Guid? AudioClipId,
     int SortOrder);
 
 /// <summary>
@@ -186,10 +181,9 @@ public sealed record WordSenseResponse(
     IReadOnlyList<ExampleSentenceResponse> Examples);
 
 /// <summary>
-/// 返回用户可见的发音元数据和播放音频标识。
+/// 返回用户可见的发音文本元数据。
 /// </summary>
 public sealed record WordPronunciationResponse(
-    Guid AudioClipId,
     string? AccentTag,
     string? Ipa,
     bool IsDefault,

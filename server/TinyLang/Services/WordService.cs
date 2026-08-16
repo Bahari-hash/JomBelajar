@@ -11,14 +11,12 @@ using TinyLang.Policies;
 namespace TinyLang.Services;
 
 /// <summary>
-/// 实现词条聚合写入、音频关联校验、发布状态和安全用户查询规则。
+/// 实现词条聚合写入、发布状态和安全用户查询规则。
 /// </summary>
 public sealed class WordService : IWordService
 {
     private const string HeadwordUniqueIndex =
         "IX_words_NormalizedHeadword";
-    private const string PronunciationAudioUniqueIndex =
-        "IX_word_pronunciations_WordId_AudioClipId";
     private const string DefaultPronunciationUniqueIndex =
         "IX_word_pronunciations_WordId";
     private static readonly string[] SortOrderUniqueIndexes =
@@ -65,11 +63,6 @@ public sealed class WordService : IWordService
             identity.NormalizedHeadword,
             excludedWordId: null,
             cancellationToken);
-        await ValidateRequestedAudioAsync(
-            request.Senses,
-            request.Pronunciations,
-            cancellationToken);
-
         var word = new Word
         {
             Headword = identity.Headword,
@@ -110,11 +103,6 @@ public sealed class WordService : IWordService
             identity.NormalizedHeadword,
             word.Id,
             cancellationToken);
-        await ValidateRequestedAudioAsync(
-            request.Senses,
-            request.Pronunciations,
-            cancellationToken);
-
         await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
         word.Headword = identity.Headword;
         word.NormalizedHeadword = identity.NormalizedHeadword;
@@ -153,7 +141,6 @@ public sealed class WordService : IWordService
         }
 
         EnsurePublishableContent(word);
-        await ValidateStoredAudioAsync(word, cancellationToken);
         word.Status = WordPublicationStatus.Published;
         word.PublishedAt ??= _timeProvider.GetUtcNow();
         word.LastEditorId = adminId;
@@ -395,7 +382,6 @@ public sealed class WordService : IWordService
                     .OrderBy(pronunciation => pronunciation.SortOrder)
                     .ThenBy(pronunciation => pronunciation.Id)
                     .Select(pronunciation => new WordPronunciationResponse(
-                        pronunciation.AudioClipId,
                         pronunciation.AccentTag,
                         pronunciation.Ipa,
                         pronunciation.IsDefault,
@@ -523,15 +509,6 @@ public sealed class WordService : IWordService
         {
             throw new RequestValidationException(ErrorCodes.WordSortOrderConflict);
         }
-        if (request.Pronunciations.Any(value => value.AudioClipId == Guid.Empty))
-        {
-            throw new RequestValidationException(ErrorCodes.WordPronunciationAudioInvalid);
-        }
-        if (request.Pronunciations.Select(value => value.AudioClipId).Distinct().Count() !=
-            request.Pronunciations.Count)
-        {
-            throw new RequestValidationException(ErrorCodes.WordPronunciationAudioDuplicate);
-        }
         if (request.Pronunciations.Count(value => value.IsDefault) > 1)
         {
             throw new RequestValidationException(ErrorCodes.WordDefaultPronunciationConflict);
@@ -568,106 +545,6 @@ public sealed class WordService : IWordService
             value.Id is { } pronunciationId && !pronunciationIds.Contains(pronunciationId)))
         {
             throw new RequestValidationException(ErrorCodes.WordChildIdConflict);
-        }
-    }
-
-    /// <summary>
-    /// 批量加载并校验请求目标集合中的所有音频关联。
-    /// </summary>
-    private async Task ValidateRequestedAudioAsync(
-        IReadOnlyCollection<WordSenseInput> senses,
-        IReadOnlyCollection<WordPronunciationInput> pronunciations,
-        CancellationToken cancellationToken)
-    {
-        var audioIds = pronunciations.Select(value => value.AudioClipId)
-            .Concat(senses.SelectMany(value => value.Examples)
-                .Where(value => value.AudioClipId.HasValue)
-                .Select(value => value.AudioClipId.GetValueOrDefault()))
-            .Distinct()
-            .ToArray();
-        var audioById = await LoadAudioAsync(audioIds, cancellationToken);
-
-        foreach (var pronunciation in pronunciations)
-        {
-            ValidateAudio(
-                audioById[pronunciation.AudioClipId],
-                AudioClipKind.WordPronunciation);
-        }
-        foreach (var example in senses.SelectMany(value => value.Examples)
-                     .Where(value => value.AudioClipId.HasValue))
-        {
-            ValidateAudio(
-                audioById[example.AudioClipId!.Value],
-                AudioClipKind.ExampleSentence);
-        }
-    }
-
-    /// <summary>
-    /// 批量校验待发布聚合中已经持久化的所有音频关联。
-    /// </summary>
-    private async Task ValidateStoredAudioAsync(
-        Word word,
-        CancellationToken cancellationToken)
-    {
-        var audioIds = word.Pronunciations.Select(value => value.AudioClipId)
-            .Concat(word.Senses.SelectMany(value => value.Examples)
-                .Where(value => value.AudioClipId.HasValue)
-                .Select(value => value.AudioClipId.GetValueOrDefault()))
-            .Distinct()
-            .ToArray();
-        var audioById = await LoadAudioAsync(audioIds, cancellationToken);
-        foreach (var pronunciation in word.Pronunciations)
-        {
-            ValidateAudio(
-                audioById[pronunciation.AudioClipId],
-                AudioClipKind.WordPronunciation);
-        }
-        foreach (var example in word.Senses.SelectMany(value => value.Examples)
-                     .Where(value => value.AudioClipId.HasValue))
-        {
-            ValidateAudio(
-                audioById[example.AudioClipId!.Value],
-                AudioClipKind.ExampleSentence);
-        }
-    }
-
-    /// <summary>
-    /// 一次性加载请求引用的全部音频，并统一处理缺失标识。
-    /// </summary>
-    private async Task<IReadOnlyDictionary<Guid, AudioClip>> LoadAudioAsync(
-        IReadOnlyCollection<Guid> audioIds,
-        CancellationToken cancellationToken)
-    {
-        if (audioIds.Count == 0)
-        {
-            return new Dictionary<Guid, AudioClip>();
-        }
-
-        var audio = await _db.AudioClips.AsNoTracking()
-            .Where(value => audioIds.Contains(value.Id))
-            .ToDictionaryAsync(value => value.Id, cancellationToken);
-        if (audio.Count != audioIds.Count)
-        {
-            throw NotFoundException.Create(ErrorCodes.WordAudioNotFound);
-        }
-        return audio;
-    }
-
-    /// <summary>
-    /// 校验单个音频的状态、用途和语言兼容性。
-    /// </summary>
-    private static void ValidateAudio(
-        AudioClip audioClip,
-        AudioClipKind expectedKind)
-    {
-        if (audioClip.ProcessingStatus != AudioProcessingStatus.Ready ||
-            audioClip.PublicationStatus != AudioPublicationStatus.Published)
-        {
-            throw ConflictException.Create(ErrorCodes.WordAudioUnavailable);
-        }
-        if (audioClip.Kind != expectedKind)
-        {
-            throw ConflictException.Create(ErrorCodes.WordAudioKindMismatch);
         }
     }
 
@@ -847,7 +724,6 @@ public sealed class WordService : IWordService
     {
         example.Sentence = WordTextNormalizer.NormalizeRequiredText(input.Sentence);
         example.Translation = WordTextNormalizer.NormalizeRequiredText(input.Translation);
-        example.AudioClipId = input.AudioClipId;
         example.SortOrder = input.SortOrder;
     }
 
@@ -861,8 +737,7 @@ public sealed class WordService : IWordService
         var pronunciation = new WordPronunciation
         {
             WordId = word.Id,
-            Word = word,
-            AudioClipId = input.AudioClipId
+            Word = word
         };
         ApplyPronunciationValues(pronunciation, input);
         return pronunciation;
@@ -875,7 +750,6 @@ public sealed class WordService : IWordService
         WordPronunciation pronunciation,
         WordPronunciationInput input)
     {
-        pronunciation.AudioClipId = input.AudioClipId;
         pronunciation.AccentTag = WordTextNormalizer.NormalizeOptionalText(input.AccentTag);
         pronunciation.Ipa = WordTextNormalizer.NormalizeOptionalText(input.Ipa);
         pronunciation.IsDefault = input.IsDefault;
@@ -930,7 +804,6 @@ public sealed class WordService : IWordService
                             example.Id,
                             example.Sentence,
                             example.Translation,
-                            example.AudioClipId,
                             example.SortOrder))
                         .ToList()))
                 .ToList(),
@@ -938,7 +811,6 @@ public sealed class WordService : IWordService
                 .ThenBy(pronunciation => pronunciation.Id)
                 .Select(pronunciation => new AdminWordPronunciationResponse(
                     pronunciation.Id,
-                    pronunciation.AudioClipId,
                     pronunciation.AccentTag,
                     pronunciation.Ipa,
                     pronunciation.IsDefault,
@@ -1014,14 +886,12 @@ public sealed class WordService : IWordService
                         .Select(example => new ExampleSentenceResponse(
                             example.Sentence,
                             example.Translation,
-                            example.AudioClipId,
                             example.SortOrder))
                         .ToList()))
                 .ToList(),
             word.Pronunciations.OrderBy(pronunciation => pronunciation.SortOrder)
                 .ThenBy(pronunciation => pronunciation.Id)
                 .Select(pronunciation => new WordPronunciationResponse(
-                    pronunciation.AudioClipId,
                     pronunciation.AccentTag,
                     pronunciation.Ipa,
                     pronunciation.IsDefault,
@@ -1051,13 +921,6 @@ public sealed class WordService : IWordService
                 HeadwordUniqueIndex))
         {
             throw ConflictException.Create(ErrorCodes.WordDuplicate);
-        }
-        catch (DbUpdateException exception) when (
-            _databaseExceptionClassifier.IsUniqueConstraintViolation(
-                exception,
-                PronunciationAudioUniqueIndex))
-        {
-            throw ConflictException.Create(ErrorCodes.WordPronunciationAudioDuplicate);
         }
         catch (DbUpdateException exception) when (
             _databaseExceptionClassifier.IsUniqueConstraintViolation(

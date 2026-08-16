@@ -45,8 +45,6 @@ internal sealed class WordUpsertRequestValidator<T> : AbstractValidator<T>
             .WithErrKey(ErrorCodes.WordChildCollectionInvalid)
             .Must(HaveUniquePronunciationIds).WithErrKey(ErrorCodes.WordChildIdConflict)
             .Must(HaveUniquePronunciationSortOrders).WithErrKey(ErrorCodes.WordSortOrderConflict)
-            .Must(HaveUniquePronunciationAudioIds)
-            .WithErrKey(ErrorCodes.WordPronunciationAudioDuplicate)
             .Must(value => value.Count(item => item.IsDefault) <= 1)
             .WithErrKey(ErrorCodes.WordDefaultPronunciationConflict);
         RuleForEach(value => value.Pronunciations)
@@ -85,13 +83,6 @@ internal sealed class WordUpsertRequestValidator<T> : AbstractValidator<T>
     private static bool HaveUniquePronunciationSortOrders(
         IReadOnlyCollection<WordPronunciationInput> values)
         => values.Select(value => value.SortOrder).Distinct().Count() == values.Count;
-
-    /// <summary>
-    /// 判断词条发音音频标识是否互不重复。
-    /// </summary>
-    private static bool HaveUniquePronunciationAudioIds(
-        IReadOnlyCollection<WordPronunciationInput> values)
-        => values.Select(value => value.AudioClipId).Distinct().Count() == values.Count;
 
     /// <summary>
     /// 判断可空标识集合中的非空值合法且互不重复。
@@ -209,13 +200,13 @@ public sealed class WordSenseInputValidator : AbstractValidator<WordSenseInput>
 }
 
 /// <summary>
-/// 校验例句纯文本、语言、音频标识和排序。
+/// 校验例句纯文本和排序。
 /// </summary>
 public sealed class ExampleSentenceInputValidator
     : AbstractValidator<ExampleSentenceInput>
 {
     /// <summary>
-    /// 初始化例句正文、翻译、语言、音频和排序规则。
+    /// 初始化例句正文、翻译和排序规则。
     /// </summary>
     public ExampleSentenceInputValidator()
     {
@@ -232,9 +223,6 @@ public sealed class ExampleSentenceInputValidator
             .NotEmpty().WithErrKey(ErrorCodes.WordTranslationRequired)
             .MaximumLength(WordConstraints.MaxTextLength)
             .WithErrKey(ErrorCodes.WordTranslationLengthLimit);
-        RuleFor(value => value.AudioClipId)
-            .Must(value => value is null || value != Guid.Empty)
-            .WithErrKey(ErrorCodes.WordPronunciationAudioInvalid);
         RuleFor(value => value.SortOrder)
             .InclusiveBetween(0, WordConstraints.MaxSortOrder)
             .WithErrKey(ErrorCodes.WordSortOrderInvalid);
@@ -243,21 +231,19 @@ public sealed class ExampleSentenceInputValidator
 }
 
 /// <summary>
-/// 校验词条发音的音频、可选元数据和排序。
+/// 校验词条发音的可选元数据和排序。
 /// </summary>
 public sealed class WordPronunciationInputValidator
     : AbstractValidator<WordPronunciationInput>
 {
     /// <summary>
-    /// 初始化发音标识、音频、口音、IPA 和排序规则。
+    /// 初始化发音标识、口音、IPA 和排序规则。
     /// </summary>
     public WordPronunciationInputValidator()
     {
         RuleFor(value => value.Id)
             .Must(value => value is null || value != Guid.Empty)
             .WithErrKey(ErrorCodes.WordChildIdInvalid);
-        RuleFor(value => value.AudioClipId)
-            .NotEmpty().WithErrKey(ErrorCodes.WordPronunciationAudioInvalid);
         RuleFor(value => value.AccentTag)
             .MaximumLength(WordConstraints.MaxAccentTagLength)
             .WithErrKey(ErrorCodes.WordAccentTagLengthLimit);

@@ -5,7 +5,7 @@ using TinyLang.Entities;
 namespace TinyLang.Database.Configurations;
 
 /// <summary>
-/// 配置例句文本、顺序和可选音频关系。
+/// 配置例句文本和顺序。
 /// </summary>
 public sealed class ExampleSentenceConfiguration
     : IEntityTypeConfiguration<ExampleSentence>
@@ -22,9 +22,5 @@ public sealed class ExampleSentenceConfiguration
             .WithMany(value => value.Examples)
             .HasForeignKey(value => value.WordSenseId)
             .OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne(value => value.AudioClip)
-            .WithMany(value => value.ExampleSentences)
-            .HasForeignKey(value => value.AudioClipId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }

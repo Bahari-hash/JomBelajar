@@ -3,7 +3,7 @@ using TinyLang.Entities.Common;
 namespace TinyLang.Entities;
 
 /// <summary>
-/// 表示词条与一个已发布发音音频之间的有序关联。
+/// 表示词条的有序发音文本元数据。
 /// </summary>
 public sealed class WordPronunciation : BaseEntity
 {
@@ -17,8 +17,6 @@ public sealed class WordPronunciation : BaseEntity
 
     public Guid WordId { get; set; }
     public Word? Word { get; set; }
-    public Guid AudioClipId { get; set; }
-    public AudioClip? AudioClip { get; set; }
     public string? AccentTag { get; set; }
     public string? Ipa { get; set; }
     public bool IsDefault { get; set; }

@@ -23,6 +23,27 @@ public sealed class WordValidatorsTests
         result.IsValid.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task TextOnlyPronunciationShouldBeValidWithoutAudioReference()
+    {
+        var result = await new CreateWordRequestValidator().ValidateAsync(
+            new CreateWordRequest
+            {
+                Headword = "hello",
+                Pronunciations =
+                [
+                    new WordPronunciationInput
+                    {
+                        IsDefault = true,
+                        SortOrder = 0
+                    }
+                ]
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeTrue();
+    }
+
     /// <summary>
     /// 验证创建请求不能指定服务端子项标识。
     /// </summary>
@@ -45,12 +66,11 @@ public sealed class WordValidatorsTests
     }
 
     /// <summary>
-    /// 验证重复排序、发音音频、默认项和空并发标识均被拒绝。
+    /// 验证重复排序、默认项和空并发标识均被拒绝。
     /// </summary>
     [Fact]
     public async Task UpdateShouldRejectDuplicateTargetsAndEmptyConcurrencyStamp()
     {
-        var audioId = Guid.NewGuid();
         var request = new UpdateWordRequest
         {
             Headword = "hello",
@@ -63,13 +83,11 @@ public sealed class WordValidatorsTests
             [
                 new WordPronunciationInput
                 {
-                    AudioClipId = audioId,
                     IsDefault = true,
                     SortOrder = 0
                 },
                 new WordPronunciationInput
                 {
-                    AudioClipId = audioId,
                     IsDefault = true,
                     SortOrder = 0
                 }
@@ -116,7 +134,6 @@ public sealed class WordValidatorsTests
             [
                 new WordPronunciationInput
                 {
-                    AudioClipId = Guid.Empty,
                     SortOrder = -1
                 }
             ]
@@ -206,7 +223,6 @@ public sealed class WordValidatorsTests
             [
                 new WordPronunciationInput
                 {
-                    AudioClipId = Guid.NewGuid(),
                     IsDefault = true,
                     SortOrder = 0
                 }

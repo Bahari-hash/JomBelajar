@@ -318,25 +318,31 @@ public sealed class WordStudyServiceTests
     }
 
     /// <summary>
-    /// 验证 Draft、Unpublished 和音频失效词条不会进入初始候选。
+    /// 验证非发布状态和不完整文本词条不会进入初始候选。
     /// </summary>
     [Fact]
-    public async Task CreationShouldExcludeNonPublishedAndUnavailableWords()
+    public async Task CreationShouldExcludeNonPublishedAndIncompleteWords()
     {
         await using var db = CreateDbContext();
         var valid = CreateVisibleWord("valid", Now);
+        var withoutExamples = CreateVisibleWord("without-examples", Now.AddMinutes(-1));
         var draft = CreateVisibleWord("draft", Now.AddMinutes(-1));
         var unpublished = CreateVisibleWord("unpublished", Now.AddMinutes(-2));
-        var unavailable = CreateVisibleWord("unavailable-audio", Now.AddMinutes(-3));
+        var incomplete = CreateVisibleWord("incomplete", Now.AddMinutes(-3));
         var archived = CreateVisibleWord("archived", Now.AddMinutes(-4));
+        withoutExamples.Senses.Single().Examples.Clear();
         draft.Status = WordPublicationStatus.Draft;
         draft.PublishedAt = null;
         unpublished.Status = WordPublicationStatus.Unpublished;
         archived.Status = WordPublicationStatus.Archived;
-        var unavailableAudio = unavailable.Pronunciations.Single().AudioClip
-            ?? throw new InvalidOperationException("Expected pronunciation audio.");
-        unavailableAudio.ProcessingStatus = AudioProcessingStatus.Failed;
-        db.Words.AddRange(valid, draft, unpublished, unavailable, archived);
+        incomplete.Senses.Single().Examples.Single().Translation = " ";
+        db.Words.AddRange(
+            valid,
+            withoutExamples,
+            draft,
+            unpublished,
+            incomplete,
+            archived);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
@@ -414,8 +420,19 @@ public sealed class WordStudyServiceTests
         result.Should().OnlyContain(value => value.ContentAvailable);
         result[0].Content?.Headword.Should().Be("first");
         result[0].Content?.Senses.Should().ContainSingle();
-        result[0].Content?.Senses[0].Examples.Should().ContainSingle();
+        result[0].Content?.Senses[0].PartOfSpeech.Should().Be(PartOfSpeech.Noun);
+        result[0].Content?.Senses[0].Definition.Should().Be("definition of first");
+        result[0].Content?.Senses[0].SortOrder.Should().Be(0);
+        var example = result[0].Content?.Senses[0].Examples.Single();
+        example?.Sentence.Should().Be("Use first.");
+        example?.Translation.Should().Be("first");
+        example?.SortOrder.Should().Be(0);
         result[0].Content?.Pronunciations.Should().ContainSingle();
+        var pronunciation = result[0].Content?.Pronunciations.Single();
+        pronunciation?.AccentTag.Should().Be("default");
+        pronunciation?.Ipa.Should().Be("/first/");
+        pronunciation?.IsDefault.Should().BeTrue();
+        pronunciation?.SortOrder.Should().Be(0);
     }
 
     /// <summary>
@@ -489,6 +506,12 @@ public sealed class WordStudyServiceTests
         var repeatedValue = repeated
             ?? throw new InvalidOperationException("Expected the repeated item.");
         nextValue.WordId.Should().Be(second.Id);
+        nextValue.Headword.Should().Be("second");
+        nextValue.Senses.Single().Definition.Should().Be("definition of second");
+        nextValue.Senses.Single().Examples.Single().Sentence.Should().Be("Use second.");
+        nextValue.Senses.Single().Examples.Single().SortOrder.Should().Be(0);
+        nextValue.Pronunciations.Single().Ipa.Should().Be("/second/");
+        nextValue.Pronunciations.Single().SortOrder.Should().Be(0);
         repeatedValue.ItemId.Should().Be(nextValue.ItemId);
         var firstItem = await db.WordStudySessionItems.AsNoTracking()
             .SingleAsync(
@@ -676,10 +699,7 @@ public sealed class WordStudyServiceTests
             .Where(value => value.SessionId == session.Id)
             .Select(value => value.Id)
             .SingleAsync(TestContext.Current.CancellationToken);
-        var audio = word.Pronunciations.Single().AudioClip
-            ?? throw new InvalidOperationException("Expected pronunciation audio.");
-        audio.PublicationStatus =
-            AudioPublicationStatus.Unpublished;
+        word.Status = WordPublicationStatus.Unpublished;
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var result = await service.SubmitResultAsync(
@@ -851,33 +871,12 @@ public sealed class WordStudyServiceTests
             Mock.Of<ILogger<WordStudyService>>());
 
     /// <summary>
-    /// 创建一个包含默认发音和例句且满足实时用户可见性规则的词条。
+    /// 创建一个包含默认文本发音和例句且满足用户可见性规则的词条。
     /// </summary>
     private static Word CreateVisibleWord(
         string headword,
         DateTimeOffset publishedAt)
     {
-        var source = new MediaResource
-        {
-            UploaderId = Guid.NewGuid(),
-            ObjectName = $"audios/source/{Guid.NewGuid():N}",
-            OriginalName = "word.mp3",
-            Module = ResourceModule.Audio,
-            Status = ResourceStatus.Active,
-            Size = 1024,
-            Extension = ".mp3",
-            ContentType = "audio/mpeg"
-        };
-        var audio = new AudioClip
-        {
-            CreatedById = source.UploaderId,
-            SourceMediaResourceId = source.Id,
-            SourceMediaResource = source,
-            Title = headword,
-            Kind = AudioClipKind.WordPronunciation,
-            ProcessingStatus = AudioProcessingStatus.Ready,
-            PublicationStatus = AudioPublicationStatus.Published
-        };
         var word = new Word
         {
             Headword = headword,
@@ -908,8 +907,8 @@ public sealed class WordStudyServiceTests
             [
                 new WordPronunciation
                 {
-                    AudioClipId = audio.Id,
-                    AudioClip = audio,
+                    AccentTag = "default",
+                    Ipa = $"/{headword}/",
                     IsDefault = true,
                     SortOrder = 0
                 }

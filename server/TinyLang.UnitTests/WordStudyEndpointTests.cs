@@ -226,14 +226,13 @@ public sealed class WordStudyEndpointTests
     }
 
     /// <summary>
-    /// 验证 next JSON 只包含安全词条内容和 AudioClipId。
+    /// 验证 next JSON 保留有序文本内容且不暴露音频字段。
     /// </summary>
     [Fact]
     public async Task NextResponseShouldNotExposeInternalAudioFields()
     {
         var userId = Guid.NewGuid();
         var sessionId = Guid.NewGuid();
-        var audioClipId = Guid.NewGuid();
         var service = new Mock<IWordStudyService>();
         service.Setup(value => value.GetNextItemAsync(
                 userId,
@@ -246,8 +245,15 @@ public sealed class WordStudyEndpointTests
                 1,
                 Guid.NewGuid(),
                 "hello",
-                [],
-                [new WordPronunciationResponse(audioClipId, null, null, true, 0)]));
+                [
+                    new WordSenseResponse(
+                        PartOfSpeech.Interjection,
+                        "a greeting",
+                        null,
+                        0,
+                        [new ExampleSentenceResponse("Hello there.", "你好。", 0)])
+                ],
+                [new WordPronunciationResponse("US", "/həˈloʊ/", true, 0)]));
         await using var app = await CreateHttpAppAsync(service.Object, userId);
 
         var response = await app.GetTestClient().GetAsync(
@@ -257,7 +263,14 @@ public sealed class WordStudyEndpointTests
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        json.Should().Contain("audioClipId");
+        json.Should().Contain("hello");
+        json.Should().Contain("a greeting");
+        json.Should().Contain("Hello there.");
+        json.Should().Contain("你好。");
+        json.Should().Contain("sortOrder");
+        json.Should().Contain("accentTag");
+        json.Should().Contain("ipa");
+        json.Should().NotContain("audioClipId");
         json.Should().NotContain("ownerId");
         json.Should().NotContain("objectName");
         json.Should().NotContain("outputObjectName");

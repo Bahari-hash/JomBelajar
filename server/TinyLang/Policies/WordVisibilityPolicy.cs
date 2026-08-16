@@ -10,7 +10,7 @@ namespace TinyLang.Policies;
 public static class WordVisibilityPolicy
 {
     /// <summary>
-    /// 应用发布状态、内容完整性以及全部关联音频可播放性条件。
+    /// 应用发布状态和文本内容完整性条件。
     /// </summary>
     /// <param name="query">尚未物化的词条查询。</param>
     /// <returns>仅包含当前对登录用户可见词条的可组合查询。</returns>
@@ -22,16 +22,10 @@ public static class WordVisibilityPolicy
             word.Senses.Any() &&
             word.Pronunciations.Any() &&
             word.Pronunciations.Count(value => value.IsDefault) == 1 &&
-            word.Pronunciations.All(pronunciation =>
-                pronunciation.AudioClip != null &&
-                pronunciation.AudioClip.ProcessingStatus == AudioProcessingStatus.Ready &&
-                pronunciation.AudioClip.PublicationStatus == AudioPublicationStatus.Published &&
-                pronunciation.AudioClip.Kind == AudioClipKind.WordPronunciation) &&
-            word.Senses.SelectMany(sense => sense.Examples).All(example =>
-                example.AudioClipId == null ||
-                (example.AudioClip != null &&
-                 example.AudioClip.ProcessingStatus == AudioProcessingStatus.Ready &&
-                 example.AudioClip.PublicationStatus == AudioPublicationStatus.Published &&
-                 example.AudioClip.Kind == AudioClipKind.ExampleSentence)));
+            word.Senses.All(sense =>
+                sense.Examples.Any() &&
+                sense.Examples.All(example =>
+                    !string.IsNullOrWhiteSpace(example.Sentence) &&
+                    !string.IsNullOrWhiteSpace(example.Translation))));
     }
 }

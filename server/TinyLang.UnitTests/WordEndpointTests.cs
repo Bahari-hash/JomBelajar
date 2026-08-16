@@ -69,9 +69,14 @@ public sealed class WordEndpointTests
             "/api/admin/words",
             new CreateWordRequest { Headword = "hello" },
             TestContext.Current.CancellationToken);
+        var json = await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().Be($"/api/admin/words/{wordId}");
+        json.Should().Contain("Hello there.");
+        json.Should().Contain("accentTag");
+        json.Should().NotContain("audioClipId");
         service.Verify(value => value.CreateDraftAsync(
             adminId,
             It.Is<CreateWordRequest>(request => request.Headword == "hello"),
@@ -229,8 +234,29 @@ public sealed class WordEndpointTests
             null,
             null,
             Guid.NewGuid(),
-            [],
-            [],
+            [
+                new AdminWordSenseResponse(
+                    Guid.NewGuid(),
+                    PartOfSpeech.Interjection,
+                    "a greeting",
+                    null,
+                    0,
+                    [
+                        new AdminExampleSentenceResponse(
+                            Guid.NewGuid(),
+                            "Hello there.",
+                            "你好。",
+                            0)
+                    ])
+            ],
+            [
+                new AdminWordPronunciationResponse(
+                    Guid.NewGuid(),
+                    "US",
+                    "/həˈloʊ/",
+                    true,
+                    0)
+            ],
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow);
 }

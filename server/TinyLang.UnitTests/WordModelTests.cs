@@ -2,6 +2,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using TinyLang.Database;
+using TinyLang.Dtos;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
 
@@ -12,6 +13,23 @@ namespace TinyLang.UnitTests;
 /// </summary>
 public sealed class WordModelTests
 {
+    [Fact]
+    public void WordTextModelsShouldNotExposeAudioClipReferences()
+    {
+        typeof(WordPronunciation).GetProperty("AudioClipId").Should().BeNull();
+        typeof(WordPronunciation).GetProperty("AudioClip").Should().BeNull();
+        typeof(ExampleSentence).GetProperty("AudioClipId").Should().BeNull();
+        typeof(ExampleSentence).GetProperty("AudioClip").Should().BeNull();
+        typeof(AudioClip).GetProperty("WordPronunciations").Should().BeNull();
+        typeof(AudioClip).GetProperty("ExampleSentences").Should().BeNull();
+        typeof(WordPronunciationInput).GetProperty("AudioClipId").Should().BeNull();
+        typeof(ExampleSentenceInput).GetProperty("AudioClipId").Should().BeNull();
+        typeof(AdminWordPronunciationResponse).GetProperty("AudioClipId").Should().BeNull();
+        typeof(AdminExampleSentenceResponse).GetProperty("AudioClipId").Should().BeNull();
+        typeof(WordPronunciationResponse).GetProperty("AudioClipId").Should().BeNull();
+        typeof(ExampleSentenceResponse).GetProperty("AudioClipId").Should().BeNull();
+    }
+
     /// <summary>
     /// 验证规范化词头、排序和默认发音约束已进入 EF model。
     /// </summary>
@@ -64,10 +82,10 @@ public sealed class WordModelTests
     }
 
     /// <summary>
-    /// 验证私有子项级联删除而 AudioClip 引用使用 Restrict。
+    /// 验证私有子项保留级联删除且不再存在 AudioClip 外键。
     /// </summary>
     [Fact]
-    public void ModelShouldUseCascadeForChildrenAndRestrictForAudio()
+    public void ModelShouldUseCascadeForChildrenWithoutAudioForeignKeys()
     {
         using var db = CreateDbContext();
         var pronunciation = db.Model.FindEntityType(typeof(WordPronunciation))!;
@@ -76,15 +94,13 @@ public sealed class WordModelTests
         pronunciation.GetForeignKeys().Single(value =>
             value.PrincipalEntityType.ClrType == typeof(Word))
             .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
-        pronunciation.GetForeignKeys().Single(value =>
-            value.PrincipalEntityType.ClrType == typeof(AudioClip))
-            .DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
+        pronunciation.GetForeignKeys().Should().NotContain(value =>
+            value.PrincipalEntityType.ClrType == typeof(AudioClip));
         example.GetForeignKeys().Single(value =>
             value.PrincipalEntityType.ClrType == typeof(WordSense))
             .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
-        example.GetForeignKeys().Single(value =>
-            value.PrincipalEntityType.ClrType == typeof(AudioClip))
-            .DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
+        example.GetForeignKeys().Should().NotContain(value =>
+            value.PrincipalEntityType.ClrType == typeof(AudioClip));
     }
 
     /// <summary>

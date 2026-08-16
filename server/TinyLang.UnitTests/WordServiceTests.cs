@@ -14,7 +14,7 @@ using TinyLang.Services;
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证词条聚合写入、音频边界、生命周期、并发和用户可见性。
+/// 验证词条聚合写入、生命周期、并发和用户可见性。
 /// </summary>
 public sealed class WordServiceTests
 {
@@ -28,16 +28,12 @@ public sealed class WordServiceTests
     public async Task CreateDraftShouldNormalizeAndPersistCompleteAggregate()
     {
         await using var db = CreateDbContext();
-        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation);
-        var exampleAudio = CreateAudio(AudioClipKind.ExampleSentence);
-        db.AudioClips.AddRange(pronunciation, exampleAudio);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var adminId = Guid.NewGuid();
         var service = CreateService(db);
 
         var response = await service.CreateDraftAsync(
             adminId,
-            CreateCompleteRequest(pronunciation.Id, exampleAudio.Id) with
+            CreateCompleteRequest() with
             {
                 Headword = "  Cafe\u0301  ",
             },
@@ -85,27 +81,22 @@ public sealed class WordServiceTests
     public async Task UpdateShouldSynchronizeCompleteTargetAndPreserveExistingIds()
     {
         await using var db = CreateDbContext();
-        var firstPronunciation = CreateAudio(AudioClipKind.WordPronunciation);
-        var secondPronunciation = CreateAudio(AudioClipKind.WordPronunciation);
-        var exampleAudio = CreateAudio(AudioClipKind.ExampleSentence);
-        db.AudioClips.AddRange(firstPronunciation, secondPronunciation, exampleAudio);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var created = await service.CreateDraftAsync(
             Guid.NewGuid(),
-            CreateCompleteRequest(firstPronunciation.Id, exampleAudio.Id) with
+            CreateCompleteRequest() with
             {
                 Pronunciations =
                 [
                     new WordPronunciationInput
                     {
-                        AudioClipId = firstPronunciation.Id,
+                        AccentTag = "US",
                         IsDefault = true,
                         SortOrder = 0
                     },
                     new WordPronunciationInput
                     {
-                        AudioClipId = secondPronunciation.Id,
+                        AccentTag = "UK",
                         SortOrder = 1
                     }
                 ]
@@ -114,9 +105,9 @@ public sealed class WordServiceTests
         var existingSense = created.Senses.Single();
         var existingExample = existingSense.Examples.Single();
         var firstAssociation = created.Pronunciations.Single(value =>
-            value.AudioClipId == firstPronunciation.Id);
+            value.AccentTag == "US");
         var secondAssociation = created.Pronunciations.Single(value =>
-            value.AudioClipId == secondPronunciation.Id);
+            value.AccentTag == "UK");
 
         var updated = await service.UpdateAsync(
             created.Id,
@@ -127,20 +118,20 @@ public sealed class WordServiceTests
                 ConcurrencyStamp = created.ConcurrencyStamp,
                 Senses =
                 [
-                    CreateSenseInput(sortOrder: 1, exampleAudio.Id) with
+                    CreateSenseInput(sortOrder: 1) with
                     {
                         Id = existingSense.Id,
                         Definition = "an updated greeting",
                         Examples =
                         [
-                            CreateExampleInput(0, exampleAudio.Id) with
+                            CreateExampleInput(0) with
                             {
                                 Id = existingExample.Id,
                                 Sentence = "Hello again."
                             }
                         ]
                     },
-                    CreateSenseInput(sortOrder: 0, audioClipId: null) with
+                    CreateSenseInput(sortOrder: 0) with
                     {
                         PartOfSpeech = PartOfSpeech.Interjection,
                         Definition = "used to attract attention"
@@ -151,13 +142,13 @@ public sealed class WordServiceTests
                     new WordPronunciationInput
                     {
                         Id = firstAssociation.Id,
-                        AudioClipId = firstPronunciation.Id,
+                        AccentTag = "US",
                         SortOrder = 1
                     },
                     new WordPronunciationInput
                     {
                         Id = secondAssociation.Id,
-                        AudioClipId = secondPronunciation.Id,
+                        AccentTag = "UK",
                         IsDefault = true,
                         SortOrder = 0
                     }
@@ -184,17 +175,14 @@ public sealed class WordServiceTests
     public async Task UpdateShouldRejectForeignChildAndStaleConcurrencyStamp()
     {
         await using var db = CreateDbContext();
-        var audio = CreateAudio(AudioClipKind.WordPronunciation);
-        db.AudioClips.Add(audio);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var first = await service.CreateDraftAsync(
             Guid.NewGuid(),
-            CreateCompleteRequest(audio.Id, null),
+            CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
         var second = await service.CreateDraftAsync(
             Guid.NewGuid(),
-            CreateCompleteRequest(audio.Id, null) with { Headword = "world" },
+            CreateCompleteRequest() with { Headword = "world" },
             TestContext.Current.CancellationToken);
 
         var foreignChild = async () => await service.UpdateAsync(
@@ -206,7 +194,7 @@ public sealed class WordServiceTests
                 ConcurrencyStamp = first.ConcurrencyStamp,
                 Senses =
                 [
-                    CreateSenseInput(0, null) with { Id = second.Senses.Single().Id }
+                    CreateSenseInput(0) with { Id = second.Senses.Single().Id }
                 ],
                 Pronunciations = []
             },
@@ -226,35 +214,21 @@ public sealed class WordServiceTests
     }
 
     /// <summary>
-    /// 验证缺失、不可用和用途错误的音频均不能关联。
+    /// 验证纯文本发音和例句不依赖任何音频资源即可保存。
     /// </summary>
     [Fact]
-    public async Task AudioAssociationShouldEnforceExistenceStatusAndKind()
+    public async Task TextOnlyContentShouldNotRequireAudioResources()
     {
         await using var db = CreateDbContext();
-        var unavailable = CreateAudio(AudioClipKind.WordPronunciation,
-            AudioProcessingStatus.Processing);
-        var wrongKind = CreateAudio(AudioClipKind.ExampleSentence);
-        db.AudioClips.AddRange(unavailable, wrongKind);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
-        var missing = async () => await service.CreateDraftAsync(
+        var response = await service.CreateDraftAsync(
             Guid.NewGuid(),
-            CreateCompleteRequest(Guid.NewGuid(), null),
-            TestContext.Current.CancellationToken);
-        var invalidStatus = async () => await service.CreateDraftAsync(
-            Guid.NewGuid(),
-            CreateCompleteRequest(unavailable.Id, null),
-            TestContext.Current.CancellationToken);
-        var invalidKind = async () => await service.CreateDraftAsync(
-            Guid.NewGuid(),
-            CreateCompleteRequest(wrongKind.Id, null),
+            CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
 
-        await missing.Should().ThrowAsync<NotFoundException>();
-        await invalidStatus.Should().ThrowAsync<ConflictException>();
-        await invalidKind.Should().ThrowAsync<ConflictException>();
+        response.Pronunciations.Should().ContainSingle();
+        response.Senses.Single().Examples.Should().ContainSingle();
     }
 
     /// <summary>
@@ -264,14 +238,11 @@ public sealed class WordServiceTests
     public async Task PublicationLifecycleShouldBeIdempotentAndPreserveFirstPublishedAt()
     {
         await using var db = CreateDbContext();
-        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation);
-        db.AudioClips.Add(pronunciation);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var adminId = Guid.NewGuid();
         var created = await service.CreateDraftAsync(
             adminId,
-            CreateCompleteRequest(pronunciation.Id, null),
+            CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
 
         var published = await service.PublishAsync(
@@ -324,13 +295,10 @@ public sealed class WordServiceTests
     public async Task PublicationShouldRejectStaleStampBeforeIdempotentStateCheck()
     {
         await using var db = CreateDbContext();
-        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation);
-        db.AudioClips.Add(pronunciation);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var created = await service.CreateDraftAsync(
             Guid.NewGuid(),
-            CreateCompleteRequest(pronunciation.Id, null),
+            CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
         var published = await service.PublishAsync(
             created.Id,
@@ -471,28 +439,22 @@ public sealed class WordServiceTests
     }
 
     /// <summary>
-    /// 验证关联音频后续失效时用户查询隐藏词条而管理员仍可查看。
+    /// 验证已发布的纯文本词条对用户和管理员均保持可见。
     /// </summary>
     [Fact]
-    public async Task UnavailableLinkedAudioShouldHidePublishedWordFromUsers()
+    public async Task PublishedTextWordShouldRemainVisibleToUsers()
     {
         await using var db = CreateDbContext();
-        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation);
-        db.AudioClips.Add(pronunciation);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var created = await service.CreateDraftAsync(
             Guid.NewGuid(),
-            CreateCompleteRequest(pronunciation.Id, null),
+            CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
         await service.PublishAsync(
             created.Id,
             Guid.NewGuid(),
             new WordMutationRequest { ConcurrencyStamp = created.ConcurrencyStamp },
             TestContext.Current.CancellationToken);
-        pronunciation.PublicationStatus = AudioPublicationStatus.Unpublished;
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
         var list = await service.GetUserListAsync(
             new WordListRequest(), TestContext.Current.CancellationToken);
         var detail = async () => await service.GetUserByIdAsync(
@@ -500,29 +462,26 @@ public sealed class WordServiceTests
         var adminDetail = await service.GetAdminByIdAsync(
             created.Id, TestContext.Current.CancellationToken);
 
-        list.Items.Should().BeEmpty();
-        await detail.Should().ThrowAsync<NotFoundException>();
+        list.Items.Should().ContainSingle(value => value.Id == created.Id);
+        (await detail()).Id.Should().Be(created.Id);
         adminDetail.Status.Should().Be(WordPublicationStatus.Published);
     }
 
     /// <summary>
-    /// 验证 Published 不能直接删除，而 Draft 删除不会删除关联 AudioClip。
+    /// 验证 Published 不能直接删除，而 Draft 可以连同私有文本子项删除。
     /// </summary>
     [Fact]
-    public async Task DeleteShouldProtectPublishedWordAndKeepAudioClip()
+    public async Task DeleteShouldProtectPublishedWordAndRemoveDraftAggregate()
     {
         await using var db = CreateDbContext();
-        var pronunciation = CreateAudio(AudioClipKind.WordPronunciation);
-        db.AudioClips.Add(pronunciation);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
         var draft = await service.CreateDraftAsync(
             Guid.NewGuid(),
-            CreateCompleteRequest(pronunciation.Id, null),
+            CreateCompleteRequest(),
             TestContext.Current.CancellationToken);
         var published = await service.CreateDraftAsync(
             Guid.NewGuid(),
-            CreateCompleteRequest(pronunciation.Id, null) with { Headword = "world" },
+            CreateCompleteRequest() with { Headword = "world" },
             TestContext.Current.CancellationToken);
         var publishedResponse = await service.PublishAsync(
             published.Id,
@@ -548,9 +507,9 @@ public sealed class WordServiceTests
         (await db.Words.AnyAsync(
             value => value.Id == draft.Id,
             TestContext.Current.CancellationToken)).Should().BeFalse();
-        (await db.AudioClips.AnyAsync(
-            value => value.Id == pronunciation.Id,
-            TestContext.Current.CancellationToken)).Should().BeTrue();
+        (await db.WordSenses.AnyAsync(
+            value => value.WordId == draft.Id,
+            TestContext.Current.CancellationToken)).Should().BeFalse();
     }
 
     /// <summary>
@@ -572,51 +531,18 @@ public sealed class WordServiceTests
             Mock.Of<ILogger<WordService>>());
 
     /// <summary>
-    /// 创建处理就绪且默认已发布的音频及其源资源。
-    /// </summary>
-    private static AudioClip CreateAudio(
-        AudioClipKind kind,
-        AudioProcessingStatus processingStatus = AudioProcessingStatus.Ready,
-        AudioPublicationStatus publicationStatus = AudioPublicationStatus.Published)
-    {
-        var source = new MediaResource
-        {
-            UploaderId = Guid.NewGuid(),
-            ObjectName = $"audios/source/{Guid.NewGuid():N}",
-            OriginalName = "audio.mp3",
-            Module = ResourceModule.Audio,
-            Status = ResourceStatus.Active,
-            Size = 1024,
-            Extension = ".mp3",
-            ContentType = "audio/mpeg"
-        };
-        return new AudioClip
-        {
-            CreatedById = source.UploaderId,
-            SourceMediaResourceId = source.Id,
-            SourceMediaResource = source,
-            Title = "Audio",
-            Kind = kind,
-            ProcessingStatus = processingStatus,
-            PublicationStatus = publicationStatus
-        };
-    }
-
-    /// <summary>
     /// 创建包含一个释义、例句和默认发音的完整词条请求。
     /// </summary>
-    private static CreateWordRequest CreateCompleteRequest(
-        Guid pronunciationAudioId,
-        Guid? exampleAudioId)
+    private static CreateWordRequest CreateCompleteRequest()
         => new()
         {
             Headword = "hello",
-            Senses = [CreateSenseInput(0, exampleAudioId)],
+            Senses = [CreateSenseInput(0)],
             Pronunciations =
             [
                 new WordPronunciationInput
                 {
-                    AudioClipId = pronunciationAudioId,
+                    AccentTag = "default",
                     IsDefault = true,
                     SortOrder = 0
                 }
@@ -624,28 +550,25 @@ public sealed class WordServiceTests
         };
 
     /// <summary>
-    /// 创建指定排序和可选音频的有效释义输入。
+    /// 创建指定排序的有效释义输入。
     /// </summary>
-    private static WordSenseInput CreateSenseInput(int sortOrder, Guid? audioClipId)
+    private static WordSenseInput CreateSenseInput(int sortOrder)
         => new()
         {
             PartOfSpeech = PartOfSpeech.Noun,
             Definition = "a greeting",
             SortOrder = sortOrder,
-            Examples = [CreateExampleInput(0, audioClipId)]
+            Examples = [CreateExampleInput(0)]
         };
 
     /// <summary>
-    /// 创建指定排序和可选音频的有效例句输入。
+    /// 创建指定排序的有效例句输入。
     /// </summary>
-    private static ExampleSentenceInput CreateExampleInput(
-        int sortOrder,
-        Guid? audioClipId)
+    private static ExampleSentenceInput CreateExampleInput(int sortOrder)
         => new()
         {
             Sentence = "Hello there.",
             Translation = "你好。",
-            AudioClipId = audioClipId,
             SortOrder = sortOrder
         };
 }

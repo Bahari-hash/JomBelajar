@@ -36,11 +36,14 @@ import {
   SelectValue,
 } from "@/components/ui/select.jsx";
 import { Skeleton } from "@/components/ui/skeleton.jsx";
-import { AudioTable, STATUS_LABELS } from "@/features/audio/AudioTable.jsx";
+import { AudioTable } from "@/features/audio/AudioTable.jsx";
 import { AudioUploadControl } from "@/features/audio/AudioUploadControl.jsx";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
 import { formatDateTime } from "@/lib/dateTime.js";
-import { AUDIO_RESOURCE_STATUSES } from "@/services/audioContracts.js";
+import {
+  AUDIO_RESOURCE_STATUSES,
+  AUDIO_STATUS_LABELS,
+} from "@/services/audioContracts.js";
 import {
   useDeleteAudioResourceMutation,
   useGetAdminAudioResourcesQuery,
@@ -109,7 +112,10 @@ function AudioDetailsDialog({ state, onClose }) {
         ) : state?.audio ? (
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <Detail label="名称" value={state.audio.name} />
-            <Detail label="状态" value={STATUS_LABELS[state.audio.status]} />
+            <Detail
+              label="状态"
+              value={AUDIO_STATUS_LABELS[state.audio.status]}
+            />
             <Detail
               label="时长"
               value={
@@ -355,7 +361,7 @@ function AudioLibrary() {
                 <SelectItem value="all">全部状态</SelectItem>
                 {AUDIO_RESOURCE_STATUSES.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {STATUS_LABELS[status]}
+                    {AUDIO_STATUS_LABELS[status]}
                   </SelectItem>
                 ))}
               </SelectContent>

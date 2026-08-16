@@ -90,6 +90,7 @@ function stageText(stage, progress) {
     finalizing: "正在完成分片上传",
     confirming: "正在确认上传",
     processing: "上传完成，正在等待音频处理",
+    queued: "源文件上传完成，后台处理中",
     completed: "音频已处理完成",
     cancelled: "上传已取消，已创建的音频资源会保留",
     failed: "上传或处理失败",
@@ -100,6 +101,7 @@ function stageText(stage, progress) {
 /** Uploads a new or replacement audio source through the shared audio lifecycle. */
 export function AudioUploadControl({
   resource = null,
+  waitForProcessing = true,
   onStarted,
   onCompleted,
 }) {
@@ -163,7 +165,7 @@ export function AudioUploadControl({
     throw new Error("服务端仍在完成分片上传，请稍后刷新列表查看状态。");
   };
 
-  const waitForProcessing = async (audioResourceId, signal) => {
+  const waitForProcessingResult = async (audioResourceId, signal) => {
     for (let count = 0; count < MAX_PROCESSING_POLLS; count += 1) {
       requestRef.current = getAudioResource(audioResourceId, false);
       const audio = await requestRef.current.unwrap();
@@ -171,6 +173,24 @@ export function AudioUploadControl({
       await delay(POLL_INTERVAL_MS, signal);
     }
     throw new Error("音频仍在处理中，请稍后刷新列表查看状态。");
+  };
+
+  const finishUpload = (audio) => {
+    transitionTo(
+      audio.status === "Failed"
+        ? "failed"
+        : audio.status === "Ready"
+          ? "completed"
+          : "queued",
+    );
+    update(() => {
+      setProgress(100);
+      setFile(null);
+      if (inputRef.current) inputRef.current.value = "";
+      if (audio.status === "Failed")
+        setError("音频处理失败，可在列表中重新上传或重新处理。");
+      onCompleted?.(audio);
+    });
   };
 
   const uploadMultipart = async (file, initialized, capability, signal) => {
@@ -282,7 +302,7 @@ export function AudioUploadControl({
           ? initializeSimple(file)
           : initializeMultipart(file);
       const initialized = await requestRef.current.unwrap();
-      onStarted?.(initialized.audioResourceId);
+      onStarted?.(initialized.audioResourceId, file.name);
       transitionTo("uploading");
       if (initialized.presignedUrl) {
         await putObject({
@@ -298,21 +318,24 @@ export function AudioUploadControl({
       transitionTo("confirming");
       requestRef.current = confirmUpload(initialized.audioResourceId);
       await requestRef.current.unwrap();
-      transitionTo("processing");
       if (!mountedRef.current) return;
-      const audio = await waitForProcessing(
+
+      if (!waitForProcessing) {
+        requestRef.current = getAudioResource(
+          initialized.audioResourceId,
+          false,
+        );
+        const audio = await requestRef.current.unwrap();
+        finishUpload(audio);
+        return;
+      }
+
+      transitionTo("processing");
+      const audio = await waitForProcessingResult(
         initialized.audioResourceId,
         controller.signal,
       );
-      transitionTo(audio.status === "Ready" ? "completed" : "failed");
-      update(() => {
-        setProgress(100);
-        setFile(null);
-        if (inputRef.current) inputRef.current.value = "";
-        if (audio.status === "Failed")
-          setError("音频处理失败，可在列表中重新上传或重新处理。");
-        onCompleted?.(audio);
-      });
+      finishUpload(audio);
     } catch (requestError) {
       const multipartSessionId = multipartSessionRef.current;
       multipartSessionRef.current = null;

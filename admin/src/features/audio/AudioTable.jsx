@@ -23,14 +23,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip.jsx";
 import { formatDateTime } from "@/lib/dateTime.js";
-
-const STATUS_LABELS = Object.freeze({
-  Uploading: "上传中",
-  Queued: "排队中",
-  Processing: "处理中",
-  Ready: "已就绪",
-  Failed: "处理失败",
-});
+import { AUDIO_STATUS_LABELS } from "@/services/audioContracts.js";
 
 function formatDuration(value) {
   if (value === null) return "-";
@@ -109,7 +102,7 @@ export function AudioTable({
                       audio.status === "Failed" ? "destructive" : "outline"
                     }
                   >
-                    {STATUS_LABELS[audio.status]}
+                    {AUDIO_STATUS_LABELS[audio.status]}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
@@ -193,5 +186,3 @@ export function AudioTable({
     </div>
   );
 }
-
-export { STATUS_LABELS };

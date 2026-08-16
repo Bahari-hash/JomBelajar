@@ -51,6 +51,19 @@ function readyAudio() {
   };
 }
 
+function processingAudio() {
+  return {
+    ...readyAudio(),
+    status: "Processing",
+    durationSeconds: null,
+    sampleRate: null,
+    channels: null,
+    containerFormat: null,
+    sourceCodec: null,
+    currentOutputVersion: null,
+  };
+}
+
 afterEach(() => vi.restoreAllMocks());
 
 describe("AudioUploadControl", () => {
@@ -62,6 +75,7 @@ describe("AudioUploadControl", () => {
         return { status: 200, headers: new AxiosHeaders() };
       },
     );
+    let detailRequests = 0;
     const requestMock = mockHttpClient((config) => {
       if (config.url.includes("/capabilities"))
         return Promise.resolve(axiosResponse(capability()));
@@ -82,7 +96,10 @@ describe("AudioUploadControl", () => {
         );
       if (config.url.endsWith("/upload/confirm"))
         return Promise.resolve(axiosResponse(null, 204));
-      return Promise.resolve(axiosResponse(readyAudio()));
+      detailRequests += 1;
+      return Promise.resolve(
+        axiosResponse(detailRequests === 1 ? processingAudio() : readyAudio()),
+      );
     });
     const onStarted = vi.fn();
     const onCompleted = vi.fn();
@@ -107,7 +124,7 @@ describe("AudioUploadControl", () => {
         expect.objectContaining({ id: AUDIO_ID, status: "Ready" }),
       ),
     );
-    expect(onStarted).toHaveBeenCalledWith(AUDIO_ID);
+    expect(onStarted).toHaveBeenCalledWith(AUDIO_ID, "lesson.wav");
     expect(objectStorageClient.request).toHaveBeenCalledWith(
       expect.objectContaining({
         url: "https://storage.example.test/lesson.wav",
@@ -122,7 +139,76 @@ describe("AudioUploadControl", () => {
       ["/admin/audio/uploads/simple", "POST"],
       [`/admin/audio/${AUDIO_ID}/upload/confirm`, "PUT"],
       [`/admin/audio/${AUDIO_ID}`, "GET"],
+      [`/admin/audio/${AUDIO_ID}`, "GET"],
     ]);
+  });
+
+  it("returns after upload confirmation without waiting for Ready", async () => {
+    tokenVault.install("access", "refresh");
+    const storageMock = vi
+      .spyOn(objectStorageClient, "request")
+      .mockResolvedValue({ status: 200, headers: new AxiosHeaders() });
+    let detailRequests = 0;
+    const requestMock = mockHttpClient((config) => {
+      if (config.url.includes("/capabilities"))
+        return Promise.resolve(axiosResponse(capability()));
+      if (config.url.endsWith("/uploads/simple"))
+        return Promise.resolve(
+          axiosResponse(
+            {
+              audioResourceId: AUDIO_ID,
+              mediaResourceId: MEDIA_ID,
+              presignedUrl: "https://storage.example.test/lesson.wav",
+              multipartSessionId: null,
+              partSize: null,
+              partCount: null,
+              expiresAt: "2026-08-16T08:15:00Z",
+            },
+            201,
+          ),
+        );
+      if (config.url.endsWith("/upload/confirm"))
+        return Promise.resolve(axiosResponse(null, 204));
+      detailRequests += 1;
+      return Promise.resolve(
+        axiosResponse(detailRequests === 1 ? processingAudio() : readyAudio()),
+      );
+    });
+    const onStarted = vi.fn();
+    const onCompleted = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(
+      <Provider store={createAppStore()}>
+        <AudioUploadControl
+          waitForProcessing={false}
+          onStarted={onStarted}
+          onCompleted={onCompleted}
+        />
+      </Provider>,
+    );
+
+    await screen.findByText(/支持 .wav/);
+    const file = new File(["wave"], "lesson.wav", { type: "audio/wav" });
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [file] },
+    });
+    await user.click(screen.getByRole("button", { name: "开始上传" }));
+
+    await waitFor(() =>
+      expect(onCompleted).toHaveBeenCalledWith(
+        expect.objectContaining({ id: AUDIO_ID, status: "Processing" }),
+      ),
+    );
+    expect(onStarted).toHaveBeenCalledWith(AUDIO_ID, "lesson.wav");
+    expect(onStarted.mock.invocationCallOrder[0]).toBeLessThan(
+      storageMock.mock.invocationCallOrder[0],
+    );
+    expect(
+      requestMock.mock.calls.filter(
+        ([config]) => config.url === `/admin/audio/${AUDIO_ID}`,
+      ),
+    ).toHaveLength(1);
+    expect(screen.getByText("源文件上传完成，后台处理中")).toBeVisible();
   });
 
   it("uses multipart upload above the server threshold", async () => {

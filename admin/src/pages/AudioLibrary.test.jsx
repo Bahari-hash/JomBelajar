@@ -98,7 +98,7 @@ describe("AudioLibrary", () => {
     expect(screen.getByRole("searchbox", { name: "搜索音频名称" })).toHaveValue(
       "lesson",
     );
-    expect(screen.getAllByText("已就绪").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("可播放").length).toBeGreaterThan(0);
     expect(screen.getByText("处理失败")).toBeVisible();
     expect(await screen.findByTitle("音频暂不可用")).toBeDisabled();
     expect(

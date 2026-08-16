@@ -8,6 +8,14 @@ export const AUDIO_RESOURCE_STATUSES = Object.freeze([
   "Failed",
 ]);
 
+export const AUDIO_STATUS_LABELS = Object.freeze({
+  Uploading: "上传中",
+  Queued: "等待处理",
+  Processing: "处理中",
+  Ready: "可播放",
+  Failed: "处理失败",
+});
+
 export const MULTIPART_UPLOAD_STATUSES = Object.freeze([
   "Initiated",
   "Completing",

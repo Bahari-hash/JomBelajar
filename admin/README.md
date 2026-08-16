@@ -17,6 +17,22 @@ pnpm --dir admin preview
 
 `test` 使用 Vitest 非 watch 模式运行；本地持续测试使用 `pnpm --dir admin test:watch`。
 
+## 音频资源库
+
+管理员登录后通过 `/audio` 管理共享音频资源，包括上传、搜索、状态筛选、试听、重命名、重新上传、重新处理和删除。
+
+音频资源库定向测试和管理端全量回归命令：
+
+```powershell
+pnpm --dir admin test audioApi AudioLibrary
+pnpm --dir admin test -- --run
+pnpm --dir admin build
+```
+
+## 开发数据库迁移
+
+`RebuildAudioResourceModule` migration 会删除旧音频表、旧音频开发数据，以及单词发音和例句与旧音频的关联，然后创建新的共享音频资源结构。应用该 migration 前必须备份数据库，并确认目标环境是已接受这些数据丢失的开发数据库；不得在未完成数据迁移评估的生产数据库上直接执行。
+
 ## 项目边界
 
 - `src/main.jsx`：全局样式、StrictMode 和根组件挂载。

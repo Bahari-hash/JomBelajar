@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using TinyLang.Endpoints;
+using TinyLang.Exceptions;
 using TinyLang.Infrastructure;
 using TinyLang.Services;
 
@@ -150,17 +151,38 @@ public sealed class OpenApiContractTests
         using var document = JsonDocument.Parse(json);
         var paths = document.RootElement.GetProperty("paths");
 
-        foreach (var path in new[]
+        var expectedOperations = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            "/api/admin/audio",
-            "/api/admin/audio/{id}",
-            "/api/admin/audio/{id}/name",
-            "/api/admin/audio/{id}/retry-upload",
-            "/api/admin/audio/{id}/reprocess",
-            "/api/audio/{id}/playback"
-        })
+            ["/api/admin/audio"] = ["get"],
+            ["/api/admin/audio/uploads/simple"] = ["post"],
+            ["/api/admin/audio/uploads/multipart"] = ["post"],
+            ["/api/admin/audio/{id}"] = ["delete", "get"],
+            ["/api/admin/audio/{id}/upload/confirm"] = ["put"],
+            ["/api/admin/audio/{id}/name"] = ["patch"],
+            ["/api/admin/audio/{id}/retry-upload"] = ["post"],
+            ["/api/admin/audio/{id}/reprocess"] = ["post"],
+            ["/api/admin/audio/multipart/{sessionId}/parts/presign"] = ["post"],
+            ["/api/admin/audio/multipart/{sessionId}"] = ["delete", "get"],
+            ["/api/admin/audio/multipart/{sessionId}/complete"] = ["post"],
+            ["/api/audio/{id}/playback"] = ["post"]
+        };
+        var httpMethods = new HashSet<string>(
+            ["delete", "get", "head", "options", "patch", "post", "put", "trace"],
+            StringComparer.Ordinal);
+        var actualOperations = paths.EnumerateObject()
+            .Where(path => path.Name.Contains("/audio", StringComparison.Ordinal))
+            .ToDictionary(
+                path => path.Name,
+                path => path.Value.EnumerateObject()
+                    .Select(operation => operation.Name)
+                    .Where(httpMethods.Contains)
+                    .Order(StringComparer.Ordinal)
+                    .ToArray(),
+                StringComparer.Ordinal);
+        actualOperations.Keys.Should().BeEquivalentTo(expectedOperations.Keys);
+        foreach (var (path, methods) in expectedOperations)
         {
-            paths.TryGetProperty(path, out _).Should().BeTrue();
+            actualOperations[path].Should().Equal(methods);
         }
 
         paths.EnumerateObject().Should().NotContain(path =>
@@ -168,9 +190,71 @@ public sealed class OpenApiContractTests
             (path.Name.Contains("/publish", StringComparison.Ordinal) ||
              path.Name.Contains("/unpublish", StringComparison.Ordinal) ||
              path.Name.EndsWith("/retry", StringComparison.Ordinal)));
-        document.RootElement.GetProperty("components").GetProperty("schemas")
-            .EnumerateObject().Should().NotContain(schema =>
-                schema.Name.Contains("AudioClip", StringComparison.Ordinal));
+        var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
+        var status = GetSchema(schemas, "AudioResourceStatus");
+        status.GetProperty("enum").EnumerateArray()
+            .Select(value => value.GetString())
+            .Should().Equal("Uploading", "Queued", "Processing", "Ready", "Failed");
+        foreach (var schema in new[]
+        {
+            "InitializeAudioUploadRequest",
+            "AudioUploadInitializationResponse",
+            "AdminAudioResourceListItemResponse",
+            "AdminAudioResourceResponse",
+            "RenameAudioResourceRequest",
+            "MultipartPartPresignRequest",
+            "MultipartPartPresignResponse",
+            "MultipartUploadStatusResponse",
+            "CompleteMultipartUploadRequest",
+            "AudioResourcePlaybackResponse"
+        })
+        {
+            GetSchema(schemas, schema).ValueKind.Should().Be(JsonValueKind.Object);
+        }
+
+        foreach (var (path, method, schema) in new[]
+        {
+            ("/api/admin/audio/uploads/simple", "post", "InitializeAudioUploadRequest"),
+            ("/api/admin/audio/uploads/multipart", "post", "InitializeAudioUploadRequest"),
+            ("/api/admin/audio/{id}/name", "patch", "RenameAudioResourceRequest"),
+            ("/api/admin/audio/{id}/retry-upload", "post", "InitializeAudioUploadRequest"),
+            ("/api/admin/audio/multipart/{sessionId}/parts/presign", "post", "MultipartPartPresignRequest"),
+            ("/api/admin/audio/multipart/{sessionId}/complete", "post", "CompleteMultipartUploadRequest")
+        })
+        {
+            GetReferencedSchemas(
+                    paths.GetProperty(path).GetProperty(method).GetProperty("requestBody"),
+                    schemas)
+                .Should().Contain(schema);
+        }
+        foreach (var (path, method, schema) in new[]
+        {
+            ("/api/admin/audio/uploads/simple", "post", "AudioUploadInitializationResponse"),
+            ("/api/admin/audio/uploads/multipart", "post", "AudioUploadInitializationResponse"),
+            ("/api/admin/audio", "get", "AdminAudioResourceListItemResponse"),
+            ("/api/admin/audio/{id}", "get", "AdminAudioResourceResponse"),
+            ("/api/admin/audio/{id}/name", "patch", "AdminAudioResourceResponse"),
+            ("/api/admin/audio/{id}/retry-upload", "post", "AudioUploadInitializationResponse"),
+            ("/api/admin/audio/{id}/reprocess", "post", "AdminAudioResourceResponse"),
+            ("/api/admin/audio/multipart/{sessionId}/parts/presign", "post", "MultipartPartPresignResponse"),
+            ("/api/admin/audio/multipart/{sessionId}", "get", "MultipartUploadStatusResponse"),
+            ("/api/admin/audio/multipart/{sessionId}/complete", "post", "MultipartUploadStatusResponse"),
+            ("/api/audio/{id}/playback", "post", "AudioResourcePlaybackResponse")
+        })
+        {
+            GetSuccessResponseSchemas(paths.GetProperty(path).GetProperty(method), schemas)
+                .Should().Contain(schema);
+        }
+
+        schemas.EnumerateObject().Should().NotContain(schema =>
+            schema.Name.Contains("AudioClip", StringComparison.Ordinal) ||
+            schema.Name.Contains("AudioPublicationStatus", StringComparison.Ordinal) ||
+            schema.Name.Contains("WordAudio", StringComparison.Ordinal));
+        schemas.EnumerateObject().Should().NotContain(schema =>
+            ContainsProperty(schema.Value, "audioClipId"));
+        Enum.GetNames<ErrorCodes>().Should().NotContain(name =>
+            name.StartsWith("WordAudio", StringComparison.Ordinal) ||
+            name.StartsWith("WordPronunciationAudio", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -207,9 +291,15 @@ public sealed class OpenApiContractTests
     /// 按稳定 DTO 后缀查找 OpenAPI schema，兼容生成器附加命名空间前缀。
     /// </summary>
     private static JsonElement GetSchema(JsonElement schemas, string name)
-        => schemas.EnumerateObject()
-            .Single(schema => schema.Name.EndsWith(name, StringComparison.Ordinal))
-            .Value;
+    {
+        var exactMatch = schemas.EnumerateObject()
+            .SingleOrDefault(schema => schema.Name.Equals(name, StringComparison.Ordinal));
+        return exactMatch.Value.ValueKind != JsonValueKind.Undefined
+            ? exactMatch.Value
+            : schemas.EnumerateObject()
+                .Single(schema => schema.Name.EndsWith(name, StringComparison.Ordinal))
+                .Value;
+    }
 
     /// <summary>
     /// 返回 schema 中显式声明为 required 的 JSON 属性名。
@@ -218,6 +308,89 @@ public sealed class OpenApiContractTests
         => schema.TryGetProperty("required", out var required)
             ? required.EnumerateArray().Select(value => value.GetString()!).ToArray()
             : [];
+
+    private static HashSet<string> GetSuccessResponseSchemas(
+        JsonElement operation,
+        JsonElement schemas)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var response in operation.GetProperty("responses").EnumerateObject()
+                     .Where(response => response.Name.Length == 3 && response.Name[0] == '2'))
+        {
+            CollectReferencedSchemas(response.Value, schemas, result, []);
+        }
+        return result;
+    }
+
+    private static HashSet<string> GetReferencedSchemas(JsonElement element, JsonElement schemas)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        CollectReferencedSchemas(element, schemas, result, []);
+        return result;
+    }
+
+    private static void CollectReferencedSchemas(
+        JsonElement element,
+        JsonElement schemas,
+        HashSet<string> result,
+        HashSet<string> visited)
+    {
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                CollectReferencedSchemas(item, schemas, result, visited);
+            }
+            return;
+        }
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.NameEquals("$ref") && property.Value.ValueKind == JsonValueKind.String)
+            {
+                var reference = property.Value.GetString()!;
+                var schemaName = reference[(reference.LastIndexOf('/') + 1)..];
+                result.Add(schemaName);
+                if (visited.Add(schemaName) && schemas.TryGetProperty(schemaName, out var schema))
+                {
+                    CollectReferencedSchemas(schema, schemas, result, visited);
+                }
+            }
+            else
+            {
+                CollectReferencedSchemas(property.Value, schemas, result, visited);
+            }
+        }
+    }
+
+    private static bool ContainsProperty(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            return element.EnumerateArray().Any(item => ContainsProperty(item, propertyName));
+        }
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.NameEquals("properties") &&
+                property.Value.ValueKind == JsonValueKind.Object &&
+                property.Value.TryGetProperty(propertyName, out _))
+            {
+                return true;
+            }
+            if (ContainsProperty(property.Value, propertyName))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /// <summary>
     /// 判断 OpenAPI 3.0/3.1 schema 是否允许 null。

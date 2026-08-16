@@ -479,12 +479,6 @@ public enum ErrorCodes
     [Description("同级词条子项排序值不能重复.")]
     WordSortOrderConflict,
 
-    [Description("词条发音音频标识无效.")]
-    WordPronunciationAudioInvalid,
-
-    [Description("同一词条不能重复使用相同的发音音频.")]
-    WordPronunciationAudioDuplicate,
-
     [Description("词条最多只能包含一个默认发音，发布时必须恰好包含一个.")]
     WordDefaultPronunciationConflict,
 
@@ -493,18 +487,6 @@ public enum ErrorCodes
 
     [Description("相同语言的词条已存在.")]
     WordDuplicate,
-
-    [Description("词条关联的音频不存在.")]
-    WordAudioNotFound,
-
-    [Description("词条关联的音频当前不可用.")]
-    WordAudioUnavailable,
-
-    [Description("词条关联的音频用途不匹配.")]
-    WordAudioKindMismatch,
-
-    [Description("词条关联的音频语言不兼容.")]
-    WordAudioLanguageMismatch,
 
     [Description("词条内容不满足发布要求.")]
     WordPublishRequirementsNotMet,

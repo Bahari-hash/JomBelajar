@@ -65,7 +65,6 @@ describe("WordEditor", () => {
         pronunciations: [],
       },
     });
-    expect(await screen.findByText("单词草稿已创建。")).toBeVisible();
   });
 
   it("keeps invalid nested content local and marks required fields", async () => {
@@ -202,14 +201,16 @@ describe("WordEditor", () => {
       ),
     );
     const user = userEvent.setup();
-    renderAppAt("/words/new");
+    const { router } = renderAppAt("/words/new");
     await user.type(await screen.findByLabelText("词头 *"), "bonjour");
     await user.click(screen.getByRole("button", { name: "添加发音" }));
     await user.type(screen.getByLabelText("口音标签"), "France");
     await user.type(screen.getByLabelText("国际音标（IPA）"), "bɔ̃.ʒuʁ");
     await user.click(screen.getByLabelText("设为默认发音"));
     await user.click(screen.getByRole("button", { name: "保存" }));
-    await screen.findByText("单词草稿已创建。");
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(`/words/${WORD_ID}`),
+    );
 
     const createRequest = requestMock.mock.calls
       .map(([config]) => config)

@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import { parseArticleStatus } from "@/constants/articleStatus.js";
+import { AUDIO_RESOURCE_STATUSES } from "@/services/audioContracts.js";
 
 const HTTP_PROTOCOLS = new Set(["http:", "https:"]);
 const RESOURCE_MODULE = "ArticlePicture";
@@ -26,6 +27,13 @@ function optionalString(value, name) {
 
 function requireInteger(value, name) {
   if (!Number.isInteger(value) || value < 0)
+    throw new Error(`API returned invalid ${name}.`);
+  return value;
+}
+
+function requireNumber(value, name, nullable = false) {
+  if (nullable && value === null) return null;
+  if (!Number.isFinite(value) || value < 0)
     throw new Error(`API returned invalid ${name}.`);
   return value;
 }
@@ -108,6 +116,27 @@ function normalizeMediaReference(value) {
   };
 }
 
+function normalizeArticleReadingAudio(value) {
+  if (value === null) return null;
+  const audio = assertObject(value, "article reading audio");
+  if (!AUDIO_RESOURCE_STATUSES.includes(audio.status))
+    throw new Error("API returned invalid article reading audio status.");
+  return {
+    id: requireString(audio.id, "article reading audio id"),
+    name: requireString(audio.name, "article reading audio name"),
+    status: audio.status,
+    durationSeconds: requireNumber(
+      audio.durationSeconds,
+      "article reading audio duration",
+      true,
+    ),
+    lastFailureCode: optionalString(
+      audio.lastFailureCode,
+      "article reading audio failure code",
+    ),
+  };
+}
+
 export function normalizeArticleListItem(value) {
   const article = assertObject(value, "article list item");
   if (!Array.isArray(article.categories))
@@ -160,6 +189,7 @@ export function normalizeAdminArticle(value) {
     lastEditor: normalizeUser(source.lastEditor),
     coverMedia,
     bodyMedia: source.bodyMedia.map(normalizeMediaReference),
+    readingAudio: normalizeArticleReadingAudio(source.readingAudio),
     concurrencyStamp: requireString(
       source.concurrencyStamp,
       "concurrency stamp",

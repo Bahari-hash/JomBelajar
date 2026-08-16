@@ -74,7 +74,7 @@ export function AudioResourcePickerDialog({
         </DialogHeader>
 
         <form
-          className="grid gap-3 border-y py-3 sm:grid-cols-[minmax(0,1fr)_9rem_auto]"
+          className="grid gap-3 border-y py-3 items-start sm:grid-cols-[minmax(0,1fr)_9rem_auto]"
           role="search"
           onSubmit={submitSearch}
         >
@@ -115,25 +115,28 @@ export function AudioResourcePickerDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-end gap-2">
-            <Button type="submit">
-              <Search aria-hidden="true" />
-              搜索
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              aria-label="重置筛选"
-              onClick={() => {
-                setDraftKeyword("");
-                setKeyword("");
-                setStatus("");
-                setPage(1);
-              }}
-            >
-              <RotateCcw aria-hidden="true" />
-            </Button>
+          <div className="space-y-1.5">
+            <Label className="invisible hidden sm:block">操作</Label>
+            <div className="flex gap-2">
+              <Button type="submit">
+                <Search aria-hidden="true" />
+                搜索
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                aria-label="重置筛选"
+                onClick={() => {
+                  setDraftKeyword("");
+                  setKeyword("");
+                  setStatus("");
+                  setPage(1);
+                }}
+              >
+                <RotateCcw aria-hidden="true" />
+              </Button>
+            </div>
           </div>
         </form>
 

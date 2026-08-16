@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea.jsx";
 import { ArticleActionDialog } from "@/features/articles/ArticleActionDialog.jsx";
 import { ArticleCategorySelector } from "@/features/articles/ArticleCategorySelector.jsx";
 import { ArticleHtmlPreview } from "@/features/articles/ArticleHtmlPreview.jsx";
+import { ArticleReadingAudioControl } from "@/features/articles/ArticleReadingAudioControl.jsx";
 import { ImageUploadControl } from "@/features/articles/ImageUploadControl.jsx";
 import { MarkdownToolbar } from "@/features/articles/MarkdownToolbar.jsx";
 import { UnsavedChangesDialog } from "@/features/articles/UnsavedChangesDialog.jsx";
@@ -45,6 +46,7 @@ const EMPTY_FORM = {
   categoryIds: [],
   coverMedia: null,
   bodyMedia: [],
+  readingAudio: null,
   concurrencyStamp: null,
   status: "Draft",
 };
@@ -57,6 +59,7 @@ function formFromArticle(article) {
     categoryIds: article.categories.map(({ id }) => id),
     coverMedia: article.coverMedia,
     bodyMedia: article.bodyMedia,
+    readingAudio: article.readingAudio,
     concurrencyStamp: article.concurrencyStamp,
     status: article.status,
   };
@@ -72,6 +75,7 @@ function serializeForm(form) {
     bodyMediaResourceIds: [
       ...new Set(form.bodyMedia.map(({ id }) => id)),
     ].sort(),
+    readingAudioResourceId: form.readingAudio?.id ?? null,
   });
 }
 
@@ -210,6 +214,7 @@ function ArticleEditor() {
       categoryIds: form.categoryIds,
       coverMediaResourceId: form.coverMedia?.id ?? null,
       bodyMediaResourceIds,
+      readingAudioResourceId: form.readingAudio?.id ?? null,
     };
   };
 
@@ -398,6 +403,17 @@ function ArticleEditor() {
             <span>{form.summary.length}/500</span>
           </div>
         </div>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">朗读音频</h2>
+        <ArticleReadingAudioControl
+          value={form.readingAudio}
+          disabled={readOnly || pending}
+          onChange={(readingAudio) => {
+            setForm((current) => ({ ...current, readingAudio }));
+            setFormError(null);
+          }}
+        />
       </section>
       <ArticleCategorySelector
         categories={categories}

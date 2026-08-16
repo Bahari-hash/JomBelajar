@@ -108,6 +108,7 @@ export function adminArticle(overrides = {}) {
     lastEditor: common.author,
     coverMedia: null,
     bodyMedia: [],
+    readingAudio: null,
     concurrencyStamp: "66666666-6666-4666-8666-666666666666",
     createdAt: "2026-07-30T07:00:00+00:00",
     ...overrides,

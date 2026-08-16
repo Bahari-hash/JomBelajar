@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { normalizeAdminArticle } from "@/services/articleContracts.js";
 import { articlesApi } from "@/services/articlesApi.js";
 import { tokenVault } from "@/services/tokenVault.js";
 import { createAppStore } from "@/store/index.js";
@@ -10,6 +11,28 @@ import {
 } from "@/test/http.js";
 
 describe("articlesApi", () => {
+  it("normalizes an optional strict article reading audio summary", () => {
+    const readingAudio = {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      name: "lesson.mp3",
+      status: "Processing",
+      durationSeconds: null,
+      lastFailureCode: null,
+    };
+
+    expect(normalizeAdminArticle(adminArticle())).toMatchObject({
+      readingAudio: null,
+    });
+    expect(
+      normalizeAdminArticle(adminArticle({ readingAudio })).readingAudio,
+    ).toEqual(readingAudio);
+    expect(() =>
+      normalizeAdminArticle(
+        adminArticle({ readingAudio: { ...readingAudio, status: "Unknown" } }),
+      ),
+    ).toThrow(/reading audio status/);
+  });
+
   it("encodes list filters and normalizes strict string-enum data", async () => {
     tokenVault.install("access", "refresh");
     const requestMock = mockHttpClient(() =>
@@ -69,6 +92,7 @@ describe("articlesApi", () => {
       categoryIds: [],
       coverMediaResourceId: null,
       bodyMediaResourceIds: [],
+      readingAudioResourceId: null,
     };
     await store
       .dispatch(articlesApi.endpoints.createArticle.initiate(body))

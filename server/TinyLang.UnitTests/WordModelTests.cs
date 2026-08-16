@@ -20,8 +20,6 @@ public sealed class WordModelTests
         typeof(WordPronunciation).GetProperty("AudioClip").Should().BeNull();
         typeof(ExampleSentence).GetProperty("AudioClipId").Should().BeNull();
         typeof(ExampleSentence).GetProperty("AudioClip").Should().BeNull();
-        typeof(AudioClip).GetProperty("WordPronunciations").Should().BeNull();
-        typeof(AudioClip).GetProperty("ExampleSentences").Should().BeNull();
         typeof(WordPronunciationInput).GetProperty("AudioClipId").Should().BeNull();
         typeof(ExampleSentenceInput).GetProperty("AudioClipId").Should().BeNull();
         typeof(AdminWordPronunciationResponse).GetProperty("AudioClipId").Should().BeNull();
@@ -95,12 +93,12 @@ public sealed class WordModelTests
             value.PrincipalEntityType.ClrType == typeof(Word))
             .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
         pronunciation.GetForeignKeys().Should().NotContain(value =>
-            value.PrincipalEntityType.ClrType == typeof(AudioClip));
+            value.PrincipalEntityType.ClrType.FullName == "TinyLang.Entities.AudioClip");
         example.GetForeignKeys().Single(value =>
             value.PrincipalEntityType.ClrType == typeof(WordSense))
             .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
         example.GetForeignKeys().Should().NotContain(value =>
-            value.PrincipalEntityType.ClrType == typeof(AudioClip));
+            value.PrincipalEntityType.ClrType.FullName == "TinyLang.Entities.AudioClip");
     }
 
     /// <summary>

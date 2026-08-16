@@ -55,8 +55,7 @@ public sealed class AudioProcessingService : IAudioProcessingService
         var dispatchBefore = now.AddSeconds(-_settings.DispatchThrottleSeconds);
         return await _db.AudioProcessingJobs.AsNoTracking()
             .Where(job =>
-                job.AudioResourceId != null &&
-                (job.AudioResource!.Status == AudioResourceStatus.Queued ||
+                (job.AudioResource.Status == AudioResourceStatus.Queued ||
                     job.AudioResource.Status == AudioResourceStatus.Processing) &&
                 ((job.Status == AudioProcessingJobStatus.Queued &&
                         (job.NextAttemptAt == null || job.NextAttemptAt <= now)) ||
@@ -69,7 +68,7 @@ public sealed class AudioProcessingService : IAudioProcessingService
             .ThenBy(job => job.Id)
             .Select(job => new AudioProcessingDispatchItem(
                 job.Id,
-                job.AudioResourceId!.Value,
+                job.AudioResourceId,
                 job.OutputVersion))
             .Take(_settings.BatchSize)
             .ToArrayAsync(cancellationToken);
@@ -250,7 +249,7 @@ public sealed class AudioProcessingService : IAudioProcessingService
                 cancellationToken);
 
             var outputObjectName = GetOutputObjectName(
-                job.AudioResourceId.Value,
+                job.AudioResourceId,
                 job.OutputVersion);
             if (await TryRecoverStoredOutputAsync(
                 outputObjectName,
@@ -492,7 +491,7 @@ public sealed class AudioProcessingService : IAudioProcessingService
                     ImmutableCacheControl,
                     new Dictionary<string, string>
                     {
-                        ["audio-resource-id"] = job.AudioResourceId!.Value.ToString("N"),
+                        ["audio-resource-id"] = job.AudioResourceId.ToString("N"),
                         ["output-version"] = job.OutputVersion.ToString("N")
                     }),
                 cancellationToken);
@@ -666,11 +665,7 @@ public sealed class AudioProcessingService : IAudioProcessingService
     {
         try
         {
-            if (job.AudioResourceId is not { } audioResourceId)
-            {
-                return;
-            }
-            var prefix = GetOutputPrefix(audioResourceId, job.OutputVersion);
+            var prefix = GetOutputPrefix(job.AudioResourceId, job.OutputVersion);
             var objectNames = await _objectStorage.ListObjectNamesAsync(
                 prefix,
                 CleanupObjectLimit,

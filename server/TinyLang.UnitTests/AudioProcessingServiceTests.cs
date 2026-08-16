@@ -39,7 +39,7 @@ public sealed class AudioProcessingServiceTests
         await service.MarkDispatchedAsync(job.Id, TestContext.Current.CancellationToken);
         var claimed = await service.TryClaimAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
@@ -68,13 +68,13 @@ public sealed class AudioProcessingServiceTests
 
         var first = await service.TryClaimAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             Guid.NewGuid(),
             TestContext.Current.CancellationToken);
         var duplicate = await service.TryClaimAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             Guid.NewGuid(),
             TestContext.Current.CancellationToken);
@@ -113,14 +113,14 @@ public sealed class AudioProcessingServiceTests
         var service = CreateService(db, storage.Object, probe.Object);
         (await service.TryClaimAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken)).Should().BeTrue();
 
         await service.ProcessClaimedAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
@@ -157,14 +157,14 @@ public sealed class AudioProcessingServiceTests
         var service = CreateService(db, storage.Object);
         (await service.TryClaimAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken)).Should().BeTrue();
 
         await service.ProcessClaimedAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
@@ -241,14 +241,14 @@ public sealed class AudioProcessingServiceTests
         var service = CreateService(db, storage.Object);
         (await service.TryClaimAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken)).Should().BeTrue();
 
         await service.ProcessClaimedAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
@@ -306,14 +306,14 @@ public sealed class AudioProcessingServiceTests
             new FakeAudioTranscoder());
         (await service.TryClaimAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken)).Should().BeTrue();
 
         await service.ProcessClaimedAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
@@ -372,14 +372,14 @@ public sealed class AudioProcessingServiceTests
         var service = CreateService(db, storage.Object, probe.Object, transcoder.Object);
         (await service.TryClaimAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken)).Should().BeTrue();
 
         await service.ProcessClaimedAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
@@ -428,14 +428,14 @@ public sealed class AudioProcessingServiceTests
         var service = CreateService(db, storage.Object, probe.Object, transcoder.Object);
         (await service.TryClaimAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken)).Should().BeTrue();
 
         await service.ProcessClaimedAsync(
             job.Id,
-            job.AudioResourceId!.Value,
+            job.AudioResourceId,
             job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);

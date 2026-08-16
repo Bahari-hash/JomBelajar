@@ -16,13 +16,8 @@ public sealed class AudioProcessingJob : BaseAuditableEntity
         Id = Guid.NewGuid();
     }
 
-    public Guid? AudioResourceId { get; set; }
-    public AudioResource? AudioResource { get; set; }
-
-    // 保留到音频服务切换完成，避免旧处理链路在重构期间失去关系映射。
-    public Guid? AudioClipId { get; set; }
-
-    public AudioClip? AudioClip { get; set; }
+    public Guid AudioResourceId { get; set; }
+    public AudioResource AudioResource { get; set; } = null!;
     public Guid OutputVersion { get; set; }
     public AudioProcessingJobStatus Status { get; set; } = AudioProcessingJobStatus.Queued;
     public int AttemptCount { get; set; }

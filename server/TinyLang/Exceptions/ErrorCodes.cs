@@ -308,35 +308,8 @@ public enum ErrorCodes
     [Description("音频标题长度最大不能超过200个字符.")]
     AudioTitleLengthLimit,
 
-    [Description("音频简介长度最大不能超过2000个字符.")]
-    AudioDescriptionLengthLimit,
-
-    [Description("音频语言标签不能为空或格式无效.")]
-    AudioLanguageInvalid,
-
-    [Description("音频用途无效.")]
-    AudioKindInvalid,
-
-    [Description("音频处理状态无效.")]
-    AudioProcessingStatusInvalid,
-
-    [Description("音频发布状态无效.")]
-    AudioPublicationStatusInvalid,
-
-    [Description("音频源媒体资源无效.")]
-    AudioSourceInvalid,
-
-    [Description("音频源媒体资源尚未完成上传归档.")]
-    AudioSourceNotActive,
-
-    [Description("音频源媒体资源已被其他音频占用.")]
-    AudioSourceAlreadyUsed,
-
     [Description("音频当前状态不允许执行该操作.")]
     AudioStatusConflict,
-
-    [Description("音频处理任务当前状态不允许重试.")]
-    AudioRetryConflict,
 
     [Description("音频处理服务暂时不可用.")]
     AudioProcessingUnavailable,

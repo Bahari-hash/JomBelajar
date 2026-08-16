@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TinyLang.Database;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
+using TinyLang.Interfaces;
 
 namespace TinyLang.UnitTests;
 
@@ -47,6 +48,34 @@ public sealed class AudioResourceModelTests
         audioResource.GetForeignKeys().Single(value =>
                 value.PrincipalEntityType.ClrType == typeof(MediaResource))
             .DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
+    }
+
+    [Fact]
+    public void DbContextAndModelShouldNotExposeLegacyAudioClips()
+    {
+        typeof(ApplicationDbContext).GetProperty("AudioClips").Should().BeNull();
+        typeof(IApplicationDbContext).GetProperty("AudioClips").Should().BeNull();
+
+        using var db = CreateDbContext();
+        db.Model.FindEntityType("TinyLang.Entities.AudioClip").Should().BeNull();
+    }
+
+    [Fact]
+    public void AudioProcessingJobShouldRequireOnlyAudioResource()
+    {
+        typeof(AudioProcessingJob).GetProperty("AudioClipId").Should().BeNull();
+        typeof(AudioProcessingJob).GetProperty("AudioClip").Should().BeNull();
+
+        using var db = CreateDbContext();
+        var job = db.Model.FindEntityType(typeof(AudioProcessingJob));
+
+        job.Should().NotBeNull();
+        job!.FindProperty(nameof(AudioProcessingJob.AudioResourceId))!
+            .IsNullable.Should().BeFalse();
+        job.GetForeignKeys().Should().ContainSingle();
+        job.GetForeignKeys().Single().PrincipalEntityType.ClrType
+            .Should().Be(typeof(AudioResource));
+        job.GetForeignKeys().Single().IsRequired.Should().BeTrue();
     }
 
     private static ApplicationDbContext CreateDbContext()

@@ -27,7 +27,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.VideoCategoryAssignment> VideoCategoryAssignments => Set<Entities.VideoCategoryAssignment>();
     public DbSet<Entities.UserVideoProgress> UserVideoProgress => Set<Entities.UserVideoProgress>();
     public DbSet<Entities.AudioResource> AudioResources => Set<Entities.AudioResource>();
-    public DbSet<Entities.AudioClip> AudioClips => Set<Entities.AudioClip>();
     public DbSet<Entities.AudioProcessingJob> AudioProcessingJobs => Set<Entities.AudioProcessingJob>();
     public DbSet<Entities.Word> Words => Set<Entities.Word>();
     public DbSet<Entities.WordSense> WordSenses => Set<Entities.WordSense>();

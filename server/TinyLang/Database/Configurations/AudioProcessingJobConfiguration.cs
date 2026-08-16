@@ -37,18 +37,7 @@ public sealed class AudioProcessingJobConfiguration
         builder.HasOne(value => value.AudioResource)
             .WithMany(value => value.ProcessingJobs)
             .HasForeignKey(value => value.AudioResourceId)
-            .IsRequired(false)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        // 与旧 AudioClip 服务并行存在的过渡关系；后续服务切换后移除。
-        builder.HasIndex(value => new { value.AudioClipId, value.OutputVersion }).IsUnique();
-        builder.HasIndex(value => value.AudioClipId)
-            .IsUnique()
-            .HasFilter("\"Status\" IN ('Queued', 'Processing')");
-        builder.HasOne(value => value.AudioClip)
-            .WithMany(value => value.ProcessingJobs)
-            .HasForeignKey(value => value.AudioClipId)
-            .IsRequired(false)
+            .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

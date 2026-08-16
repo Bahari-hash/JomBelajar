@@ -373,6 +373,9 @@ public enum ErrorCodes
     [Description("文章媒体资源无效.")]
     ArticleMediaInvalid,
 
+    [Description("文章朗读音频资源无效或不存在.")]
+    ArticleReadingAudioInvalid,
+
     [Description("文章媒体资源尚未确认上传.")]
     ArticleMediaNotConfirmed,
 

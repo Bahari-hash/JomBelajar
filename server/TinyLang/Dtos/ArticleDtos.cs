@@ -13,6 +13,7 @@ public abstract record ArticleUpsertRequest
     public IReadOnlyCollection<Guid> CategoryIds { get; init; } = [];
     public Guid? CoverMediaResourceId { get; init; }
     public IReadOnlyCollection<Guid> BodyMediaResourceIds { get; init; } = [];
+    public Guid? ReadingAudioResourceId { get; init; }
 }
 
 /// <summary>
@@ -123,6 +124,21 @@ public sealed record ArticleMediaReferenceResponse(Guid Id, string Url);
 public sealed record ArticlePreviewResponse(string ContentHtml);
 
 /// <summary>
+/// Returns the article reading audio fields required by the administration interface.
+/// </summary>
+/// <param name="Id">The audio resource identifier.</param>
+/// <param name="Name">The original audio file name.</param>
+/// <param name="Status">The current audio processing status.</param>
+/// <param name="DurationSeconds">The processed duration when available.</param>
+/// <param name="LastFailureCode">The latest processing failure code when available.</param>
+public sealed record ArticleReadingAudioResponse(
+    Guid Id,
+    string Name,
+    AudioResourceStatus Status,
+    double? DurationSeconds,
+    string? LastFailureCode);
+
+/// <summary>
 /// Returns public article fields without Markdown source or internal editing metadata.
 /// </summary>
 /// <param name="Id">The article identifier.</param>
@@ -145,7 +161,8 @@ public sealed record PublicArticleResponse(
     DateTimeOffset? PublishedAt,
     string? CoverUrl,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    Guid? ReadingAudioResourceId = null);
 
 /// <summary>
 /// Returns the complete article editing contract, including Markdown, media mappings and concurrency state.
@@ -180,7 +197,8 @@ public sealed record AdminArticleResponse(
     IReadOnlyCollection<ArticleMediaReferenceResponse> BodyMedia,
     Guid ConcurrencyStamp,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    ArticleReadingAudioResponse? ReadingAudio = null);
 
 /// <summary>
 /// Reports the result of explicitly clearing every article association from a category.

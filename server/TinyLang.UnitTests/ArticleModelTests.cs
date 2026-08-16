@@ -35,6 +35,30 @@ public sealed class ArticleModelTests
         categoryForeignKey.DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
     }
 
+    /// <summary>
+    /// Verifies article reading audio is optional and protects referenced audio from deletion.
+    /// </summary>
+    [Fact]
+    public void ReadingAudioShouldBeOptionalAndRestrictAudioDeletion()
+    {
+        using var db = CreateDbContext();
+        var article = db.Model.FindEntityType(typeof(Article))!;
+        var property = article.FindProperty(nameof(Article.ReadingAudioResourceId));
+        var foreignKey = article.GetForeignKeys().Single(value =>
+            value.PrincipalEntityType.ClrType == typeof(AudioResource));
+        var index = article.GetIndexes().Single(value =>
+            value.Properties.Count == 1 &&
+            value.Properties[0].Name == nameof(Article.ReadingAudioResourceId));
+
+        property.Should().NotBeNull();
+        property!.IsNullable.Should().BeTrue();
+        foreignKey.Properties.Should().ContainSingle()
+            .Which.Name.Should().Be(nameof(Article.ReadingAudioResourceId));
+        foreignKey.DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
+        foreignKey.PrincipalToDependent.Should().BeNull();
+        index.IsUnique.Should().BeFalse();
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

@@ -28,6 +28,9 @@ public sealed class Article : BaseAuditableEntity
     public Guid? CoverMediaResourceId { get; set; }
     public MediaResource? CoverMediaResource { get; set; }
 
+    public Guid? ReadingAudioResourceId { get; set; }
+    public AudioResource? ReadingAudioResource { get; set; }
+
     public ICollection<ArticleMediaResource> MediaResources { get; set; } = [];
     public ICollection<ArticleCategoryAssignment> CategoryAssignments { get; set; } = [];
 }

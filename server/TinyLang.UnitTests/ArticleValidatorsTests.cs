@@ -1,5 +1,6 @@
 ﻿using FluentAssertions;
 using TinyLang.Dtos;
+using TinyLang.Exceptions;
 
 namespace TinyLang.UnitTests;
 
@@ -48,6 +49,71 @@ public sealed class ArticleValidatorsTests
             TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Verifies an empty reading audio identifier is rejected with the stable article error code.
+    /// </summary>
+    [Fact]
+    public async Task CreateArticleShouldRejectEmptyReadingAudioId()
+    {
+        var request = new CreateArticleRequest
+        {
+            Title = "Article",
+            ContentMarkdown = "Content",
+            ReadingAudioResourceId = Guid.Empty
+        };
+
+        var result = await new CreateArticleRequestValidator().ValidateAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        result.Errors.Should().Contain(error =>
+            error.PropertyName == nameof(request.ReadingAudioResourceId) &&
+            error.ErrorCode == ErrorCodes.ArticleReadingAudioInvalid.ToString());
+    }
+
+    /// <summary>
+    /// Verifies a non-empty reading audio identifier is accepted on create requests.
+    /// </summary>
+    [Fact]
+    public async Task CreateArticleShouldAcceptNonEmptyReadingAudioId()
+    {
+        var request = new CreateArticleRequest
+        {
+            Title = "Article",
+            ContentMarkdown = "Content",
+            ReadingAudioResourceId = Guid.NewGuid()
+        };
+
+        var result = await new CreateArticleRequestValidator().ValidateAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Verifies update requests reuse the reading audio identifier rule.
+    /// </summary>
+    [Fact]
+    public async Task UpdateArticleShouldRejectEmptyReadingAudioId()
+    {
+        var request = new UpdateArticleRequest
+        {
+            Title = "Article",
+            ContentMarkdown = "Content",
+            ConcurrencyStamp = Guid.NewGuid(),
+            ReadingAudioResourceId = Guid.Empty
+        };
+
+        var result = await new UpdateArticleRequestValidator().ValidateAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        result.Errors.Should().Contain(error =>
+            error.PropertyName == nameof(request.ReadingAudioResourceId) &&
+            error.ErrorCode == ErrorCodes.ArticleReadingAudioInvalid.ToString());
     }
 
     /// <summary>

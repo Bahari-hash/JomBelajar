@@ -43,6 +43,9 @@ internal sealed class ArticleUpsertRequestValidator<T> : AbstractValidator<T>
         RuleFor(x => x.CoverMediaResourceId)
             .Must(BeNullOrNonEmptyGuid).WithErrKey(ErrorCodes.ArticleMediaInvalid);
 
+        RuleFor(x => x.ReadingAudioResourceId)
+            .Must(BeNullOrNonEmptyGuid).WithErrKey(ErrorCodes.ArticleReadingAudioInvalid);
+
         RuleFor(x => x.BodyMediaResourceIds)
             .Cascade(CascadeMode.Stop)
             .NotNull().WithErrKey(ErrorCodes.ArticleMediaInvalid)

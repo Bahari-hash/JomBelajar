@@ -38,6 +38,7 @@ public sealed class ArticleConfiguration : IEntityTypeConfiguration<Article>
         builder.HasIndex(x => new { x.Status, x.PublishedAt });
         builder.HasIndex(x => new { x.AuthorId, x.CreatedAt });
         builder.HasIndex(x => new { x.LastEditorId, x.UpdatedAt });
+        builder.HasIndex(x => x.ReadingAudioResourceId);
 
         builder.HasOne(x => x.Author)
             .WithMany(x => x.AuthoredArticles)
@@ -57,6 +58,11 @@ public sealed class ArticleConfiguration : IEntityTypeConfiguration<Article>
         builder.HasOne(x => x.CoverMediaResource)
             .WithMany(x => x.CoveredArticles)
             .HasForeignKey(x => x.CoverMediaResourceId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ReadingAudioResource)
+            .WithMany()
+            .HasForeignKey(x => x.ReadingAudioResourceId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

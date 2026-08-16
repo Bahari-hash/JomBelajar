@@ -88,6 +88,10 @@ export const routes = [
                 lazy: lazyComponent(() => import("@/pages/Words.jsx")),
               },
               {
+                path: "audio",
+                lazy: lazyComponent(() => import("@/pages/AudioLibrary.jsx")),
+              },
+              {
                 path: "words/new",
                 lazy: lazyComponent(() => import("@/pages/WordEditor.jsx")),
               },

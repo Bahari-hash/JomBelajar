@@ -1,6 +1,7 @@
 import {
   Clapperboard,
   FileText,
+  FileAudio,
   FolderTree,
   LayoutDashboard,
   Languages,
@@ -27,6 +28,7 @@ export const NAVIGATION_GROUPS = Object.freeze([
       { label: "视频管理", href: "/videos", icon: Clapperboard },
       { label: "视频分类", href: "/video-categories", icon: Tags },
       { label: "单词管理", href: "/words", icon: Languages },
+      { label: "音频资源", href: "/audio", icon: FileAudio },
       { label: "试卷管理", href: "/papers", icon: ListChecks },
     ],
   },

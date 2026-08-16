@@ -83,14 +83,6 @@ export function WordFilters({ filters, onApply, onReset }) {
           placeholder="词头关键词"
           onChange={(value) => update("keyword", value)}
         />
-        {/* <TextFilter
-          id="word-language"
-          label="语言"
-          value={draft.language}
-          maxLength={35}
-          placeholder="例如 jp"
-          onChange={(value) => update("language", value)}
-        /> */}
         <FilterSelect
           label="状态"
           value={draft.status || ALL}
@@ -123,7 +115,7 @@ export function WordFilters({ filters, onApply, onReset }) {
           onChange={(value) => update("pageSize", value)}
         />
         <div className="space-y-1.5">
-          <Label className="invisible hidden xl:block" aria-hidden="true">
+          <Label className="invisible hidden md:block" aria-hidden="true">
             操作
           </Label>
           <div className="flex gap-2">

@@ -574,6 +574,84 @@ public sealed class AudioResourceServiceTests
     }
 
     [Fact]
+    public async Task RetryUploadShouldUseMultipartWhenSimpleUploadRequiresIt()
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var oldSource = CreateAudioMediaResource(adminId);
+        var newSource = new MediaResource
+        {
+            UploaderId = adminId,
+            ObjectName = "audios/pending.wav",
+            StagingObjectName = "staging/audios/pending.wav",
+            OriginalName = "replacement.wav",
+            Module = ResourceModule.Audio,
+            Status = ResourceStatus.Pending,
+            Size = 10 * 1024 * 1024,
+            Extension = ".wav",
+            ContentType = "audio/wav"
+        };
+        var audio = AudioResource.Create(adminId, "lesson.mp3", oldSource.Id);
+        audio.SourceMediaResource = oldSource;
+        audio.Status = AudioResourceStatus.Failed;
+        db.AddRange(oldSource, newSource, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var sessionId = Guid.NewGuid();
+        var expiresAt = DateTimeOffset.UtcNow.AddHours(1);
+        var media = new Mock<IMediaResourceService>();
+        media.Setup(value => value.CreatePendingResourceAndPresignAsync(
+                adminId,
+                "replacement.wav",
+                ".wav",
+                10 * 1024 * 1024,
+                "audio/wav",
+                ResourceModule.Audio,
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestValidationException(
+                ErrorCodes.MultipartUploadRequired));
+        media.Setup(value => value.CreateMultipartUploadAsync(
+                adminId,
+                "replacement.wav",
+                ".wav",
+                10 * 1024 * 1024,
+                "audio/wav",
+                ResourceModule.Audio,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MultipartUploadCreateResult(
+                newSource.Id,
+                sessionId,
+                5 * 1024 * 1024,
+                2,
+                expiresAt));
+        var service = CreateService(db, media.Object);
+
+        var upload = await service.RetryUploadAsync(
+            audio.Id,
+            adminId,
+            new InitializeAudioUploadRequest
+            {
+                OriginalName = "replacement.wav",
+                Extension = ".wav",
+                ContentType = "audio/wav",
+                Size = 10 * 1024 * 1024
+            },
+            TestContext.Current.CancellationToken);
+
+        upload.AudioResourceId.Should().Be(audio.Id);
+        upload.MediaResourceId.Should().Be(newSource.Id);
+        upload.PresignedUrl.Should().BeNull();
+        upload.MultipartSessionId.Should().Be(sessionId);
+        upload.PartSize.Should().Be(5 * 1024 * 1024);
+        upload.PartCount.Should().Be(2);
+        upload.ExpiresAt.Should().Be(expiresAt);
+        audio.SourceMediaResourceId.Should().Be(newSource.Id);
+        audio.Status.Should().Be(AudioResourceStatus.Uploading);
+    }
+
+    [Fact]
     public async Task RetryUploadShouldReplaceSourceInsideLockedTransaction()
     {
         await using var db = new ApplicationDbContext(

@@ -293,36 +293,61 @@ public sealed class AudioResourceService : IAudioResourceService
         var previousSource = await _db.MediaResources.SingleAsync(
             value => value.Id == resource.SourceMediaResourceId,
             cancellationToken);
-        var media = request.Size > 0
-            ? await _mediaResourceService.CreatePendingResourceAndPresignAsync(
-                adminId, request.OriginalName, request.Extension, request.Size,
-                request.ContentType, ResourceModule.Audio, cancellationToken)
-            : throw new RequestValidationException(ErrorCodes.AudioUploadIncomplete);
-        var source = await _db.MediaResources.SingleAsync(
-            value => value.Id == media.ResourceId, cancellationToken);
-        var previousSourceObjectNames = new HashSet<string>(StringComparer.Ordinal)
+        if (request.Size <= 0)
+            throw new RequestValidationException(ErrorCodes.AudioUploadIncomplete);
+        MediaResourcePresignResult? simpleUpload = null;
+        MultipartUploadCreateResult? multipartUpload = null;
+        try
         {
-            previousSource.ObjectName
-        };
-        if (previousSource.StagingObjectName is { } previousStagingObjectName)
-            previousSourceObjectNames.Add(previousStagingObjectName);
-        resource.ReplaceSource(adminId, source);
-        _db.MediaResources.Remove(previousSource);
-        await SaveAsync(cancellationToken);
-        await CleanupDeletedObjectsAsync(
-            resource.Id,
-            previousSourceObjectNames,
-            [],
-            cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return new AudioUploadInitializationResponse(
-            resource.Id,
-            media.ResourceId,
-            media.PresignedUrl,
-            null,
-            null,
-            null,
-            null);
+            simpleUpload = await _mediaResourceService.CreatePendingResourceAndPresignAsync(
+                adminId, request.OriginalName, request.Extension, request.Size,
+                request.ContentType, ResourceModule.Audio, cancellationToken);
+        }
+        catch (RequestValidationException exception) when (
+            exception.ErrorCode == ErrorCodes.MultipartUploadRequired)
+        {
+            multipartUpload = await _mediaResourceService.CreateMultipartUploadAsync(
+                adminId, request.OriginalName, request.Extension, request.Size,
+                request.ContentType, ResourceModule.Audio, cancellationToken);
+        }
+        var mediaResourceId = simpleUpload?.ResourceId ?? multipartUpload!.ResourceId;
+        try
+        {
+            var source = await _db.MediaResources.SingleAsync(
+                value => value.Id == mediaResourceId, cancellationToken);
+            var previousSourceObjectNames = new HashSet<string>(StringComparer.Ordinal)
+            {
+                previousSource.ObjectName
+            };
+            if (previousSource.StagingObjectName is { } previousStagingObjectName)
+                previousSourceObjectNames.Add(previousStagingObjectName);
+            resource.ReplaceSource(adminId, source);
+            _db.MediaResources.Remove(previousSource);
+            await SaveAsync(cancellationToken);
+            await CleanupDeletedObjectsAsync(
+                resource.Id,
+                previousSourceObjectNames,
+                [],
+                cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return new AudioUploadInitializationResponse(
+                resource.Id,
+                mediaResourceId,
+                simpleUpload?.PresignedUrl,
+                multipartUpload?.SessionId,
+                multipartUpload is null ? null : checked((int)multipartUpload.PartSize),
+                multipartUpload?.PartCount,
+                multipartUpload?.ExpiresAt);
+        }
+        catch
+        {
+            if (multipartUpload is not null)
+                await TryAbortMultipartAsync(
+                    multipartUpload.SessionId,
+                    adminId,
+                    cancellationToken);
+            throw;
+        }
     }
 
     public async Task<AdminAudioResourceResponse> ReprocessAsync(

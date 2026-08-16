@@ -257,6 +257,85 @@ public sealed class OpenApiContractTests
             name.StartsWith("WordPronunciationAudio", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task OpenApiShouldExposeArticleReadingAudioThroughSharedAudioContract()
+    {
+        await using var app = await CreateAppAsync();
+        var json = await app.GetTestClient().GetStringAsync(
+            "/openapi/v1.json",
+            TestContext.Current.CancellationToken);
+        using var document = JsonDocument.Parse(json);
+        var paths = document.RootElement.GetProperty("paths");
+        var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
+
+        foreach (var requestName in new[] { "CreateArticleRequest", "UpdateArticleRequest" })
+        {
+            var property = GetSchema(schemas, requestName)
+                .GetProperty("properties")
+                .GetProperty("readingAudioResourceId");
+            AssertNullableUuid(property, schemas);
+        }
+
+        var adminReadingAudio = GetSchema(schemas, "AdminArticleResponse")
+            .GetProperty("properties")
+            .GetProperty("readingAudio");
+        IsNullable(adminReadingAudio).Should().BeTrue(
+            "readingAudio schema was {0}",
+            adminReadingAudio.GetRawText());
+        GetReferencedSchemas(adminReadingAudio, schemas)
+            .Should().BeEquivalentTo("ArticleReadingAudioResponse", "AudioResourceStatus");
+
+        var publicReadingAudioId = GetSchema(schemas, "PublicArticleResponse")
+            .GetProperty("properties")
+            .GetProperty("readingAudioResourceId");
+        AssertNullableUuid(publicReadingAudioId, schemas);
+
+        var readingAudio = GetSchema(schemas, "ArticleReadingAudioResponse");
+        GetReferencedSchemas(
+                readingAudio.GetProperty("properties").GetProperty("status"),
+                schemas)
+            .Should().Contain("AudioResourceStatus");
+        GetSchema(schemas, "AudioResourceStatus")
+            .GetProperty("enum")
+            .EnumerateArray()
+            .Select(value => value.GetString())
+            .Should().Equal("Uploading", "Queued", "Processing", "Ready", "Failed");
+
+        paths.EnumerateObject().Should().NotContain(path =>
+            path.Name.Contains("/articles", StringComparison.Ordinal) &&
+            new[] { "audio", "playback", "upload" }.Any(term =>
+                path.Name.Contains(term, StringComparison.OrdinalIgnoreCase)));
+
+        GetAudioProperties(GetSchema(schemas, "CreateArticleRequest"))
+            .Should().Equal("readingAudioResourceId");
+        GetAudioProperties(GetSchema(schemas, "UpdateArticleRequest"))
+            .Should().Equal("readingAudioResourceId");
+        GetAudioProperties(GetSchema(schemas, "AdminArticleResponse"))
+            .Should().Equal("readingAudio");
+        GetAudioProperties(GetSchema(schemas, "PublicArticleResponse"))
+            .Should().Equal("readingAudioResourceId");
+        foreach (var schemaName in new[]
+        {
+            "CreateArticleRequest",
+            "UpdateArticleRequest",
+            "AdminArticleResponse",
+            "PublicArticleResponse"
+        })
+        {
+            GetSchema(schemas, schemaName).GetProperty("properties").EnumerateObject()
+                .Select(property => property.Name)
+                .Should().NotContain(name => IsStorageOrUploadProperty(name));
+        }
+        readingAudio.GetProperty("properties").EnumerateObject()
+            .Select(property => property.Name)
+            .Should().BeEquivalentTo(
+                "id",
+                "name",
+                "status",
+                "durationSeconds",
+                "lastFailureCode");
+    }
+
     /// <summary>
     /// 创建只承载目标 endpoints 和 OpenAPI 文档的内存 Web 应用。
     /// </summary>
@@ -267,6 +346,8 @@ public sealed class OpenApiContractTests
         builder.Services.AddOpenApi();
         builder.Services.AddApiJsonSerialization();
         builder.Services.AddAuthorizationPolicy();
+        builder.Services.AddSingleton(Mock.Of<IArticleService>());
+        builder.Services.AddSingleton(Mock.Of<IArticleCategoryService>());
         builder.Services.AddSingleton(Mock.Of<IVideoService>());
         builder.Services.AddSingleton(Mock.Of<IVideoCategoryService>());
         builder.Services.AddSingleton(Mock.Of<IAudioResourceService>());
@@ -278,6 +359,7 @@ public sealed class OpenApiContractTests
         app.MapOpenApi();
         app.MapGroup("/api")
             .MapUploadsApi()
+            .MapArticlesApi()
             .MapVideoCategoriesApi()
             .MapVideosApi()
             .MapAudioApi()
@@ -308,6 +390,25 @@ public sealed class OpenApiContractTests
         => schema.TryGetProperty("required", out var required)
             ? required.EnumerateArray().Select(value => value.GetString()!).ToArray()
             : [];
+
+    private static string[] GetAudioProperties(JsonElement schema)
+        => schema.GetProperty("properties").EnumerateObject()
+            .Select(property => property.Name)
+            .Where(name => name.Contains("audio", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+    private static void AssertNullableUuid(JsonElement property, JsonElement schemas)
+    {
+        IsNullable(property).Should().BeTrue();
+        property.GetProperty("format").GetString().Should().Be("uuid");
+        GetReferencedSchemas(property, schemas).Should().BeEmpty();
+    }
+
+    private static bool IsStorageOrUploadProperty(string name)
+        => new[] { "object", "upload", "presign", "storage", "staging" }.Any(term =>
+               name.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+           name.Equals("sourceMediaResourceId", StringComparison.OrdinalIgnoreCase) ||
+           name.Equals("outputMediaResourceId", StringComparison.OrdinalIgnoreCase);
 
     private static HashSet<string> GetSuccessResponseSchemas(
         JsonElement operation,
@@ -405,9 +506,16 @@ public sealed class OpenApiContractTests
         {
             return true;
         }
-        return schema.TryGetProperty("anyOf", out var anyOf) &&
-            anyOf.EnumerateArray().Any(value =>
-                GetSchemaTypes(value).Contains("null", StringComparer.Ordinal));
+        foreach (var composition in new[] { "anyOf", "oneOf" })
+        {
+            if (schema.TryGetProperty(composition, out var alternatives) &&
+                alternatives.EnumerateArray().Any(value =>
+                    GetSchemaTypes(value).Contains("null", StringComparer.Ordinal)))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>

@@ -41,6 +41,7 @@ export interface PublicArticle {
   coverUrl: string | null;
   createdAt: string;
   updatedAt: string;
+  readingAudioResourceId: string | null;
 }
 
 export interface ArticleCategory {

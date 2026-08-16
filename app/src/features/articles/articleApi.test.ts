@@ -30,7 +30,10 @@ describe("articleApi", () => {
     httpClient.defaults.adapter = responseAdapter((config) => {
       requests.push(config);
       if (config.url === "/articles/article-1") {
-        return { id: "article-1" };
+        return {
+          id: "article-1",
+          readingAudioResourceId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        };
       }
       return { items: [], page: 1, pageSize: 12, totalCount: 0, totalPages: 0 };
     });
@@ -60,8 +63,14 @@ describe("articleApi", () => {
         }),
       )
       .unwrap();
+    const article = await store
+      .dispatch(articleApi.endpoints.getArticle.initiate("article-1"))
+      .unwrap();
 
-    expect(requests).toHaveLength(2);
+    expect(article.readingAudioResourceId).toBe(
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    );
+    expect(requests).toHaveLength(3);
     expect(requests[0]).toMatchObject({
       url: "/articles",
       method: "get",
@@ -77,9 +86,16 @@ describe("articleApi", () => {
       method: "get",
       params: { page: 1, pageSize: 100, keyword: "language" },
     });
-    expect(requests.every((request) =>
-      request.headers.Authorization === "Bearer sensitive-access-token"
-    )).toBe(true);
+    expect(requests[2]).toMatchObject({
+      url: "/articles/article-1",
+      method: "get",
+    });
+    expect(
+      requests.every(
+        (request) =>
+          request.headers.Authorization === "Bearer sensitive-access-token",
+      ),
+    ).toBe(true);
   });
 
   it("maps Problem Details into a safe RTK Query error", async () => {

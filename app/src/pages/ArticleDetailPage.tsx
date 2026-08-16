@@ -1,6 +1,7 @@
 import { ArrowLeft, CalendarDays, RefreshCw } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import UserAvatar from "@/components/UserAvatar";
+import AudioPlaybackButton from "@/features/audio/AudioPlaybackButton";
 import ArticleContent from "@/features/articles/ArticleContent";
 // import ArticleCover from "@/features/articles/ArticleCover";
 import styles from "@/pages/ArticleDetailPage.module.css";
@@ -130,6 +131,12 @@ export default function ArticleDetailPage() {
             <p className="max-w-3xl text-lg leading-8 text-base-content/70">
               {article.summary}
             </p>
+          ) : null}
+          {article.readingAudioResourceId ? (
+            <AudioPlaybackButton
+              audioResourceId={article.readingAudioResourceId}
+              label="文章朗读"
+            />
           ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-base-300 py-4 text-sm">
             <div className="flex items-center gap-2.5">

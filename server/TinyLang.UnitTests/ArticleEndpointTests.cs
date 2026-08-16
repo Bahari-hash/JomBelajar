@@ -15,6 +15,7 @@ using TinyLang.Constants;
 using TinyLang.Dtos;
 using TinyLang.Endpoints;
 using TinyLang.Entities.Enums;
+using TinyLang.Infrastructure;
 using TinyLang.Services;
 
 namespace TinyLang.UnitTests;
@@ -130,6 +131,42 @@ public sealed class ArticleEndpointTests
     }
 
     [Fact]
+    public async Task AdminDetailShouldSerializeReadingAudioSummary()
+    {
+        var articleId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var audioId = Guid.NewGuid();
+        var articleService = new Mock<IArticleService>();
+        articleService.Setup(value => value.GetAdminByIdAsync(
+                articleId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateArticleResponse(articleId, userId) with
+            {
+                ReadingAudio = new ArticleReadingAudioResponse(
+                    audioId,
+                    "lesson.mp3",
+                    AudioResourceStatus.Processing,
+                    null,
+                    null)
+            });
+        await using var app = await CreateHttpAppAsync(articleService.Object);
+
+        var response = await app.GetTestClient().GetAsync(
+            $"/api/admin/articles/{articleId}",
+            TestContext.Current.CancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
+        var readingAudio = json.RootElement.GetProperty("readingAudio");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        readingAudio.GetProperty("id").GetGuid().Should().Be(audioId);
+        readingAudio.GetProperty("name").GetString().Should().Be("lesson.mp3");
+        readingAudio.GetProperty("status").GetString().Should().Be("Processing");
+        readingAudio.GetProperty("durationSeconds").ValueKind.Should().Be(JsonValueKind.Null);
+        readingAudio.GetProperty("lastFailureCode").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
     public async Task PreviewShouldReturnCanonicalHtmlWithoutPersistenceContract()
     {
         var articleService = new Mock<IArticleService>();
@@ -220,6 +257,7 @@ public sealed class ArticleEndpointTests
     {
         var articleId = Guid.NewGuid();
         var userId = Guid.NewGuid();
+        var audioId = Guid.NewGuid();
         var articleService = new Mock<IArticleService>();
         articleService.Setup(value => value.GetPublicByIdAsync(
                 articleId,
@@ -234,7 +272,8 @@ public sealed class ArticleEndpointTests
                 DateTimeOffset.UtcNow,
                 null,
                 DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow));
+                DateTimeOffset.UtcNow,
+                audioId));
         await using var app = await CreateHttpAppAsync(articleService.Object);
 
         var response = await app.GetTestClient().GetAsync(
@@ -245,8 +284,11 @@ public sealed class ArticleEndpointTests
         var names = json.RootElement.EnumerateObject().Select(value => value.Name).ToArray();
 
         names.Should().NotContain([
-            "contentMarkdown", "bodyMedia", "coverMedia", "lastEditor", "concurrencyStamp"
+            "contentMarkdown", "bodyMedia", "coverMedia", "lastEditor", "concurrencyStamp",
+            "readingAudio"
         ]);
+        names.Should().Contain("readingAudioResourceId");
+        json.RootElement.GetProperty("readingAudioResourceId").GetGuid().Should().Be(audioId);
     }
 
     private static WebApplication CreateMetadataApp()
@@ -266,6 +308,7 @@ public sealed class ArticleEndpointTests
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
+        builder.Services.AddApiJsonSerialization();
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy(AuthorizationPolicies.RequireUser, policy =>

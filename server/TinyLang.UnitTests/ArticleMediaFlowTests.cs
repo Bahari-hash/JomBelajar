@@ -63,6 +63,7 @@ public sealed class ArticleMediaFlowTests
         var articleService = new ArticleService(
             db,
             new ArticleMarkdownRenderer(new HtmlContentSanitizer()),
+            new PostgresDatabaseExceptionClassifier(),
             NullLogger<ArticleService>.Instance);
 
         var article = await articleService.CreateDraftAsync(

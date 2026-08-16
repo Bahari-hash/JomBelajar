@@ -19,8 +19,12 @@ namespace TinyLang.Services;
 public sealed class ArticleService(
     IApplicationDbContext db,
     IArticleMarkdownRenderer markdownRenderer,
+    IDatabaseExceptionClassifier databaseExceptionClassifier,
     ILogger<ArticleService> logger) : IArticleService
 {
+    private const string ReadingAudioForeignKeyConstraint =
+        "FK_articles_audio_resources_reading_audio_resource_id";
+
     /// <inheritdoc />
     public async Task<AdminArticleResponse> CreateDraftAsync(
         Guid adminId,
@@ -37,7 +41,8 @@ public sealed class ArticleService(
             ContentHtml = rendered.Html,
             AuthorId = adminId,
             LastEditorId = adminId,
-            CoverMediaResourceId = request.CoverMediaResourceId
+            CoverMediaResourceId = request.CoverMediaResourceId,
+            ReadingAudioResourceId = request.ReadingAudioResourceId
         };
         SynchronizeBodyMedia(article, request.BodyMediaResourceIds);
         SynchronizeCategories(article, request.CategoryIds);
@@ -71,6 +76,7 @@ public sealed class ArticleService(
         article.ContentMarkdown = request.ContentMarkdown;
         article.ContentHtml = rendered.Html;
         article.CoverMediaResourceId = request.CoverMediaResourceId;
+        article.ReadingAudioResourceId = request.ReadingAudioResourceId;
         article.LastEditorId = adminId;
         article.ConcurrencyStamp = Guid.NewGuid();
         SynchronizeBodyMedia(article, request.BodyMediaResourceIds);
@@ -228,10 +234,34 @@ public sealed class ArticleService(
         CancellationToken cancellationToken)
     {
         await EnsureCategoriesUsableAsync(request.CategoryIds, cancellationToken);
+        await EnsureReadingAudioExistsAsync(
+            request.ReadingAudioResourceId, cancellationToken);
         var rendered = markdownRenderer.Render(request.ContentMarkdown);
         await ValidateRequestedMediaAsync(
             request, rendered, cancellationToken);
         return rendered;
+    }
+
+    /// <summary>
+    /// Ensures an optional reading audio identifier refers to an existing shared audio resource.
+    /// </summary>
+    /// <param name="audioResourceId">The optional shared audio resource identifier.</param>
+    /// <param name="cancellationToken">The token used to cancel the query.</param>
+    private async Task EnsureReadingAudioExistsAsync(
+        Guid? audioResourceId,
+        CancellationToken cancellationToken)
+    {
+        if (audioResourceId is null)
+        {
+            return;
+        }
+        if (audioResourceId == Guid.Empty ||
+            !await db.AudioResources.AsNoTracking().AnyAsync(
+                value => value.Id == audioResourceId,
+                cancellationToken))
+        {
+            throw NotFoundException.Create(ErrorCodes.ArticleReadingAudioInvalid);
+        }
     }
 
     /// <summary>
@@ -472,6 +502,7 @@ public sealed class ArticleService(
             .Include(value => value.Author)
             .Include(value => value.LastEditor)
             .Include(value => value.CoverMediaResource)
+            .Include(value => value.ReadingAudioResource)
             .Include(value => value.MediaResources)
                 .ThenInclude(value => value.MediaResource);
 
@@ -561,7 +592,15 @@ public sealed class ArticleService(
                 .ToArray(),
             article.ConcurrencyStamp,
             article.CreatedAt,
-            article.UpdatedAt);
+            article.UpdatedAt,
+            article.ReadingAudioResource is null
+                ? null
+                : new ArticleReadingAudioResponse(
+                    article.ReadingAudioResource.Id,
+                    article.ReadingAudioResource.Name,
+                    article.ReadingAudioResource.Status,
+                    article.ReadingAudioResource.DurationSeconds,
+                    article.ReadingAudioResource.LastFailureCode));
 
     /// <summary>
     /// Maps a fully loaded published article to the public contract.
@@ -581,7 +620,8 @@ public sealed class ArticleService(
                 ? null
                 : GetRequiredMediaUrl(article.CoverMediaResource),
             article.CreatedAt,
-            article.UpdatedAt);
+            article.UpdatedAt,
+            article.ReadingAudioResourceId);
 
     /// <summary>
     /// Maps loaded category assignments in deterministic display order.
@@ -653,6 +693,13 @@ public sealed class ArticleService(
                 "Article concurrency conflict affected entity types {EntityTypes}",
                 string.Join(",", exception.Entries.Select(value => value.Metadata.Name)));
             throw ConflictException.Create(ErrorCodes.ArticleConcurrencyConflict);
+        }
+        catch (DbUpdateException exception) when (
+            databaseExceptionClassifier.IsForeignKeyConstraintViolation(
+                exception,
+                ReadingAudioForeignKeyConstraint))
+        {
+            throw NotFoundException.Create(ErrorCodes.ArticleReadingAudioInvalid);
         }
     }
 

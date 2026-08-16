@@ -2,12 +2,14 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using TinyLang.Database;
 using TinyLang.Dtos;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
 using TinyLang.Exceptions;
 using TinyLang.Infrastructure;
+using TinyLang.Interfaces;
 using TinyLang.Services;
 
 namespace TinyLang.UnitTests;
@@ -53,6 +55,208 @@ public sealed class ArticleServiceTests
             .Should().BeEquivalentTo([grammar.Id, listening.Id]);
         categorized.ConcurrencyStamp.Should().NotBe(Guid.Empty);
         uncategorized.Categories.Should().BeEmpty();
+        uncategorized.ReadingAudio.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Verifies drafts can associate reading audio without depending on its processing state.
+    /// </summary>
+    [Theory]
+    [InlineData(AudioResourceStatus.Uploading)]
+    [InlineData(AudioResourceStatus.Queued)]
+    [InlineData(AudioResourceStatus.Processing)]
+    [InlineData(AudioResourceStatus.Ready)]
+    [InlineData(AudioResourceStatus.Failed)]
+    public async Task DraftShouldAcceptReadingAudioInEveryLifecycleState(
+        AudioResourceStatus status)
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateUser("admin@example.com");
+        var audio = CreateAudio(admin, status, "lesson.mp3");
+        db.AddRange(admin, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var response = await service.CreateDraftAsync(
+            admin.Id,
+            new CreateArticleRequest
+            {
+                Title = "Article",
+                ContentMarkdown = "Body",
+                ReadingAudioResourceId = audio.Id
+            },
+            TestContext.Current.CancellationToken);
+
+        response.ReadingAudio.Should().Be(new ArticleReadingAudioResponse(
+            audio.Id,
+            audio.Name,
+            status,
+            audio.DurationSeconds,
+            audio.LastFailureCode));
+        (await db.Articles.SingleAsync(
+            value => value.Id == response.Id,
+            TestContext.Current.CancellationToken))
+            .ReadingAudioResourceId.Should().Be(audio.Id);
+    }
+
+    /// <summary>
+    /// Verifies updates can replace and detach reading audio without deleting shared resources.
+    /// </summary>
+    [Fact]
+    public async Task UpdateShouldReplaceAndDetachReadingAudioWithoutDeletingResources()
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateUser("admin@example.com");
+        var first = CreateAudio(admin, AudioResourceStatus.Ready, "first.mp3");
+        var second = CreateAudio(admin, AudioResourceStatus.Processing, "second.mp3");
+        var article = CreateArticle(admin);
+        article.ReadingAudioResourceId = first.Id;
+        db.AddRange(admin, first, second, article);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var replaced = await service.UpdateAsync(
+            article.Id,
+            admin.Id,
+            new UpdateArticleRequest
+            {
+                Title = "Article",
+                ContentMarkdown = "Body",
+                ConcurrencyStamp = article.ConcurrencyStamp,
+                ReadingAudioResourceId = second.Id
+            },
+            TestContext.Current.CancellationToken);
+        var detached = await service.UpdateAsync(
+            article.Id,
+            admin.Id,
+            new UpdateArticleRequest
+            {
+                Title = "Article",
+                ContentMarkdown = "Body",
+                ConcurrencyStamp = replaced.ConcurrencyStamp,
+                ReadingAudioResourceId = null
+            },
+            TestContext.Current.CancellationToken);
+
+        replaced.ReadingAudio.Should().NotBeNull();
+        replaced.ReadingAudio!.Id.Should().Be(second.Id);
+        detached.ReadingAudio.Should().BeNull();
+        article.ReadingAudioResourceId.Should().BeNull();
+        (await db.AudioResources.CountAsync(
+            TestContext.Current.CancellationToken)).Should().Be(2);
+    }
+
+    /// <summary>
+    /// Verifies missing and empty reading audio identifiers use the stable article error code.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CreateDraftShouldRejectInvalidReadingAudioId(bool useEmptyId)
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateUser("admin@example.com");
+        db.Users.Add(admin);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var action = () => service.CreateDraftAsync(
+            admin.Id,
+            new CreateArticleRequest
+            {
+                Title = "Article",
+                ContentMarkdown = "Body",
+                ReadingAudioResourceId = useEmptyId ? Guid.Empty : Guid.NewGuid()
+            },
+            TestContext.Current.CancellationToken);
+
+        (await action.Should().ThrowAsync<NotFoundException>())
+            .Which.ErrorCode.Should().Be(ErrorCodes.ArticleReadingAudioInvalid);
+    }
+
+    /// <summary>
+    /// Verifies updates reject reading audio identifiers that no longer exist.
+    /// </summary>
+    [Fact]
+    public async Task UpdateShouldRejectMissingReadingAudioId()
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateUser("admin@example.com");
+        var article = CreateArticle(admin);
+        db.AddRange(admin, article);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var action = () => service.UpdateAsync(
+            article.Id,
+            admin.Id,
+            new UpdateArticleRequest
+            {
+                Title = "Article",
+                ContentMarkdown = "Body",
+                ConcurrencyStamp = article.ConcurrencyStamp,
+                ReadingAudioResourceId = Guid.NewGuid()
+            },
+            TestContext.Current.CancellationToken);
+
+        (await action.Should().ThrowAsync<NotFoundException>())
+            .Which.ErrorCode.Should().Be(ErrorCodes.ArticleReadingAudioInvalid);
+    }
+
+    /// <summary>
+    /// Verifies a concurrent audio deletion is translated from the named database constraint.
+    /// </summary>
+    [Fact]
+    public async Task CreateDraftShouldMapReadingAudioForeignKeyRaceToStableError()
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateUser("admin@example.com");
+        var audio = CreateAudio(admin, AudioResourceStatus.Ready, "reading.mp3");
+        db.AddRange(admin, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var failure = new DbUpdateException("audio was deleted concurrently");
+        var context = new Mock<IApplicationDbContext>();
+        context.SetupGet(value => value.Articles).Returns(db.Articles);
+        context.SetupGet(value => value.ArticleCategories).Returns(db.ArticleCategories);
+        context.SetupGet(value => value.ArticleCategoryAssignments)
+            .Returns(db.ArticleCategoryAssignments);
+        context.SetupGet(value => value.ArticleMediaResources).Returns(db.ArticleMediaResources);
+        context.SetupGet(value => value.MediaResources).Returns(db.MediaResources);
+        context.SetupGet(value => value.AudioResources).Returns(db.AudioResources);
+        context.Setup(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(failure);
+        var classifier = new Mock<IDatabaseExceptionClassifier>();
+        classifier.Setup(value => value.IsForeignKeyConstraintViolation(
+                failure,
+                It.Is<string[]>(constraints => constraints.SequenceEqual(new[]
+                {
+                    "FK_articles_audio_resources_reading_audio_resource_id"
+                }))))
+            .Returns(true);
+        var service = new ArticleService(
+            context.Object,
+            new ArticleMarkdownRenderer(new HtmlContentSanitizer()),
+            classifier.Object,
+            NullLogger<ArticleService>.Instance);
+
+        var action = () => service.CreateDraftAsync(
+            admin.Id,
+            new CreateArticleRequest
+            {
+                Title = "Article",
+                ContentMarkdown = "Body",
+                ReadingAudioResourceId = audio.Id
+            },
+            TestContext.Current.CancellationToken);
+
+        (await action.Should().ThrowAsync<NotFoundException>())
+            .Which.ErrorCode.Should().Be(ErrorCodes.ArticleReadingAudioInvalid);
+        classifier.Verify(value => value.IsForeignKeyConstraintViolation(
+            failure,
+            It.Is<string[]>(constraints => constraints.SequenceEqual(new[]
+            {
+                "FK_articles_audio_resources_reading_audio_resource_id"
+            }))), Times.Once);
     }
 
     /// <summary>
@@ -387,6 +591,35 @@ public sealed class ArticleServiceTests
     }
 
     /// <summary>
+    /// Verifies publication does not wait for reading audio processing to reach Ready.
+    /// </summary>
+    [Theory]
+    [InlineData(AudioResourceStatus.Uploading)]
+    [InlineData(AudioResourceStatus.Processing)]
+    [InlineData(AudioResourceStatus.Failed)]
+    public async Task PublishShouldNotRequireReadyReadingAudio(AudioResourceStatus status)
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateUser("admin@example.com");
+        var audio = CreateAudio(admin, status, "reading.mp3");
+        var article = CreateArticle(admin);
+        article.ReadingAudioResourceId = audio.Id;
+        db.AddRange(admin, audio, article);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var response = await service.PublishAsync(
+            article.Id,
+            admin.Id,
+            TestContext.Current.CancellationToken);
+
+        response.Status.Should().Be(ArticleStatus.Published);
+        response.ReadingAudio.Should().NotBeNull();
+        response.ReadingAudio!.Id.Should().Be(audio.Id);
+        response.ReadingAudio.Status.Should().Be(status);
+    }
+
+    /// <summary>
     /// Verifies publication rechecks category activity instead of trusting associations saved on the draft.
     /// </summary>
     [Fact]
@@ -525,10 +758,33 @@ public sealed class ArticleServiceTests
         await hidden.Should().ThrowAsync<NotFoundException>();
     }
 
+    /// <summary>
+    /// Verifies public article details expose only the reading audio resource identifier.
+    /// </summary>
+    [Fact]
+    public async Task PublicDetailShouldReturnReadingAudioResourceId()
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateUser("admin@example.com");
+        var audio = CreateAudio(admin, AudioResourceStatus.Ready, "reading.mp3");
+        var article = CreateArticle(admin, status: ArticleStatus.Published);
+        article.ReadingAudioResourceId = audio.Id;
+        db.AddRange(admin, audio, article);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var response = await service.GetPublicByIdAsync(
+            article.Id,
+            TestContext.Current.CancellationToken);
+
+        response.ReadingAudioResourceId.Should().Be(audio.Id);
+    }
+
     private static ArticleService CreateService(ApplicationDbContext db)
         => new(
             db,
             new ArticleMarkdownRenderer(new HtmlContentSanitizer()),
+            new PostgresDatabaseExceptionClassifier(),
             NullLogger<ArticleService>.Instance);
 
     private static ApplicationDbContext CreateDbContext()
@@ -561,6 +817,31 @@ public sealed class ArticleServiceTests
             ContentType = "image/png",
             Url = $"https://oss.example.com/{Guid.NewGuid():N}.png"
         };
+
+    private static AudioResource CreateAudio(
+        User admin,
+        AudioResourceStatus status,
+        string name)
+    {
+        var source = new MediaResource
+        {
+            Uploader = admin,
+            UploaderId = admin.Id,
+            ObjectName = $"audios/{Guid.NewGuid():N}.mp3",
+            OriginalName = name,
+            Module = ResourceModule.Audio,
+            Status = ResourceStatus.Active,
+            Size = 1024,
+            Extension = ".mp3",
+            ContentType = "audio/mpeg"
+        };
+        var audio = AudioResource.Create(admin.Id, name, source.Id);
+        audio.SourceMediaResource = source;
+        audio.Status = status;
+        audio.DurationSeconds = status == AudioResourceStatus.Ready ? 12.5 : null;
+        audio.LastFailureCode = status == AudioResourceStatus.Failed ? "TranscodeFailed" : null;
+        return audio;
+    }
 
     private static CreateArticleRequest CreateRequestWithMedia(MediaResource media)
         => new()

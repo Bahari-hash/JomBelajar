@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IVideoCategoryService, VideoCategoryService>();
         services.AddScoped<IVideoService, VideoService>();
         services.AddScoped<IAudioClipService, AudioClipService>();
+        services.AddScoped<IAudioResourceService, AudioResourceService>();
         services.AddScoped<IWordService, WordService>();
         services.AddScoped<IWordStudyService, WordStudyService>();
         services.AddScoped<IPaperService, PaperService>();

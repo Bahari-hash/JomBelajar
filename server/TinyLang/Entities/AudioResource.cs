@@ -44,6 +44,33 @@ public sealed class AudioResource : BaseAuditableEntity
         return name.Trim().ToLowerInvariant();
     }
 
+    public void Rename(Guid adminId, string name)
+    {
+        var displayName = name.Trim();
+        Name = displayName;
+        NormalizedName = NormalizeName(displayName);
+        LastEditorId = adminId;
+        ConcurrencyStamp = Guid.NewGuid();
+    }
+
+    public void ReplaceSource(Guid adminId, MediaResource source)
+    {
+        SourceMediaResourceId = source.Id;
+        SourceMediaResource = source;
+        Status = AudioResourceStatus.Uploading;
+        LastFailureCode = null;
+        LastEditorId = adminId;
+        ConcurrencyStamp = Guid.NewGuid();
+    }
+
+    public void Queue(Guid adminId)
+    {
+        Status = AudioResourceStatus.Queued;
+        LastFailureCode = null;
+        LastEditorId = adminId;
+        ConcurrencyStamp = Guid.NewGuid();
+    }
+
     public Guid CreatedById { get; private set; }
     public User CreatedBy { get; set; } = null!;
     public Guid LastEditorId { get; private set; }

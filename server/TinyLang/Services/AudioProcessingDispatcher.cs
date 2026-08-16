@@ -13,14 +13,18 @@ public sealed class AudioProcessingDispatcher(
     public async Task<int> DispatchDueAsync(
         CancellationToken cancellationToken = default)
     {
-        var jobIds = await processingService.GetDispatchableJobIdsAsync(
+        var jobs = await processingService.GetDispatchableJobsAsync(
             cancellationToken);
         var dispatched = 0;
-        foreach (var jobId in jobIds)
+        foreach (var job in jobs)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await processingQueue.EnqueueAsync(jobId, cancellationToken);
-            await processingService.MarkDispatchedAsync(jobId, cancellationToken);
+            await processingQueue.EnqueueAsync(
+                job.JobId,
+                job.AudioResourceId,
+                job.OutputVersion,
+                cancellationToken);
+            await processingService.MarkDispatchedAsync(job.JobId, cancellationToken);
             dispatched++;
         }
         return dispatched;

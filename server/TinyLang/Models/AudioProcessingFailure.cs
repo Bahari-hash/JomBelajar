@@ -22,6 +22,7 @@ public enum AudioProcessingFailureCode
     OutputUploadFailed,
     OutputValidationFailed,
     TemporaryStorageUnavailable,
+    OutputVersionSuperseded,
     WorkerUnexpectedFailure
 }
 

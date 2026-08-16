@@ -10,5 +10,7 @@ public interface IAudioProcessingQueue
     /// </summary>
     Task EnqueueAsync(
         Guid jobId,
+        Guid audioResourceId,
+        Guid outputVersion,
         CancellationToken cancellationToken = default);
 }

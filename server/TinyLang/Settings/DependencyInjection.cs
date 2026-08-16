@@ -122,6 +122,8 @@ public static class DependencyInjection
             .Validate(
                 settings => settings.LeaseSeconds >
                         settings.ProbeTimeoutSeconds + settings.TranscodeTimeoutSeconds + 60 &&
+                    settings.LeaseSeconds >=
+                        (long)settings.HeartbeatIntervalSeconds * 3 &&
                     settings.BatchSize >= settings.MaxConcurrency &&
                     settings.DispatchThrottleSeconds >= settings.PollingIntervalSeconds,
                 "Audio worker lease and batch settings are inconsistent.")

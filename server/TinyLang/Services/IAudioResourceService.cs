@@ -59,7 +59,7 @@ public interface IAudioResourceService
         RenameAudioResourceRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<AdminAudioResourceResponse> RetryUploadAsync(
+    Task<AudioUploadInitializationResponse> RetryUploadAsync(
         Guid audioResourceId,
         Guid adminId,
         InitializeAudioUploadRequest request,

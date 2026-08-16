@@ -48,13 +48,16 @@ public sealed class AudioProcessingService : IAudioProcessingService
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<Guid>> GetDispatchableJobIdsAsync(
+    public async Task<IReadOnlyList<AudioProcessingDispatchItem>> GetDispatchableJobsAsync(
         CancellationToken cancellationToken = default)
     {
         var now = _timeProvider.GetUtcNow();
         var dispatchBefore = now.AddSeconds(-_settings.DispatchThrottleSeconds);
         return await _db.AudioProcessingJobs.AsNoTracking()
             .Where(job =>
+                job.AudioResourceId != null &&
+                (job.AudioResource!.Status == AudioResourceStatus.Queued ||
+                    job.AudioResource.Status == AudioResourceStatus.Processing) &&
                 ((job.Status == AudioProcessingJobStatus.Queued &&
                         (job.NextAttemptAt == null || job.NextAttemptAt <= now)) ||
                     (job.Status == AudioProcessingJobStatus.Processing &&
@@ -64,7 +67,10 @@ public sealed class AudioProcessingService : IAudioProcessingService
             .OrderBy(job => job.NextAttemptAt)
             .ThenBy(job => job.CreatedAt)
             .ThenBy(job => job.Id)
-            .Select(job => job.Id)
+            .Select(job => new AudioProcessingDispatchItem(
+                job.Id,
+                job.AudioResourceId!.Value,
+                job.OutputVersion))
             .Take(_settings.BatchSize)
             .ToArrayAsync(cancellationToken);
     }
@@ -97,15 +103,23 @@ public sealed class AudioProcessingService : IAudioProcessingService
     /// <inheritdoc />
     public async Task<bool> TryClaimAsync(
         Guid jobId,
+        Guid audioResourceId,
+        Guid outputVersion,
         Guid workerId,
         CancellationToken cancellationToken = default)
     {
         _db.ChangeTracker.Clear();
         var now = _timeProvider.GetUtcNow();
         var job = await _db.AudioProcessingJobs
-            .Include(value => value.AudioClip)
+            .Include(value => value.AudioResource)
             .SingleOrDefaultAsync(value => value.Id == jobId, cancellationToken);
-        if (job is null || !CanClaim(job, now))
+        if (job is null ||
+            job.AudioResourceId != audioResourceId ||
+            job.OutputVersion != outputVersion ||
+            job.AudioResource is null ||
+            job.AudioResource.Status is not (
+                AudioResourceStatus.Queued or AudioResourceStatus.Processing) ||
+            !CanClaim(job, now))
         {
             return false;
         }
@@ -116,9 +130,68 @@ public sealed class AudioProcessingService : IAudioProcessingService
         job.StartedAt ??= now;
         job.FailureCode = null;
         job.ConcurrencyStamp = Guid.NewGuid();
-        job.AudioClip.ProcessingStatus = AudioProcessingStatus.Processing;
-        job.AudioClip.LastFailureCode = null;
-        job.AudioClip.ConcurrencyStamp = Guid.NewGuid();
+        job.AudioResource.Status = AudioResourceStatus.Processing;
+        job.AudioResource.LastFailureCode = null;
+        job.AudioResource.ConcurrencyStamp = Guid.NewGuid();
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return false;
+        }
+        finally
+        {
+            _db.ChangeTracker.Clear();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> RenewLeaseAsync(
+        Guid jobId,
+        Guid audioResourceId,
+        Guid outputVersion,
+        Guid workerId,
+        CancellationToken cancellationToken = default)
+    {
+        _db.ChangeTracker.Clear();
+        var now = _timeProvider.GetUtcNow();
+        var leaseExpiresAt = now.AddSeconds(_settings.LeaseSeconds);
+        if (_db.Database.IsRelational())
+        {
+            var updated = await _db.AudioProcessingJobs
+                .Where(job =>
+                    job.Id == jobId &&
+                    job.AudioResourceId == audioResourceId &&
+                    job.OutputVersion == outputVersion &&
+                    job.Status == AudioProcessingJobStatus.Processing &&
+                    job.LeaseOwner == workerId &&
+                    job.LeaseExpiresAt > now &&
+                    job.AudioResource!.Status == AudioResourceStatus.Processing)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(job => job.LeaseExpiresAt, leaseExpiresAt),
+                    cancellationToken);
+            return updated == 1;
+        }
+
+        var trackedJob = await _db.AudioProcessingJobs
+            .SingleOrDefaultAsync(job =>
+                job.Id == jobId &&
+                job.AudioResourceId == audioResourceId &&
+                job.OutputVersion == outputVersion &&
+                job.Status == AudioProcessingJobStatus.Processing &&
+                job.LeaseOwner == workerId &&
+                job.LeaseExpiresAt > now &&
+                job.AudioResource!.Status == AudioResourceStatus.Processing,
+                cancellationToken);
+        if (trackedJob is null)
+        {
+            return false;
+        }
+
+        trackedJob.LeaseExpiresAt = leaseExpiresAt;
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -137,6 +210,8 @@ public sealed class AudioProcessingService : IAudioProcessingService
     /// <inheritdoc />
     public async Task ProcessClaimedAsync(
         Guid jobId,
+        Guid audioResourceId,
+        Guid outputVersion,
         Guid workerId,
         CancellationToken cancellationToken = default)
     {
@@ -144,22 +219,30 @@ public sealed class AudioProcessingService : IAudioProcessingService
         try
         {
             var job = await _db.AudioProcessingJobs
-                .Include(value => value.AudioClip)
-                    .ThenInclude(value => value.SourceMediaResource)
+                .Include(value => value.AudioResource)
+                    .ThenInclude(value => value!.SourceMediaResource)
                 .SingleOrDefaultAsync(value => value.Id == jobId, cancellationToken);
             var now = _timeProvider.GetUtcNow();
             if (job is null || job.Status != AudioProcessingJobStatus.Processing ||
+                job.AudioResourceId != audioResourceId ||
+                job.OutputVersion != outputVersion ||
+                job.AudioResource is null ||
                 job.LeaseOwner != workerId || job.LeaseExpiresAt <= now)
             {
                 return;
             }
-            ValidateSourceResource(job.AudioClip);
+            if (job.AudioResource.Status != AudioResourceStatus.Processing)
+            {
+                await SettleStaleJobAsync(job, cancellationToken);
+                return;
+            }
+            ValidateSourceResource(job.AudioResource);
 
             temporaryDirectory = CreateTemporaryDirectory(job.Id);
             EnsureMinimumDiskSpace(temporaryDirectory);
             var sourcePath = Path.Combine(temporaryDirectory, "source.media");
             await DownloadSourceAsync(
-                job.AudioClip.SourceMediaResource.ObjectName,
+                job.AudioResource.SourceMediaResource.ObjectName,
                 sourcePath,
                 cancellationToken);
             var sourceProbe = await _audioProbe.ProbeAsync(
@@ -167,7 +250,7 @@ public sealed class AudioProcessingService : IAudioProcessingService
                 cancellationToken);
 
             var outputObjectName = GetOutputObjectName(
-                job.AudioClipId,
+                job.AudioResourceId.Value,
                 job.OutputVersion);
             if (await TryRecoverStoredOutputAsync(
                 outputObjectName,
@@ -233,9 +316,9 @@ public sealed class AudioProcessingService : IAudioProcessingService
     /// <summary>
     /// 验证处理时的 source 仍保持 Active Audio 状态。
     /// </summary>
-    private static void ValidateSourceResource(AudioClip audioClip)
+    private static void ValidateSourceResource(AudioResource audioResource)
     {
-        var source = audioClip.SourceMediaResource;
+        var source = audioResource.SourceMediaResource;
         if (source.Module != ResourceModule.Audio ||
             source.Status != ResourceStatus.Active)
         {
@@ -409,7 +492,7 @@ public sealed class AudioProcessingService : IAudioProcessingService
                     ImmutableCacheControl,
                     new Dictionary<string, string>
                     {
-                        ["audio-clip-id"] = job.AudioClipId.ToString("N"),
+                        ["audio-resource-id"] = job.AudioResourceId!.Value.ToString("N"),
                         ["output-version"] = job.OutputVersion.ToString("N")
                     }),
                 cancellationToken);
@@ -454,16 +537,22 @@ public sealed class AudioProcessingService : IAudioProcessingService
         string outputObjectName,
         CancellationToken cancellationToken)
     {
-        job.AudioClip.DurationSeconds = probe.DurationSeconds;
-        job.AudioClip.SampleRate = probe.SampleRate;
-        job.AudioClip.Channels = probe.Channels;
-        job.AudioClip.ContainerFormat = probe.ContainerFormat;
-        job.AudioClip.SourceCodec = probe.Codec;
-        job.AudioClip.CurrentOutputVersion = job.OutputVersion;
-        job.AudioClip.OutputObjectName = outputObjectName;
-        job.AudioClip.ProcessingStatus = AudioProcessingStatus.Ready;
-        job.AudioClip.LastFailureCode = null;
-        job.AudioClip.ConcurrencyStamp = Guid.NewGuid();
+        if (job.AudioResource is null ||
+            job.AudioResource.Status != AudioResourceStatus.Processing)
+        {
+            await SettleStaleJobAsync(job, cancellationToken);
+            return;
+        }
+        job.AudioResource.DurationSeconds = probe.DurationSeconds;
+        job.AudioResource.SampleRate = probe.SampleRate;
+        job.AudioResource.Channels = probe.Channels;
+        job.AudioResource.ContainerFormat = probe.ContainerFormat;
+        job.AudioResource.SourceCodec = probe.Codec;
+        job.AudioResource.CurrentOutputVersion = job.OutputVersion;
+        job.AudioResource.OutputObjectName = outputObjectName;
+        job.AudioResource.Status = AudioResourceStatus.Ready;
+        job.AudioResource.LastFailureCode = null;
+        job.AudioResource.ConcurrencyStamp = Guid.NewGuid();
         job.Status = AudioProcessingJobStatus.Completed;
         job.CompletedAt = _timeProvider.GetUtcNow();
         job.NextAttemptAt = null;
@@ -486,11 +575,16 @@ public sealed class AudioProcessingService : IAudioProcessingService
     {
         _db.ChangeTracker.Clear();
         var job = await _db.AudioProcessingJobs
-            .Include(value => value.AudioClip)
+            .Include(value => value.AudioResource)
             .SingleOrDefaultAsync(value => value.Id == jobId, cancellationToken);
         if (job is null || job.Status != AudioProcessingJobStatus.Processing ||
-            job.LeaseOwner != workerId)
+            job.AudioResource is null || job.LeaseOwner != workerId)
         {
+            return;
+        }
+        if (job.AudioResource.Status != AudioResourceStatus.Processing)
+        {
+            await SettleStaleJobAsync(job, cancellationToken);
             return;
         }
 
@@ -499,14 +593,14 @@ public sealed class AudioProcessingService : IAudioProcessingService
         job.LeaseExpiresAt = null;
         job.FailureCode = failureCode.ToString();
         job.ConcurrencyStamp = Guid.NewGuid();
-        job.AudioClip.LastFailureCode = failureCode.ToString();
-        job.AudioClip.ConcurrencyStamp = Guid.NewGuid();
+        job.AudioResource.LastFailureCode = failureCode.ToString();
+        job.AudioResource.ConcurrencyStamp = Guid.NewGuid();
         if (reachesTerminal)
         {
             job.Status = AudioProcessingJobStatus.Failed;
             job.CompletedAt = _timeProvider.GetUtcNow();
             job.NextAttemptAt = null;
-            job.AudioClip.ProcessingStatus = AudioProcessingStatus.Failed;
+            job.AudioResource.Status = AudioResourceStatus.Failed;
         }
         else
         {
@@ -515,7 +609,7 @@ public sealed class AudioProcessingService : IAudioProcessingService
                 Math.Pow(2, job.AttemptCount - 1),
                 _settings.RetryMaxDelayMinutes);
             job.NextAttemptAt = _timeProvider.GetUtcNow().AddMinutes(delayMinutes);
-            job.AudioClip.ProcessingStatus = AudioProcessingStatus.Queued;
+            job.AudioResource.Status = AudioResourceStatus.Queued;
         }
         try
         {
@@ -539,7 +633,32 @@ public sealed class AudioProcessingService : IAudioProcessingService
     }
 
     /// <summary>
-    /// 有界且只针对当前 AudioClipId/OutputVersion 前缀清理失败输出。
+    /// 收敛已经被资源状态或输出版本淘汰的任务，避免重复消息再次执行。
+    /// </summary>
+    private async Task SettleStaleJobAsync(
+        AudioProcessingJob job,
+        CancellationToken cancellationToken)
+    {
+        job.Status = AudioProcessingJobStatus.Failed;
+        job.CompletedAt = _timeProvider.GetUtcNow();
+        job.NextAttemptAt = null;
+        job.LeaseOwner = null;
+        job.LeaseExpiresAt = null;
+        job.FailureCode = AudioProcessingFailureCode.OutputVersionSuperseded.ToString();
+        job.ConcurrencyStamp = Guid.NewGuid();
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return;
+        }
+        await CleanupFailedOutputAsync(job, cancellationToken);
+    }
+
+    /// <summary>
+    /// 有界且只针对当前 AudioResourceId/OutputVersion 前缀清理失败输出。
     /// </summary>
     private async Task CleanupFailedOutputAsync(
         AudioProcessingJob job,
@@ -547,7 +666,11 @@ public sealed class AudioProcessingService : IAudioProcessingService
     {
         try
         {
-            var prefix = GetOutputPrefix(job.AudioClipId, job.OutputVersion);
+            if (job.AudioResourceId is not { } audioResourceId)
+            {
+                return;
+            }
+            var prefix = GetOutputPrefix(audioResourceId, job.OutputVersion);
             var objectNames = await _objectStorage.ListObjectNamesAsync(
                 prefix,
                 CleanupObjectLimit,
@@ -637,14 +760,14 @@ public sealed class AudioProcessingService : IAudioProcessingService
     /// <summary>
     /// 构建只包含服务端标识的不可变音频输出前缀。
     /// </summary>
-    private static string GetOutputPrefix(Guid audioClipId, Guid outputVersion)
-        => $"audios/{audioClipId:N}/outputs/{outputVersion:N}/";
+    private static string GetOutputPrefix(Guid audioResourceId, Guid outputVersion)
+        => $"audios/{audioResourceId:N}/outputs/{outputVersion:N}/";
 
     /// <summary>
     /// 构建当前不可变版本唯一允许的 MP3 对象名称。
     /// </summary>
-    private static string GetOutputObjectName(Guid audioClipId, Guid outputVersion)
-        => $"{GetOutputPrefix(audioClipId, outputVersion)}audio.mp3";
+    private static string GetOutputObjectName(Guid audioResourceId, Guid outputVersion)
+        => $"{GetOutputPrefix(audioResourceId, outputVersion)}audio.mp3";
 
     /// <summary>
     /// 尽力清理已经验证位于 worker 临时根目录内的 job 目录。

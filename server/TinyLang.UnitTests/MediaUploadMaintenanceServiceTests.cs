@@ -6,6 +6,7 @@ using Moq;
 using TinyLang.Database;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
+using TinyLang.Exceptions;
 using TinyLang.Interfaces;
 using TinyLang.Models;
 using TinyLang.Services;
@@ -121,6 +122,85 @@ public sealed class MediaUploadMaintenanceServiceTests
         session.Status.Should().Be(MultipartUploadStatus.Expired);
         simple.StagingObjectName.Should().BeNull();
         multipart.StagingObjectName.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CleanupShouldDeleteRetiredAudioFromCompletedMultipartUpload()
+    {
+        await using var db = CreateDbContext();
+        var stagingObjectName = $"staging/audios/{Guid.NewGuid():N}.mp3";
+        var finalObjectName = $"audios/{Guid.NewGuid():N}.mp3";
+        var resource = CreateResource(
+            ResourceStatus.Expired,
+            stagingObjectName);
+        resource.Module = ResourceModule.Audio;
+        resource.ObjectName = finalObjectName;
+        resource.UploadExpiresAt = null;
+        var session = new MultipartUploadSession
+        {
+            MediaResource = resource,
+            MediaResourceId = resource.Id,
+            UploaderId = resource.UploaderId,
+            ProviderUploadId = "completed-provider-upload-id",
+            Status = MultipartUploadStatus.Completed,
+            PartSize = 16 * 1024 * 1024,
+            PartCount = 4,
+            ExpiresAt = Now.AddHours(-1),
+            CompletedAt = Now.AddMinutes(-30)
+        };
+        db.AddRange(resource, session);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var storage = new Mock<IObjectStorageService>();
+        storage.Setup(value => value.DeleteObjectAsync(
+                stagingObjectName,
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        storage.Setup(value => value.DeleteObjectAsync(
+                finalObjectName,
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var service = CreateService(db, storage.Object);
+
+        var count = await service.CleanupBatchAsync(
+            TestContext.Current.CancellationToken);
+
+        count.Should().Be(1);
+        resource.StagingObjectName.Should().BeNull();
+        storage.Verify(value => value.DeleteObjectAsync(
+            stagingObjectName,
+            It.IsAny<CancellationToken>()), Times.Once);
+        storage.Verify(value => value.DeleteObjectAsync(
+            finalObjectName,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CleanupShouldFailAudioResourceWhenUploadExpires()
+    {
+        await using var db = CreateDbContext();
+        var source = CreateResource(
+            ResourceStatus.Pending,
+            $"staging/audios/{Guid.NewGuid():N}.mp3");
+        source.Module = ResourceModule.Audio;
+        source.UploadExpiresAt = Now.AddMinutes(-1);
+        var audio = AudioResource.Create(
+            source.UploaderId,
+            "lesson.mp3",
+            source.Id);
+        audio.SourceMediaResource = source;
+        db.Add(audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var storage = new Mock<IObjectStorageService>();
+        storage.Setup(value => value.DeleteObjectAsync(
+                source.StagingObjectName!,
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var service = CreateService(db, storage.Object);
+
+        await service.CleanupBatchAsync(TestContext.Current.CancellationToken);
+
+        audio.Status.Should().Be(AudioResourceStatus.Failed);
+        audio.LastFailureCode.Should().Be(ErrorCodes.AudioUploadIncomplete.ToString());
     }
 
     private static ApplicationDbContext CreateDbContext()

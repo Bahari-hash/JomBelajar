@@ -55,7 +55,7 @@ public sealed class AudioProcessingDispatchWorker : BackgroundService
             if (count > 0)
             {
                 _logger.LogInformation(
-                    "Dispatched {AudioJobCount} audio processing jobs",
+                    "Dispatched {AudioResourceJobCount} audio resource processing jobs",
                     count);
             }
         }

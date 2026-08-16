@@ -62,6 +62,21 @@ public sealed class AudioProcessingSettingsTests
         action.Should().Throw<OptionsValidationException>();
     }
 
+    [Fact]
+    public void ShortHeartbeatLeaseWindowShouldFailValidation()
+    {
+        using var provider = CreateProvider(new Dictionary<string, string?>
+        {
+            [$"{AudioProcessingSettings.SectionName}:HeartbeatIntervalSeconds"] = "1000"
+        });
+
+        var action = () => provider
+            .GetRequiredService<IOptions<AudioProcessingSettings>>()
+            .Value;
+
+        action.Should().Throw<OptionsValidationException>();
+    }
+
     /// <summary>
     /// 使用内存配置注册完整 options 管线并返回测试 provider。
     /// </summary>

@@ -186,9 +186,30 @@ public sealed class AudioResourceService : IAudioResourceService
         Guid adminId,
         CancellationToken cancellationToken = default)
     {
-        await EnsureAudioMultipartSessionAsync(sessionId, adminId, cancellationToken);
+        var mediaResourceId = await EnsureAudioMultipartSessionAsync(
+            sessionId,
+            adminId,
+            cancellationToken);
+        var audioResourceId = await _db.AudioResources.AsNoTracking()
+            .Where(value => value.SourceMediaResourceId == mediaResourceId)
+            .Select(value => value.Id)
+            .SingleAsync(cancellationToken);
+        await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        await _db.AcquireAudioResourceLockAsync(audioResourceId, cancellationToken);
+        var audioResource = await FindAudioResourceAsync(
+            audioResourceId,
+            cancellationToken);
         await _mediaResourceService.AbortMultipartUploadAsync(
             sessionId, adminId, cancellationToken);
+        if (audioResource.SourceMediaResourceId == mediaResourceId &&
+            audioResource.Status == AudioResourceStatus.Uploading)
+        {
+            audioResource.Status = AudioResourceStatus.Failed;
+            audioResource.LastFailureCode = ErrorCodes.AudioUploadIncomplete.ToString();
+            audioResource.ConcurrencyStamp = Guid.NewGuid();
+            await SaveAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<PagedResponse<AdminAudioResourceListItemResponse>> GetAdminListAsync(
@@ -254,15 +275,20 @@ public sealed class AudioResourceService : IAudioResourceService
         return ToResponse(resource);
     }
 
-    public async Task<AdminAudioResourceResponse> RetryUploadAsync(
+    public async Task<AudioUploadInitializationResponse> RetryUploadAsync(
         Guid audioResourceId,
         Guid adminId,
         InitializeAudioUploadRequest request,
         CancellationToken cancellationToken = default)
     {
+        await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        await _db.AcquireAudioResourceLockAsync(audioResourceId, cancellationToken);
         var resource = await FindAudioResourceAsync(audioResourceId, cancellationToken);
         if (resource.Status != AudioResourceStatus.Failed)
             throw ConflictException.Create(ErrorCodes.AudioStatusConflict);
+        var previousSource = await _db.MediaResources.SingleAsync(
+            value => value.Id == resource.SourceMediaResourceId,
+            cancellationToken);
         var media = request.Size > 0
             ? await _mediaResourceService.CreatePendingResourceAndPresignAsync(
                 adminId, request.OriginalName, request.Extension, request.Size,
@@ -270,9 +296,22 @@ public sealed class AudioResourceService : IAudioResourceService
             : throw new RequestValidationException(ErrorCodes.AudioUploadIncomplete);
         var source = await _db.MediaResources.SingleAsync(
             value => value.Id == media.ResourceId, cancellationToken);
+        previousSource.Status = ResourceStatus.Expired;
+        previousSource.Url = null;
+        previousSource.StagingObjectName ??= previousSource.ObjectName;
+        previousSource.UploadExpiresAt = null;
+        previousSource.ConcurrencyStamp = Guid.NewGuid();
         resource.ReplaceSource(adminId, source);
         await SaveAsync(cancellationToken);
-        return ToResponse(resource);
+        await transaction.CommitAsync(cancellationToken);
+        return new AudioUploadInitializationResponse(
+            resource.Id,
+            media.ResourceId,
+            media.PresignedUrl,
+            null,
+            null,
+            null,
+            null);
     }
 
     public async Task<AdminAudioResourceResponse> ReprocessAsync(
@@ -280,9 +319,18 @@ public sealed class AudioResourceService : IAudioResourceService
         Guid adminId,
         CancellationToken cancellationToken = default)
     {
+        await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        await _db.AcquireAudioResourceLockAsync(audioResourceId, cancellationToken);
         var resource = await FindAudioResourceAsync(audioResourceId, cancellationToken);
         if (resource.Status != AudioResourceStatus.Failed)
             throw ConflictException.Create(ErrorCodes.AudioStatusConflict);
+        var sourceIsActiveAudio = await _db.MediaResources.AsNoTracking()
+            .AnyAsync(value => value.Id == resource.SourceMediaResourceId &&
+                value.Module == ResourceModule.Audio &&
+                value.Status == ResourceStatus.Active,
+                cancellationToken);
+        if (!sourceIsActiveAudio)
+            throw ConflictException.Create(ErrorCodes.AudioUploadIncomplete);
         var activeJob = await _db.AudioProcessingJobs.AnyAsync(
             value => value.AudioResourceId == resource.Id &&
                 (value.Status == AudioProcessingJobStatus.Queued ||
@@ -298,6 +346,7 @@ public sealed class AudioResourceService : IAudioResourceService
             OutputVersion = Guid.NewGuid()
         });
         await SaveAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return ToResponse(resource);
     }
 
@@ -419,7 +468,7 @@ public sealed class AudioResourceService : IAudioResourceService
         }
     }
 
-    private async Task EnsureAudioMultipartSessionAsync(
+    private async Task<Guid> EnsureAudioMultipartSessionAsync(
         Guid sessionId,
         Guid adminId,
         CancellationToken cancellationToken)
@@ -443,6 +492,7 @@ public sealed class AudioResourceService : IAudioResourceService
         {
             throw NotFoundException.Create(ErrorCodes.MultipartUploadNotFound);
         }
+        return session.MediaResourceId;
     }
 
     private async Task<AudioResource> FindAudioResourceAsync(

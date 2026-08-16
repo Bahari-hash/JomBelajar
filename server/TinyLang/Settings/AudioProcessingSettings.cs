@@ -57,6 +57,9 @@ public sealed record AudioProcessingSettings
     [Range(60, 86400)]
     public int LeaseSeconds { get; init; } = 2400;
 
+    [Range(1, 3600)]
+    public int HeartbeatIntervalSeconds { get; init; } = 60;
+
     [Range(1, 100)]
     public int BatchSize { get; init; } = 8;
 

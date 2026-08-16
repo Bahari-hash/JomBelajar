@@ -1,3 +1,5 @@
+using TinyLang.Models;
+
 namespace TinyLang.Services;
 
 /// <summary>
@@ -8,7 +10,7 @@ public interface IAudioProcessingService
     /// <summary>
     /// 确定性查询一批需要发布到消息队列的到期任务。
     /// </summary>
-    Task<IReadOnlyList<Guid>> GetDispatchableJobIdsAsync(
+    Task<IReadOnlyList<AudioProcessingDispatchItem>> GetDispatchableJobsAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -23,6 +25,18 @@ public interface IAudioProcessingService
     /// </summary>
     Task<bool> TryClaimAsync(
         Guid jobId,
+        Guid audioResourceId,
+        Guid outputVersion,
+        Guid workerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 为当前 worker 持有且尚未过期的音频处理任务续租。
+    /// </summary>
+    Task<bool> RenewLeaseAsync(
+        Guid jobId,
+        Guid audioResourceId,
+        Guid outputVersion,
         Guid workerId,
         CancellationToken cancellationToken = default);
 
@@ -31,6 +45,8 @@ public interface IAudioProcessingService
     /// </summary>
     Task ProcessClaimedAsync(
         Guid jobId,
+        Guid audioResourceId,
+        Guid outputVersion,
         Guid workerId,
         CancellationToken cancellationToken = default);
 }

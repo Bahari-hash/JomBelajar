@@ -37,6 +37,7 @@ public sealed class AudioProcessingJobConfiguration
         builder.HasOne(value => value.AudioResource)
             .WithMany(value => value.ProcessingJobs)
             .HasForeignKey(value => value.AudioResourceId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Cascade);
 
         // 与旧 AudioClip 服务并行存在的过渡关系；后续服务切换后移除。
@@ -47,6 +48,7 @@ public sealed class AudioProcessingJobConfiguration
         builder.HasOne(value => value.AudioClip)
             .WithMany(value => value.ProcessingJobs)
             .HasForeignKey(value => value.AudioClipId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -203,6 +203,9 @@ public sealed class MediaUploadMaintenanceService : IMediaUploadMaintenanceServi
             session.Status = MultipartUploadStatus.Failed;
             session.MediaResource.Status = ResourceStatus.Failed;
             session.NextAttemptAt = null;
+            await MarkAudioUploadFailedAsync(
+                session.MediaResource,
+                cancellationToken);
         }
         else
         {
@@ -285,6 +288,9 @@ public sealed class MediaUploadMaintenanceService : IMediaUploadMaintenanceServi
                 session.MediaResource.UploadExpiresAt = null;
                 session.ConcurrencyStamp = Guid.NewGuid();
                 session.MediaResource.ConcurrencyStamp = Guid.NewGuid();
+                await MarkAudioUploadFailedAsync(
+                    session.MediaResource,
+                    cancellationToken);
                 await _db.SaveChangesAsync(cancellationToken);
                 cleaned++;
             }
@@ -314,12 +320,11 @@ public sealed class MediaUploadMaintenanceService : IMediaUploadMaintenanceServi
         var resourceIds = await _db.MediaResources
             .AsNoTracking()
             .Where(resource =>
-                (resource.Status == ResourceStatus.Pending ||
-                    resource.Status == ResourceStatus.Expired) &&
-                (resource.Status == ResourceStatus.Expired ||
-                    resource.UploadExpiresAt <= now) &&
                 resource.StagingObjectName != null &&
-                resource.MultipartUploadSession == null)
+                (resource.Status == ResourceStatus.Expired ||
+                    (resource.Status == ResourceStatus.Pending &&
+                        resource.UploadExpiresAt <= now &&
+                        resource.MultipartUploadSession == null)))
             .OrderBy(resource => resource.UploadExpiresAt)
             .ThenBy(resource => resource.Id)
             .Select(resource => resource.Id)
@@ -342,6 +347,18 @@ public sealed class MediaUploadMaintenanceService : IMediaUploadMaintenanceServi
             {
                 resource.Status = ResourceStatus.Expired;
                 resource.ConcurrencyStamp = Guid.NewGuid();
+                await MarkAudioUploadFailedAsync(resource, cancellationToken);
+                try
+                {
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    continue;
+                }
+            }
+            else if (await MarkAudioUploadFailedAsync(resource, cancellationToken))
+            {
                 try
                 {
                     await _db.SaveChangesAsync(cancellationToken);
@@ -353,9 +370,17 @@ public sealed class MediaUploadMaintenanceService : IMediaUploadMaintenanceServi
             }
             try
             {
-                await _objectStorage.DeleteObjectAsync(
+                var objectNames = new HashSet<string>(StringComparer.Ordinal)
+                {
                     resource.StagingObjectName!,
-                    cancellationToken);
+                    resource.ObjectName
+                };
+                foreach (var objectName in objectNames)
+                {
+                    await _objectStorage.DeleteObjectAsync(
+                        objectName,
+                        cancellationToken);
+                }
                 resource.StagingObjectName = null;
                 resource.UploadExpiresAt = null;
                 resource.ConcurrencyStamp = Guid.NewGuid();
@@ -371,6 +396,33 @@ public sealed class MediaUploadMaintenanceService : IMediaUploadMaintenanceServi
             }
         }
         return cleaned;
+    }
+
+    /// <summary>
+    /// 将失败或过期 Audio 源对应的上传中音频资源收敛到可重新上传的 Failed 状态。
+    /// </summary>
+    private async Task<bool> MarkAudioUploadFailedAsync(
+        MediaResource resource,
+        CancellationToken cancellationToken)
+    {
+        if (resource.Module != ResourceModule.Audio)
+        {
+            return false;
+        }
+
+        var audioResource = await _db.AudioResources.SingleOrDefaultAsync(
+            value => value.SourceMediaResourceId == resource.Id &&
+                value.Status == AudioResourceStatus.Uploading,
+            cancellationToken);
+        if (audioResource is null)
+        {
+            return false;
+        }
+
+        audioResource.Status = AudioResourceStatus.Failed;
+        audioResource.LastFailureCode = ErrorCodes.AudioUploadIncomplete.ToString();
+        audioResource.ConcurrencyStamp = Guid.NewGuid();
+        return true;
     }
 
     /// <summary>

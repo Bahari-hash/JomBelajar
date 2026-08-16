@@ -34,23 +34,25 @@ public sealed class AudioProcessingServiceTests
         var workerId = Guid.NewGuid();
         var service = CreateService(db);
 
-        var dispatchable = await service.GetDispatchableJobIdsAsync(
+        var dispatchable = await service.GetDispatchableJobsAsync(
             TestContext.Current.CancellationToken);
         await service.MarkDispatchedAsync(job.Id, TestContext.Current.CancellationToken);
         var claimed = await service.TryClaimAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
         var stored = await db.AudioProcessingJobs.AsNoTracking()
-            .Include(value => value.AudioClip)
+            .Include(value => value.AudioResource)
             .SingleAsync(TestContext.Current.CancellationToken);
 
-        dispatchable.Should().ContainSingle().Which.Should().Be(job.Id);
+        dispatchable.Should().ContainSingle().Which.JobId.Should().Be(job.Id);
         claimed.Should().BeTrue();
         stored.LastDispatchedAt.Should().Be(Now);
         stored.AttemptCount.Should().Be(1);
         stored.LeaseOwner.Should().Be(workerId);
-        stored.AudioClip.ProcessingStatus.Should().Be(AudioProcessingStatus.Processing);
+        stored.AudioResource!.Status.Should().Be(AudioResourceStatus.Processing);
     }
 
     /// <summary>
@@ -66,10 +68,14 @@ public sealed class AudioProcessingServiceTests
 
         var first = await service.TryClaimAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             Guid.NewGuid(),
             TestContext.Current.CancellationToken);
         var duplicate = await service.TryClaimAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             Guid.NewGuid(),
             TestContext.Current.CancellationToken);
 
@@ -84,7 +90,7 @@ public sealed class AudioProcessingServiceTests
     public async Task PermanentProbeFailureShouldBecomeTerminal()
     {
         await using var db = CreateDbContext();
-        var (audioClip, job) = AddQueuedAudio(db);
+        var (audioResource, job) = AddQueuedAudio(db);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var workerId = Guid.NewGuid();
         var probe = new Mock<IAudioProbe>();
@@ -107,23 +113,27 @@ public sealed class AudioProcessingServiceTests
         var service = CreateService(db, storage.Object, probe.Object);
         (await service.TryClaimAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken)).Should().BeTrue();
 
         await service.ProcessClaimedAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
 
         var storedJob = await db.AudioProcessingJobs.AsNoTracking()
             .SingleAsync(TestContext.Current.CancellationToken);
-        var storedAudio = await db.AudioClips.AsNoTracking()
+        var storedAudio = await db.AudioResources.AsNoTracking()
             .SingleAsync(TestContext.Current.CancellationToken);
         storedJob.Status.Should().Be(AudioProcessingJobStatus.Failed);
-        storedAudio.ProcessingStatus.Should().Be(AudioProcessingStatus.Failed);
+        storedAudio.Status.Should().Be(AudioResourceStatus.Failed);
         storedAudio.LastFailureCode.Should().Be("VideoStreamPresent");
         storage.Verify(value => value.ListObjectNamesAsync(
-            $"audios/{audioClip.Id:N}/outputs/{job.OutputVersion:N}/",
+            $"audios/{audioResource.Id:N}/outputs/{job.OutputVersion:N}/",
             16,
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -147,11 +157,15 @@ public sealed class AudioProcessingServiceTests
         var service = CreateService(db, storage.Object);
         (await service.TryClaimAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken)).Should().BeTrue();
 
         await service.ProcessClaimedAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
 
@@ -160,6 +174,42 @@ public sealed class AudioProcessingServiceTests
         storedJob.Status.Should().Be(AudioProcessingJobStatus.Queued);
         storedJob.NextAttemptAt.Should().Be(Now.AddMinutes(1));
         storedJob.FailureCode.Should().Be("SourceDownloadFailed");
+        (await db.AudioResources.AsNoTracking().SingleAsync(
+            TestContext.Current.CancellationToken)).Status
+            .Should().Be(AudioResourceStatus.Queued);
+    }
+
+    [Fact]
+    public async Task RenewLeaseShouldExtendOnlyMatchingActiveAudioJob()
+    {
+        await using var db = CreateDbContext();
+        var (audioResource, job) = AddQueuedAudio(db);
+        var workerId = Guid.NewGuid();
+        audioResource.Status = AudioResourceStatus.Processing;
+        job.Status = AudioProcessingJobStatus.Processing;
+        job.LeaseOwner = workerId;
+        job.LeaseExpiresAt = Now.AddMinutes(5);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+
+        var wrongOwner = await service.RenewLeaseAsync(
+            job.Id,
+            audioResource.Id,
+            job.OutputVersion,
+            Guid.NewGuid(),
+            TestContext.Current.CancellationToken);
+        var renewed = await service.RenewLeaseAsync(
+            job.Id,
+            audioResource.Id,
+            job.OutputVersion,
+            workerId,
+            TestContext.Current.CancellationToken);
+
+        wrongOwner.Should().BeFalse();
+        renewed.Should().BeTrue();
+        (await db.AudioProcessingJobs.AsNoTracking()
+                .SingleAsync(TestContext.Current.CancellationToken))
+            .LeaseExpiresAt.Should().Be(Now.AddSeconds(2400));
     }
 
     /// <summary>
@@ -191,11 +241,15 @@ public sealed class AudioProcessingServiceTests
         var service = CreateService(db, storage.Object);
         (await service.TryClaimAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken)).Should().BeTrue();
 
         await service.ProcessClaimedAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
 
@@ -213,7 +267,7 @@ public sealed class AudioProcessingServiceTests
     public async Task SuccessfulProcessingShouldUploadValidatedMp3BeforeReady()
     {
         await using var db = CreateDbContext();
-        var (audioClip, job) = AddQueuedAudio(db);
+        var (audioResource, job) = AddQueuedAudio(db);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var workerId = Guid.NewGuid();
         long? uploadedLength = null;
@@ -252,22 +306,36 @@ public sealed class AudioProcessingServiceTests
             new FakeAudioTranscoder());
         (await service.TryClaimAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken)).Should().BeTrue();
 
         await service.ProcessClaimedAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
 
-        var storedAudio = await db.AudioClips.AsNoTracking()
+        var storedAudio = await db.AudioResources.AsNoTracking()
             .SingleAsync(TestContext.Current.CancellationToken);
-        storedAudio.ProcessingStatus.Should().Be(AudioProcessingStatus.Ready);
+        storedAudio.Status.Should().Be(AudioResourceStatus.Ready);
+        storedAudio.DurationSeconds.Should().Be(4);
+        storedAudio.SampleRate.Should().Be(48000);
+        storedAudio.Channels.Should().Be(2);
+        storedAudio.ContainerFormat.Should().Be("wav");
+        storedAudio.SourceCodec.Should().Be("pcm_s16le");
+        storedAudio.LastFailureCode.Should().BeNull();
         storedAudio.CurrentOutputVersion.Should().Be(job.OutputVersion);
         storedAudio.OutputObjectName.Should().Be(
-            $"audios/{audioClip.Id:N}/outputs/{job.OutputVersion:N}/audio.mp3");
+            $"audios/{audioResource.Id:N}/outputs/{job.OutputVersion:N}/audio.mp3");
         uploadOptions!.ContentType.Should().Be("audio/mpeg");
         uploadOptions.CacheControl.Should().Be("public,max-age=31536000,immutable");
+        uploadOptions.Metadata!["audio-resource-id"]
+            .Should().Be(audioResource.Id.ToString("N"));
+        uploadOptions.Metadata["output-version"]
+            .Should().Be(job.OutputVersion.ToString("N"));
     }
 
     /// <summary>
@@ -304,17 +372,21 @@ public sealed class AudioProcessingServiceTests
         var service = CreateService(db, storage.Object, probe.Object, transcoder.Object);
         (await service.TryClaimAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken)).Should().BeTrue();
 
         await service.ProcessClaimedAsync(
             job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
             workerId,
             TestContext.Current.CancellationToken);
 
-        (await db.AudioClips.AsNoTracking().SingleAsync(
-            TestContext.Current.CancellationToken)).ProcessingStatus
-            .Should().Be(AudioProcessingStatus.Ready);
+        (await db.AudioResources.AsNoTracking().SingleAsync(
+            TestContext.Current.CancellationToken)).Status
+            .Should().Be(AudioResourceStatus.Ready);
         transcoder.Verify(value => value.TranscodeAsync(
             It.IsAny<string>(),
             It.IsAny<string>(),
@@ -324,6 +396,110 @@ public sealed class AudioProcessingServiceTests
             It.IsAny<Stream>(),
             It.IsAny<long>(),
             It.IsAny<ObjectStorageUploadOptions>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TranscodeFailureShouldBecomeTerminalWithStableFailureCode()
+    {
+        await using var db = CreateDbContext();
+        var (_, job) = AddQueuedAudio(db);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var workerId = Guid.NewGuid();
+        var storage = CreateStorageForDownload();
+        storage.Setup(value => value.ListObjectNamesAsync(
+                It.IsAny<string>(),
+                16,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var probe = new Mock<IAudioProbe>();
+        probe.Setup(value => value.ProbeAsync(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AudioProbeResult(4, 48000, 2, "wav", "pcm_s16le"));
+        var transcoder = new Mock<IAudioTranscoder>();
+        transcoder.Setup(value => value.TranscodeAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new AudioProcessingException(
+                AudioProcessingFailureCode.TranscodeFailed,
+                isTransient: false));
+        var service = CreateService(db, storage.Object, probe.Object, transcoder.Object);
+        (await service.TryClaimAsync(
+            job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
+            workerId,
+            TestContext.Current.CancellationToken)).Should().BeTrue();
+
+        await service.ProcessClaimedAsync(
+            job.Id,
+            job.AudioResourceId!.Value,
+            job.OutputVersion,
+            workerId,
+            TestContext.Current.CancellationToken);
+
+        var storedJob = await db.AudioProcessingJobs.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var storedAudio = await db.AudioResources.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        storedJob.Status.Should().Be(AudioProcessingJobStatus.Failed);
+        storedJob.FailureCode.Should().Be("TranscodeFailed");
+        storedAudio.Status.Should().Be(AudioResourceStatus.Failed);
+        storedAudio.LastFailureCode.Should().Be("TranscodeFailed");
+    }
+
+    [Fact]
+    public async Task StaleOutputVersionMustNotReplaceCurrentReadyOutput()
+    {
+        await using var db = CreateDbContext();
+        var (audioResource, staleJob) = AddQueuedAudio(db);
+        var currentVersion = Guid.NewGuid();
+        var currentObjectName =
+            $"audios/{audioResource.Id:N}/outputs/{currentVersion:N}/audio.mp3";
+        audioResource.Status = AudioResourceStatus.Ready;
+        audioResource.CurrentOutputVersion = currentVersion;
+        audioResource.OutputObjectName = currentObjectName;
+        staleJob.Status = AudioProcessingJobStatus.Processing;
+        staleJob.LeaseOwner = Guid.NewGuid();
+        staleJob.LeaseExpiresAt = Now.AddMinutes(5);
+        var currentJob = new AudioProcessingJob
+        {
+            AudioResourceId = audioResource.Id,
+            AudioResource = audioResource,
+            OutputVersion = currentVersion,
+            Status = AudioProcessingJobStatus.Completed,
+            CompletedAt = Now
+        };
+        audioResource.ProcessingJobs.Add(currentJob);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var transcoder = new Mock<IAudioTranscoder>();
+        var service = CreateService(
+            db,
+            CreateStorageForDownload().Object,
+            Mock.Of<IAudioProbe>(),
+            transcoder.Object);
+
+        await service.ProcessClaimedAsync(
+            staleJob.Id,
+            audioResource.Id,
+            staleJob.OutputVersion,
+            staleJob.LeaseOwner.Value,
+            TestContext.Current.CancellationToken);
+
+        var storedAudio = await db.AudioResources.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        storedAudio.CurrentOutputVersion.Should().Be(currentVersion);
+        storedAudio.OutputObjectName.Should().Be(currentObjectName);
+        storedAudio.Status.Should().Be(AudioResourceStatus.Ready);
+        (await db.AudioProcessingJobs.AsNoTracking()
+            .SingleAsync(value => value.Id == staleJob.Id,
+                TestContext.Current.CancellationToken)).FailureCode
+            .Should().Be("OutputVersionSuperseded");
+        transcoder.Verify(value => value.TranscodeAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
             It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -367,7 +543,7 @@ public sealed class AudioProcessingServiceTests
     /// <summary>
     /// 添加一个 Active Audio source、音频草稿和 queued job。
     /// </summary>
-    private static (AudioClip AudioClip, AudioProcessingJob Job) AddQueuedAudio(
+    private static (AudioResource AudioResource, AudioProcessingJob Job) AddQueuedAudio(
         ApplicationDbContext db)
     {
         var resource = new MediaResource
@@ -381,23 +557,21 @@ public sealed class AudioProcessingServiceTests
             Extension = ".wav",
             ContentType = "audio/wav"
         };
-        var audioClip = new AudioClip
-        {
-            CreatedById = resource.UploaderId,
-            SourceMediaResourceId = resource.Id,
-            SourceMediaResource = resource,
-            Title = "Audio",
-            Kind = AudioClipKind.Other
-        };
+        var audioResource = AudioResource.Create(
+            resource.UploaderId,
+            "Audio.wav",
+            resource.Id);
+        audioResource.SourceMediaResource = resource;
+        audioResource.Queue(resource.UploaderId);
         var job = new AudioProcessingJob
         {
-            AudioClipId = audioClip.Id,
-            AudioClip = audioClip,
+            AudioResourceId = audioResource.Id,
+            AudioResource = audioResource,
             OutputVersion = Guid.NewGuid()
         };
-        audioClip.ProcessingJobs.Add(job);
-        db.Add(audioClip);
-        return (audioClip, job);
+        audioResource.ProcessingJobs.Add(job);
+        db.Add(audioResource);
+        return (audioResource, job);
     }
 
     /// <summary>

@@ -14,12 +14,16 @@ public sealed class MassTransitAudioProcessingQueue(
     /// <inheritdoc />
     public Task EnqueueAsync(
         Guid jobId,
+        Guid audioResourceId,
+        Guid outputVersion,
         CancellationToken cancellationToken = default)
     {
         var message = new AudioProcessingRequested
         {
             Id = Guid.NewGuid(),
             JobId = jobId,
+            AudioResourceId = audioResourceId,
+            OutputVersion = outputVersion,
             CreatedAt = timeProvider.GetUtcNow()
         };
         return publishEndpoint.Publish(message, cancellationToken);

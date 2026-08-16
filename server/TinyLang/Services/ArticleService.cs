@@ -23,7 +23,7 @@ public sealed class ArticleService(
     ILogger<ArticleService> logger) : IArticleService
 {
     private const string ReadingAudioForeignKeyConstraint =
-        "FK_articles_audio_resources_reading_audio_resource_id";
+        "FK_articles_audio_resources_ReadingAudioResourceId";
 
     /// <inheritdoc />
     public async Task<AdminArticleResponse> CreateDraftAsync(

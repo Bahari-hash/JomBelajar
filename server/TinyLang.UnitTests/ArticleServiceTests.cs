@@ -230,7 +230,7 @@ public sealed class ArticleServiceTests
                 failure,
                 It.Is<string[]>(constraints => constraints.SequenceEqual(new[]
                 {
-                    "FK_articles_audio_resources_reading_audio_resource_id"
+                    "FK_articles_audio_resources_ReadingAudioResourceId"
                 }))))
             .Returns(true);
         var service = new ArticleService(
@@ -255,7 +255,7 @@ public sealed class ArticleServiceTests
             failure,
             It.Is<string[]>(constraints => constraints.SequenceEqual(new[]
             {
-                "FK_articles_audio_resources_reading_audio_resource_id"
+                "FK_articles_audio_resources_ReadingAudioResourceId"
             }))), Times.Once);
     }
 

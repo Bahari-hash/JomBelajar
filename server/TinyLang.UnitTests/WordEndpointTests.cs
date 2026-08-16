@@ -46,7 +46,7 @@ public sealed class WordEndpointTests
             .Should().OnlyContain(endpoint => endpoint.Metadata
                 .GetOrderedMetadata<IAuthorizeData>()
                 .Any(value => value.Policy == AuthorizationPolicies.RequireUser));
-        routes.Should().HaveCount(12);
+        routes.Should().HaveCount(11);
     }
 
     /// <summary>
@@ -140,43 +140,26 @@ public sealed class WordEndpointTests
     }
 
     /// <summary>
-    /// 验证批量校验和导入路由返回 typed 200 并传递当前管理员身份。
+    /// 验证已退役的批量校验和导入路径自然返回 404。
     /// </summary>
     [Fact]
-    public async Task BatchEndpointsShouldUseAuthenticatedAdmin()
+    public async Task RetiredBatchEndpointsShouldReturnNotFound()
     {
         var adminId = Guid.NewGuid();
         var service = new Mock<IWordService>();
-        service.Setup(value => value.ValidateBatchAsync(
-                It.IsAny<BatchWordRequest>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new BatchWordValidationResponse(true, [], []));
-        service.Setup(value => value.ImportBatchAsync(
-                adminId,
-                It.IsAny<BatchWordRequest>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new BatchWordImportResponse(Guid.NewGuid(), 0, []));
         await using var app = await CreateHttpAppAsync(service.Object, adminId);
-        var request = new BatchWordRequest { Rows = [] };
 
         var validateResponse = await app.GetTestClient().PostAsJsonAsync(
             "/api/admin/words/batch/validate",
-            request,
+            new { },
             TestContext.Current.CancellationToken);
         var importResponse = await app.GetTestClient().PostAsJsonAsync(
             "/api/admin/words/batch",
-            request,
+            new { },
             TestContext.Current.CancellationToken);
 
-        validateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        importResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        service.Verify(value => value.ValidateBatchAsync(
-            It.IsAny<BatchWordRequest>(),
-            It.IsAny<CancellationToken>()), Times.Once);
-        service.Verify(value => value.ImportBatchAsync(
-            adminId,
-            It.IsAny<BatchWordRequest>(),
-            It.IsAny<CancellationToken>()), Times.Once);
+        validateResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        importResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     /// <summary>

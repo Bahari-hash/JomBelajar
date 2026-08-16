@@ -61,21 +61,6 @@ public interface IWordService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 规范化并完整校验一组新词条，但不写入数据库。
-    /// </summary>
-    Task<BatchWordValidationResponse> ValidateBatchAsync(
-        BatchWordRequest request,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// 在一个事务中原子创建通过校验的全部词条草稿。
-    /// </summary>
-    Task<BatchWordImportResponse> ImportBatchAsync(
-        Guid adminId,
-        BatchWordRequest request,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// 获取管理员可见的词条管理详情。
     /// </summary>
     Task<AdminWordResponse> GetAdminByIdAsync(

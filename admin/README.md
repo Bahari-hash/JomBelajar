@@ -55,7 +55,7 @@ pnpm --dir admin dlx shadcn@4.16.0 add <component>
 ## 管理员会话
 
 - 管理后台只接受后端 login/refresh 响应中的 Admin 角色，不解析 JWT 来推导权限。
-- access token 仅保存在模块内存；轮换后的 refresh token 保存在当前标签页的 `sessionStorage`，关闭标签页后不形成长期登录。
+- access token 仅保存在模块内存；refresh token 由后端写入 HttpOnly Cookie，前端不直接读取或持久化 refresh token。
 - 页面刷新时先轮换 refresh token，再显示受保护内容；并发 401 共享同一次刷新且每个原请求最多重试一次。
 - 退出请求无论成功或失败都会清理 token、认证状态和用户 API cache。
 - `/users` 使用真实管理员分页、详情、封禁、解封、角色更新和会话撤销 endpoint，不包含 mock 用户或静态统计。

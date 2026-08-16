@@ -59,6 +59,7 @@ describe("Words", () => {
     ).toBeVisible();
     expect(await screen.findByRole("link", { name: "bonjour" })).toBeVisible();
     expect(screen.getByText("你好")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "批量录入" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "重置筛选" }));
     await waitFor(() => expect(router.state.location.search).toBe(""));
   });

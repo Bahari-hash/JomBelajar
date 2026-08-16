@@ -92,12 +92,6 @@ export const routes = [
                 lazy: lazyComponent(() => import("@/pages/WordEditor.jsx")),
               },
               {
-                path: "words/batch",
-                lazy: lazyComponent(
-                  () => import("@/pages/WordBatchImport.jsx"),
-                ),
-              },
-              {
                 path: "words/:wordId",
                 lazy: lazyComponent(() => import("@/pages/WordEditor.jsx")),
               },

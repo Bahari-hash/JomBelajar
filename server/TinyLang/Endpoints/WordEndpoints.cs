@@ -32,10 +32,10 @@ public static class WordEndpoints
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
         adminGroup.MapPost("/words", CreateWordAsync);
-        adminGroup.MapPost("/words/batch/validate", ValidateBatchAsync);
-        adminGroup.MapPost("/words/batch", ImportBatchAsync);
         adminGroup.MapGet("/words", GetAdminWordsAsync);
         adminGroup.MapGet("/words/{id:guid}", GetAdminWordAsync);
+        adminGroup.MapPost("/words/{id:guid}", RejectUnsupportedWordPost)
+            .ExcludeFromDescription();
         adminGroup.MapPut("/words/{id:guid}", UpdateWordAsync);
         adminGroup.MapPost("/words/{id:guid}/publish", PublishWordAsync);
         adminGroup.MapPost("/words/{id:guid}/unpublish", UnpublishWordAsync);
@@ -81,6 +81,11 @@ public static class WordEndpoints
         IWordService wordService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await wordService.GetAdminByIdAsync(id, cancellationToken));
+
+    /// <summary>
+    /// 将没有对应的单词 POST 操作的路径视为不存在。
+    /// </summary>
+    public static NotFound RejectUnsupportedWordPost() => TypedResults.NotFound();
 
     /// <summary>
     /// 以完整目标集合和并发标识更新词条。
@@ -159,30 +164,6 @@ public static class WordEndpoints
             cancellationToken);
         return TypedResults.NoContent();
     }
-
-    /// <summary>
-    /// 返回批量新词条的规范化预览和逐行字段错误，不执行写入。
-    /// </summary>
-    [RequestSizeLimit(WordConstraints.MaxBatchRequestBodyBytes)]
-    public static async Task<Ok<BatchWordValidationResponse>> ValidateBatchAsync(
-        BatchWordRequest request,
-        IWordService wordService,
-        CancellationToken cancellationToken)
-        => TypedResults.Ok(await wordService.ValidateBatchAsync(request, cancellationToken));
-
-    /// <summary>
-    /// 以当前管理员身份原子创建一组词条草稿。
-    /// </summary>
-    [RequestSizeLimit(WordConstraints.MaxBatchRequestBodyBytes)]
-    public static async Task<Ok<BatchWordImportResponse>> ImportBatchAsync(
-        BatchWordRequest request,
-        ClaimsPrincipal principal,
-        IWordService wordService,
-        CancellationToken cancellationToken)
-        => TypedResults.Ok(await wordService.ImportBatchAsync(
-            EndpointIdentity.GetUserId(principal),
-            request,
-            cancellationToken));
 
     /// <summary>
     /// 获取当前可用的已发布词条分页列表。

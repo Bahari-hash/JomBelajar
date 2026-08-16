@@ -6,8 +6,6 @@ import {
   normalizeAudioPlayback,
   normalizeAudioPresign,
   normalizeAudioUploadCapability,
-  normalizeBatchImport,
-  normalizeBatchValidation,
   normalizeConfirmedAudioResource,
   normalizeWordPage,
 } from "@/services/wordContracts.js";
@@ -171,24 +169,6 @@ export const wordsApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: invalidateWord,
     }),
-    validateWordBatch: builder.mutation({
-      queryFn: normalizedQuery(
-        (body) => ({
-          url: "/admin/words/batch/validate",
-          method: "POST",
-          body,
-        }),
-        normalizeBatchValidation,
-      ),
-    }),
-    importWordBatch: builder.mutation({
-      queryFn: normalizedQuery(
-        (body) => ({ url: "/admin/words/batch", method: "POST", body }),
-        normalizeBatchImport,
-      ),
-      invalidatesTags: (_result, error) =>
-        error ? [] : [{ type: "Word", id: "LIST" }],
-    }),
     getWordAudioOptions: builder.query({
       queryFn: normalizedQuery(
         (filters) => ({ url: buildAudioListUrl(filters) }),
@@ -277,12 +257,10 @@ export const {
   useGetAudioPlaybackMutation,
   useGetAudioUploadCapabilityQuery,
   useGetWordAudioOptionsQuery,
-  useImportWordBatchMutation,
   usePublishWordMutation,
   usePresignWordAudioMutation,
   usePublishWordAudioMutation,
   useRetryWordAudioMutation,
   useUnpublishWordMutation,
   useUpdateWordMutation,
-  useValidateWordBatchMutation,
 } = wordsApi;

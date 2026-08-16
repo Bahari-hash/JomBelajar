@@ -29,6 +29,14 @@ describe("admin routes", () => {
     ).toBeVisible();
   });
 
+  it("renders a 404 for the removed word batch route", async () => {
+    renderAppAt("/words/batch");
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "页面未找到" }),
+    ).toBeVisible();
+  });
+
   it("directly opens the protected article editor and shared content navigation", async () => {
     tokenVault.clear();
     mockHttpClient(() =>

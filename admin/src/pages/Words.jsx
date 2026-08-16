@@ -3,7 +3,6 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
-  FileJson,
   Plus,
   RotateCcw,
 } from "lucide-react";
@@ -60,12 +59,6 @@ function Words() {
               className={isFetching ? "animate-spin" : undefined}
             />
             {isFetching ? "正在刷新" : "刷新"}
-          </Button>
-          <Button variant="outline" asChild>
-            <Link to="/words/batch">
-              <FileJson aria-hidden="true" />
-              批量录入
-            </Link>
           </Button>
           <Button asChild>
             <Link to="/words/new">

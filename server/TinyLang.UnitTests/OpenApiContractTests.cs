@@ -17,7 +17,7 @@ namespace TinyLang.UnitTests;
 public sealed class OpenApiContractTests
 {
     /// <summary>
-    /// 验证 OpenAPI 公开词条批量与归档路径、并发前置条件和当前媒体响应字段。
+    /// 验证 OpenAPI 公开当前管理路径、并发前置条件和媒体响应字段。
     /// </summary>
     [Fact]
     public async Task OpenApiShouldExposeCurrentAdminVideoContract()
@@ -36,8 +36,8 @@ public sealed class OpenApiContractTests
             .Should().BeTrue();
         paths.TryGetProperty("/api/admin/words", out _).Should().BeTrue();
         paths.TryGetProperty("/api/admin/words/batch/validate", out _)
-            .Should().BeTrue();
-        paths.TryGetProperty("/api/admin/words/batch", out _).Should().BeTrue();
+            .Should().BeFalse();
+        paths.TryGetProperty("/api/admin/words/batch", out _).Should().BeFalse();
         paths.TryGetProperty("/api/admin/words/{id}/archive", out _)
             .Should().BeTrue();
         paths.TryGetProperty("/api/words", out _).Should().BeTrue();
@@ -85,10 +85,10 @@ public sealed class OpenApiContractTests
             .Should().BeTrue();
         adminWord.GetProperty("properties").TryGetProperty("concurrencyStamp", out _)
             .Should().BeTrue();
-        GetSchema(schemas, "BatchWordRequest").GetProperty("properties")
-            .TryGetProperty("rows", out _).Should().BeTrue();
-        GetSchema(schemas, "BatchWordImportResponse").GetProperty("properties")
-            .TryGetProperty("items", out _).Should().BeTrue();
+        schemas.EnumerateObject().Should().NotContain(schema =>
+            schema.Name.EndsWith("BatchWordRequest", StringComparison.Ordinal));
+        schemas.EnumerateObject().Should().NotContain(schema =>
+            schema.Name.EndsWith("BatchWordImportResponse", StringComparison.Ordinal));
 
         var paperMutationRequest = GetSchema(schemas, "PaperMutationRequest");
         GetRequiredProperties(paperMutationRequest).Should().Contain("concurrencyStamp");

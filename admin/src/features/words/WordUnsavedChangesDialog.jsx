@@ -9,15 +9,15 @@ import {
 } from "@/components/ui/alert-dialog.jsx";
 import { Button } from "@/components/ui/button.jsx";
 
-/** Resolves navigation blocked by unsaved word or batch content. */
-export function WordUnsavedChangesDialog({ blocker, batch = false }) {
+/** Resolves navigation blocked by unsaved word content. */
+export function WordUnsavedChangesDialog({ blocker }) {
   if (blocker.state !== "blocked") return null;
   return (
     <AlertDialog open onOpenChange={(open) => !open && blocker.reset()}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {batch ? "离开批量录入？" : "离开单词编辑？"}
+            离开单词编辑？
           </AlertDialogTitle>
           <AlertDialogDescription>
             尚未提交的内容将会丢失。

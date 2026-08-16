@@ -12,7 +12,6 @@ const IDS = Object.freeze({
   example: "55555555-5555-4555-8555-555555555555",
   pronunciation: "66666666-6666-4666-8666-666666666666",
   audio: "77777777-7777-4777-8777-777777777777",
-  batch: "88888888-8888-4888-8888-888888888888",
   resource: "99999999-9999-4999-8999-999999999999",
 });
 
@@ -108,6 +107,11 @@ function audioDetails(overrides = {}) {
 }
 
 describe("wordsApi", () => {
+  it("does not expose word batch validation or import endpoints", () => {
+    expect(wordsApi.endpoints.validateWordBatch).toBeUndefined();
+    expect(wordsApi.endpoints.importWordBatch).toBeUndefined();
+  });
+
   it("encodes every supported list filter", async () => {
     tokenVault.install("access", "refresh");
     const requestMock = mockHttpClient(() =>
@@ -141,21 +145,9 @@ describe("wordsApi", () => {
     request.unsubscribe();
   });
 
-  it("uses exact aggregate, lifecycle, delete and batch contracts", async () => {
+  it("uses exact aggregate, lifecycle and delete contracts", async () => {
     tokenVault.install("access", "refresh");
     const requestMock = mockHttpClient((config) => {
-      if (config.url.endsWith("/validate"))
-        return Promise.resolve(
-          axiosResponse({ isValid: true, errors: [], rows: [] }),
-        );
-      if (config.url === "/admin/words/batch")
-        return Promise.resolve(
-          axiosResponse({
-            batchId: IDS.batch,
-            createdCount: 1,
-            items: [{ rowIndex: 0, wordId: IDS.word }],
-          }),
-        );
       if (config.method === "DELETE")
         return Promise.resolve(axiosResponse(undefined, 204));
       return Promise.resolve(
@@ -195,13 +187,6 @@ describe("wordsApi", () => {
         }),
       )
       .unwrap();
-    await store
-      .dispatch(wordsApi.endpoints.validateWordBatch.initiate({ rows: [body] }))
-      .unwrap();
-    await store
-      .dispatch(wordsApi.endpoints.importWordBatch.initiate({ rows: [body] }))
-      .unwrap();
-
     expect(
       requestMock.mock.calls.map(([config]) => [
         config.url,
@@ -231,8 +216,6 @@ describe("wordsApi", () => {
         { concurrencyStamp: IDS.stamp },
       ],
       [`/admin/words/${IDS.word}`, "DELETE", { concurrencyStamp: IDS.stamp }],
-      ["/admin/words/batch/validate", "POST", { rows: [body] }],
-      ["/admin/words/batch", "POST", { rows: [body] }],
     ]);
   });
 

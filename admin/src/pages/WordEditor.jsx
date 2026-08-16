@@ -45,6 +45,7 @@ import { WordUnsavedChangesDialog } from "@/features/words/WordUnsavedChangesDia
 import { useAdminPage } from "@/hooks/useAdminPage.js";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges.js";
 import { formatDateTime } from "@/lib/dateTime.js";
+import NotFound from "@/pages/NotFound.jsx";
 import { getErrorMessage } from "@/services/problemDetails.js";
 import {
   useCreateWordMutation,
@@ -53,6 +54,7 @@ import {
 } from "@/services/wordsApi.js";
 
 let draftSequence = 0;
+const GUID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const draftKey = (type) => `${type}-draft-${Date.now()}-${draftSequence++}`;
 const emptyForm = () => ({
   headword: "",
@@ -165,6 +167,7 @@ function move(items, index, offset) {
 function WordEditor() {
   const { wordId } = useParams();
   const isNew = !wordId;
+  const hasValidWordId = isNew || GUID_PATTERN.test(wordId);
   useAdminPage(isNew ? "新建单词" : "单词详情");
   const navigate = useNavigate();
   const allowNavigationRef = useRef(false);
@@ -181,7 +184,7 @@ function WordEditor() {
   const [statusAction, setStatusAction] = useState(null);
   const [concurrencyConflict, setConcurrencyConflict] = useState(false);
   const { data, error, isLoading, refetch } = useGetAdminWordQuery(wordId, {
-    skip: isNew,
+    skip: isNew || !hasValidWordId,
   });
   const [createWord, createState] = useCreateWordMutation();
   const [updateWord, updateState] = useUpdateWordMutation();
@@ -269,6 +272,8 @@ function WordEditor() {
   useEffect(() => {
     if (data && !initialized) applyWord(data);
   }, [data, initialized]);
+
+  if (!hasValidWordId) return <NotFound />;
 
   const updateSense = (senseKey, updater) =>
     setForm((current) => ({

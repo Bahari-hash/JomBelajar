@@ -22,6 +22,7 @@ public interface IApplicationDbContext
     DbSet<VideoCategory> VideoCategories { get; }
     DbSet<VideoCategoryAssignment> VideoCategoryAssignments { get; }
     DbSet<UserVideoProgress> UserVideoProgress { get; }
+    DbSet<AudioResource> AudioResources { get; }
     DbSet<AudioClip> AudioClips { get; }
     DbSet<AudioProcessingJob> AudioProcessingJobs { get; }
     DbSet<Word> Words { get; }

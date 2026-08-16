@@ -32,6 +32,8 @@ public sealed class User : BaseAuditableEntity
     public ICollection<Article> PublishedArticles { get; set; } = [];
     public ICollection<Video> CreatedVideos { get; set; } = [];
     public ICollection<Video> EditedVideos { get; set; } = [];
+    public ICollection<AudioResource> CreatedAudioResources { get; set; } = [];
+    public ICollection<AudioResource> EditedAudioResources { get; set; } = [];
     public ICollection<AudioClip> CreatedAudioClips { get; set; } = [];
     public ICollection<AudioClip> EditedAudioClips { get; set; } = [];
     public ICollection<UserVideoProgress> VideoProgress { get; set; } = [];

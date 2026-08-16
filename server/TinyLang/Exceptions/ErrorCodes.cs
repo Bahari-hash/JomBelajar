@@ -287,6 +287,21 @@ public enum ErrorCodes
     [Description("音频不存在.")]
     AudioNotFound,
 
+    [Description("音频名称已存在.")]
+    AudioNameConflict,
+
+    [Description("音频仍被业务内容引用，无法删除.")]
+    AudioInUse,
+
+    [Description("音频源文件尚未完成上传.")]
+    AudioUploadIncomplete,
+
+    [Description("音频尚未处理完成，暂不可用.")]
+    AudioNotReady,
+
+    [Description("音频处理失败.")]
+    AudioProcessingFailed,
+
     [Description("音频标题不能为空.")]
     AudioTitleRequired,
 

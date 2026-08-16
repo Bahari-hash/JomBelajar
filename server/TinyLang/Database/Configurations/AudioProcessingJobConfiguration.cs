@@ -20,8 +20,8 @@ public sealed class AudioProcessingJobConfiguration
         builder.Property(value => value.FailureCode).HasMaxLength(100);
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
 
-        builder.HasIndex(value => new { value.AudioClipId, value.OutputVersion }).IsUnique();
-        builder.HasIndex(value => value.AudioClipId)
+        builder.HasIndex(value => new { value.AudioResourceId, value.OutputVersion }).IsUnique();
+        builder.HasIndex(value => value.AudioResourceId)
             .IsUnique()
             .HasFilter("\"Status\" IN ('Queued', 'Processing')");
         builder.HasIndex(value => new
@@ -34,6 +34,16 @@ public sealed class AudioProcessingJobConfiguration
             value.Id
         });
 
+        builder.HasOne(value => value.AudioResource)
+            .WithMany(value => value.ProcessingJobs)
+            .HasForeignKey(value => value.AudioResourceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // 与旧 AudioClip 服务并行存在的过渡关系；后续服务切换后移除。
+        builder.HasIndex(value => new { value.AudioClipId, value.OutputVersion }).IsUnique();
+        builder.HasIndex(value => value.AudioClipId)
+            .IsUnique()
+            .HasFilter("\"Status\" IN ('Queued', 'Processing')");
         builder.HasOne(value => value.AudioClip)
             .WithMany(value => value.ProcessingJobs)
             .HasForeignKey(value => value.AudioClipId)

@@ -33,7 +33,8 @@ public sealed class PostgresDatabaseExceptionClassifier : IDatabaseExceptionClas
     {
         if (exception.InnerException is not PostgresException
             {
-                SqlState: PostgresErrorCodes.ForeignKeyViolation,
+                SqlState: PostgresErrorCodes.ForeignKeyViolation or
+                    PostgresErrorCodes.RestrictViolation,
                 ConstraintName: { } constraintName
             })
         {

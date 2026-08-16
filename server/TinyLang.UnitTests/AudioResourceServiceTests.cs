@@ -2,11 +2,13 @@ using System.Linq;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using Npgsql;
 using TinyLang.Database;
 using TinyLang.Dtos;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
 using TinyLang.Exceptions;
+using TinyLang.Infrastructure;
 using TinyLang.Interfaces;
 using TinyLang.Models;
 using TinyLang.Services;
@@ -753,6 +755,60 @@ public sealed class AudioResourceServiceTests
             .Should().Be(0);
         (await db.MediaResources.CountAsync(TestContext.Current.CancellationToken))
             .Should().Be(0);
+    }
+
+    [Fact]
+    public async Task DeleteShouldMapPostgresRestrictViolationToAudioInUse()
+    {
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        var adminId = Guid.NewGuid();
+        var source = CreateAudioMediaResource(adminId);
+        var audio = AudioResource.Create(adminId, "lesson.mp3", source.Id);
+        audio.SourceMediaResource = source;
+        db.AddRange(source, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var postgresException = new PostgresException(
+            "update or delete violates RESTRICT",
+            "ERROR",
+            "ERROR",
+            PostgresErrorCodes.RestrictViolation,
+            schemaName: "public",
+            tableName: "articles",
+            constraintName: "FK_articles_audio_resources_ReadingAudioResourceId");
+        var failure = new DbUpdateException("write failed", postgresException);
+        var transaction = new Mock<IApplicationDbTransaction>();
+        var context = new Mock<IApplicationDbContext>();
+        context.SetupGet(value => value.AudioResources).Returns(db.AudioResources);
+        context.SetupGet(value => value.AudioProcessingJobs).Returns(db.AudioProcessingJobs);
+        context.SetupGet(value => value.MediaResources).Returns(db.MediaResources);
+        context.Setup(value => value.BeginTransactionAsync(
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction.Object);
+        context.Setup(value => value.AcquireAudioResourceLockAsync(
+                audio.Id,
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        context.Setup(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(failure);
+        var service = new AudioResourceService(
+            context.Object,
+            Mock.Of<IMediaResourceService>(),
+            Mock.Of<IVideoDeliveryUrlService>(),
+            new PostgresDatabaseExceptionClassifier(),
+            TimeProvider.System,
+            Mock.Of<IObjectStorageService>());
+
+        var action = () => service.DeleteAsync(
+            audio.Id,
+            TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<ConflictException>();
+        exception.Which.ErrorCode.Should().Be(ErrorCodes.AudioInUse);
+        transaction.Verify(value => value.CommitAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

@@ -43,7 +43,8 @@
     "**/bin": true,
     "**/obj": true,
     "**/*.user": true,
-    "**/TestResults": true
+    "**/TestResults": true,
+    "**/audio-processing-temp": true
   },
   "[csharp]": {
     "editor.tabSize": 4,
@@ -75,5 +76,5 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
 
-  "cSpell.words": ["serilog", "scriban", "xunit", "npgsql"],
+  "cSpell.words": ["serilog", "scriban", "xunit", "npgsql"]
 }

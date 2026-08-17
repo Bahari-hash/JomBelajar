@@ -120,6 +120,15 @@ namespace TinyLang.Database.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("""
+                DELETE FROM word_study_session_items;
+                DELETE FROM word_study_sessions;
+                DELETE FROM user_word_progress;
+                DELETE FROM example_sentences;
+                DELETE FROM word_senses;
+                DELETE FROM words;
+                """);
+
             migrationBuilder.DropForeignKey(
                 name: "FK_user_word_progress_words_WordId",
                 table: "user_word_progress");

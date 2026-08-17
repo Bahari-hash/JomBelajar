@@ -22,6 +22,10 @@ export function createAppStore() {
         videoApi.middleware,
         wordStudyApi.middleware,
       ),
+    enhancers: (getDefaultEnhancers) =>
+      import.meta.env.MODE === "test"
+        ? getDefaultEnhancers({ autoBatch: { type: "timer", timeout: 0 } })
+        : getDefaultEnhancers(),
   });
 }
 

@@ -129,6 +129,9 @@ describe("WordStudyCard", () => {
 
     expect(screen.getByText("该单词当前不可查看")).toBeInTheDocument();
     expect(
+      screen.getByText("词条内容已经删除或暂时无法使用。"),
+    ).toBeInTheDocument();
+    expect(
       screen.queryByRole("button", { name: "记住了" }),
     ).not.toBeInTheDocument();
     expect(

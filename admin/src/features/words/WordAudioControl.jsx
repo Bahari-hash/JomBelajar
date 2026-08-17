@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AudioLines, Library, Unlink, Upload } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert.jsx";
 import { Badge } from "@/components/ui/badge.jsx";
@@ -11,6 +11,12 @@ import { AUDIO_STATUS_LABELS } from "@/services/audioContracts.js";
 export function WordAudioControl({ value, onChange, disabled }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+
+  useEffect(() => {
+    if (!disabled) return;
+    setPickerOpen(false);
+    setUploadOpen(false);
+  }, [disabled]);
 
   return (
     <div className="space-y-4">

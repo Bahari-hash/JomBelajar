@@ -82,7 +82,7 @@ export default function WordStudyCard({
         <div className="flex min-h-80 flex-col items-center justify-center text-center">
           <h2 className="text-2xl font-bold">该单词当前不可查看</h2>
           <p className="mt-3 text-sm text-base-content/65">
-            词条内容已经下架或暂时无法使用。
+            词条内容已经删除或暂时无法使用。
           </p>
           {answered ? (
             <p className="mt-4 text-sm font-medium">

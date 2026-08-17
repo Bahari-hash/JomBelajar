@@ -144,4 +144,25 @@ describe("WordAudioControl", () => {
     expect(screen.queryByRole("dialog", { name: "选择音频资源" })).toBeNull();
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("closes expanded association controls when it becomes disabled", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <WordAudioControl value={null} onChange={onChange} disabled={false} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "从资源库选择" }));
+    await user.click(screen.getByRole("button", { name: "上传新音频" }));
+    expect(
+      screen.getByRole("dialog", { name: "选择音频资源" }),
+    ).toBeVisible();
+    expect(screen.getByTestId("mock-audio-upload")).toBeVisible();
+
+    rerender(<WordAudioControl value={null} onChange={onChange} disabled />);
+
+    expect(screen.queryByRole("dialog", { name: "选择音频资源" })).toBeNull();
+    expect(screen.queryByTestId("mock-audio-upload")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

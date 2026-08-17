@@ -122,6 +122,22 @@ public sealed class OpenApiContractTests
         schemas.EnumerateObject().Should().NotContain(schema =>
             schema.Name.EndsWith("BatchWordImportResponse", StringComparison.Ordinal));
 
+        foreach (var responseName in new[]
+                 {
+                     "WordStudyNextItemResponse",
+                     "WordStudySessionItemContentResponse"
+                 })
+        {
+            var responseProperties = GetSchema(schemas, responseName)
+                .GetProperty("properties");
+            AssertNullableUuid(responseProperties.GetProperty("audioResourceId"), schemas);
+            responseProperties.TryGetProperty("pronunciations", out _).Should().BeFalse();
+        }
+        GetSchema(schemas, "ExampleSentenceResponse")
+            .GetProperty("properties")
+            .TryGetProperty("audioClipId", out _)
+            .Should().BeFalse();
+
         var paperMutationRequest = GetSchema(schemas, "PaperMutationRequest");
         GetRequiredProperties(paperMutationRequest).Should().Contain("concurrencyStamp");
         var paperStatus = GetSchema(schemas, "PaperPublicationStatus");
@@ -382,6 +398,7 @@ public sealed class OpenApiContractTests
         builder.Services.AddSingleton(Mock.Of<IVideoCategoryService>());
         builder.Services.AddSingleton(Mock.Of<IAudioResourceService>());
         builder.Services.AddSingleton(Mock.Of<IWordService>());
+        builder.Services.AddSingleton(Mock.Of<IWordStudyService>());
         builder.Services.AddSingleton(Mock.Of<IPaperService>());
         builder.Services.AddSingleton(Mock.Of<IPaperAttemptService>());
         builder.Services.AddSingleton(Mock.Of<IMediaResourceService>());
@@ -394,6 +411,7 @@ public sealed class OpenApiContractTests
             .MapVideosApi()
             .MapAudioApi()
             .MapWordsApi()
+            .MapWordStudyApi()
             .MapOnlineQuizApi();
         await app.StartAsync(TestContext.Current.CancellationToken);
         return app;

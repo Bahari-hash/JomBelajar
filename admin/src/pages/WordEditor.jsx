@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog.jsx";
+import { Badge } from "@/components/ui/badge.jsx";
 import { Button } from "@/components/ui/button.jsx";
 import { Input } from "@/components/ui/input.jsx";
 import { Label } from "@/components/ui/label.jsx";
@@ -33,6 +34,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton.jsx";
 import { Textarea } from "@/components/ui/textarea.jsx";
 import { PART_OF_SPEECH_OPTIONS } from "@/constants/wordOptions.js";
+import { ExampleSentenceAudioControl } from "@/features/words/ExampleSentenceAudioControl.jsx";
 import { WordAudioControl } from "@/features/words/WordAudioControl.jsx";
 import { WordUnsavedChangesDialog } from "@/features/words/WordUnsavedChangesDialog.jsx";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
@@ -62,6 +64,7 @@ const createExample = () => ({
   id: null,
   sentence: "",
   translation: "",
+  audio: null,
 });
 const emptyForm = () => ({
   headword: "",
@@ -99,6 +102,7 @@ function toPayload(form, concurrencyStamp) {
         ...(example.id ? { id: example.id } : {}),
         sentence: example.sentence.trim(),
         translation: example.translation.trim(),
+        audioResourceId: example.audio?.id ?? null,
         sortOrder: exampleIndex,
       })),
     })),
@@ -560,6 +564,10 @@ function WordEditor() {
                                     [ 例句 {exampleIndex + 1} ]
                                   </h4>
 
+                                  {example.audio ? (
+                                    <Badge variant="outline">已关联音频</Badge>
+                                  ) : null}
+
                                   {collapsedKeys[example._key] && (
                                     <span className="text-sm text-muted-foreground truncate max-w-37.5 sm:max-w-75">
                                       {example.sentence || "（未填写例句原文）"}
@@ -663,6 +671,20 @@ function WordEditor() {
                                     }
                                   />
                                 </Field>
+                                <ExampleSentenceAudioControl
+                                  value={example.audio}
+                                  disabled={pending}
+                                  onChange={(audio) =>
+                                    updateSense(sense._key, (item) => ({
+                                      ...item,
+                                      examples: item.examples.map((value) =>
+                                        value._key === example._key
+                                          ? { ...value, audio }
+                                          : value,
+                                      ),
+                                    }))
+                                  }
+                                />
                                 <div className="flex justify-end border-t pt-3">
                                   <Button
                                     type="button"

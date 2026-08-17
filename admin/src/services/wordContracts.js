@@ -66,6 +66,7 @@ function example(value) {
     id: uuid(source.id, "word example id"),
     sentence: string(source.sentence, "word example sentence"),
     translation: string(source.translation, "word example translation"),
+    audio: audio(source.audio, "word example audio"),
     sortOrder: number(source.sortOrder, "word example sort order", {
       integer: true,
     }),
@@ -90,23 +91,23 @@ function sense(value) {
   };
 }
 
-function audio(value) {
+function audio(value, name = "word audio") {
   if (value === null) return null;
-  const source = object(value, "word audio");
+  const source = object(value, name);
   return {
-    id: uuid(source.id, "word audio id"),
-    name: string(source.name, "word audio name"),
+    id: uuid(source.id, `${name} id`),
+    name: string(source.name, `${name} name`),
     status: enumeration(
       source.status,
       AUDIO_RESOURCE_STATUSES,
-      "word audio status",
+      `${name} status`,
     ),
-    durationSeconds: number(source.durationSeconds, "word audio duration", {
+    durationSeconds: number(source.durationSeconds, `${name} duration`, {
       nullable: true,
     }),
     lastFailureCode: string(
       source.lastFailureCode,
-      "word audio failure code",
+      `${name} failure code`,
       true,
     ),
   };

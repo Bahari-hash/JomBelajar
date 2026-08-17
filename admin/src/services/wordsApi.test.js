@@ -11,6 +11,7 @@ const IDS = Object.freeze({
   sense: "44444444-4444-4444-8444-444444444444",
   example: "55555555-5555-4555-8555-555555555555",
   audio: "66666666-6666-4666-8666-666666666666",
+  exampleAudio: "77777777-7777-4777-8777-777777777777",
 });
 
 function audio(overrides = {}) {
@@ -20,6 +21,17 @@ function audio(overrides = {}) {
     status: "Ready",
     durationSeconds: 1.8,
     lastFailureCode: null,
+    ...overrides,
+  };
+}
+
+function example(overrides = {}) {
+  return {
+    id: IDS.example,
+    sentence: "Bonjour, Marie!",
+    translation: "你好，玛丽！",
+    audio: audio({ id: IDS.exampleAudio, name: "example.mp3" }),
+    sortOrder: 0,
     ...overrides,
   };
 }
@@ -37,14 +49,7 @@ function detail(overrides = {}) {
         definition: "你好",
         usageNote: null,
         sortOrder: 0,
-        examples: [
-          {
-            id: IDS.example,
-            sentence: "Bonjour, Marie!",
-            translation: "你好，玛丽！",
-            sortOrder: 0,
-          },
-        ],
+        examples: [example()],
       },
     ],
     createdAt: "2026-08-01T10:00:00Z",
@@ -156,6 +161,9 @@ describe("wordsApi", () => {
       .dispatch(wordsApi.endpoints.createWord.initiate(body))
       .unwrap();
     expect(created.audio).toEqual(audio());
+    expect(created.senses[0].examples[0].audio).toEqual(
+      audio({ id: IDS.exampleAudio, name: "example.mp3" }),
+    );
     await store
       .dispatch(
         wordsApi.endpoints.updateWord.initiate({
@@ -193,9 +201,64 @@ describe("wordsApi", () => {
   it("contains unknown shared audio statuses as contract errors", async () => {
     tokenVault.install("access", "refresh");
     mockHttpClient(() =>
-      Promise.resolve(axiosResponse(detail({ audio: audio({ status: "Deleted" }) }))),
+      Promise.resolve(
+        axiosResponse(detail({ audio: audio({ status: "Deleted" }) })),
+      ),
     );
     const store = createAppStore();
+    await expect(
+      store
+        .dispatch(wordsApi.endpoints.getAdminWord.initiate(IDS.word))
+        .unwrap(),
+    ).rejects.toMatchObject({ status: "CUSTOM_ERROR", kind: "contract" });
+  });
+
+  it("accepts a null example audio association", async () => {
+    tokenVault.install("access", "refresh");
+    mockHttpClient(() =>
+      Promise.resolve(
+        axiosResponse(
+          detail({
+            senses: [
+              {
+                ...detail().senses[0],
+                examples: [example({ audio: null })],
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    const store = createAppStore();
+
+    const result = await store
+      .dispatch(wordsApi.endpoints.getAdminWord.initiate(IDS.word))
+      .unwrap();
+
+    expect(result.senses[0].examples[0].audio).toBeNull();
+  });
+
+  it.each([
+    ["unknown status", audio({ status: "Deleted" })],
+    ["empty id", audio({ id: "00000000-0000-0000-0000-000000000000" })],
+  ])("rejects example audio with %s", async (_case, invalidAudio) => {
+    tokenVault.install("access", "refresh");
+    mockHttpClient(() =>
+      Promise.resolve(
+        axiosResponse(
+          detail({
+            senses: [
+              {
+                ...detail().senses[0],
+                examples: [example({ audio: invalidAudio })],
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    const store = createAppStore();
+
     await expect(
       store
         .dispatch(wordsApi.endpoints.getAdminWord.initiate(IDS.word))

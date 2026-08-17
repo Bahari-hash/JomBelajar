@@ -9,6 +9,7 @@ const WORD_ID = "11111111-1111-4111-8111-111111111111";
 const SENSE_ID = "44444444-4444-4444-8444-444444444444";
 const EXAMPLE_ID = "55555555-5555-4555-8555-555555555555";
 const AUDIO_ID = "66666666-6666-4666-8666-666666666666";
+const EXAMPLE_AUDIO_ID = "77777777-7777-4777-8777-777777777777";
 const AUDIO = {
   id: AUDIO_ID,
   name: "hello.mp3",
@@ -16,16 +17,19 @@ const AUDIO = {
   durationSeconds: null,
   lastFailureCode: null,
 };
+const EXAMPLE_AUDIO = {
+  id: EXAMPLE_AUDIO_ID,
+  name: "example.mp3",
+  status: "Ready",
+  durationSeconds: 2.4,
+  lastFailureCode: null,
+};
 
 vi.mock("@/features/words/WordAudioControl.jsx", () => ({
   WordAudioControl: ({ value, onChange, disabled }) => (
     <div aria-label="单词读音">
       <p>{value ? `${value.name} ${value.status}` : "未关联单词读音"}</p>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange(AUDIO)}
-      >
+      <button type="button" disabled={disabled} onClick={() => onChange(AUDIO)}>
         模拟选择单词音频
       </button>
       <button
@@ -34,6 +38,28 @@ vi.mock("@/features/words/WordAudioControl.jsx", () => ({
         onClick={() => onChange(null)}
       >
         模拟解除单词音频
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("@/features/words/ExampleSentenceAudioControl.jsx", () => ({
+  ExampleSentenceAudioControl: ({ value, onChange, disabled }) => (
+    <div aria-label="例句音频">
+      <p>{value ? `${value.name} ${value.status}` : "未关联例句音频"}</p>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange(EXAMPLE_AUDIO)}
+      >
+        模拟选择例句音频
+      </button>
+      <button
+        type="button"
+        disabled={disabled || !value}
+        onClick={() => onChange(null)}
+      >
+        模拟解除例句音频
       </button>
     </div>
   ),
@@ -87,6 +113,10 @@ describe("WordEditor", () => {
     await user.type(screen.getByLabelText("词头 *"), "hello");
     await user.type(screen.getByLabelText("释义 *"), "你好");
     await user.click(screen.getByRole("button", { name: "模拟选择单词音频" }));
+    await user.click(screen.getByRole("button", { name: "添加例句" }));
+    await user.type(screen.getByLabelText("例句原文 *"), "Hello there.");
+    await user.type(screen.getByLabelText("译文 *"), "你好。 ");
+    await user.click(screen.getByRole("button", { name: "模拟选择例句音频" }));
     await user.click(within(header).getByRole("button", { name: "保存" }));
 
     await waitFor(() =>
@@ -106,7 +136,14 @@ describe("WordEditor", () => {
           definition: "你好",
           usageNote: null,
           sortOrder: 0,
-          examples: [],
+          examples: [
+            {
+              sentence: "Hello there.",
+              translation: "你好。",
+              audioResourceId: EXAMPLE_AUDIO_ID,
+              sortOrder: 0,
+            },
+          ],
         },
       ],
     });
@@ -148,6 +185,7 @@ describe("WordEditor", () => {
     await screen.findByLabelText("释义 *");
     expect(screen.getByText("暂无例句。")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "添加例句" }));
+    expect(screen.getByText("未关联例句音频")).toBeVisible();
     await user.type(screen.getByLabelText("例句原文 *"), "第一条例句");
     await user.click(
       screen.getByRole("button", { name: "收起并添加下一条例句" }),
@@ -173,6 +211,7 @@ describe("WordEditor", () => {
               id: EXAMPLE_ID,
               sentence: "Hello!",
               translation: "你好！",
+              audio: EXAMPLE_AUDIO,
               sortOrder: 0,
             },
           ],
@@ -213,12 +252,228 @@ describe("WordEditor", () => {
               id: EXAMPLE_ID,
               sentence: "Hello!",
               translation: "你好！",
+              audioResourceId: EXAMPLE_AUDIO_ID,
               sortOrder: 0,
             },
           ],
         },
       ],
     });
+  });
+
+  it("shows the existing example audio in the editor and collapsed summary", async () => {
+    tokenVault.install("access", "refresh");
+    mockHttpClient(() =>
+      Promise.resolve(
+        axiosResponse(
+          word({
+            senses: [
+              {
+                id: SENSE_ID,
+                partOfSpeech: "Interjection",
+                definition: "你好",
+                usageNote: null,
+                sortOrder: 0,
+                examples: [
+                  {
+                    id: EXAMPLE_ID,
+                    sentence: "Hello!",
+                    translation: "你好！",
+                    audio: EXAMPLE_AUDIO,
+                    sortOrder: 0,
+                  },
+                ],
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderAppAt(`/words/${WORD_ID}`);
+
+    expect(await screen.findByText("example.mp3 Ready")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "折叠例句 1" }));
+
+    expect(screen.getByText("已关联音频")).toBeVisible();
+  });
+
+  it("updates only the selected example audio association", async () => {
+    tokenVault.install("access", "refresh");
+    mockHttpClient(() =>
+      Promise.resolve(
+        axiosResponse(
+          word({
+            senses: [
+              {
+                id: SENSE_ID,
+                partOfSpeech: "Interjection",
+                definition: "你好",
+                usageNote: null,
+                sortOrder: 0,
+                examples: [
+                  {
+                    id: EXAMPLE_ID,
+                    sentence: "First.",
+                    translation: "第一。",
+                    audio: null,
+                    sortOrder: 0,
+                  },
+                  {
+                    id: "88888888-8888-4888-8888-888888888888",
+                    sentence: "Second.",
+                    translation: "第二。",
+                    audio: null,
+                    sortOrder: 1,
+                  },
+                ],
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderAppAt(`/words/${WORD_ID}`);
+
+    const controls = await screen.findAllByLabelText("例句音频");
+    await user.click(
+      within(controls[1]).getByRole("button", { name: "模拟选择例句音频" }),
+    );
+
+    expect(within(controls[0]).getByText("未关联例句音频")).toBeVisible();
+    expect(within(controls[1]).getByText("example.mp3 Ready")).toBeVisible();
+  });
+
+  it("sends null after unlinking an example audio", async () => {
+    tokenVault.install("access", "refresh");
+    const saved = word({
+      senses: [
+        {
+          id: SENSE_ID,
+          partOfSpeech: "Interjection",
+          definition: "你好",
+          usageNote: null,
+          sortOrder: 0,
+          examples: [
+            {
+              id: EXAMPLE_ID,
+              sentence: "Hello!",
+              translation: "你好！",
+              audio: EXAMPLE_AUDIO,
+              sortOrder: 0,
+            },
+          ],
+        },
+      ],
+    });
+    const requestMock = mockHttpClient(() =>
+      Promise.resolve(axiosResponse(saved)),
+    );
+    const user = userEvent.setup();
+    renderAppAt(`/words/${WORD_ID}`);
+
+    const control = await screen.findByLabelText("例句音频");
+    await user.click(
+      within(control).getByRole("button", { name: "模拟解除例句音频" }),
+    );
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await screen.findByText("单词修改已保存。");
+
+    const update = requestMock.mock.calls
+      .map(([config]) => config)
+      .find((config) => config.method === "PUT");
+    expect(update.data.senses[0].examples[0].audioResourceId).toBeNull();
+  });
+
+  it("removes an example without calling an audio deletion endpoint", async () => {
+    tokenVault.install("access", "refresh");
+    const saved = word({
+      senses: [
+        {
+          id: SENSE_ID,
+          partOfSpeech: "Interjection",
+          definition: "你好",
+          usageNote: null,
+          sortOrder: 0,
+          examples: [
+            {
+              id: EXAMPLE_ID,
+              sentence: "Hello!",
+              translation: "你好！",
+              audio: EXAMPLE_AUDIO,
+              sortOrder: 0,
+            },
+          ],
+        },
+      ],
+    });
+    const requestMock = mockHttpClient(() =>
+      Promise.resolve(axiosResponse(saved)),
+    );
+    const user = userEvent.setup();
+    renderAppAt(`/words/${WORD_ID}`);
+
+    await screen.findByLabelText("例句音频");
+    await user.click(screen.getByRole("button", { name: "删除例句 1" }));
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await screen.findByText("单词修改已保存。");
+
+    const update = requestMock.mock.calls
+      .map(([config]) => config)
+      .find((config) => config.method === "PUT");
+    expect(update.data.senses[0].examples).toEqual([]);
+    expect(
+      requestMock.mock.calls.some(([config]) => config.url.includes("/audio")),
+    ).toBe(false);
+  });
+
+  it("disables example audio controls while saving", async () => {
+    tokenVault.install("access", "refresh");
+    const saved = word({
+      senses: [
+        {
+          id: SENSE_ID,
+          partOfSpeech: "Interjection",
+          definition: "你好",
+          usageNote: null,
+          sortOrder: 0,
+          examples: [
+            {
+              id: EXAMPLE_ID,
+              sentence: "Hello!",
+              translation: "你好！",
+              audio: null,
+              sortOrder: 0,
+            },
+          ],
+        },
+      ],
+    });
+    let resolveUpdate;
+    mockHttpClient((config) => {
+      if (config.method !== "PUT") return Promise.resolve(axiosResponse(saved));
+      return new Promise((resolve) => {
+        resolveUpdate = () => resolve(axiosResponse(saved));
+      });
+    });
+    const user = userEvent.setup();
+    renderAppAt(`/words/${WORD_ID}`);
+
+    const headword = await screen.findByLabelText("词头 *");
+    await user.clear(headword);
+    await user.type(headword, "hi");
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    const control = screen.getByLabelText("例句音频");
+    await waitFor(() =>
+      expect(
+        within(control).getByRole("button", { name: "模拟选择例句音频" }),
+      ).toBeDisabled(),
+    );
+
+    resolveUpdate();
+    await screen.findByText("单词修改已保存。");
   });
 
   it("shows only current metadata and no lifecycle or pronunciation controls", async () => {

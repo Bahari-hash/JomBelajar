@@ -197,7 +197,7 @@ describe("AudioLibrary", () => {
     ).toBe(true);
   });
 
-  it("requests a playback URL before rendering a Ready audio player", async () => {
+  it("opens a themed native player dialog and requests playback", async () => {
     const requestMock = installAudioServer();
     const user = userEvent.setup();
     renderAppAt("/audio");
@@ -206,10 +206,18 @@ describe("AudioLibrary", () => {
       await screen.findByRole("button", { name: "试听 lesson.mp3" }),
     );
 
+    expect(screen.getByRole("heading", { name: "试听音频" })).toBeVisible();
     const player = await screen.findByLabelText("正在试听 lesson.mp3");
+    expect(player).toHaveAttribute("controls");
+    expect(player).toHaveAttribute("autoplay");
     expect(player).toHaveAttribute(
       "src",
       "https://media.example.test/lesson.mp3",
+    );
+    expect(player).toHaveStyle({ accentColor: "var(--primary)" });
+    expect(player).toHaveClass(
+      "[color-scheme:light]",
+      "dark:[color-scheme:dark]",
     );
     expect(
       requestMock.mock.calls.some(
@@ -218,6 +226,109 @@ describe("AudioLibrary", () => {
           config.method === "POST",
       ),
     ).toBe(true);
+  });
+
+  it("opens the playback dialog immediately while the URL is loading", async () => {
+    let resolvePlayback;
+    installAudioServer({
+      request: (config) =>
+        config.url.endsWith("/playback")
+          ? new Promise((resolve) => {
+              resolvePlayback = resolve;
+            })
+          : null,
+    });
+    const user = userEvent.setup();
+    renderAppAt("/audio");
+
+    await user.click(
+      await screen.findByRole("button", { name: "试听 lesson.mp3" }),
+    );
+
+    expect(screen.getByRole("heading", { name: "试听音频" })).toBeVisible();
+    expect(screen.getByLabelText("正在加载 lesson.mp3")).toBeVisible();
+    expect(screen.queryByLabelText("正在试听 lesson.mp3")).toBeNull();
+
+    resolvePlayback(
+      axiosResponse({
+        url: "https://media.example.test/lesson.mp3",
+        expiresAt: null,
+        durationSeconds: 42.5,
+      }),
+    );
+    expect(await screen.findByLabelText("正在试听 lesson.mp3")).toBeVisible();
+  });
+
+  it("shows playback errors in the dialog and retries", async () => {
+    let playbackAttempts = 0;
+    const requestMock = installAudioServer({
+      request: (config) => {
+        if (!config.url.endsWith("/playback")) return null;
+        playbackAttempts += 1;
+        return playbackAttempts === 1
+          ? Promise.reject(
+              axiosHttpError({ detail: "Playback unavailable." }, 503),
+            )
+          : Promise.resolve(
+              axiosResponse({
+                url: "https://media.example.test/lesson.mp3",
+                expiresAt: null,
+                durationSeconds: 42.5,
+              }),
+            );
+      },
+    });
+    const user = userEvent.setup();
+    renderAppAt("/audio");
+
+    await user.click(
+      await screen.findByRole("button", { name: "试听 lesson.mp3" }),
+    );
+    expect(await screen.findByText("Playback unavailable.")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "重试" }));
+
+    expect(await screen.findByLabelText("正在试听 lesson.mp3")).toBeVisible();
+    expect(
+      requestMock.mock.calls.filter(([config]) =>
+        config.url.endsWith("/playback"),
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("ignores a late playback response after the dialog is closed", async () => {
+    let resolvePlayback;
+    installAudioServer({
+      request: (config) =>
+        config.url.endsWith("/playback")
+          ? new Promise((resolve) => {
+              resolvePlayback = resolve;
+            })
+          : null,
+    });
+    const user = userEvent.setup();
+    renderAppAt("/audio");
+
+    await user.click(
+      await screen.findByRole("button", { name: "试听 lesson.mp3" }),
+    );
+    expect(screen.getByLabelText("正在加载 lesson.mp3")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "关闭" }));
+    expect(screen.queryByRole("heading", { name: "试听音频" })).toBeNull();
+
+    resolvePlayback(
+      axiosResponse({
+        url: "https://media.example.test/lesson.mp3",
+        expiresAt: null,
+        durationSeconds: 42.5,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "试听音频" })).toBeNull();
+      expect(screen.queryByLabelText("正在试听 lesson.mp3")).toBeNull();
+    });
   });
 
   it("shows an explicit message when renaming conflicts with another resource", async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AudioLines,
   ChevronLeft,
@@ -173,9 +173,10 @@ function AudioLibrary() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => readFilters(searchParams), [searchParams]);
   const canonical = writeFilters(filters).toString();
+  const playbackRequestRef = useRef(null);
   const [keyword, setKeyword] = useState(filters.keyword);
   const [notice, setNotice] = useState(null);
-  const [activePlayback, setActivePlayback] = useState(null);
+  const [playbackDialog, setPlaybackDialog] = useState(null);
   const [renameTarget, setRenameTarget] = useState(null);
   const [renameName, setRenameName] = useState("");
   const [renameError, setRenameError] = useState(null);
@@ -207,6 +208,15 @@ function AudioLibrary() {
       );
   }, [data, filters, setSearchParams]);
 
+  useEffect(
+    () => () => {
+      const request = playbackRequestRef.current;
+      playbackRequestRef.current = null;
+      request?.abort?.();
+    },
+    [],
+  );
+
   const showDetails = async (audio) => {
     setDetails({ loading: true, audio: null, error: null });
     try {
@@ -217,16 +227,53 @@ function AudioLibrary() {
     }
   };
 
-  const playAudio = async (audio) => {
+  const requestPlayback = async (audio) => {
+    playbackRequestRef.current?.abort?.();
+    setPlaybackDialog({
+      audio: { id: audio.id, name: audio.name },
+      loading: true,
+      playback: null,
+      error: null,
+    });
     setPendingAction({ action: "play", audioResourceId: audio.id });
+
+    const request = getPlayback(audio.id);
+    playbackRequestRef.current = request;
     try {
-      const playback = await getPlayback(audio.id).unwrap();
-      setActivePlayback({ name: audio.name, ...playback });
+      const playback = await request.unwrap();
+      if (playbackRequestRef.current !== request) return;
+      setPlaybackDialog({
+        audio: { id: audio.id, name: audio.name },
+        loading: false,
+        playback,
+        error: null,
+      });
     } catch (requestError) {
-      setNotice(getErrorMessage(requestError, "音频暂不可用。"));
+      if (playbackRequestRef.current !== request) return;
+      setPlaybackDialog({
+        audio: { id: audio.id, name: audio.name },
+        loading: false,
+        playback: null,
+        error: requestError,
+      });
     } finally {
-      setPendingAction(null);
+      if (playbackRequestRef.current === request) {
+        playbackRequestRef.current = null;
+        setPendingAction(null);
+      }
     }
+  };
+
+  const playAudio = (audio) => requestPlayback(audio);
+
+  const closePlayback = () => {
+    const request = playbackRequestRef.current;
+    playbackRequestRef.current = null;
+    request?.abort?.();
+    setPendingAction((current) =>
+      current?.action === "play" ? null : current,
+    );
+    setPlaybackDialog(null);
   };
 
   const reprocess = async (audio) => {
@@ -266,7 +313,6 @@ function AudioLibrary() {
     setDeleteError(null);
     try {
       await deleteAudio(deleteTarget.id).unwrap();
-      if (activePlayback?.name === deleteTarget.name) setActivePlayback(null);
       setNotice("音频资源已删除。");
       setDeleteTarget(null);
     } catch (requestError) {
@@ -385,25 +431,6 @@ function AudioLibrary() {
         </div>
       </form>
 
-      {activePlayback ? (
-        <section className="flex flex-wrap items-center gap-3 border-b pb-4">
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-medium">
-              {activePlayback.name}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              播放地址由服务端临时授权。
-            </p>
-          </div>
-          <audio
-            className="h-10 max-w-full flex-1"
-            controls
-            src={activePlayback.url}
-            aria-label={`正在试听 ${activePlayback.name}`}
-          />
-        </section>
-      ) : null}
-
       {isLoading ? (
         <div className="space-y-2" role="status" aria-label="正在加载音频列表">
           <Skeleton className="h-10 w-full" />
@@ -510,6 +537,61 @@ function AudioLibrary() {
       ) : null}
 
       <AudioDetailsDialog state={details} onClose={() => setDetails(null)} />
+
+      <Dialog
+        open={Boolean(playbackDialog)}
+        onOpenChange={(open) => !open && closePlayback()}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>试听音频</DialogTitle>
+            <DialogDescription
+              className="truncate"
+              title={playbackDialog?.audio.name}
+            >
+              {playbackDialog?.audio.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          {playbackDialog?.loading ? (
+            <div
+              className="space-y-3 py-2"
+              role="status"
+              aria-label={`正在加载 ${playbackDialog.audio.name}`}
+            >
+              <Skeleton className="h-12 w-full" />
+            </div>
+          ) : playbackDialog?.error ? (
+            <Alert variant="destructive">
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                <span>
+                  {getErrorMessage(playbackDialog.error, "音频暂不可用。")}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => requestPlayback(playbackDialog.audio)}
+                >
+                  <RotateCcw aria-hidden="true" />
+                  重试
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : playbackDialog?.playback ? (
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <audio
+                className="block h-12 w-full max-w-full [color-scheme:light] dark:[color-scheme:dark]"
+                style={{ accentColor: "var(--primary)" }}
+                controls
+                autoPlay
+                src={playbackDialog.playback.url}
+                aria-label={`正在试听 ${playbackDialog.audio.name}`}
+              />
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(renameTarget)}

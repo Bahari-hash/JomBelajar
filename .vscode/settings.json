@@ -44,7 +44,8 @@
     "**/obj": true,
     "**/*.user": true,
     "**/TestResults": true,
-    "**/audio-processing-temp": true
+    "**/audio-processing-temp": true,
+    "**/video-processing-temp": true
   },
   "[csharp]": {
     "editor.tabSize": 4,

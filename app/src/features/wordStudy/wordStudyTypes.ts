@@ -27,6 +27,7 @@ export interface ExampleSentence {
   sentence: string;
   translation: string;
   sortOrder: number;
+  audioResourceId: string | null;
 }
 
 export interface WordSense {

@@ -8,6 +8,8 @@ import type {
 } from "@/features/wordStudy/wordStudyTypes";
 
 const AUDIO_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const EXAMPLE_AUDIO_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const SECOND_EXAMPLE_AUDIO_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 vi.mock("@/features/audio/AudioPlaybackButton", () => ({
   default: ({
@@ -148,6 +150,7 @@ describe("WordStudyCard", () => {
             sentence: "Example hello",
             translation: "例句 hello",
             sortOrder: 0,
+            audioResourceId: null,
           },
         ])}
         {...defaultProps}
@@ -197,6 +200,83 @@ describe("WordStudyCard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows audio only for examples with an associated resource", async () => {
+    const user = userEvent.setup();
+    render(
+      <WordStudyCard
+        item={createItem("Pending", true, "item-1", "hello", null, [
+          {
+            sentence: "Example with audio",
+            translation: "有音频的例句",
+            sortOrder: 0,
+            audioResourceId: EXAMPLE_AUDIO_ID,
+          },
+          {
+            sentence: "Example without audio",
+            translation: "无音频的例句",
+            sortOrder: 1,
+            audioResourceId: null,
+          },
+        ])}
+        {...defaultProps}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "显示释义和例句" }));
+
+    const playback = screen.getByRole("button", {
+      name: "播放例句 1 音频",
+    });
+    expect(playback).toHaveAttribute(
+      "data-audio-resource-id",
+      EXAMPLE_AUDIO_ID,
+    );
+    expect(playback).toHaveAttribute("data-variant", "icon");
+    expect(
+      screen.queryByRole("button", { name: "播放例句 2 音频" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps example audio labels and resource ids aligned with word audio", async () => {
+    const user = userEvent.setup();
+    render(
+      <WordStudyCard
+        item={createItem("Pending", true, "item-1", "hello", AUDIO_ID, [
+          {
+            sentence: "First example",
+            translation: "第一条例句",
+            sortOrder: 0,
+            audioResourceId: EXAMPLE_AUDIO_ID,
+          },
+          {
+            sentence: "Second example",
+            translation: "第二条例句",
+            sortOrder: 1,
+            audioResourceId: SECOND_EXAMPLE_AUDIO_ID,
+          },
+        ])}
+        {...defaultProps}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "播放单词发音" })).toHaveAttribute(
+      "data-audio-resource-id",
+      AUDIO_ID,
+    );
+
+    await user.click(screen.getByRole("button", { name: "显示释义和例句" }));
+
+    expect(
+      screen.getByRole("button", { name: "播放例句 1 音频" }),
+    ).toHaveAttribute("data-audio-resource-id", EXAMPLE_AUDIO_ID);
+    expect(
+      screen.getByRole("button", { name: "播放例句 2 音频" }),
+    ).toHaveAttribute("data-audio-resource-id", SECOND_EXAMPLE_AUDIO_ID);
+    expect(
+      screen.getAllByRole("button", { name: /播放(?:单词发音|例句 \d 音频)/ }),
+    ).toHaveLength(3);
+  });
+
   it("renders examples as text only and expands a sense with no examples", async () => {
     const user = userEvent.setup();
     const { rerender } = render(
@@ -206,6 +286,7 @@ describe("WordStudyCard", () => {
             sentence: "Example hello",
             translation: "例句 hello",
             sortOrder: 0,
+            audioResourceId: null,
           },
         ])}
         {...defaultProps}

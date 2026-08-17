@@ -11,6 +11,7 @@ const originalAdapter = httpClient.defaults.adapter;
 const SESSION_ID = "11111111-2222-3333-4444-555555555555";
 const ITEM_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const AUDIO_ID = "99999999-8888-7777-6666-555555555555";
+const EXAMPLE_AUDIO_ID = "12345678-1234-4234-8234-123456789abc";
 
 afterEach(() => {
   httpClient.defaults.adapter = originalAdapter;
@@ -32,7 +33,28 @@ describe("wordStudyApi", () => {
                 contentAvailable: true,
                 content: {
                   headword: "hello",
-                  senses: [],
+                  senses: [
+                    {
+                      partOfSpeech: "Interjection",
+                      definition: "used as a greeting",
+                      usageNote: null,
+                      sortOrder: 0,
+                      examples: [
+                        {
+                          sentence: "Hello, world.",
+                          translation: "你好，世界。",
+                          sortOrder: 0,
+                          audioResourceId: EXAMPLE_AUDIO_ID,
+                        },
+                        {
+                          sentence: "Hello again.",
+                          translation: "再次你好。",
+                          sortOrder: 1,
+                          audioResourceId: null,
+                        },
+                      ],
+                    },
+                  ],
                   audioResourceId: AUDIO_ID,
                 },
               },
@@ -87,6 +109,12 @@ describe("wordStudyApi", () => {
       wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(store.getState())
         .data?.[0]?.content?.audioResourceId,
     ).toBe(AUDIO_ID);
+    expect(
+      wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(store.getState())
+        .data?.[0]?.content?.senses[0]?.examples.map(
+          (example) => example.audioResourceId,
+        ),
+    ).toEqual([EXAMPLE_AUDIO_ID, null]);
     expect(requests[3]?.data).toBe(JSON.stringify({ result: "Remembered" }));
     expect(
       requests.every(

@@ -153,15 +153,22 @@ export default function WordStudyCard({
                   ) : null}
                   {sense.examples.length > 0 ? (
                     <div className="mt-4 space-y-3 sm:pl-16">
-                      {sense.examples.map((example) => (
+                      {sense.examples.map((example, exampleIndex) => (
                         <blockquote
                           className="border-l-2 border-secondary pl-4 text-sm leading-6"
                           key={`${example.sortOrder}-${example.sentence}`}
                         >
-                          <div className="flex items-start gap-1">
+                          <div className="flex items-start gap-2">
                             <p className="min-w-0 flex-1 wrap-break-word">
                               {example.sentence}
                             </p>
+                            {example.audioResourceId ? (
+                              <AudioPlaybackButton
+                                audioResourceId={example.audioResourceId}
+                                label={`例句 ${exampleIndex + 1} 音频`}
+                                variant="icon"
+                              />
+                            ) : null}
                           </div>
                           <p className="mt-1 wrap-break-word text-base-content/60">
                             {example.translation}

@@ -1,8 +1,6 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { axiosBaseQuery } from "@/services/axiosBaseQuery";
-import { httpClient } from "@/services/httpClient";
 import type {
-  AudioPlayback,
   WordStudyNextItem,
   WordStudyResult,
   WordStudySession,
@@ -117,16 +115,3 @@ export const {
   useSubmitResultMutation,
   useAbandonMutation,
 } = wordStudyApi;
-
-/** Requests a short-lived playback URL and keeps it out of Redux state. */
-export async function requestWordAudio(
-  audioClipId: string,
-  signal?: AbortSignal,
-) {
-  const response = await httpClient.post<AudioPlayback>(
-    `/audio/${audioClipId}/playback`,
-    undefined,
-    { signal },
-  );
-  return response.data;
-}

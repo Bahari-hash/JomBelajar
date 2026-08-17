@@ -26,7 +26,6 @@ export interface WordStudySession {
 export interface ExampleSentence {
   sentence: string;
   translation: string;
-  audioClipId: string | null;
   sortOrder: number;
 }
 
@@ -38,14 +37,6 @@ export interface WordSense {
   examples: ExampleSentence[];
 }
 
-export interface WordPronunciation {
-  audioClipId: string;
-  accentTag: string | null;
-  ipa: string | null;
-  isDefault: boolean;
-  sortOrder: number;
-}
-
 export interface WordStudyNextItem {
   sessionId: string;
   itemId: string;
@@ -54,13 +45,13 @@ export interface WordStudyNextItem {
   wordId: string;
   headword: string;
   senses: WordSense[];
-  pronunciations: WordPronunciation[];
+  audioResourceId: string | null;
 }
 
 export interface WordStudySessionItemContent {
   headword: string;
   senses: WordSense[];
-  pronunciations: WordPronunciation[];
+  audioResourceId: string | null;
 }
 
 export interface WordStudySessionItem {
@@ -77,11 +68,4 @@ export interface WordStudyToday {
   dailyWordStudyCount: number;
   state: WordStudyTodayState;
   session: WordStudySession | null;
-}
-
-export interface AudioPlayback {
-  url: string;
-  expiresAt: string | null;
-  durationSeconds: number;
-  audioClipKind: string;
 }

@@ -7,7 +7,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import WordStudyAudioButton from "@/features/wordStudy/WordStudyAudioButton";
+import AudioPlaybackButton from "@/features/audio/AudioPlaybackButton";
 import WordStudyProgress from "@/features/wordStudy/WordStudyProgress";
 import type {
   WordStudyResult,
@@ -43,13 +43,6 @@ export default function WordStudyCard({
   onResult,
 }: WordStudyCardProps) {
   const content = item.content;
-  const pronunciations = content
-    ? [...content.pronunciations].sort(
-        (left, right) =>
-          Number(right.isDefault) - Number(left.isDefault) ||
-          left.sortOrder - right.sortOrder,
-      )
-    : [];
   const answered = item.status !== "Pending";
   const unavailable = !item.contentAvailable || !content;
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
@@ -105,22 +98,13 @@ export default function WordStudyCard({
             <h2 className="min-w-0 wrap-break-word text-4xl font-bold sm:text-5xl">
               {content.headword}
             </h2>
-            {pronunciations.map((pronunciation) => (
-              <span
-                className="inline-flex items-center gap-1"
-                key={pronunciation.audioClipId}
-              >
-                <WordStudyAudioButton
-                  audioClipId={pronunciation.audioClipId}
-                  label="发音"
-                />
-                {pronunciation.ipa ? (
-                  <span className="text-sm text-base-content/60">
-                    {pronunciation.ipa}
-                  </span>
-                ) : null}
-              </span>
-            ))}
+            {content.audioResourceId ? (
+              <AudioPlaybackButton
+                audioResourceId={content.audioResourceId}
+                label="单词发音"
+                variant="icon"
+              />
+            ) : null}
           </header>
 
           <div className="mt-8 border-t border-base-300 pt-5">
@@ -178,12 +162,6 @@ export default function WordStudyCard({
                             <p className="min-w-0 flex-1 wrap-break-word">
                               {example.sentence}
                             </p>
-                            {example.audioClipId ? (
-                              <WordStudyAudioButton
-                                audioClipId={example.audioClipId}
-                                label="例句音频"
-                              />
-                            ) : null}
                           </div>
                           <p className="mt-1 wrap-break-word text-base-content/60">
                             {example.translation}

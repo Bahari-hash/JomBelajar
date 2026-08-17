@@ -6,6 +6,7 @@ import { requestAudioPlayback } from "@/features/audio/audioPlayback";
 interface AudioPlaybackButtonProps {
   audioResourceId: string;
   label?: string;
+  variant?: "default" | "icon";
 }
 
 type PlaybackStatus = "idle" | "loading" | "playing";
@@ -14,6 +15,7 @@ type PlaybackStatus = "idle" | "loading" | "playing";
 export default function AudioPlaybackButton({
   audioResourceId,
   label,
+  variant = "default",
 }: AudioPlaybackButtonProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const requestControllerRef = useRef<AbortController | null>(null);
@@ -111,12 +113,19 @@ export default function AudioPlaybackButton({
   };
 
   const playing = status === "playing";
+  const actionLabel = `${playing ? "暂停" : "播放"}${accessibleLabel}`;
+  const iconOnly = variant === "icon";
   return (
     <div className="flex flex-wrap items-center gap-3">
       <button
         type="button"
-        className="btn btn-outline btn-sm"
-        aria-label={`${playing ? "暂停" : "播放"}${accessibleLabel}`}
+        className={
+          iconOnly
+            ? "btn btn-ghost btn-sm btn-square"
+            : "btn btn-outline btn-sm"
+        }
+        aria-label={actionLabel}
+        title={iconOnly ? actionLabel : undefined}
         disabled={status === "loading"}
         onClick={() => void handleToggle()}
       >
@@ -127,7 +136,7 @@ export default function AudioPlaybackButton({
         ) : (
           <Volume2 aria-hidden="true" className="size-4" />
         )}
-        {playing ? "暂停朗读" : "播放朗读"}
+        {iconOnly ? null : playing ? "暂停朗读" : "播放朗读"}
       </button>
       {error ? (
         <p className="text-sm text-error" role="status">

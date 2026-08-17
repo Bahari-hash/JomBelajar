@@ -3,10 +3,7 @@ import { AxiosHeaders } from "axios";
 import { waitFor } from "@testing-library/dom";
 import { afterEach, describe, expect, it } from "vitest";
 import { setSession, clearSession } from "@/features/auth/sessionStore";
-import {
-  requestWordAudio,
-  wordStudyApi,
-} from "@/features/wordStudy/wordStudyApi";
+import { wordStudyApi } from "@/features/wordStudy/wordStudyApi";
 import { httpClient } from "@/services/httpClient";
 import { createAppStore } from "@/store/store";
 
@@ -21,18 +18,11 @@ afterEach(() => {
 });
 
 describe("wordStudyApi", () => {
-  it("uses the authenticated settings, today, result, and audio contracts", async () => {
+  it("uses the authenticated settings, session item, and result contracts", async () => {
     const requests: InternalAxiosRequestConfig[] = [];
     httpClient.defaults.adapter = (async (config) => {
       requests.push(config);
-      const data = config.url?.endsWith("/playback")
-        ? {
-            url: "https://media.example.test/audio.mp3",
-            expiresAt: null,
-            durationSeconds: 2,
-            audioClipKind: "WordPronunciation",
-          }
-        : config.url === `/word-study/sessions/${SESSION_ID}/items`
+      const data = config.url === `/word-study/sessions/${SESSION_ID}/items`
           ? [
               {
                 itemId: ITEM_ID,
@@ -43,7 +33,7 @@ describe("wordStudyApi", () => {
                 content: {
                   headword: "hello",
                   senses: [],
-                  pronunciations: [],
+                  audioResourceId: AUDIO_ID,
                 },
               },
             ]
@@ -86,16 +76,17 @@ describe("wordStudyApi", () => {
         }),
       )
       .unwrap();
-    await requestWordAudio(AUDIO_ID);
-
     expect(requests.map((request) => [request.method, request.url])).toEqual([
       ["get", "/users/me/word-study-settings"],
       ["post", "/word-study/today/start"],
       ["get", `/word-study/sessions/${SESSION_ID}/items`],
       ["post", `/word-study/sessions/${SESSION_ID}/items/${ITEM_ID}/result`],
       ["get", `/word-study/sessions/${SESSION_ID}/items`],
-      ["post", `/audio/${AUDIO_ID}/playback`],
     ]);
+    expect(
+      wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(store.getState())
+        .data?.[0]?.content?.audioResourceId,
+    ).toBe(AUDIO_ID);
     expect(requests[3]?.data).toBe(JSON.stringify({ result: "Remembered" }));
     expect(
       requests.every(
@@ -120,7 +111,11 @@ describe("wordStudyApi", () => {
             position: 0,
             status: "Pending",
             contentAvailable: true,
-            content: { headword: "hello", senses: [], pronunciations: [] },
+            content: {
+              headword: "hello",
+              senses: [],
+              audioResourceId: null,
+            },
           },
         ],
         status: 200,

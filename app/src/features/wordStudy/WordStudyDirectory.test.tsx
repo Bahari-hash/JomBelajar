@@ -19,7 +19,7 @@ function createItem(
     status,
     contentAvailable,
     content: contentAvailable
-      ? { headword: itemId, senses: [], pronunciations: [] }
+      ? { headword: itemId, senses: [], audioResourceId: null }
       : null,
   };
 }

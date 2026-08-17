@@ -68,7 +68,7 @@ function item(
               examples: [],
             },
           ],
-          pronunciations: [],
+          audioResourceId: null,
         }
       : null,
   };

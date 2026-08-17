@@ -1,11 +1,37 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { axiosHttpError, axiosResponse, mockHttpClient } from "@/test/http.js";
 import { renderAppAt } from "@/test/renderApp.jsx";
 
 const READY_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const FAILED_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+vi.mock("@/features/audio/AudioBatchUploadControl.jsx", async () => {
+  const { useState } = await import("react");
+  return {
+    AudioBatchUploadControl: ({ onStarted, onTerminal }) => {
+      const [resultVisible, setResultVisible] = useState(false);
+      return (
+        <section aria-label="批量音频上传">
+          <button type="button" onClick={() => onStarted?.("batch-id")}>
+            模拟开始上传
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setResultVisible(true);
+              onTerminal?.({ stage: "completed" });
+            }}
+          >
+            模拟上传完成
+          </button>
+          {resultVisible ? <span>批量结果仍然可见</span> : null}
+        </section>
+      );
+    },
+  };
+});
 
 function audioItem(overrides = {}) {
   return {
@@ -87,6 +113,46 @@ function installAudioServer(overrides = {}) {
 }
 
 describe("AudioLibrary", () => {
+  it("uses batch upload for new resources and refetches without clearing results", async () => {
+    const requestMock = installAudioServer();
+    const user = userEvent.setup();
+    renderAppAt("/audio");
+
+    expect(await screen.findByLabelText("批量音频上传")).toBeVisible();
+    const listRequestCount = () =>
+      requestMock.mock.calls.filter(([config]) =>
+        config.url.startsWith("/admin/audio?"),
+      ).length;
+    const initialCount = listRequestCount();
+
+    await user.click(screen.getByRole("button", { name: "模拟开始上传" }));
+    await waitFor(() =>
+      expect(listRequestCount()).toBeGreaterThan(initialCount),
+    );
+    const startedCount = listRequestCount();
+    await user.click(screen.getByRole("button", { name: "模拟上传完成" }));
+
+    await waitFor(() =>
+      expect(listRequestCount()).toBeGreaterThan(startedCount),
+    );
+    expect(screen.getByText("批量结果仍然可见")).toBeVisible();
+  });
+
+  it("keeps the single-file control for retrying a failed resource", async () => {
+    installAudioServer();
+    const user = userEvent.setup();
+    renderAppAt("/audio");
+
+    await user.click(
+      await screen.findByRole("button", { name: "重新上传 failed.wav" }),
+    );
+
+    expect(screen.getByRole("heading", { name: "重新上传音频" })).toBeVisible();
+    const retryInput = document.querySelector(`input#audio-retry-${FAILED_ID}`);
+    expect(retryInput).toBeInTheDocument();
+    expect(retryInput).not.toHaveAttribute("multiple");
+  });
+
   it("restores search filters and renders canonical resource states", async () => {
     const requestMock = installAudioServer();
 
@@ -99,7 +165,7 @@ describe("AudioLibrary", () => {
       "lesson",
     );
     expect(screen.getAllByText("可播放").length).toBeGreaterThan(0);
-    expect(screen.getByText("处理失败")).toBeVisible();
+    expect(screen.getAllByText("处理失败").length).toBeGreaterThan(0);
     expect(await screen.findByTitle("音频暂不可用")).toBeDisabled();
     expect(
       requestMock.mock.calls.some(

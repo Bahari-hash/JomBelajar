@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.jsx";
 import { Skeleton } from "@/components/ui/skeleton.jsx";
+import { AudioBatchUploadControl } from "@/features/audio/AudioBatchUploadControl.jsx";
 import { AudioTable } from "@/features/audio/AudioTable.jsx";
 import { AudioUploadControl } from "@/features/audio/AudioUploadControl.jsx";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
@@ -302,16 +303,9 @@ function AudioLibrary() {
         </Alert>
       ) : null}
 
-      <AudioUploadControl
+      <AudioBatchUploadControl
         onStarted={() => refetch()}
-        onCompleted={(audio) => {
-          setNotice(
-            audio.status === "Ready"
-              ? "音频已处理完成。"
-              : "音频处理失败，可从列表重试。",
-          );
-          refetch();
-        }}
+        onTerminal={() => refetch()}
       />
 
       <form

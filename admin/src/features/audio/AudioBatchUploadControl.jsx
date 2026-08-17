@@ -79,11 +79,13 @@ export function AudioBatchUploadControl({ onStarted, onTerminal }) {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      queueRef.current = [];
       for (const entry of entriesRef.current) entry.controller?.abort();
     };
   }, []);
 
   const runEntry = async (entryId) => {
+    if (!mountedRef.current) return;
     const entry = entriesRef.current.find((value) => value.id === entryId);
     if (!entry || entry.stage !== "waiting") return;
 
@@ -94,7 +96,7 @@ export function AudioBatchUploadControl({ onStarted, onTerminal }) {
         stage: "failed",
         error: validationError,
       }));
-      onTerminal?.(terminal);
+      if (mountedRef.current) onTerminal?.(terminal);
       return;
     }
 
@@ -121,7 +123,8 @@ export function AudioBatchUploadControl({ onStarted, onTerminal }) {
             ...value,
             audioResourceId,
           }));
-          onStarted?.(audioResourceId, current.file.name);
+          if (mountedRef.current)
+            onStarted?.(audioResourceId, current.file.name);
         },
         onProgress: (progress) =>
           replaceEntry(entryId, (value) => ({ ...value, progress })),
@@ -145,7 +148,7 @@ export function AudioBatchUploadControl({ onStarted, onTerminal }) {
         error: processingFailed ? "音频处理失败，可使用原文件重试上传。" : null,
         controller: null,
       }));
-      onTerminal?.(terminal);
+      if (mountedRef.current) onTerminal?.(terminal);
     } catch (error) {
       const cancelled =
         error?.kind === "aborted" || error?.name === "AbortError";
@@ -157,7 +160,7 @@ export function AudioBatchUploadControl({ onStarted, onTerminal }) {
           : getErrorMessage(error, error?.message ?? "音频上传失败，请重试。"),
         controller: null,
       }));
-      onTerminal?.(terminal);
+      if (mountedRef.current) onTerminal?.(terminal);
     } finally {
       activeCountRef.current -= 1;
       pumpRef.current();
@@ -166,6 +169,7 @@ export function AudioBatchUploadControl({ onStarted, onTerminal }) {
 
   pumpRef.current = () => {
     while (
+      mountedRef.current &&
       activeCountRef.current < MAX_CONCURRENT_FILES &&
       queueRef.current.length > 0
     ) {

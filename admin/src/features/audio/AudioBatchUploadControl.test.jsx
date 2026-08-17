@@ -229,4 +229,33 @@ describe("AudioBatchUploadControl", () => {
     rerender(<AudioBatchUploadControl onTerminal={() => {}} />);
     expect(screen.getAllByText(/上传完成$/)).toHaveLength(2);
   });
+
+  it("does not start queued files or emit terminal callbacks after unmount", async () => {
+    runner.uploadAudio.mockImplementation(({ signal }) => {
+      const request = deferred();
+      signal.addEventListener(
+        "abort",
+        () => request.reject(new DOMException("Aborted", "AbortError")),
+        { once: true },
+      );
+      return request.promise;
+    });
+    const onTerminal = vi.fn();
+    const { container, unmount } = render(
+      <AudioBatchUploadControl onTerminal={onTerminal} />,
+    );
+
+    selectFiles(container, [
+      file("one.mp3"),
+      file("two.mp3"),
+      file("three.mp3"),
+    ]);
+    await waitFor(() => expect(runner.uploadAudio).toHaveBeenCalledTimes(2));
+
+    unmount();
+    await act(async () => Promise.resolve());
+
+    expect(runner.uploadAudio).toHaveBeenCalledTimes(2);
+    expect(onTerminal).not.toHaveBeenCalled();
+  });
 });

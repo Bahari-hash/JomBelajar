@@ -54,6 +54,25 @@ public sealed class VideoProcessingServiceTests
     }
 
     [Fact]
+    public async Task MarkDispatchedShouldPreserveConcurrencyStamp()
+    {
+        await using var db = CreateDbContext();
+        var (_, job) = AddQueuedVideo(db);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var originalConcurrencyStamp = job.ConcurrencyStamp;
+        var service = CreateService(db);
+
+        await service.MarkDispatchedAsync(
+            job.Id,
+            TestContext.Current.CancellationToken);
+
+        var stored = await db.VideoProcessingJobs.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        stored.LastDispatchedAt.Should().Be(Now);
+        stored.ConcurrencyStamp.Should().Be(originalConcurrencyStamp);
+    }
+
+    [Fact]
     public async Task RecentlyDispatchedJobShouldWaitForThrottleWindow()
     {
         await using var db = CreateDbContext();

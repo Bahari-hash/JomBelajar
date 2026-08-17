@@ -56,6 +56,28 @@ public sealed class AudioProcessingServiceTests
     }
 
     /// <summary>
+    /// 验证记录成功投递不会使已经发布给 consumer 的任务快照失效。
+    /// </summary>
+    [Fact]
+    public async Task MarkDispatchedShouldPreserveConcurrencyStamp()
+    {
+        await using var db = CreateDbContext();
+        var (_, job) = AddQueuedAudio(db);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var originalConcurrencyStamp = job.ConcurrencyStamp;
+        var service = CreateService(db);
+
+        await service.MarkDispatchedAsync(
+            job.Id,
+            TestContext.Current.CancellationToken);
+
+        var stored = await db.AudioProcessingJobs.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        stored.LastDispatchedAt.Should().Be(Now);
+        stored.ConcurrencyStamp.Should().Be(originalConcurrencyStamp);
+    }
+
+    /// <summary>
     /// 验证有效租约存在时重复消息不能并发领取同一音频任务。
     /// </summary>
     [Fact]

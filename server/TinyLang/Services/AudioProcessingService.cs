@@ -87,8 +87,8 @@ public sealed class AudioProcessingService : IAudioProcessingService
         {
             return;
         }
+        // The message is already published; rotating the stamp here can invalidate its claim.
         job.LastDispatchedAt = now;
-        job.ConcurrencyStamp = Guid.NewGuid();
         try
         {
             await _db.SaveChangesAsync(cancellationToken);

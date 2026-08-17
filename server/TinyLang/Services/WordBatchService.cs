@@ -34,7 +34,7 @@ public sealed class WordBatchService : IWordBatchService
     /// <inheritdoc />
     public async Task<BatchWordValidationResponse> ValidateAsync(
         BatchWordRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
         => (await BuildValidationAsync(request, cancellationToken)).Response;
 
     internal async Task<WordBatchValidationBuildResult> BuildValidationAsync(
@@ -50,57 +50,41 @@ public sealed class WordBatchService : IWordBatchService
         }
 
         var wordCount = AddBounded(0, words.Count, int.MaxValue);
+        var senseCount = CountSenses(words);
+        var exampleCount = CountExamples(words);
+        var textCharacterCount = CountTextCharacters(words);
+        var structuralSummary = new BatchWordSummaryResponse(
+            ToResponseCount(wordCount),
+            ToResponseCount(senseCount),
+            ToResponseCount(exampleCount),
+            0,
+            0,
+            0);
         if (wordCount > WordConstraints.MaxBatchWordCount)
         {
             return CreateLimitResult(
-                new BatchWordSummaryResponse(
-                    ToResponseCount(wordCount),
-                    0,
-                    0,
-                    0,
-                    0,
-                    0),
+                structuralSummary,
                 ErrorCodes.WordBatchCountLimit);
         }
 
-        var senseCount = CountSenses(words);
         if (senseCount > WordConstraints.MaxBatchSenseCount)
         {
             return CreateLimitResult(
-                new BatchWordSummaryResponse(
-                    ToResponseCount(wordCount),
-                    ToResponseCount(senseCount),
-                    0,
-                    0,
-                    0,
-                    0),
+                structuralSummary,
                 ErrorCodes.WordBatchChildCountLimit);
         }
 
-        var exampleCount = CountExamples(words);
         if (exampleCount > WordConstraints.MaxBatchExampleCount)
         {
             return CreateLimitResult(
-                new BatchWordSummaryResponse(
-                    ToResponseCount(wordCount),
-                    ToResponseCount(senseCount),
-                    ToResponseCount(exampleCount),
-                    0,
-                    0,
-                    0),
+                structuralSummary,
                 ErrorCodes.WordBatchChildCountLimit);
         }
 
-        if (CountTextCharacters(words) > WordConstraints.MaxBatchTextCharacterCount)
+        if (textCharacterCount > WordConstraints.MaxBatchTextCharacterCount)
         {
             return CreateLimitResult(
-                new BatchWordSummaryResponse(
-                    ToResponseCount(wordCount),
-                    ToResponseCount(senseCount),
-                    ToResponseCount(exampleCount),
-                    0,
-                    0,
-                    0),
+                structuralSummary,
                 ErrorCodes.WordBatchTextLengthLimit);
         }
 
@@ -453,6 +437,7 @@ public sealed class WordBatchService : IWordBatchService
                 rowIndex + 1,
                 $"words[{rowIndex}].senses",
                 ErrorCodes.WordChildCollectionInvalid);
+            senses.Add(CreatePlaceholderSense());
         }
         else if (row?.Senses is not null)
         {

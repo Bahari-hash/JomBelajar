@@ -12,5 +12,5 @@ public interface IWordBatchService
     /// </summary>
     Task<BatchWordValidationResponse> ValidateAsync(
         BatchWordRequest request,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken = default);
 }

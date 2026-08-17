@@ -60,6 +60,8 @@ public sealed class WordBatchServiceTests
 
         response.IsValid.Should().BeFalse();
         response.Summary.WordCount.Should().Be(1_001);
+        response.Summary.SenseCount.Should().Be(1_001);
+        response.Summary.ExampleCount.Should().Be(0);
         response.Errors.Should().ContainSingle(error =>
             error.RowNumber == null &&
             error.Field == "words" &&
@@ -71,7 +73,10 @@ public sealed class WordBatchServiceTests
     {
         await using var db = CreateDbContext();
         var senses = Enumerable.Range(0, WordConstraints.MaxBatchSenseCount + 1)
-            .Select(index => CreateSense(index))
+            .Select(index => CreateSense(index) with
+            {
+                Examples = [CreateExample(0)]
+            })
             .ToArray();
 
         var response = await CreateService(db).ValidateAsync(
@@ -80,6 +85,7 @@ public sealed class WordBatchServiceTests
 
         response.IsValid.Should().BeFalse();
         response.Summary.SenseCount.Should().Be(WordConstraints.MaxBatchSenseCount + 1);
+        response.Summary.ExampleCount.Should().Be(WordConstraints.MaxBatchSenseCount + 1);
         response.Errors.Should().ContainSingle(error =>
             error.Field == "words" &&
             error.ErrorCode == ErrorCodes.WordBatchChildCountLimit);
@@ -183,9 +189,10 @@ public sealed class WordBatchServiceTests
             ]
         };
 
-        var response = await CreateService(db).ValidateAsync(
+        var build = await CreateService(db).BuildValidationAsync(
             new BatchWordRequest { Words = [row] },
             TestContext.Current.CancellationToken);
+        var response = build.Response;
 
         response.IsValid.Should().BeTrue();
         response.Summary.MatchedAudioReferenceCount.Should().Be(2);
@@ -195,6 +202,11 @@ public sealed class WordBatchServiceTests
         preview.WordAudioName.Should().Be("Greeting.MP3");
         preview.AudioReferenceCount.Should().Be(2);
         preview.MatchedAudioCount.Should().Be(2);
+        var prepared = build.Rows.Should().ContainSingle().Subject.Request;
+        prepared.AudioResourceId.Should().Be(audio.Id);
+        prepared.Senses.Should().ContainSingle()
+            .Which.Examples.Should().ContainSingle()
+            .Which.AudioResourceId.Should().Be(audio.Id);
     }
 
     [Fact]
@@ -318,6 +330,11 @@ public sealed class WordBatchServiceTests
             CreateRow("second") with
             {
                 Senses = [CreateSense(0) with { Examples = [null!] }]
+            },
+            CreateRow("third") with { Senses = null! },
+            CreateRow("fourth") with
+            {
+                Senses = [CreateSense(0) with { Examples = null! }]
             }
         };
 
@@ -335,6 +352,17 @@ public sealed class WordBatchServiceTests
             error.RowNumber == 2 &&
             error.Field == "words[1].senses[0].examples[0]" &&
             error.ErrorCode == ErrorCodes.WordChildCollectionInvalid);
+        response.Subject.Errors.Should().ContainSingle(error =>
+            error.RowNumber == 3 &&
+            error.Field == "words[2].senses" &&
+            error.ErrorCode == ErrorCodes.WordChildCollectionInvalid);
+        response.Subject.Errors.Should().ContainSingle(error =>
+            error.RowNumber == 4 &&
+            error.Field == "words[3].senses[0].examples" &&
+            error.ErrorCode == ErrorCodes.WordChildCollectionInvalid);
+        response.Subject.Errors.Should().NotContain(error =>
+            error.RowNumber == 3 &&
+            error.ErrorCode == ErrorCodes.WordSenseRequired);
     }
 
     [Theory]

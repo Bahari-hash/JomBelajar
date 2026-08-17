@@ -49,18 +49,11 @@ public sealed class WordService : IWordService
         ValidateTargetCollections(request, allowExistingIds: false);
         await EnsureAudioExistsAsync(request.AudioResourceId, cancellationToken);
         await EnsureExampleAudiosExistAsync(request, cancellationToken);
-        var identity = NormalizeIdentity(request.Headword);
+        var word = WordAggregateBuilder.Create(request);
         await EnsureHeadwordUniqueAsync(
-            identity.NormalizedHeadword,
+            word.NormalizedHeadword,
             excludedWordId: null,
             cancellationToken);
-        var word = new Word
-        {
-            Headword = identity.Headword,
-            NormalizedHeadword = identity.NormalizedHeadword,
-            AudioResourceId = request.AudioResourceId
-        };
-        ApplyNewTarget(word, request);
         _db.Words.Add(word);
         await SaveWordChangesAsync(cancellationToken);
 
@@ -84,7 +77,7 @@ public sealed class WordService : IWordService
         ValidateChildOwnership(word, request);
         await EnsureAudioExistsAsync(request.AudioResourceId, cancellationToken);
         await EnsureExampleAudiosExistAsync(request, cancellationToken);
-        var identity = NormalizeIdentity(request.Headword);
+        var identity = WordAggregateBuilder.NormalizeIdentity(request.Headword);
         await EnsureHeadwordUniqueAsync(
             identity.NormalizedHeadword,
             word.Id,
@@ -287,23 +280,6 @@ public sealed class WordService : IWordService
         }
     }
 
-    private static WordIdentity NormalizeIdentity(string headword)
-    {
-        if (string.IsNullOrWhiteSpace(headword))
-        {
-            throw new RequestValidationException(ErrorCodes.WordHeadwordRequired);
-        }
-
-        var display = WordTextNormalizer.NormalizeHeadwordForDisplay(headword);
-        var comparisonKey = WordTextNormalizer.CreateHeadwordComparisonKey(headword);
-        if (display.Length > WordConstraints.MaxHeadwordLength ||
-            comparisonKey.Length > WordConstraints.MaxHeadwordLength)
-        {
-            throw new RequestValidationException(ErrorCodes.WordHeadwordLengthLimit);
-        }
-        return new WordIdentity(display, comparisonKey);
-    }
-
     private async Task EnsureHeadwordUniqueAsync(
         string normalizedHeadword,
         Guid? excludedWordId,
@@ -397,14 +373,6 @@ public sealed class WordService : IWordService
         }
     }
 
-    private static void ApplyNewTarget(Word word, WordUpsertRequest request)
-    {
-        foreach (var senseInput in request.Senses)
-        {
-            word.Senses.Add(CreateSense(word, senseInput));
-        }
-    }
-
     private void StageExistingChildren(Word word, UpdateWordRequest request)
     {
         var desiredSenseIds = request.Senses.Where(value => value.Id.HasValue)
@@ -445,11 +413,11 @@ public sealed class WordService : IWordService
             if (senseInput.Id is { } senseId)
             {
                 sense = word.Senses.Single(value => value.Id == senseId);
-                ApplySenseValues(sense, senseInput);
+                WordAggregateBuilder.ApplySenseValues(sense, senseInput);
             }
             else
             {
-                sense = CreateSense(word, senseInput);
+                sense = WordAggregateBuilder.CreateSense(word, senseInput);
                 word.Senses.Add(sense);
                 _db.WordSenses.Add(sense);
             }
@@ -458,69 +426,20 @@ public sealed class WordService : IWordService
             {
                 if (exampleInput.Id is { } exampleId)
                 {
-                    ApplyExampleValues(
+                    WordAggregateBuilder.ApplyExampleValues(
                         sense.Examples.Single(value => value.Id == exampleId),
                         exampleInput);
                 }
                 else if (senseInput.Id is not null)
                 {
-                    var example = CreateExample(sense, exampleInput);
+                    var example = WordAggregateBuilder.CreateExample(
+                        sense,
+                        exampleInput);
                     sense.Examples.Add(example);
                     _db.ExampleSentences.Add(example);
                 }
             }
         }
-    }
-
-    private static WordSense CreateSense(Word word, WordSenseInput input)
-    {
-        var sense = new WordSense
-        {
-            WordId = word.Id,
-            Word = word,
-            Definition = string.Empty
-        };
-        ApplySenseValues(sense, input);
-        foreach (var exampleInput in input.Examples)
-        {
-            sense.Examples.Add(CreateExample(sense, exampleInput));
-        }
-        return sense;
-    }
-
-    private static void ApplySenseValues(WordSense sense, WordSenseInput input)
-    {
-        sense.PartOfSpeech = input.PartOfSpeech;
-        sense.Definition = input.Definition.Trim();
-        sense.UsageNote = string.IsNullOrWhiteSpace(input.UsageNote)
-            ? null
-            : input.UsageNote.Trim();
-        sense.SortOrder = input.SortOrder;
-    }
-
-    private static ExampleSentence CreateExample(
-        WordSense sense,
-        ExampleSentenceInput input)
-    {
-        var example = new ExampleSentence
-        {
-            WordSenseId = sense.Id,
-            WordSense = sense,
-            Sentence = string.Empty,
-            Translation = string.Empty
-        };
-        ApplyExampleValues(example, input);
-        return example;
-    }
-
-    private static void ApplyExampleValues(
-        ExampleSentence example,
-        ExampleSentenceInput input)
-    {
-        example.AudioResourceId = input.AudioResourceId;
-        example.Sentence = input.Sentence.Trim();
-        example.Translation = input.Translation.Trim();
-        example.SortOrder = input.SortOrder;
     }
 
     private static Expression<Func<Word, AdminWordResponse>>
@@ -653,8 +572,4 @@ public sealed class WordService : IWordService
             pageSize,
             totalCount,
             (totalCount + pageSize - 1) / pageSize);
-
-    private readonly record struct WordIdentity(
-        string Headword,
-        string NormalizedHeadword);
 }

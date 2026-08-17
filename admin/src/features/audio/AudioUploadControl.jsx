@@ -3,25 +3,13 @@ import { FileAudio, Upload, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert.jsx";
 import { Button } from "@/components/ui/button.jsx";
 import { Progress } from "@/components/ui/progress.jsx";
-import { putObject } from "@/services/objectStorageTransport.js";
-import { getErrorMessage } from "@/services/problemDetails.js";
 import {
-  useAbortAudioMultipartMutation,
-  useCompleteAudioMultipartMutation,
-  useConfirmAudioUploadMutation,
-  useGetAudioUploadCapabilityQuery,
-  useInitializeMultipartAudioUploadMutation,
-  useInitializeSimpleAudioUploadMutation,
-  useLazyGetAdminAudioResourceQuery,
-  useLazyGetAudioMultipartStatusQuery,
-  usePresignAudioMultipartPartsMutation,
-  useRetryAudioUploadMutation,
-} from "@/services/audioApi.js";
+  formatAudioFileSize,
+  useAudioUploadRunner,
+  validateAudioFile,
+} from "@/features/audio/useAudioUploadRunner.js";
+import { getErrorMessage } from "@/services/problemDetails.js";
 
-const MAX_CONCURRENT_PARTS = 3;
-const POLL_INTERVAL_MS = 1500;
-const MAX_MULTIPART_POLLS = 120;
-const MAX_PROCESSING_POLLS = 240;
 const ACTIVE_STAGES = new Set([
   "initializing",
   "uploading",
@@ -34,53 +22,6 @@ const INTERRUPTIBLE_STAGES = new Set([
   "uploading",
   "processing",
 ]);
-
-function formatFileSize(size) {
-  if (size < 1024 * 1024) return `${Math.ceil(size / 1024)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function delay(ms, signal) {
-  return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(resolve, ms);
-    signal.addEventListener(
-      "abort",
-      () => {
-        window.clearTimeout(timer);
-        reject(new DOMException("Aborted", "AbortError"));
-      },
-      { once: true },
-    );
-  });
-}
-
-async function runPool(tasks, concurrency) {
-  let index = 0;
-  async function worker() {
-    while (index < tasks.length) {
-      const task = tasks[index];
-      index += 1;
-      await task();
-    }
-  }
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, tasks.length) }, worker),
-  );
-}
-
-function validateFile(file, capability) {
-  if (file.size <= 0) return "不能上传空文件。";
-  if (file.size > capability.maxSizeBytes)
-    return `文件不能超过 ${formatFileSize(capability.maxSizeBytes)}。`;
-  const dot = file.name.lastIndexOf(".");
-  const extension = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
-  const allowed = capability.allowedTypes.some(
-    (item) =>
-      item.extension.toLowerCase() === extension &&
-      item.contentTypes.includes(file.type),
-  );
-  return allowed ? null : "文件扩展名或媒体类型不受支持。";
-}
 
 function stageText(stage, progress) {
   const labels = {
@@ -107,8 +48,6 @@ export function AudioUploadControl({
 }) {
   const inputRef = useRef(null);
   const controllerRef = useRef(null);
-  const requestRef = useRef(null);
-  const multipartSessionRef = useRef(null);
   const mountedRef = useRef(true);
   const stageRef = useRef("idle");
   const [file, setFile] = useState(null);
@@ -116,30 +55,20 @@ export function AudioUploadControl({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
   const {
-    data: capability,
-    error: capabilityError,
-    isLoading: capabilityLoading,
-    refetch: refetchCapability,
-  } = useGetAudioUploadCapabilityQuery();
-  const [initializeSimple] = useInitializeSimpleAudioUploadMutation();
-  const [initializeMultipart] = useInitializeMultipartAudioUploadMutation();
-  const [retryUpload] = useRetryAudioUploadMutation();
-  const [abortMultipart] = useAbortAudioMultipartMutation();
-  const [presignParts] = usePresignAudioMultipartPartsMutation();
-  const [completeMultipart] = useCompleteAudioMultipartMutation();
-  const [getMultipartStatus] = useLazyGetAudioMultipartStatusQuery();
-  const [confirmUpload] = useConfirmAudioUploadMutation();
-  const [getAudioResource] = useLazyGetAdminAudioResourceQuery();
+    capability,
+    capabilityError,
+    capabilityLoading,
+    refetchCapability,
+    uploadAudio,
+  } = useAudioUploadRunner();
   const uploading = ACTIVE_STAGES.has(stage);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      if (INTERRUPTIBLE_STAGES.has(stageRef.current)) {
+      if (INTERRUPTIBLE_STAGES.has(stageRef.current))
         controllerRef.current?.abort();
-        requestRef.current?.abort?.();
-      }
     };
   }, []);
 
@@ -150,29 +79,6 @@ export function AudioUploadControl({
   const transitionTo = (nextStage) => {
     stageRef.current = nextStage;
     update(() => setStage(nextStage));
-  };
-
-  const waitForMultipart = async (sessionId, initial, signal) => {
-    let status = initial;
-    for (let count = 0; count < MAX_MULTIPART_POLLS; count += 1) {
-      if (status.status === "Completed") return status;
-      if (["Failed", "Expired", "Aborted"].includes(status.status))
-        throw new Error(`分片上传已进入终态：${status.status}。`);
-      await delay(POLL_INTERVAL_MS, signal);
-      requestRef.current = getMultipartStatus(sessionId, false);
-      status = await requestRef.current.unwrap();
-    }
-    throw new Error("服务端仍在完成分片上传，请稍后刷新列表查看状态。");
-  };
-
-  const waitForProcessingResult = async (audioResourceId, signal) => {
-    for (let count = 0; count < MAX_PROCESSING_POLLS; count += 1) {
-      requestRef.current = getAudioResource(audioResourceId, false);
-      const audio = await requestRef.current.unwrap();
-      if (["Ready", "Failed"].includes(audio.status)) return audio;
-      await delay(POLL_INTERVAL_MS, signal);
-    }
-    throw new Error("音频仍在处理中，请稍后刷新列表查看状态。");
   };
 
   const finishUpload = (audio) => {
@@ -193,75 +99,6 @@ export function AudioUploadControl({
     });
   };
 
-  const uploadMultipart = async (file, initialized, capability, signal) => {
-    const { multipartSessionId: sessionId, partSize, partCount } = initialized;
-    if (!sessionId || !partSize || !partCount)
-      throw new Error("服务端未返回完整的分片上传信息。");
-    multipartSessionRef.current = sessionId;
-    let uploadedBytes = 0;
-    const uploadedParts = [];
-    for (
-      let offset = 0;
-      offset < partCount;
-      offset += capability.partPresignBatchLimit
-    ) {
-      const partNumbers = Array.from(
-        {
-          length: Math.min(
-            capability.partPresignBatchLimit,
-            partCount - offset,
-          ),
-        },
-        (_, index) => offset + index + 1,
-      );
-      requestRef.current = presignParts({ sessionId, partNumbers });
-      const presigns = await requestRef.current.unwrap();
-      const returnedNumbers = presigns.map(({ partNumber }) => partNumber);
-      if (
-        returnedNumbers.length !== partNumbers.length ||
-        new Set(returnedNumbers).size !== returnedNumbers.length ||
-        returnedNumbers.some((partNumber) => !partNumbers.includes(partNumber))
-      )
-        throw new Error("服务端返回的分片预签名集合与请求不一致。");
-      await runPool(
-        presigns.map((part) => async () => {
-          const start = (part.partNumber - 1) * partSize;
-          const blob = file.slice(
-            start,
-            Math.min(start + partSize, file.size),
-            file.type,
-          );
-          if (blob.size !== part.contentLength)
-            throw new Error(`第 ${part.partNumber} 片长度与服务端契约不一致。`);
-          const eTag = await putObject({
-            url: part.presignedUrl,
-            body: blob,
-            contentType: file.type,
-            signal,
-          });
-          if (!eTag)
-            throw new Error("对象存储未返回 ETag，请检查对象存储 CORS 配置。");
-          uploadedParts.push({ partNumber: part.partNumber, eTag });
-          uploadedBytes += blob.size;
-          update(() =>
-            setProgress(
-              Math.min(99, Math.round((uploadedBytes / file.size) * 100)),
-            ),
-          );
-        }),
-        MAX_CONCURRENT_PARTS,
-      );
-    }
-    const parts = uploadedParts.sort(
-      (left, right) => left.partNumber - right.partNumber,
-    );
-    transitionTo("finalizing");
-    requestRef.current = completeMultipart({ sessionId, parts });
-    const completing = await requestRef.current.unwrap();
-    await waitForMultipart(sessionId, completing, signal);
-    multipartSessionRef.current = null;
-  };
-
   const handleFile = (nextFile) => {
     setError(null);
     transitionTo("idle");
@@ -274,7 +111,7 @@ export function AudioUploadControl({
       setError("上传限制尚未加载，请稍后重试。");
       return;
     }
-    const validationError = validateFile(nextFile, capability);
+    const validationError = validateAudioFile(nextFile, capability);
     if (validationError) {
       setFile(null);
       setError(validationError);
@@ -285,7 +122,7 @@ export function AudioUploadControl({
 
   const handleUpload = async () => {
     if (!file || !capability || uploading) return;
-    const validationError = validateFile(file, capability);
+    const validationError = validateAudioFile(file, capability);
     if (validationError) {
       setError(validationError);
       return;
@@ -294,58 +131,19 @@ export function AudioUploadControl({
     controllerRef.current = controller;
     setError(null);
     setProgress(0);
-    transitionTo("initializing");
     try {
-      requestRef.current = resource
-        ? retryUpload({ audioResourceId: resource.id, file })
-        : file.size < capability.multipartThresholdBytes
-          ? initializeSimple(file)
-          : initializeMultipart(file);
-      const initialized = await requestRef.current.unwrap();
-      onStarted?.(initialized.audioResourceId, file.name);
-      transitionTo("uploading");
-      if (initialized.presignedUrl) {
-        await putObject({
-          url: initialized.presignedUrl,
-          body: file,
-          contentType: file.type,
-          signal: controller.signal,
-          onProgress: (value) => update(() => setProgress(value)),
-        });
-      } else {
-        await uploadMultipart(file, initialized, capability, controller.signal);
-      }
-      transitionTo("confirming");
-      requestRef.current = confirmUpload(initialized.audioResourceId);
-      await requestRef.current.unwrap();
-      if (!mountedRef.current) return;
-
-      if (!waitForProcessing) {
-        requestRef.current = getAudioResource(
-          initialized.audioResourceId,
-          false,
-        );
-        const audio = await requestRef.current.unwrap();
-        finishUpload(audio);
-        return;
-      }
-
-      transitionTo("processing");
-      const audio = await waitForProcessingResult(
-        initialized.audioResourceId,
-        controller.signal,
-      );
-      finishUpload(audio);
+      const audio = await uploadAudio({
+        file,
+        resource,
+        waitForProcessing,
+        signal: controller.signal,
+        onStarted: (id) => onStarted?.(id, file.name),
+        onProgress: (value) => update(() => setProgress(value)),
+        onStage: transitionTo,
+        shouldContinue: () => mountedRef.current,
+      });
+      if (audio) finishUpload(audio);
     } catch (requestError) {
-      const multipartSessionId = multipartSessionRef.current;
-      multipartSessionRef.current = null;
-      if (multipartSessionId) {
-        try {
-          await abortMultipart(multipartSessionId).unwrap();
-        } catch {
-          // The original upload error remains the actionable message.
-        }
-      }
       const cancelled =
         requestError?.kind === "aborted" || requestError?.name === "AbortError";
       transitionTo(cancelled ? "cancelled" : "failed");
@@ -360,8 +158,7 @@ export function AudioUploadControl({
         );
       });
     } finally {
-      controllerRef.current = null;
-      requestRef.current = null;
+      if (controllerRef.current === controller) controllerRef.current = null;
     }
   };
 
@@ -384,7 +181,7 @@ export function AudioUploadControl({
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           {capability
-            ? `支持 ${capability.allowedTypes.map(({ extension }) => extension).join("、")}，最大 ${formatFileSize(capability.maxSizeBytes)}。`
+            ? `支持 ${capability.allowedTypes.map(({ extension }) => extension).join("、")}，最大 ${formatAudioFileSize(capability.maxSizeBytes)}。`
             : "正在读取服务端上传限制。"}
         </p>
       </div>
@@ -440,10 +237,7 @@ export function AudioUploadControl({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => {
-              controllerRef.current?.abort();
-              requestRef.current?.abort?.();
-            }}
+            onClick={() => controllerRef.current?.abort()}
           >
             <X aria-hidden="true" />
             取消
@@ -455,7 +249,7 @@ export function AudioUploadControl({
         >
           {stageText(stage, progress) ??
             (file
-              ? `${file.name} · ${formatFileSize(file.size)}`
+              ? `${file.name} · ${formatAudioFileSize(file.size)}`
               : "尚未选择文件")}
         </span>
       </div>

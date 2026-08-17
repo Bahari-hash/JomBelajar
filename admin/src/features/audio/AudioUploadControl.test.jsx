@@ -3,6 +3,7 @@ import {
   act,
   fireEvent,
   render,
+  renderHook,
   screen,
   waitFor,
 } from "@testing-library/react";
@@ -11,6 +12,7 @@ import { StrictMode } from "react";
 import { Provider } from "react-redux";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AudioUploadControl } from "@/features/audio/AudioUploadControl.jsx";
+import { useAudioUploadRunner } from "@/features/audio/useAudioUploadRunner.js";
 import { objectStorageClient } from "@/services/objectStorageTransport.js";
 import { tokenVault } from "@/services/tokenVault.js";
 import { createAppStore } from "@/store/index.js";
@@ -33,7 +35,7 @@ function capability(overrides = {}) {
   };
 }
 
-function readyAudio() {
+function readyAudio(overrides = {}) {
   return {
     id: AUDIO_ID,
     name: "lesson.wav",
@@ -48,6 +50,7 @@ function readyAudio() {
     concurrencyStamp: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
     createdAt: "2026-08-16T07:00:00Z",
     updatedAt: "2026-08-16T08:00:00Z",
+    ...overrides,
   };
 }
 
@@ -69,8 +72,10 @@ afterEach(() => vi.restoreAllMocks());
 describe("AudioUploadControl", () => {
   it("uploads a small file, confirms it and waits for Ready", async () => {
     tokenVault.install("access", "refresh");
+    const lifecycle = [];
     vi.spyOn(objectStorageClient, "request").mockImplementation(
       async (config) => {
+        lifecycle.push("storage");
         config.onUploadProgress?.({ loaded: 4, total: 4 });
         return { status: 200, headers: new AxiosHeaders() };
       },
@@ -79,7 +84,8 @@ describe("AudioUploadControl", () => {
     const requestMock = mockHttpClient((config) => {
       if (config.url.includes("/capabilities"))
         return Promise.resolve(axiosResponse(capability()));
-      if (config.url.endsWith("/uploads/simple"))
+      if (config.url.endsWith("/uploads/simple")) {
+        lifecycle.push("initialize");
         return Promise.resolve(
           axiosResponse(
             {
@@ -94,8 +100,12 @@ describe("AudioUploadControl", () => {
             201,
           ),
         );
-      if (config.url.endsWith("/upload/confirm"))
+      }
+      if (config.url.endsWith("/upload/confirm")) {
+        lifecycle.push("confirm");
         return Promise.resolve(axiosResponse(null, 204));
+      }
+      lifecycle.push("detail");
       detailRequests += 1;
       return Promise.resolve(
         axiosResponse(detailRequests === 1 ? processingAudio() : readyAudio()),
@@ -125,6 +135,13 @@ describe("AudioUploadControl", () => {
       ),
     );
     expect(onStarted).toHaveBeenCalledWith(AUDIO_ID, "lesson.wav");
+    expect(lifecycle).toEqual([
+      "initialize",
+      "storage",
+      "confirm",
+      "detail",
+      "detail",
+    ]);
     expect(objectStorageClient.request).toHaveBeenCalledWith(
       expect.objectContaining({
         url: "https://storage.example.test/lesson.wav",
@@ -459,7 +476,7 @@ describe("AudioUploadControl", () => {
     const storageMock = vi
       .spyOn(objectStorageClient, "request")
       .mockResolvedValue({ status: 200, headers: new AxiosHeaders() });
-    mockHttpClient((config) => {
+    const requestMock = mockHttpClient((config) => {
       if (config.url.includes("/capabilities"))
         return Promise.resolve(
           axiosResponse(
@@ -517,6 +534,13 @@ describe("AudioUploadControl", () => {
       await screen.findByText("服务端返回的分片预签名集合与请求不一致。"),
     ).toBeVisible();
     expect(storageMock).not.toHaveBeenCalled();
+    expect(
+      requestMock.mock.calls.some(
+        ([config]) =>
+          config.url === `/admin/audio/multipart/${SESSION_ID}` &&
+          config.method === "DELETE",
+      ),
+    ).toBe(true);
   });
 
   it("aborts a multipart session without deleting the created resource", async () => {
@@ -604,5 +628,98 @@ describe("AudioUploadControl", () => {
           config.method === "DELETE",
       ),
     ).toBe(false);
+  });
+});
+
+describe("useAudioUploadRunner", () => {
+  it("cancels one concurrent upload without interrupting the other", async () => {
+    tokenVault.install("access", "refresh");
+    const secondAudioId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const storageResolvers = new Map();
+    const storageMock = vi
+      .spyOn(objectStorageClient, "request")
+      .mockImplementation(
+        (config) =>
+          new Promise((resolve, reject) => {
+            storageResolvers.set(config.url, resolve);
+            config.signal.addEventListener(
+              "abort",
+              () => reject(new DOMException("Aborted", "AbortError")),
+              { once: true },
+            );
+          }),
+      );
+    const requestMock = mockHttpClient((config) => {
+      if (config.url.includes("/capabilities"))
+        return Promise.resolve(axiosResponse(capability()));
+      if (config.url.endsWith("/uploads/simple")) {
+        const isFirst = config.data.originalName === "first.wav";
+        const audioResourceId = isFirst ? AUDIO_ID : secondAudioId;
+        return Promise.resolve(
+          axiosResponse(
+            {
+              audioResourceId,
+              mediaResourceId: MEDIA_ID,
+              presignedUrl: `https://storage.example.test/${config.data.originalName}`,
+              multipartSessionId: null,
+              partSize: null,
+              partCount: null,
+              expiresAt: "2026-08-16T08:15:00Z",
+            },
+            201,
+          ),
+        );
+      }
+      if (config.url.endsWith("/upload/confirm"))
+        return Promise.resolve(axiosResponse(null, 204));
+      return Promise.resolve(
+        axiosResponse(readyAudio({ id: secondAudioId, name: "second.wav" })),
+      );
+    });
+    const store = createAppStore();
+    const wrapper = ({ children }) => (
+      <Provider store={store}>{children}</Provider>
+    );
+    const { result } = renderHook(() => useAudioUploadRunner(), { wrapper });
+
+    await waitFor(() => expect(result.current.capability).toBeDefined());
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    let outcomesPromise;
+    act(() => {
+      const first = result.current.uploadAudio({
+        file: new File(["wave"], "first.wav", { type: "audio/wav" }),
+        signal: firstController.signal,
+        waitForProcessing: false,
+      });
+      const second = result.current.uploadAudio({
+        file: new File(["wave"], "second.wav", { type: "audio/wav" }),
+        signal: secondController.signal,
+        waitForProcessing: false,
+      });
+      outcomesPromise = Promise.allSettled([first, second]);
+    });
+
+    await waitFor(() => expect(storageMock).toHaveBeenCalledTimes(2));
+    firstController.abort();
+    storageResolvers
+      .get("https://storage.example.test/second.wav")
+      .call(null, { status: 200, headers: new AxiosHeaders() });
+
+    let outcomes;
+    await act(async () => {
+      outcomes = await outcomesPromise;
+    });
+    expect(outcomes[0]).toMatchObject({ status: "rejected" });
+    expect(outcomes[1]).toMatchObject({
+      status: "fulfilled",
+      value: expect.objectContaining({ id: secondAudioId, status: "Ready" }),
+    });
+    expect(secondController.signal.aborted).toBe(false);
+    expect(
+      requestMock.mock.calls.filter(([config]) =>
+        config.url.endsWith("/upload/confirm"),
+      ),
+    ).toHaveLength(1);
   });
 });

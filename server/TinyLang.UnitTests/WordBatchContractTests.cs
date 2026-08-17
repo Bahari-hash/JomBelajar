@@ -81,6 +81,33 @@ public sealed class WordBatchContractTests
     }
 
     [Fact]
+    public void WebJsonDefaultsShouldPreserveUnknownBatchPartOfSpeechText()
+    {
+        const string json = """
+            {
+              "words": [
+                {
+                  "senses": [
+                    {
+                      "partOfSpeech": "UnknownPart"
+                    }
+                  ]
+                }
+              ]
+            }
+            """;
+
+        var request = JsonSerializer.Deserialize<BatchWordRequest>(
+            json,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        request.Should().NotBeNull();
+        request!.Words.Should().ContainSingle()
+            .Which.Senses.Should().ContainSingle()
+            .Which.PartOfSpeech.Should().Be("UnknownPart");
+    }
+
+    [Fact]
     public void BatchInputsShouldExposeOnlyImportContentFields()
     {
         AssertProperties<BatchWordRequest>(

@@ -14,6 +14,13 @@ namespace TinyLang.Services;
 /// </summary>
 public sealed class WordBatchService : IWordBatchService
 {
+    private const string HeadwordUniqueIndex =
+        "IX_words_NormalizedHeadword";
+    private const string AudioResourceForeignKey =
+        "FK_words_audio_resources_AudioResourceId";
+    private const string ExampleAudioResourceForeignKey =
+        "FK_example_sentences_audio_resources_AudioResourceId";
+
     private readonly IApplicationDbContext _db;
     private readonly IValidator<CreateWordRequest> _wordValidator;
     private readonly IDatabaseExceptionClassifier _databaseExceptionClassifier;
@@ -36,6 +43,67 @@ public sealed class WordBatchService : IWordBatchService
         BatchWordRequest request,
         CancellationToken cancellationToken = default)
         => (await BuildValidationAsync(request, cancellationToken)).Response;
+
+    /// <inheritdoc />
+    public async Task<WordBatchImportResult> ImportAsync(
+        Guid adminId,
+        BatchWordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var validation = await BuildValidationAsync(request, cancellationToken);
+        if (!validation.Response.IsValid)
+        {
+            return new WordBatchImportResult(null, validation.Response);
+        }
+
+        try
+        {
+            await using var transaction = await _db.BeginTransactionAsync(
+                cancellationToken);
+            var words = validation.Rows
+                .Select(row => (
+                    row.RowNumber,
+                    Word: WordAggregateBuilder.Create(row.Request)))
+                .ToArray();
+            _db.Words.AddRange(words.Select(value => value.Word));
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "Imported {WordCount} words by administrator {AdminId}",
+                words.Length,
+                adminId);
+            return new WordBatchImportResult(
+                new BatchWordImportResponse(
+                    words.Length,
+                    words.Select(value => new BatchWordCreatedItemResponse(
+                        value.RowNumber,
+                        value.Word.Id)).ToArray()),
+                null);
+        }
+        catch (DbUpdateException exception) when (IsBatchRace(exception))
+        {
+            _db.ClearTrackedChanges();
+            var refreshed = await BuildValidationAsync(request, cancellationToken);
+            if (refreshed.Response.IsValid)
+            {
+                var errors = refreshed.Response.Errors.Append(
+                    new BatchWordValidationErrorResponse(
+                        null,
+                        "words",
+                        ErrorCodes.WordBatchConflict,
+                        ErrorCodes.WordBatchConflict.GetMessage()))
+                    .ToArray();
+                return new WordBatchImportResult(null, refreshed.Response with
+                {
+                    IsValid = false,
+                    Errors = errors
+                });
+            }
+
+            return new WordBatchImportResult(null, refreshed.Response);
+        }
+    }
 
     internal async Task<WordBatchValidationBuildResult> BuildValidationAsync(
         BatchWordRequest request,
@@ -642,6 +710,17 @@ public sealed class WordBatchService : IWordBatchService
         }
         return $"{prefix}.{string.Join('.', segments)}";
     }
+
+    private bool IsBatchRace(DbUpdateException exception)
+        => _databaseExceptionClassifier.IsUniqueConstraintViolation(
+                exception,
+                HeadwordUniqueIndex) ||
+            _databaseExceptionClassifier.IsForeignKeyConstraintViolation(
+                exception,
+                AudioResourceForeignKey) ||
+            _databaseExceptionClassifier.IsForeignKeyConstraintViolation(
+                exception,
+                ExampleAudioResourceForeignKey);
 
     private static void AddError(
         ICollection<BatchWordValidationErrorResponse> errors,

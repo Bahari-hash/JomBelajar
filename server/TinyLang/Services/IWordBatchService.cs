@@ -13,4 +13,19 @@ public interface IWordBatchService
     Task<BatchWordValidationResponse> ValidateAsync(
         BatchWordRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 校验并在单个事务中创建批量词条。
+    /// </summary>
+    Task<WordBatchImportResult> ImportAsync(
+        Guid adminId,
+        BatchWordRequest request,
+        CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// 返回批量导入成功结果或完整的重新校验结果。
+/// </summary>
+public sealed record WordBatchImportResult(
+    BatchWordImportResponse? Imported,
+    BatchWordValidationResponse? Validation);

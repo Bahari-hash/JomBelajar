@@ -7,6 +7,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,7 +47,10 @@ public sealed class WordEndpointTests
             .Should().OnlyContain(endpoint => endpoint.Metadata
                 .GetOrderedMetadata<IAuthorizeData>()
                 .Any(value => value.Policy == AuthorizationPolicies.RequireUser));
-        routes.Should().HaveCount(8);
+        routes.Should().HaveCount(10);
+        routes.Select(value => value.RoutePattern.RawText).Should().Contain(
+            "/api/admin/words/batch/validate",
+            "/api/admin/words/batch");
         routes.Select(value => value.RoutePattern.RawText)
             .Where(value => value != null &&
                 (value.EndsWith("/publish", StringComparison.Ordinal) ||
@@ -69,7 +73,10 @@ public sealed class WordEndpointTests
                 It.IsAny<CreateWordRequest>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateAdminResponse(wordId));
-        await using var app = await CreateHttpAppAsync(service.Object, adminId);
+        await using var app = await CreateHttpAppAsync(
+            service.Object,
+            Mock.Of<IWordBatchService>(),
+            adminId);
 
         var response = await app.GetTestClient().PostAsJsonAsync(
             "/api/admin/words",
@@ -113,7 +120,10 @@ public sealed class WordEndpointTests
                 It.IsAny<WordListRequest>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedResponse<WordListItemResponse>([], 2, 5, 0, 0));
-        await using var app = await CreateHttpAppAsync(service.Object, Guid.NewGuid());
+        await using var app = await CreateHttpAppAsync(
+            service.Object,
+            Mock.Of<IWordBatchService>(),
+            Guid.NewGuid());
 
         var response = await app.GetTestClient().GetAsync(
             "/api/words?page=2&pageSize=5&keyword=hello",
@@ -138,7 +148,10 @@ public sealed class WordEndpointTests
         var adminId = Guid.NewGuid();
         var wordId = Guid.NewGuid();
         var service = new Mock<IWordService>();
-        await using var app = await CreateHttpAppAsync(service.Object, adminId);
+        await using var app = await CreateHttpAppAsync(
+            service.Object,
+            Mock.Of<IWordBatchService>(),
+            adminId);
 
         var concurrencyStamp = Guid.NewGuid();
         using var request = new HttpRequestMessage(
@@ -164,26 +177,122 @@ public sealed class WordEndpointTests
     }
 
     /// <summary>
-    /// 验证已退役的批量校验和导入路径自然返回 404。
+    /// 验证批量 endpoints 使用统一的 20 MB 请求体限制。
     /// </summary>
     [Fact]
-    public async Task RetiredBatchEndpointsShouldReturnNotFound()
+    public async Task BatchRoutesShouldUseExpectedRequestSizeLimit()
+    {
+        await using var app = CreateMetadataApp();
+        var routes = GetRoutes(app);
+
+        foreach (var route in routes.Where(value =>
+                     value.RoutePattern.RawText is
+                         "/api/admin/words/batch/validate" or
+                         "/api/admin/words/batch"))
+        {
+            var metadata = route.Metadata.GetMetadata<IRequestSizeLimitMetadata>();
+            metadata.Should().NotBeNull();
+            metadata!.MaxRequestBodySize.Should()
+                .Be(WordConstraints.MaxBatchRequestBodyBytes);
+        }
+    }
+
+    [Fact]
+    public async Task ValidateBatchShouldCallServiceAndReturnOk()
+    {
+        var request = new BatchWordRequest { Words = [] };
+        var validation = new BatchWordValidationResponse(
+            true,
+            new BatchWordSummaryResponse(0, 0, 0, 0, 0, 0),
+            [],
+            []);
+        var batchService = new Mock<IWordBatchService>();
+        batchService.Setup(value => value.ValidateAsync(
+                It.IsAny<BatchWordRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(validation);
+        await using var app = await CreateHttpAppAsync(
+            Mock.Of<IWordService>(),
+            batchService.Object,
+            Guid.NewGuid());
+
+        var response = await app.GetTestClient().PostAsJsonAsync(
+            "/api/admin/words/batch/validate",
+            request,
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        batchService.Verify(value => value.ValidateAsync(
+            It.Is<BatchWordRequest>(value => value.Words.Count == 0),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ImportBatchShouldReturnOkForSuccessfulImport()
     {
         var adminId = Guid.NewGuid();
-        var service = new Mock<IWordService>();
-        await using var app = await CreateHttpAppAsync(service.Object, adminId);
+        var wordId = Guid.NewGuid();
+        var batchService = new Mock<IWordBatchService>();
+        batchService.Setup(value => value.ImportAsync(
+                adminId,
+                It.IsAny<BatchWordRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WordBatchImportResult(
+                new BatchWordImportResponse(
+                    1,
+                    [new BatchWordCreatedItemResponse(1, wordId)]),
+                null));
+        await using var app = await CreateHttpAppAsync(
+            Mock.Of<IWordService>(),
+            batchService.Object,
+            adminId);
 
-        var validateResponse = await app.GetTestClient().PostAsJsonAsync(
-            "/api/admin/words/batch/validate",
-            new { },
-            TestContext.Current.CancellationToken);
-        var importResponse = await app.GetTestClient().PostAsJsonAsync(
+        var response = await app.GetTestClient().PostAsJsonAsync(
             "/api/admin/words/batch",
-            new { },
+            new BatchWordRequest { Words = [] },
             TestContext.Current.CancellationToken);
 
-        validateResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        importResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<BatchWordImportResponse>(
+            TestContext.Current.CancellationToken))!.Items.Should()
+            .ContainSingle(value => value.RowNumber == 1 && value.WordId == wordId);
+    }
+
+    [Fact]
+    public async Task ImportBatchShouldReturnUnprocessableValidationResponse()
+    {
+        var validation = new BatchWordValidationResponse(
+            false,
+            new BatchWordSummaryResponse(1, 1, 0, 0, 0, 0),
+            [],
+            [
+                new BatchWordValidationErrorResponse(
+                    1,
+                    "words[0].headword",
+                    TinyLang.Exceptions.ErrorCodes.WordDuplicate,
+                    "duplicate")
+            ]);
+        var batchService = new Mock<IWordBatchService>();
+        batchService.Setup(value => value.ImportAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<BatchWordRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WordBatchImportResult(null, validation));
+        await using var app = await CreateHttpAppAsync(
+            Mock.Of<IWordService>(),
+            batchService.Object,
+            Guid.NewGuid());
+
+        var response = await app.GetTestClient().PostAsJsonAsync(
+            "/api/admin/words/batch",
+            new BatchWordRequest { Words = [] },
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await response.Content.ReadFromJsonAsync<BatchWordValidationResponse>(
+            TestContext.Current.CancellationToken))!.Errors.Should()
+            .ContainSingle(value => value.ErrorCode ==
+                TinyLang.Exceptions.ErrorCodes.WordDuplicate);
     }
 
     /// <summary>
@@ -193,6 +302,7 @@ public sealed class WordEndpointTests
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(Mock.Of<IWordService>());
+        builder.Services.AddSingleton(Mock.Of<IWordBatchService>());
         var app = builder.Build();
         app.MapGroup("/api").MapWordsApi();
         return app;
@@ -203,6 +313,7 @@ public sealed class WordEndpointTests
     /// </summary>
     private static async Task<WebApplication> CreateHttpAppAsync(
         IWordService wordService,
+        IWordBatchService wordBatchService,
         Guid userId)
     {
         var builder = WebApplication.CreateBuilder();
@@ -216,6 +327,7 @@ public sealed class WordEndpointTests
                 policy.RequireAssertion(_ => true));
         });
         builder.Services.AddSingleton(wordService);
+        builder.Services.AddSingleton(wordBatchService);
         var app = builder.Build();
         app.Use(async (context, next) =>
         {

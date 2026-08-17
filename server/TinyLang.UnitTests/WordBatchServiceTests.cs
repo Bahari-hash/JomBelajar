@@ -453,6 +453,225 @@ public sealed class WordBatchServiceTests
     }
 
     [Fact]
+    public async Task ImportShouldCreateEveryAggregateInOneTransaction()
+    {
+        await using var db = CreateDbContext();
+        var transaction = new Mock<IApplicationDbTransaction>();
+        var saved = false;
+        transaction.Setup(value => value.CommitAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => saved.Should().BeTrue())
+            .Returns(Task.CompletedTask);
+        var context = WrapWritableContext(db, transaction);
+        context.Setup(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => saved = true)
+            .Returns((CancellationToken token) => db.SaveChangesAsync(token));
+        var request = new BatchWordRequest
+        {
+            Words =
+            [
+                CreateRow("hello") with
+                {
+                    Senses =
+                    [
+                        CreateSense(0) with { Examples = [CreateExample(0)] }
+                    ]
+                },
+                CreateRow("world") with
+                {
+                    Senses =
+                    [
+                        CreateSense(0) with { Examples = [CreateExample(0)] }
+                    ]
+                }
+            ]
+        };
+
+        var result = await CreateService(context.Object).ImportAsync(
+            Guid.NewGuid(),
+            request,
+            TestContext.Current.CancellationToken);
+
+        result.Imported.Should().NotBeNull();
+        result.Validation.Should().BeNull();
+        result.Imported!.CreatedCount.Should().Be(2);
+        result.Imported.Items.Select(value => value.RowNumber).Should().Equal(1, 2);
+        (await db.Words.CountAsync(TestContext.Current.CancellationToken)).Should().Be(2);
+        (await db.WordSenses.CountAsync(TestContext.Current.CancellationToken)).Should().Be(2);
+        (await db.ExampleSentences.CountAsync(TestContext.Current.CancellationToken))
+            .Should().Be(2);
+        transaction.Verify(value => value.CommitAsync(
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ImportShouldWriteNothingWhenAnyRowIsInvalid()
+    {
+        await using var db = CreateDbContext();
+        var context = WrapContext(db);
+        var request = new BatchWordRequest
+        {
+            Words = [CreateRow("hello"), CreateRow("")]
+        };
+
+        var result = await CreateService(context.Object).ImportAsync(
+            Guid.NewGuid(),
+            request,
+            TestContext.Current.CancellationToken);
+
+        result.Imported.Should().BeNull();
+        result.Validation.Should().NotBeNull();
+        result.Validation!.IsValid.Should().BeFalse();
+        (await db.Words.CountAsync(TestContext.Current.CancellationToken)).Should().Be(0);
+        context.Verify(value => value.BeginTransactionAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
+        context.Verify(value => value.SaveChangesAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ImportShouldRevalidateUniqueConstraintRaceAndReturnConflictingRow()
+    {
+        await using var initialDb = CreateDbContext();
+        await using var refreshedDb = CreateDbContext();
+        refreshedDb.Words.Add(new Word
+        {
+            Headword = "hello",
+            NormalizedHeadword = "HELLO"
+        });
+        await refreshedDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var exception = new DbUpdateException("unique race");
+        var classifier = new Mock<IDatabaseExceptionClassifier>();
+        classifier.Setup(value => value.IsUniqueConstraintViolation(
+                exception,
+                It.Is<string[]>(names => names.SequenceEqual(
+                    new[] { "IX_words_NormalizedHeadword" }))))
+            .Returns(true);
+        var transaction = new Mock<IApplicationDbTransaction>();
+        var wordAccessCount = 0;
+        var context = new Mock<IApplicationDbContext>();
+        context.SetupGet(value => value.AudioResources).Returns(initialDb.AudioResources);
+        context.SetupGet(value => value.Words).Returns(() => wordAccessCount++ switch
+        {
+            0 => initialDb.Words,
+            1 => initialDb.Words,
+            _ => refreshedDb.Words
+        });
+        context.Setup(value => value.BeginTransactionAsync(
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction.Object);
+        context.Setup(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(exception);
+
+        var result = await CreateService(context.Object, classifier.Object).ImportAsync(
+            Guid.NewGuid(),
+            new BatchWordRequest { Words = [CreateRow("hello")] },
+            TestContext.Current.CancellationToken);
+
+        result.Imported.Should().BeNull();
+        result.Validation!.Errors.Should().ContainSingle(error =>
+            error.RowNumber == 1 &&
+            error.Field == "words[0].headword" &&
+            error.ErrorCode == ErrorCodes.WordDuplicate);
+        context.Verify(value => value.ClearTrackedChanges(), Times.Once);
+        transaction.Verify(value => value.CommitAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(
+        "FK_words_audio_resources_AudioResourceId",
+        false,
+        "words[0].audioFileName")]
+    [InlineData(
+        "FK_example_sentences_audio_resources_AudioResourceId",
+        true,
+        "words[0].senses[0].examples[0].audioFileName")]
+    public async Task ImportShouldRevalidateTargetAudioForeignKeyRace(
+        string constraintName,
+        bool useExampleAudio,
+        string expectedField)
+    {
+        await using var initialDb = CreateDbContext();
+        await using var refreshedDb = CreateDbContext();
+        initialDb.AudioResources.Add(CreateAudio(
+            "race.mp3",
+            AudioResourceStatus.Ready));
+        await initialDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var exception = new DbUpdateException("audio race");
+        var classifier = new Mock<IDatabaseExceptionClassifier>();
+        classifier.Setup(value => value.IsForeignKeyConstraintViolation(
+                exception,
+                It.Is<string[]>(names => names.SequenceEqual(
+                    new[] { constraintName }))))
+            .Returns(true);
+        var transaction = new Mock<IApplicationDbTransaction>();
+        var audioAccessCount = 0;
+        var context = new Mock<IApplicationDbContext>();
+        context.SetupGet(value => value.AudioResources).Returns(() =>
+            audioAccessCount++ == 0
+                ? initialDb.AudioResources
+                : refreshedDb.AudioResources);
+        context.SetupGet(value => value.Words).Returns(initialDb.Words);
+        context.Setup(value => value.BeginTransactionAsync(
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction.Object);
+        context.Setup(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(exception);
+        var row = CreateRow("hello") with
+        {
+            AudioFileName = useExampleAudio ? null : "race.mp3",
+            Senses =
+            [
+                CreateSense(0) with
+                {
+                    Examples = useExampleAudio
+                        ? [CreateExample(0) with { AudioFileName = "race.mp3" }]
+                        : []
+                }
+            ]
+        };
+
+        var result = await CreateService(context.Object, classifier.Object).ImportAsync(
+            Guid.NewGuid(),
+            new BatchWordRequest { Words = [row] },
+            TestContext.Current.CancellationToken);
+
+        result.Imported.Should().BeNull();
+        result.Validation!.Errors.Should().ContainSingle(error =>
+            error.RowNumber == 1 &&
+            error.Field == expectedField &&
+            error.ErrorCode == ErrorCodes.WordBatchAudioNotFound);
+        context.Verify(value => value.ClearTrackedChanges(), Times.Once);
+        transaction.Verify(value => value.CommitAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ImportShouldRethrowNonTargetDatabaseException()
+    {
+        await using var db = CreateDbContext();
+        var exception = new DbUpdateException("unrelated failure");
+        var transaction = new Mock<IApplicationDbTransaction>();
+        var context = WrapWritableContext(db, transaction);
+        context.Setup(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(exception);
+        var service = CreateService(
+            context.Object,
+            Mock.Of<IDatabaseExceptionClassifier>());
+
+        Func<Task> action = async () => await service.ImportAsync(
+            Guid.NewGuid(),
+            new BatchWordRequest { Words = [CreateRow("hello")] },
+            TestContext.Current.CancellationToken);
+
+        (await action.Should().ThrowAsync<DbUpdateException>()).Which
+            .Should().BeSameAs(exception);
+        context.Verify(value => value.ClearTrackedChanges(), Times.Never);
+        transaction.Verify(value => value.CommitAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public void AddBusinessServicesShouldRegisterWordBatchService()
     {
         var services = new ServiceCollection();
@@ -465,11 +684,13 @@ public sealed class WordBatchServiceTests
             descriptor.Lifetime == ServiceLifetime.Scoped);
     }
 
-    private static WordBatchService CreateService(IApplicationDbContext db)
+    private static WordBatchService CreateService(
+        IApplicationDbContext db,
+        IDatabaseExceptionClassifier? databaseExceptionClassifier = null)
         => new(
             db,
             new CreateWordRequestValidator(),
-            new PostgresDatabaseExceptionClassifier(),
+            databaseExceptionClassifier ?? new PostgresDatabaseExceptionClassifier(),
             NullLogger<WordBatchService>.Instance);
 
     private static ApplicationDbContext CreateDbContext()
@@ -482,6 +703,21 @@ public sealed class WordBatchServiceTests
         var context = new Mock<IApplicationDbContext>();
         context.SetupGet(value => value.AudioResources).Returns(db.AudioResources);
         context.SetupGet(value => value.Words).Returns(db.Words);
+        return context;
+    }
+
+    private static Mock<IApplicationDbContext> WrapWritableContext(
+        ApplicationDbContext db,
+        Mock<IApplicationDbTransaction> transaction)
+    {
+        var context = WrapContext(db);
+        context.Setup(value => value.BeginTransactionAsync(
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction.Object);
+        context.Setup(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns((CancellationToken token) => db.SaveChangesAsync(token));
+        context.Setup(value => value.ClearTrackedChanges())
+            .Callback(db.ClearTrackedChanges);
         return context;
     }
 

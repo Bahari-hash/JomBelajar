@@ -26,6 +26,8 @@ public static class WordEndpoints
         var adminGroup = endpoints.MapGroup("/admin")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
+        adminGroup.MapPost("/words/batch/validate", ValidateWordBatchAsync);
+        adminGroup.MapPost("/words/batch", ImportWordBatchAsync);
         adminGroup.MapPost("/words", CreateWordAsync);
         adminGroup.MapGet("/words", GetAdminWordsAsync);
         adminGroup.MapGet("/words/{id:guid}", GetAdminWordAsync);
@@ -35,6 +37,31 @@ public static class WordEndpoints
         adminGroup.MapDelete("/words/{id:guid}", DeleteWordAsync);
 
         return endpoints;
+    }
+
+    [RequestSizeLimit(WordConstraints.MaxBatchRequestBodyBytes)]
+    public static async Task<Ok<BatchWordValidationResponse>> ValidateWordBatchAsync(
+        BatchWordRequest request,
+        IWordBatchService service,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await service.ValidateAsync(request, cancellationToken));
+
+    [RequestSizeLimit(WordConstraints.MaxBatchRequestBodyBytes)]
+    public static async Task<Results<
+        Ok<BatchWordImportResponse>,
+        UnprocessableEntity<BatchWordValidationResponse>>> ImportWordBatchAsync(
+        BatchWordRequest request,
+        ClaimsPrincipal principal,
+        IWordBatchService service,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.ImportAsync(
+            EndpointIdentity.GetUserId(principal),
+            request,
+            cancellationToken);
+        return result.Imported is { } imported
+            ? TypedResults.Ok(imported)
+            : TypedResults.UnprocessableEntity(result.Validation!);
     }
 
     public static async Task<Created<AdminWordResponse>> CreateWordAsync(

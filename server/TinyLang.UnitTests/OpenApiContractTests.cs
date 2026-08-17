@@ -37,8 +37,8 @@ public sealed class OpenApiContractTests
             .Should().BeTrue();
         paths.TryGetProperty("/api/admin/words", out _).Should().BeTrue();
         paths.TryGetProperty("/api/admin/words/batch/validate", out _)
-            .Should().BeFalse();
-        paths.TryGetProperty("/api/admin/words/batch", out _).Should().BeFalse();
+            .Should().BeTrue();
+        paths.TryGetProperty("/api/admin/words/batch", out _).Should().BeTrue();
         foreach (var action in new[] { "publish", "unpublish", "archive" })
         {
             paths.TryGetProperty($"/api/admin/words/{{id}}/{action}", out _)
@@ -117,11 +117,6 @@ public sealed class OpenApiContractTests
                 "AdminWordPronunciationResponse",
                 "WordPronunciationResponse"
             }.Any(retired => name.EndsWith(retired, StringComparison.Ordinal)));
-        schemas.EnumerateObject().Should().NotContain(schema =>
-            schema.Name.EndsWith("BatchWordRequest", StringComparison.Ordinal));
-        schemas.EnumerateObject().Should().NotContain(schema =>
-            schema.Name.EndsWith("BatchWordImportResponse", StringComparison.Ordinal));
-
         foreach (var responseName in new[]
                  {
                      "WordStudyNextItemResponse",
@@ -186,6 +181,45 @@ public sealed class OpenApiContractTests
                 "VideoCover",
                 "Audio",
                 "CourseVideo");
+    }
+
+    [Fact]
+    public async Task OpenApiShouldExposeWordBatchValidationAndImportContracts()
+    {
+        await using var app = await CreateAppAsync();
+        var json = await app.GetTestClient().GetStringAsync(
+            "/openapi/v1.json",
+            TestContext.Current.CancellationToken);
+        using var document = JsonDocument.Parse(json);
+        var paths = document.RootElement.GetProperty("paths");
+        var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
+        var validate = paths.GetProperty("/api/admin/words/batch/validate")
+            .GetProperty("post");
+        var import = paths.GetProperty("/api/admin/words/batch")
+            .GetProperty("post");
+
+        GetReferencedSchemas(validate.GetProperty("requestBody"), schemas)
+            .Should().Contain("BatchWordRequest");
+        GetReferencedSchemas(import.GetProperty("requestBody"), schemas)
+            .Should().Contain("BatchWordRequest");
+        GetReferencedSchemas(
+                validate.GetProperty("responses").GetProperty("200"),
+                schemas)
+            .Should().Contain("BatchWordValidationResponse");
+        GetReferencedSchemas(
+                import.GetProperty("responses").GetProperty("200"),
+                schemas)
+            .Should().Contain("BatchWordImportResponse");
+        GetReferencedSchemas(
+                import.GetProperty("responses").GetProperty("422"),
+                schemas)
+            .Should().Contain("BatchWordValidationResponse");
+
+        var partOfSpeech = GetSchema(schemas, "BatchWordSenseInput")
+            .GetProperty("properties")
+            .GetProperty("partOfSpeech");
+        GetSchemaTypes(partOfSpeech).Should().Contain("string");
+        GetSchemaTypes(partOfSpeech).Should().NotContain("integer");
     }
 
     [Fact]
@@ -454,6 +488,7 @@ public sealed class OpenApiContractTests
         builder.Services.AddSingleton(Mock.Of<IVideoCategoryService>());
         builder.Services.AddSingleton(Mock.Of<IAudioResourceService>());
         builder.Services.AddSingleton(Mock.Of<IWordService>());
+        builder.Services.AddSingleton(Mock.Of<IWordBatchService>());
         builder.Services.AddSingleton(Mock.Of<IWordStudyService>());
         builder.Services.AddSingleton(Mock.Of<IPaperService>());
         builder.Services.AddSingleton(Mock.Of<IPaperAttemptService>());

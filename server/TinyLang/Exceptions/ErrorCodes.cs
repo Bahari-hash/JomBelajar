@@ -491,6 +491,27 @@ public enum ErrorCodes
     [Description("词条已被其他管理员修改，请刷新后重试.")]
     WordConcurrencyConflict,
 
+    [Description("批量导入至少需要一个词条.")]
+    WordBatchRequired,
+
+    [Description("批量导入最多支持1000个词条.")]
+    WordBatchCountLimit,
+
+    [Description("批量导入的释义或例句总数超过限制.")]
+    WordBatchChildCountLimit,
+
+    [Description("批量导入的文本总长度超过限制.")]
+    WordBatchTextLengthLimit,
+
+    [Description("批量导入引用的音频文件名不存在.")]
+    WordBatchAudioNotFound,
+
+    [Description("批量导入引用的音频处理失败.")]
+    WordBatchAudioFailed,
+
+    [Description("导入期间数据已变更，请重新校验.")]
+    WordBatchConflict,
+
 
     // --** Word Study Errors **--
 

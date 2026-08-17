@@ -5,7 +5,9 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
+using TinyLang.Dtos;
 using TinyLang.Entities.Enums;
+using TinyLang.Exceptions;
 using TinyLang.Infrastructure;
 
 namespace TinyLang.UnitTests;
@@ -137,6 +139,35 @@ public sealed class HttpJsonContractTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task BatchValidationErrorsShouldSerializeCodesAsStringsAndRejectNumbers()
+    {
+        await using var app = await CreateAppAsync();
+        var client = app.GetTestClient();
+        using var numericContent = CreateJsonContent("""
+            {
+              "rowNumber": 1,
+              "field": "words[0].audioFileName",
+              "errorCode": 0,
+              "message": "invalid"
+            }
+            """);
+
+        var response = await client.GetAsync(
+            "/batch-error-contract",
+            TestContext.Current.CancellationToken);
+        var rejected = await client.PostAsync(
+            "/batch-error-contract",
+            numericContent,
+            TestContext.Current.CancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        json.RootElement.GetProperty("errorCode").GetString().Should().Be("WordBatchAudioNotFound");
+        rejected.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     /// <summary>
     /// Creates a TestServer configured through the production HTTP JSON registration method.
     /// </summary>
@@ -154,6 +185,12 @@ public sealed class HttpJsonContractTests
             MultipartUploadStatus.Finalizing,
             UserRole.Admin));
         app.MapPost("/enum-contract", (HttpEnumContract request) => request);
+        app.MapGet("/batch-error-contract", () => new BatchWordValidationErrorResponse(
+            1,
+            "words[0].audioFileName",
+            ErrorCodes.WordBatchAudioNotFound,
+            "invalid"));
+        app.MapPost("/batch-error-contract", (BatchWordValidationErrorResponse request) => request);
         await app.StartAsync(TestContext.Current.CancellationToken);
         return app;
     }

@@ -202,4 +202,9 @@ public static class WordConstraints
     public const int MaxSenseCount = 20;
     public const int MaxExampleCount = 20;
     public const int MaxSortOrder = 10_000;
+    public const int MaxBatchWordCount = 1_000;
+    public const int MaxBatchSenseCount = 10_000;
+    public const int MaxBatchExampleCount = 50_000;
+    public const int MaxBatchTextCharacterCount = 10_000_000;
+    public const long MaxBatchRequestBodyBytes = 20L * 1024 * 1024;
 }

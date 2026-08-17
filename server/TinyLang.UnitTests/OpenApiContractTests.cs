@@ -39,8 +39,11 @@ public sealed class OpenApiContractTests
         paths.TryGetProperty("/api/admin/words/batch/validate", out _)
             .Should().BeFalse();
         paths.TryGetProperty("/api/admin/words/batch", out _).Should().BeFalse();
-        paths.TryGetProperty("/api/admin/words/{id}/archive", out _)
-            .Should().BeTrue();
+        foreach (var action in new[] { "publish", "unpublish", "archive" })
+        {
+            paths.TryGetProperty($"/api/admin/words/{{id}}/{action}", out _)
+                .Should().BeFalse();
+        }
         paths.TryGetProperty("/api/words", out _).Should().BeTrue();
         paths.TryGetProperty("/api/admin/papers/{paperId}/validate", out _)
             .Should().BeTrue();
@@ -75,17 +78,45 @@ public sealed class OpenApiContractTests
         GetRequiredProperties(updateRequest).Should().Contain("concurrencyStamp");
         GetRequiredProperties(mutationRequest).Should().Contain("concurrencyStamp");
 
-        var wordMutationRequest = GetSchema(schemas, "WordMutationRequest");
-        GetRequiredProperties(wordMutationRequest).Should().Contain("concurrencyStamp");
-        var wordStatus = GetSchema(schemas, "WordPublicationStatus");
-        wordStatus.GetProperty("enum").EnumerateArray()
-            .Select(value => value.GetString())
-            .Should().Contain("Archived");
+        var deleteWordRequest = GetSchema(schemas, "DeleteWordRequest");
+        GetRequiredProperties(deleteWordRequest).Should().Contain("concurrencyStamp");
+        foreach (var requestName in new[] { "CreateWordRequest", "UpdateWordRequest" })
+        {
+            var request = GetSchema(schemas, requestName);
+            var requestProperties = request.GetProperty("properties");
+            AssertNullableUuid(requestProperties.GetProperty("audioResourceId"), schemas);
+            requestProperties.GetProperty("senses").GetProperty("type").GetString()
+                .Should().Be("array");
+        }
+        GetRequiredProperties(GetSchema(schemas, "UpdateWordRequest"))
+            .Should().Contain("concurrencyStamp");
         var adminWord = GetSchema(schemas, "AdminWordResponse");
-        adminWord.GetProperty("properties").TryGetProperty("archivedAt", out _)
+        var adminWordProperties = adminWord.GetProperty("properties");
+        adminWordProperties.TryGetProperty("concurrencyStamp", out _)
             .Should().BeTrue();
-        adminWord.GetProperty("properties").TryGetProperty("concurrencyStamp", out _)
-            .Should().BeTrue();
+        var adminWordAudio = adminWordProperties.GetProperty("audio");
+        IsNullable(adminWordAudio).Should().BeTrue();
+        GetReferencedSchemas(adminWordAudio, schemas)
+            .Should().Contain("AdminWordAudioResponse")
+            .And.Contain("AudioResourceStatus");
+        adminWordProperties.EnumerateObject().Select(property => property.Name)
+            .Should().NotContain(new[]
+            {
+                "status",
+                "createdBy",
+                "lastEditor",
+                "publishedAt",
+                "archivedAt",
+                "pronunciations"
+            });
+        schemas.EnumerateObject().Select(schema => schema.Name)
+            .Should().NotContain(name => new[]
+            {
+                "WordPublicationStatus",
+                "WordPronunciationInput",
+                "AdminWordPronunciationResponse",
+                "WordPronunciationResponse"
+            }.Any(retired => name.EndsWith(retired, StringComparison.Ordinal)));
         schemas.EnumerateObject().Should().NotContain(schema =>
             schema.Name.EndsWith("BatchWordRequest", StringComparison.Ordinal));
         schemas.EnumerateObject().Should().NotContain(schema =>
@@ -249,11 +280,10 @@ public sealed class OpenApiContractTests
         schemas.EnumerateObject().Should().NotContain(schema =>
             schema.Name.Contains("AudioClip", StringComparison.Ordinal) ||
             schema.Name.Contains("AudioPublicationStatus", StringComparison.Ordinal) ||
-            schema.Name.Contains("WordAudio", StringComparison.Ordinal));
+            schema.Name.Contains("WordPronunciationAudio", StringComparison.Ordinal));
         schemas.EnumerateObject().Should().NotContain(schema =>
             ContainsProperty(schema.Value, "audioClipId"));
         Enum.GetNames<ErrorCodes>().Should().NotContain(name =>
-            name.StartsWith("WordAudio", StringComparison.Ordinal) ||
             name.StartsWith("WordPronunciationAudio", StringComparison.Ordinal));
     }
 

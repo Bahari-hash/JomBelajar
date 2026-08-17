@@ -10,7 +10,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.jsx";
 import { Button } from "@/components/ui/button.jsx";
 import { Skeleton } from "@/components/ui/skeleton.jsx";
-import { WordActionDialog } from "@/features/words/WordActionDialog.jsx";
+import { WordDeleteDialog } from "@/features/words/WordDeleteDialog.jsx";
 import { WordFilters } from "@/features/words/WordFilters.jsx";
 import { WordTable } from "@/features/words/WordTable.jsx";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
@@ -23,7 +23,7 @@ function Words() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = readWordFilters(searchParams);
   const canonicalSearch = writeWordFilters(filters).toString();
-  const [pendingAction, setPendingAction] = useState(null);
+  const [pendingWord, setPendingWord] = useState(null);
   const [notice, setNotice] = useState(null);
   const { data, error, isLoading, isFetching, refetch } =
     useGetAdminWordsQuery(filters);
@@ -40,8 +40,6 @@ function Words() {
   }, [data, filters, setSearchParams]);
   const hasFilters = Boolean(
     filters.keyword ||
-    filters.language ||
-    filters.status ||
     filters.partOfSpeech ||
     filters.definition,
   );
@@ -116,7 +114,7 @@ function Words() {
           <p className="mt-1 text-sm text-muted-foreground">
             {hasFilters
               ? "调整或清除筛选条件后重试。"
-              : "新建第一个单词草稿开始录入。"}
+              : "新建第一个单词开始录入。"}
           </p>
           {hasFilters ? (
             <Button
@@ -139,9 +137,9 @@ function Words() {
           </div>
           <WordTable
             words={data.items}
-            onAction={(action, word) => {
+            onDelete={(word) => {
               setNotice(null);
-              setPendingAction({ action, word });
+              setPendingWord(word);
             }}
           />
           <nav
@@ -182,11 +180,10 @@ function Words() {
           </nav>
         </>
       ) : null}
-      {pendingAction ? (
-        <WordActionDialog
-          action={pendingAction.action}
-          word={pendingAction.word}
-          onClose={() => setPendingAction(null)}
+      {pendingWord ? (
+        <WordDeleteDialog
+          word={pendingWord}
+          onClose={() => setPendingWord(null)}
           onDone={setNotice}
           onConflict={refetch}
         />

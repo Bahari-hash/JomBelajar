@@ -10,10 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.jsx";
-import {
-  PART_OF_SPEECH_OPTIONS,
-  WORD_STATUS_OPTIONS,
-} from "@/constants/wordStatus.js";
+import { PART_OF_SPEECH_OPTIONS } from "@/constants/wordOptions.js";
 
 const ALL = "all";
 const PAGE_SIZES = [20, 50, 100];
@@ -21,27 +18,17 @@ const PAGE_SIZES = [20, 50, 100];
 /** Edits word filters while the applied state remains shareable in the URL. */
 export function WordFilters({ filters, onApply, onReset }) {
   const [draft, setDraft] = useState(filters);
-  const {
-    definition,
-    keyword,
-    language,
-    page,
-    pageSize,
-    partOfSpeech,
-    status,
-  } = filters;
+  const { definition, keyword, page, pageSize, partOfSpeech } = filters;
   useEffect(
     () =>
       setDraft({
         definition,
         keyword,
-        language,
         page,
         pageSize,
         partOfSpeech,
-        status,
       }),
-    [definition, keyword, language, page, pageSize, partOfSpeech, status],
+    [definition, keyword, page, pageSize, partOfSpeech],
   );
   const update = (key, value) =>
     setDraft((current) => ({ ...current, [key]: value }));
@@ -51,9 +38,7 @@ export function WordFilters({ filters, onApply, onReset }) {
     onApply({
       ...draft,
       keyword: draft.keyword.trim(),
-      language: draft.language.trim(),
       definition: draft.definition.trim(),
-      status: draft.status === ALL ? "" : draft.status,
       partOfSpeech: draft.partOfSpeech === ALL ? "" : draft.partOfSpeech,
       pageSize: Number(draft.pageSize),
     });
@@ -64,8 +49,6 @@ export function WordFilters({ filters, onApply, onReset }) {
       page: 1,
       pageSize: 20,
       keyword: "",
-      language: "",
-      status: "",
       partOfSpeech: "",
       definition: "",
     });
@@ -74,7 +57,7 @@ export function WordFilters({ filters, onApply, onReset }) {
 
   return (
     <form onSubmit={handleSubmit} className="border-y py-4">
-      <div className="grid items-start gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-[16rem_repeat(2,8rem)_10rem_6rem_auto]">
+      <div className="grid items-start gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-[16rem_8rem_10rem_6rem_auto]">
         <TextFilter
           id="word-keyword"
           label="关键词"
@@ -82,13 +65,6 @@ export function WordFilters({ filters, onApply, onReset }) {
           maxLength={200}
           placeholder="词头关键词"
           onChange={(value) => update("keyword", value)}
-        />
-        <FilterSelect
-          label="状态"
-          value={draft.status || ALL}
-          options={WORD_STATUS_OPTIONS}
-          allLabel="全部状态"
-          onChange={(value) => update("status", value)}
         />
         <FilterSelect
           label="词性"

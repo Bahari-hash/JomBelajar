@@ -1,9 +1,9 @@
 import dayjs from "dayjs";
-import { PARTS_OF_SPEECH, WORD_STATUSES } from "@/constants/wordStatus.js";
+import { PARTS_OF_SPEECH } from "@/constants/wordOptions.js";
+import { AUDIO_RESOURCE_STATUSES } from "@/services/audioContracts.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
-const HTTP_PROTOCOLS = new Set(["http:", "https:"]);
 
 function invalid(name) {
   throw new Error(`API returned invalid ${name}.`);
@@ -21,8 +21,7 @@ function string(value, name, nullable = false) {
   return value;
 }
 
-function uuid(value, name, nullable = false) {
-  if (nullable && value === null) return null;
+function uuid(value, name) {
   const result = string(value, name);
   if (!UUID_PATTERN.test(result) || result.toLowerCase() === EMPTY_UUID)
     invalid(name);
@@ -34,8 +33,7 @@ function number(value, name, options = {}) {
   if (
     !Number.isFinite(value) ||
     value < 0 ||
-    (options.integer && !Number.isInteger(value)) ||
-    (options.positive && value <= 0)
+    (options.integer && !Number.isInteger(value))
   )
     invalid(name);
   return value;
@@ -46,8 +44,7 @@ function boolean(value, name) {
   return value;
 }
 
-function date(value, name, nullable = false) {
-  if (nullable && value === null) return null;
+function date(value, name) {
   const result = string(value, name);
   if (!dayjs(result).isValid()) invalid(name);
   return result;
@@ -61,15 +58,6 @@ function enumeration(value, allowed, name) {
 function array(value, normalize, name) {
   if (!Array.isArray(value)) invalid(name);
   return value.map(normalize);
-}
-
-function auditUser(value) {
-  const source = object(value, "word audit user");
-  return {
-    id: uuid(source.id, "word audit user id"),
-    nickname: string(source.nickname, "word audit user nickname", true),
-    avatarUrl: httpUrl(source.avatarUrl, "word audit avatar URL", true),
-  };
 }
 
 function example(value) {
@@ -102,16 +90,25 @@ function sense(value) {
   };
 }
 
-function pronunciation(value) {
-  const source = object(value, "word pronunciation");
+function audio(value) {
+  if (value === null) return null;
+  const source = object(value, "word audio");
   return {
-    id: uuid(source.id, "word pronunciation id"),
-    accentTag: string(source.accentTag, "word accent tag", true),
-    ipa: string(source.ipa, "word IPA", true),
-    isDefault: boolean(source.isDefault, "word default pronunciation"),
-    sortOrder: number(source.sortOrder, "word pronunciation sort order", {
-      integer: true,
+    id: uuid(source.id, "word audio id"),
+    name: string(source.name, "word audio name"),
+    status: enumeration(
+      source.status,
+      AUDIO_RESOURCE_STATUSES,
+      "word audio status",
+    ),
+    durationSeconds: number(source.durationSeconds, "word audio duration", {
+      nullable: true,
     }),
+    lastFailureCode: string(
+      source.lastFailureCode,
+      "word audio failure code",
+      true,
+    ),
   };
 }
 
@@ -120,7 +117,6 @@ export function normalizeWordListItem(value) {
   return {
     id: uuid(source.id, "word id"),
     headword: string(source.headword, "word headword"),
-    status: enumeration(source.status, WORD_STATUSES, "word status"),
     primaryPartOfSpeech:
       source.primaryPartOfSpeech === null
         ? null
@@ -140,15 +136,7 @@ export function normalizeWordListItem(value) {
     exampleCount: number(source.exampleCount, "word example count", {
       integer: true,
     }),
-    pronunciationCount: number(
-      source.pronunciationCount,
-      "word pronunciation count",
-      { integer: true },
-    ),
-    createdBy: auditUser(source.createdBy),
-    lastEditor: auditUser(source.lastEditor),
-    publishedAt: date(source.publishedAt, "word published at", true),
-    archivedAt: date(source.archivedAt, "word archived at", true),
+    hasAudio: boolean(source.hasAudio, "word audio association"),
     createdAt: date(source.createdAt, "word created at"),
     updatedAt: date(source.updatedAt, "word updated at"),
     concurrencyStamp: uuid(source.concurrencyStamp, "word concurrency stamp"),
@@ -158,29 +146,13 @@ export function normalizeWordListItem(value) {
 export function normalizeAdminWord(value) {
   const source = object(value, "word details");
   return {
-    ...normalizeWordListItem({
-      ...source,
-      primaryPartOfSpeech: null,
-      primaryDefinition: null,
-      senseCount: Array.isArray(source.senses) ? source.senses.length : -1,
-      exampleCount: Array.isArray(source.senses)
-        ? source.senses.reduce(
-            (count, item) =>
-              count +
-              (Array.isArray(item?.examples) ? item.examples.length : 0),
-            0,
-          )
-        : -1,
-      pronunciationCount: Array.isArray(source.pronunciations)
-        ? source.pronunciations.length
-        : -1,
-    }),
+    id: uuid(source.id, "word id"),
+    headword: string(source.headword, "word headword"),
+    audio: audio(source.audio),
+    concurrencyStamp: uuid(source.concurrencyStamp, "word concurrency stamp"),
     senses: array(source.senses, sense, "word senses"),
-    pronunciations: array(
-      source.pronunciations,
-      pronunciation,
-      "word pronunciations",
-    ),
+    createdAt: date(source.createdAt, "word created at"),
+    updatedAt: date(source.updatedAt, "word updated at"),
   };
 }
 
@@ -201,15 +173,4 @@ function page(value, normalize, name) {
 
 export function normalizeWordPage(value) {
   return page(value, normalizeWordListItem, "word");
-}
-
-function httpUrl(value, name, nullable = false) {
-  if (nullable && value === null) return null;
-  const result = string(value, name);
-  try {
-    if (!HTTP_PROTOCOLS.has(new URL(result).protocol)) invalid(name);
-  } catch {
-    invalid(name);
-  }
-  return result;
 }

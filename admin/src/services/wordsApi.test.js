@@ -1,31 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { wordsApi } from "@/services/wordsApi.js";
+import * as wordService from "@/services/wordsApi.js";
 import { tokenVault } from "@/services/tokenVault.js";
 import { createAppStore } from "@/store/index.js";
 import { axiosResponse, mockHttpClient } from "@/test/http.js";
 
+const { wordsApi } = wordService;
 const IDS = Object.freeze({
   word: "11111111-1111-4111-8111-111111111111",
-  user: "22222222-2222-4222-8222-222222222222",
   stamp: "33333333-3333-4333-8333-333333333333",
   sense: "44444444-4444-4444-8444-444444444444",
   example: "55555555-5555-4555-8555-555555555555",
-  pronunciation: "66666666-6666-4666-8666-666666666666",
+  audio: "66666666-6666-4666-8666-666666666666",
 });
 
-function auditUser() {
-  return { id: IDS.user, nickname: "管理员", avatarUrl: null };
+function audio(overrides = {}) {
+  return {
+    id: IDS.audio,
+    name: "bonjour.mp3",
+    status: "Ready",
+    durationSeconds: 1.8,
+    lastFailureCode: null,
+    ...overrides,
+  };
 }
 
 function detail(overrides = {}) {
   return {
     id: IDS.word,
     headword: "bonjour",
-    status: "Draft",
-    createdBy: auditUser(),
-    lastEditor: auditUser(),
-    publishedAt: null,
-    archivedAt: null,
+    audio: audio(),
     concurrencyStamp: IDS.stamp,
     senses: [
       {
@@ -44,15 +47,6 @@ function detail(overrides = {}) {
         ],
       },
     ],
-    pronunciations: [
-      {
-        id: IDS.pronunciation,
-        accentTag: "France",
-        ipa: "bɔ̃.ʒuʁ",
-        isDefault: true,
-        sortOrder: 0,
-      },
-    ],
     createdAt: "2026-08-01T10:00:00Z",
     updatedAt: "2026-08-01T11:00:00Z",
     ...overrides,
@@ -64,16 +58,11 @@ function listItem() {
   return {
     id: value.id,
     headword: value.headword,
-    status: value.status,
     primaryPartOfSpeech: "Interjection",
     primaryDefinition: "你好",
     senseCount: 1,
     exampleCount: 1,
-    pronunciationCount: 1,
-    createdBy: value.createdBy,
-    lastEditor: value.lastEditor,
-    publishedAt: null,
-    archivedAt: null,
+    hasAudio: true,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     concurrencyStamp: value.concurrencyStamp,
@@ -81,10 +70,13 @@ function listItem() {
 }
 
 describe("wordsApi", () => {
-  it("does not expose removed batch or word-specific audio endpoints", () => {
-    expect(wordsApi.endpoints.validateWordBatch).toBeUndefined();
-    expect(wordsApi.endpoints.importWordBatch).toBeUndefined();
+  it("does not expose retired batch, lifecycle or word-specific audio endpoints", () => {
     for (const endpoint of [
+      "validateWordBatch",
+      "importWordBatch",
+      "publishWord",
+      "unpublishWord",
+      "archiveWord",
       "getWordAudioOptions",
       "getAudioUploadCapability",
       "presignWordAudio",
@@ -95,9 +87,15 @@ describe("wordsApi", () => {
       "getAudioPlayback",
     ])
       expect(wordsApi.endpoints[endpoint]).toBeUndefined();
+    for (const hook of [
+      "usePublishWordMutation",
+      "useUnpublishWordMutation",
+      "useArchiveWordMutation",
+    ])
+      expect(wordService[hook]).toBeUndefined();
   });
 
-  it("encodes every supported list filter", async () => {
+  it("encodes only supported list filters and normalizes the new list contract", async () => {
     tokenVault.install("access", "refresh");
     const requestMock = mockHttpClient(() =>
       Promise.resolve(
@@ -117,20 +115,29 @@ describe("wordsApi", () => {
         pageSize: 20,
         keyword: "bonjour",
         status: "Draft",
+        language: "fr",
         partOfSpeech: "Interjection",
         definition: "你好",
       }),
     );
-    await expect(request.unwrap()).resolves.toMatchObject({
-      items: [{ headword: "bonjour" }],
-    });
+    const result = await request.unwrap();
+    expect(result.items[0]).toEqual(listItem());
+    for (const property of [
+      "status",
+      "createdBy",
+      "lastEditor",
+      "publishedAt",
+      "archivedAt",
+      "pronunciationCount",
+    ])
+      expect(result.items[0]).not.toHaveProperty(property);
     expect(requestMock.mock.calls[0][0].url).toBe(
-      "/admin/words?page=2&pageSize=20&keyword=bonjour&status=Draft&partOfSpeech=Interjection&definition=%E4%BD%A0%E5%A5%BD",
+      "/admin/words?page=2&pageSize=20&keyword=bonjour&partOfSpeech=Interjection&definition=%E4%BD%A0%E5%A5%BD",
     );
     request.unsubscribe();
   });
 
-  it("uses exact aggregate, lifecycle and delete contracts", async () => {
+  it("uses the immediate aggregate and concurrency-protected delete contracts", async () => {
     tokenVault.install("access", "refresh");
     const requestMock = mockHttpClient((config) => {
       if (config.method === "DELETE")
@@ -142,10 +149,13 @@ describe("wordsApi", () => {
     const store = createAppStore();
     const body = {
       headword: "bonjour",
+      audioResourceId: IDS.audio,
       senses: [],
-      pronunciations: [],
     };
-    await store.dispatch(wordsApi.endpoints.createWord.initiate(body)).unwrap();
+    const created = await store
+      .dispatch(wordsApi.endpoints.createWord.initiate(body))
+      .unwrap();
+    expect(created.audio).toEqual(audio());
     await store
       .dispatch(
         wordsApi.endpoints.updateWord.initiate({
@@ -155,15 +165,6 @@ describe("wordsApi", () => {
         }),
       )
       .unwrap();
-    for (const endpoint of ["publishWord", "unpublishWord", "archiveWord"])
-      await store
-        .dispatch(
-          wordsApi.endpoints[endpoint].initiate({
-            wordId: IDS.word,
-            concurrencyStamp: IDS.stamp,
-          }),
-        )
-        .unwrap();
     await store
       .dispatch(
         wordsApi.endpoints.deleteWord.initiate({
@@ -185,29 +186,14 @@ describe("wordsApi", () => {
         "PUT",
         { ...body, concurrencyStamp: IDS.stamp },
       ],
-      [
-        `/admin/words/${IDS.word}/publish`,
-        "POST",
-        { concurrencyStamp: IDS.stamp },
-      ],
-      [
-        `/admin/words/${IDS.word}/unpublish`,
-        "POST",
-        { concurrencyStamp: IDS.stamp },
-      ],
-      [
-        `/admin/words/${IDS.word}/archive`,
-        "POST",
-        { concurrencyStamp: IDS.stamp },
-      ],
       [`/admin/words/${IDS.word}`, "DELETE", { concurrencyStamp: IDS.stamp }],
     ]);
   });
 
-  it("contains unknown response enums as contract errors", async () => {
+  it("contains unknown shared audio statuses as contract errors", async () => {
     tokenVault.install("access", "refresh");
     mockHttpClient(() =>
-      Promise.resolve(axiosResponse(detail({ status: "Deleted" }))),
+      Promise.resolve(axiosResponse(detail({ audio: audio({ status: "Deleted" }) }))),
     );
     const store = createAppStore();
     await expect(

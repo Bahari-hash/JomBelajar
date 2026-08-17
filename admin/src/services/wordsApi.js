@@ -32,7 +32,7 @@ function buildWordListUrl(filters) {
     page: String(filters.page),
     pageSize: String(filters.pageSize),
   });
-  for (const key of ["keyword", "status", "partOfSpeech", "definition"])
+  for (const key of ["keyword", "partOfSpeech", "definition"])
     if (filters[key]) params.set(key, filters[key]);
   return `/admin/words?${params.toString()}`;
 }
@@ -88,39 +88,6 @@ export const wordsApi = baseApi.injectEndpoints({
       ),
       invalidatesTags: invalidateWord,
     }),
-    publishWord: builder.mutation({
-      queryFn: normalizedQuery(
-        ({ wordId, concurrencyStamp }) => ({
-          url: `/admin/words/${wordId}/publish`,
-          method: "POST",
-          body: { concurrencyStamp },
-        }),
-        normalizeAdminWord,
-      ),
-      invalidatesTags: invalidateWord,
-    }),
-    unpublishWord: builder.mutation({
-      queryFn: normalizedQuery(
-        ({ wordId, concurrencyStamp }) => ({
-          url: `/admin/words/${wordId}/unpublish`,
-          method: "POST",
-          body: { concurrencyStamp },
-        }),
-        normalizeAdminWord,
-      ),
-      invalidatesTags: invalidateWord,
-    }),
-    archiveWord: builder.mutation({
-      queryFn: normalizedQuery(
-        ({ wordId, concurrencyStamp }) => ({
-          url: `/admin/words/${wordId}/archive`,
-          method: "POST",
-          body: { concurrencyStamp },
-        }),
-        normalizeAdminWord,
-      ),
-      invalidatesTags: invalidateWord,
-    }),
     deleteWord: builder.mutation({
       query: ({ wordId, concurrencyStamp }) => ({
         url: `/admin/words/${wordId}`,
@@ -133,12 +100,9 @@ export const wordsApi = baseApi.injectEndpoints({
 });
 
 export const {
-  useArchiveWordMutation,
   useCreateWordMutation,
   useDeleteWordMutation,
   useGetAdminWordQuery,
   useGetAdminWordsQuery,
-  usePublishWordMutation,
-  useUnpublishWordMutation,
   useUpdateWordMutation,
 } = wordsApi;

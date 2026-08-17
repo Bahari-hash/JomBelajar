@@ -189,10 +189,73 @@ describe("wordsApi", () => {
     expect(() => normalizeWordBatchValidation(buildValue())).toThrow();
   });
 
+  it.each([
+    [
+      "zero row number",
+      batchValidation({
+        rows: [{ ...batchValidation().rows[0], rowNumber: 0 }],
+      }),
+    ],
+    [
+      "unknown error code",
+      batchValidation({
+        errors: [
+          {
+            rowNumber: 1,
+            field: "words[0].headword",
+            errorCode: "Unknown",
+            message: "invalid",
+          },
+        ],
+      }),
+    ],
+    [
+      "negative count",
+      batchValidation({
+        summary: { ...batchValidation().summary, wordCount: -1 },
+      }),
+    ],
+    [
+      "non-integer count",
+      batchValidation({
+        summary: { ...batchValidation().summary, exampleCount: 1.5 },
+      }),
+    ],
+  ])(
+    "returns a contract error for validation with %s",
+    async (_case, value) => {
+      tokenVault.install("access", "refresh");
+      mockHttpClient(() => Promise.resolve(axiosResponse(value)));
+      const store = createAppStore();
+
+      await expect(
+        store
+          .dispatch(
+            wordsApi.endpoints.validateWordBatch.initiate({ words: [] }),
+          )
+          .unwrap(),
+      ).rejects.toMatchObject({ status: "CUSTOM_ERROR", kind: "contract" });
+    },
+  );
+
   it("rejects an import response whose count does not match its items", () => {
     expect(() =>
       normalizeWordBatchImport(batchImport({ createdCount: 2 })),
     ).toThrow();
+  });
+
+  it("returns a contract error for an inconsistent import response", async () => {
+    tokenVault.install("access", "refresh");
+    mockHttpClient(() =>
+      Promise.resolve(axiosResponse(batchImport({ createdCount: 2 }))),
+    );
+    const store = createAppStore();
+
+    await expect(
+      store
+        .dispatch(wordsApi.endpoints.importWordBatch.initiate({ words: [] }))
+        .unwrap(),
+    ).rejects.toMatchObject({ status: "CUSTOM_ERROR", kind: "contract" });
   });
 
   it("calls validation and import mutations with normalized responses", async () => {

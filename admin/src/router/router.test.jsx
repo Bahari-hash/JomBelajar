@@ -29,11 +29,11 @@ describe("admin routes", () => {
     ).toBeVisible();
   });
 
-  it("renders a 404 for the removed word batch route", async () => {
+  it("opens the static word batch route", async () => {
     renderAppAt("/words/batch");
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "页面未找到" }),
+      await screen.findByRole("heading", { level: 1, name: "批量导入单词" }),
     ).toBeVisible();
   });
 

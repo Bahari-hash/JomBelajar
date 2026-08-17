@@ -53,6 +53,10 @@ describe("Words", () => {
     expect(within(row).getByText("已关联")).toBeVisible();
     expect(row).not.toHaveTextContent("草稿");
     await waitFor(() => expect(router.state.location.search).toBe(""));
+    expect(screen.getByRole("link", { name: "批量导入" })).toHaveAttribute(
+      "href",
+      "/words/batch",
+    );
 
     await user.click(
       within(row).getByRole("button", { name: "管理单词 bonjour" }),
@@ -61,6 +65,20 @@ describe("Words", () => {
     expect(screen.getByRole("menuitem", { name: "永久删除" })).toBeVisible();
     for (const label of ["发布", "下架", "归档"])
       expect(screen.queryByRole("menuitem", { name: label })).toBeNull();
+  });
+
+  it("shows a navigation notice once and clears history state", async () => {
+    tokenVault.install("access", "refresh");
+    mockHttpClient(() => Promise.resolve(axiosResponse(wordPage([]))));
+    const { router } = renderAppAt("/words", {
+      initialEntry: {
+        pathname: "/words",
+        state: { notice: "已批量创建 2 个单词。" },
+      },
+    });
+
+    expect(await screen.findByText("已批量创建 2 个单词。")).toBeVisible();
+    await waitFor(() => expect(router.state.location.state).toBeNull());
   });
 
   it("deletes a word with its concurrency stamp", async () => {

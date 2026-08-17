@@ -10,18 +10,18 @@ import {
 import { Button } from "@/components/ui/button.jsx";
 
 /** Resolves navigation blocked by unsaved word content. */
-export function WordUnsavedChangesDialog({ blocker }) {
+export function WordUnsavedChangesDialog({
+  blocker,
+  title = "离开单词编辑？",
+  description = "尚未提交的内容将会丢失。",
+}) {
   if (blocker.state !== "blocked") return null;
   return (
     <AlertDialog open onOpenChange={(open) => !open && blocker.reset()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            离开单词编辑？
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            尚未提交的内容将会丢失。
-          </AlertDialogDescription>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel type="button" onClick={() => blocker.reset()}>

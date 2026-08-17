@@ -3,10 +3,16 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
+  FileJson,
   Plus,
   RotateCcw,
 } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.jsx";
 import { Button } from "@/components/ui/button.jsx";
 import { Skeleton } from "@/components/ui/skeleton.jsx";
@@ -20,13 +26,22 @@ import { useGetAdminWordsQuery } from "@/services/wordsApi.js";
 
 function Words() {
   useAdminPage("单词管理");
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = readWordFilters(searchParams);
   const canonicalSearch = writeWordFilters(filters).toString();
   const [pendingWord, setPendingWord] = useState(null);
-  const [notice, setNotice] = useState(null);
+  const [notice, setNotice] = useState(() => location.state?.notice ?? null);
   const { data, error, isLoading, isFetching, refetch } =
     useGetAdminWordsQuery(filters);
+  useEffect(() => {
+    if (location.state?.notice)
+      navigate(`${location.pathname}${location.search}`, {
+        replace: true,
+        state: null,
+      });
+  }, [location.pathname, location.search, location.state, navigate]);
   useEffect(() => {
     if (searchParams.toString() !== canonicalSearch)
       setSearchParams(canonicalSearch, { replace: true });
@@ -57,6 +72,12 @@ function Words() {
               className={isFetching ? "animate-spin" : undefined}
             />
             {isFetching ? "正在刷新" : "刷新"}
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/words/batch">
+              <FileJson aria-hidden="true" />
+              批量导入
+            </Link>
           </Button>
           <Button asChild>
             <Link to="/words/new">

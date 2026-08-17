@@ -12,6 +12,7 @@ export class ApiError extends Error {
     this.errorCode = options.errorCode ?? null;
     this.fieldErrors = options.fieldErrors ?? {};
     this.kind = options.kind ?? "request";
+    this.data = options.data ?? null;
   }
 }
 
@@ -38,7 +39,9 @@ export function normalizeFieldErrors(errors) {
 
 function createResponseError(response) {
   const problem =
-    response?.data && typeof response.data === "object"
+    response?.data &&
+    typeof response.data === "object" &&
+    !Array.isArray(response.data)
       ? response.data
       : undefined;
   const detail =
@@ -59,6 +62,7 @@ function createResponseError(response) {
     errorCode,
     fieldErrors: normalizeFieldErrors(problem?.errors),
     kind: "http",
+    data: problem ?? null,
   });
 }
 
@@ -92,6 +96,7 @@ export function toRtkQueryError(error) {
     errorCode: apiError.errorCode,
     fieldErrors: apiError.fieldErrors,
     kind: apiError.kind,
+    data: apiError.data,
   };
 }
 

@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
+import {
+  normalizeWordBatchImport,
+  normalizeWordBatchValidation,
+} from "@/services/wordBatchContracts.js";
 import * as wordService from "@/services/wordsApi.js";
 import { tokenVault } from "@/services/tokenVault.js";
 import { createAppStore } from "@/store/index.js";
-import { axiosResponse, mockHttpClient } from "@/test/http.js";
+import { axiosHttpError, axiosResponse, mockHttpClient } from "@/test/http.js";
 
 const { wordsApi } = wordService;
 const IDS = Object.freeze({
@@ -74,11 +78,49 @@ function listItem() {
   };
 }
 
+function batchValidation(overrides = {}) {
+  return {
+    isValid: true,
+    summary: {
+      wordCount: 1,
+      senseCount: 1,
+      exampleCount: 1,
+      wordAudioReferenceCount: 1,
+      exampleAudioReferenceCount: 1,
+      matchedAudioReferenceCount: 2,
+    },
+    rows: [
+      {
+        rowNumber: 1,
+        headword: "bonjour",
+        normalizedHeadword: "BONJOUR",
+        wordAudioName: "bonjour.mp3",
+        senseCount: 1,
+        exampleCount: 1,
+        audioReferenceCount: 2,
+        matchedAudioCount: 2,
+      },
+    ],
+    errors: [],
+    ...overrides,
+  };
+}
+
+function batchImport(overrides = {}) {
+  return {
+    createdCount: 1,
+    items: [{ rowNumber: 1, wordId: IDS.word }],
+    ...overrides,
+  };
+}
+
 describe("wordsApi", () => {
-  it("does not expose retired batch, lifecycle or word-specific audio endpoints", () => {
+  it("exposes batch endpoints without restoring retired lifecycle or audio endpoints", () => {
+    expect(wordsApi.endpoints.validateWordBatch).toBeDefined();
+    expect(wordsApi.endpoints.importWordBatch).toBeDefined();
+    expect(wordService.useValidateWordBatchMutation).toBeTypeOf("function");
+    expect(wordService.useImportWordBatchMutation).toBeTypeOf("function");
     for (const endpoint of [
-      "validateWordBatch",
-      "importWordBatch",
       "publishWord",
       "unpublishWord",
       "archiveWord",
@@ -98,6 +140,120 @@ describe("wordsApi", () => {
       "useArchiveWordMutation",
     ])
       expect(wordService[hook]).toBeUndefined();
+  });
+
+  it("normalizes valid word batch validation and import responses", () => {
+    expect(normalizeWordBatchValidation(batchValidation())).toEqual(
+      batchValidation(),
+    );
+    expect(normalizeWordBatchImport(batchImport())).toEqual(batchImport());
+  });
+
+  it.each([
+    [
+      "zero row number",
+      () =>
+        batchValidation({
+          rows: [{ ...batchValidation().rows[0], rowNumber: 0 }],
+        }),
+    ],
+    [
+      "unknown error code",
+      () =>
+        batchValidation({
+          errors: [
+            {
+              rowNumber: 1,
+              field: "words[0].headword",
+              errorCode: "Unknown",
+              message: "invalid",
+            },
+          ],
+        }),
+    ],
+    [
+      "negative count",
+      () =>
+        batchValidation({
+          summary: { ...batchValidation().summary, wordCount: -1 },
+        }),
+    ],
+    [
+      "non-integer count",
+      () =>
+        batchValidation({
+          summary: { ...batchValidation().summary, exampleCount: 1.5 },
+        }),
+    ],
+  ])("rejects batch validation with %s", (_case, buildValue) => {
+    expect(() => normalizeWordBatchValidation(buildValue())).toThrow();
+  });
+
+  it("rejects an import response whose count does not match its items", () => {
+    expect(() =>
+      normalizeWordBatchImport(batchImport({ createdCount: 2 })),
+    ).toThrow();
+  });
+
+  it("calls validation and import mutations with normalized responses", async () => {
+    tokenVault.install("access", "refresh");
+    const requestMock = mockHttpClient((config) =>
+      Promise.resolve(
+        axiosResponse(
+          config.url.endsWith("/validate") ? batchValidation() : batchImport(),
+        ),
+      ),
+    );
+    const store = createAppStore();
+    const body = { words: [{ headword: "bonjour", senses: [] }] };
+
+    await expect(
+      store
+        .dispatch(wordsApi.endpoints.validateWordBatch.initiate(body))
+        .unwrap(),
+    ).resolves.toEqual(batchValidation());
+    await expect(
+      store
+        .dispatch(wordsApi.endpoints.importWordBatch.initiate(body))
+        .unwrap(),
+    ).resolves.toEqual(batchImport());
+    expect(
+      requestMock.mock.calls.map(([config]) => [
+        config.url,
+        config.method,
+        config.data,
+      ]),
+    ).toEqual([
+      ["/admin/words/batch/validate", "POST", body],
+      ["/admin/words/batch", "POST", body],
+    ]);
+  });
+
+  it("keeps a valid 422 validation response and rejects an invalid one", async () => {
+    tokenVault.install("access", "refresh");
+    const requestMock = mockHttpClient();
+    requestMock.mockRejectedValueOnce(
+      axiosHttpError(batchValidation({ isValid: false }), 422),
+    );
+    requestMock.mockRejectedValueOnce(
+      axiosHttpError({ isValid: false, errors: [] }, 422),
+    );
+    const store = createAppStore();
+    const body = { words: [] };
+
+    await expect(
+      store
+        .dispatch(wordsApi.endpoints.importWordBatch.initiate(body))
+        .unwrap(),
+    ).rejects.toMatchObject({
+      status: 422,
+      data: batchValidation({ isValid: false }),
+    });
+    await expect(
+      store
+        .dispatch(wordsApi.endpoints.importWordBatch.initiate(body))
+        .unwrap(),
+    ).rejects.toMatchObject({ status: "CUSTOM_ERROR", kind: "contract" });
   });
 
   it("encodes only supported list filters and normalizes the new list contract", async () => {

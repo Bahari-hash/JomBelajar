@@ -3,6 +3,10 @@ import {
   normalizeAdminWord,
   normalizeWordPage,
 } from "@/services/wordContracts.js";
+import {
+  normalizeWordBatchImport,
+  normalizeWordBatchValidation,
+} from "@/services/wordBatchContracts.js";
 
 const CONTRACT_ERROR = Object.freeze({
   status: "CUSTOM_ERROR",
@@ -69,6 +73,45 @@ export const wordsApi = baseApi.injectEndpoints({
       ),
       providesTags: (_result, _error, wordId) => [{ type: "Word", id: wordId }],
     }),
+    validateWordBatch: builder.mutation({
+      queryFn: normalizedQuery(
+        (body) => ({
+          url: "/admin/words/batch/validate",
+          method: "POST",
+          body,
+        }),
+        normalizeWordBatchValidation,
+      ),
+    }),
+    importWordBatch: builder.mutation({
+      async queryFn(body, _api, _extraOptions, baseQuery) {
+        const result = await baseQuery({
+          url: "/admin/words/batch",
+          method: "POST",
+          body,
+        });
+        if (result.error?.status === 422) {
+          try {
+            return {
+              error: {
+                ...result.error,
+                data: normalizeWordBatchValidation(result.error.data),
+              },
+            };
+          } catch {
+            return { error: CONTRACT_ERROR };
+          }
+        }
+        if (result.error) return result;
+        try {
+          return { data: normalizeWordBatchImport(result.data) };
+        } catch {
+          return { error: CONTRACT_ERROR };
+        }
+      },
+      invalidatesTags: (_result, error) =>
+        error ? [] : [{ type: "Word", id: "LIST" }],
+    }),
     createWord: builder.mutation({
       queryFn: normalizedQuery(
         (body) => ({ url: "/admin/words", method: "POST", body }),
@@ -104,5 +147,7 @@ export const {
   useDeleteWordMutation,
   useGetAdminWordQuery,
   useGetAdminWordsQuery,
+  useImportWordBatchMutation,
   useUpdateWordMutation,
+  useValidateWordBatchMutation,
 } = wordsApi;

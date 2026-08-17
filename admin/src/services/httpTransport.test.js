@@ -90,6 +90,26 @@ describe("httpTransport", () => {
     });
   });
 
+  it("preserves parsed object response data for structured 422 errors", async () => {
+    const data = { isValid: false, errors: [] };
+    const requestMock = vi.spyOn(httpClient, "request");
+    requestMock.mockRejectedValueOnce(axiosHttpError(data, 422));
+    requestMock.mockRejectedValueOnce(axiosHttpError([], 422));
+
+    await expect(
+      requestApi({ path: "/admin/words/batch", method: "POST" }),
+    ).rejects.toMatchObject({
+      status: 422,
+      data,
+    });
+    await expect(
+      requestApi({ path: "/admin/words/batch", method: "POST" }),
+    ).rejects.toMatchObject({
+      status: 422,
+      data: null,
+    });
+  });
+
   it("keeps empty HTTP, network, and cancellation failures safe", async () => {
     const requestMock = vi.spyOn(httpClient, "request");
     requestMock.mockRejectedValueOnce(axiosHttpError(undefined, 403));

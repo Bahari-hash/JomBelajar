@@ -35,8 +35,8 @@ public static class AudioEndpoints
         adminGroup.MapPost("/audio/{id:guid}/retry-upload", RetryAudioUploadAsync);
         adminGroup.MapPost("/audio/{id:guid}/reprocess", ReprocessAudioAsync);
         adminGroup.MapDelete("/audio/{id:guid}", DeleteAudioAsync);
-        adminGroup.MapPost("/audio/uploads/simple", InitializeSimpleUploadAsync)
-            .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
+        adminGroup.MapPost("/audio/uploads/simple", InitializeSimpleUploadAsync);
+            // .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
         adminGroup.MapPost("/audio/uploads/multipart", InitializeMultipartUploadAsync)
             .RequireRateLimiting(RateLimitPolicies.UploadPresignLimit);
         adminGroup.MapPut("/audio/{id:guid}/upload/confirm", ConfirmAudioUploadAsync);

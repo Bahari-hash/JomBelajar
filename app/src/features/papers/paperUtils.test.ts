@@ -55,5 +55,4 @@ describe("paperUtils", () => {
     ).toBe(false);
     expect(isPaperSubmitRecoveryError(null)).toBe(false);
   });
-
 });

@@ -72,10 +72,7 @@ describe("admin routes", () => {
     const navigation = screen.getByRole("navigation", { name: "主导航" });
     expect(
       within(navigation).getByRole("link", { name: "系统设置" }),
-    ).toHaveAttribute(
-      "href",
-      "/settings",
-    );
+    ).toHaveAttribute("href", "/settings");
     expect(screen.getByText("暂无系统设置项")).toBeVisible();
   });
 });

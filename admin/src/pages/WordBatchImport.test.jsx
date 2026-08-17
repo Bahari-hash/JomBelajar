@@ -2,11 +2,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { tokenVault } from "@/services/tokenVault.js";
-import {
-  axiosHttpError,
-  axiosResponse,
-  mockHttpClient,
-} from "@/test/http.js";
+import { axiosHttpError, axiosResponse, mockHttpClient } from "@/test/http.js";
 import { renderAppAt } from "@/test/renderApp.jsx";
 
 const WORD_ID = "11111111-1111-4111-8111-111111111111";
@@ -96,7 +92,7 @@ describe("WordBatchImport", () => {
     );
     chooseJson(container);
 
-    expect(await screen.findByText("校验通过，可以导入。" )).toBeVisible();
+    expect(await screen.findByText("校验通过，可以导入。")).toBeVisible();
     expect(screen.getByText("单词数")).toBeVisible();
     expect(screen.getByText("HELLO")).toBeVisible();
     expect(screen.getByText("hello.mp3")).toBeVisible();
@@ -162,9 +158,7 @@ describe("WordBatchImport", () => {
 
     await screen.findByRole("heading", { level: 1, name: "批量导入单词" });
     chooseJson(container);
-    await user.click(
-      await screen.findByRole("button", { name: "确认导入" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "确认导入" }));
 
     expect(await screen.findByText("单词已存在。")).toBeVisible();
     expect(screen.getByText("words.json")).toBeVisible();
@@ -190,9 +184,7 @@ describe("WordBatchImport", () => {
 
     await screen.findByRole("heading", { level: 1, name: "批量导入单词" });
     chooseJson(container);
-    await user.click(
-      await screen.findByRole("button", { name: "确认导入" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "确认导入" }));
 
     expect(await screen.findByText("已批量创建 1 个单词。")).toBeVisible();
     expect(router.state.location.pathname).toBe("/words");
@@ -212,7 +204,7 @@ describe("WordBatchImport", () => {
 
     await screen.findByRole("heading", { level: 1, name: "批量导入单词" });
     chooseJson(container);
-    await screen.findByText("校验通过，可以导入。" );
+    await screen.findByText("校验通过，可以导入。");
     await user.click(screen.getByRole("link", { name: "返回单词列表" }));
 
     expect(

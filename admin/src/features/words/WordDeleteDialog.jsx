@@ -14,12 +14,7 @@ import { getErrorMessage } from "@/services/problemDetails.js";
 import { useDeleteWordMutation } from "@/services/wordsApi.js";
 
 /** Confirms concurrency-protected permanent word deletion. */
-export function WordDeleteDialog({
-  word,
-  onClose,
-  onDone,
-  onConflict,
-}) {
+export function WordDeleteDialog({ word, onClose, onDone, onConflict }) {
   const [error, setError] = useState(null);
   const [remove, state] = useDeleteWordMutation();
   const handleSubmit = async (event) => {
@@ -69,7 +64,11 @@ export function WordDeleteDialog({
             <AlertDialogCancel type="button" disabled={state.isLoading}>
               取消
             </AlertDialogCancel>
-            <Button type="submit" variant="destructive" disabled={state.isLoading}>
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={state.isLoading}
+            >
               {state.isLoading ? "正在删除" : "确认删除"}
             </Button>
           </AlertDialogFooter>

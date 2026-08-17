@@ -55,12 +55,12 @@ describe("WordAudioControl", () => {
   it("selects an existing shared audio resource", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<WordAudioControl value={null} onChange={onChange} disabled={false} />);
+    render(
+      <WordAudioControl value={null} onChange={onChange} disabled={false} />,
+    );
 
     await user.click(screen.getByRole("button", { name: "从资源库选择" }));
-    expect(
-      screen.getByRole("dialog", { name: "选择音频资源" }),
-    ).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "选择音频资源" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "选择模拟资源" }));
 
     expect(onChange).toHaveBeenCalledWith(EXISTING_AUDIO);
@@ -69,7 +69,9 @@ describe("WordAudioControl", () => {
   it("associates Uploading immediately and refreshes after upload completion", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<WordAudioControl value={null} onChange={onChange} disabled={false} />);
+    render(
+      <WordAudioControl value={null} onChange={onChange} disabled={false} />,
+    );
 
     await user.click(screen.getByRole("button", { name: "上传新音频" }));
     expect(screen.getByText("后台处理")).toBeVisible();
@@ -128,16 +130,10 @@ describe("WordAudioControl", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
-      <WordAudioControl
-        value={EXISTING_AUDIO}
-        onChange={onChange}
-        disabled
-      />,
+      <WordAudioControl value={EXISTING_AUDIO} onChange={onChange} disabled />,
     );
 
-    expect(
-      screen.getByRole("button", { name: "从资源库选择" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "从资源库选择" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "上传新音频" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "解除关联" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "从资源库选择" }));
@@ -154,9 +150,7 @@ describe("WordAudioControl", () => {
 
     await user.click(screen.getByRole("button", { name: "从资源库选择" }));
     await user.click(screen.getByRole("button", { name: "上传新音频" }));
-    expect(
-      screen.getByRole("dialog", { name: "选择音频资源" }),
-    ).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "选择音频资源" })).toBeVisible();
     expect(screen.getByTestId("mock-audio-upload")).toBeVisible();
 
     rerender(<WordAudioControl value={null} onChange={onChange} disabled />);

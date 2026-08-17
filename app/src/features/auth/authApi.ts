@@ -33,11 +33,7 @@ export const authApi = {
       { skipAuth: true, withCredentials: true },
     ),
   logout: () =>
-    httpClient.post<void>(
-      "/auth/logout",
-      {},
-      { withCredentials: true },
-    ),
+    httpClient.post<void>("/auth/logout", {}, { withCredentials: true }),
   getCurrentProfile: () => httpClient.get<CurrentUserProfile>("/users/me"),
   updateProfile: (request: UpdateProfileRequest) =>
     httpClient.put<CurrentUserProfile>("/users/me/profile", request),

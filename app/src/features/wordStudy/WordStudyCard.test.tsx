@@ -259,10 +259,9 @@ describe("WordStudyCard", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "播放单词发音" })).toHaveAttribute(
-      "data-audio-resource-id",
-      AUDIO_ID,
-    );
+    expect(
+      screen.getByRole("button", { name: "播放单词发音" }),
+    ).toHaveAttribute("data-audio-resource-id", AUDIO_ID);
 
     await user.click(screen.getByRole("button", { name: "显示释义和例句" }));
 

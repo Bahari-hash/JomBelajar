@@ -22,19 +22,20 @@ function renderRoute(path: string) {
 
 describe("consumer routes", () => {
   beforeEach(() => clearSession());
-  it.each([
-    ["/forgot-password", "重置密码"],
-  ])("renders %s inside the shared layout", async (path, heading) => {
-    renderRoute(path);
+  it.each([["/forgot-password", "重置密码"]])(
+    "renders %s inside the shared layout",
+    async (path, heading) => {
+      renderRoute(path);
 
-    expect(
-      await screen.findByRole("heading", { name: heading, level: 1 }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "TinyLang 首页" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("TinyLang 外语学习平台")).toBeInTheDocument();
-  });
+      expect(
+        await screen.findByRole("heading", { name: heading, level: 1 }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "TinyLang 首页" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("TinyLang 外语学习平台")).toBeInTheDocument();
+    },
+  );
 
   it.each([
     ["/", "%2F"],

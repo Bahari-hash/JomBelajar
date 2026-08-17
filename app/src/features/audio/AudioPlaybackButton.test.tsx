@@ -106,9 +106,7 @@ describe("AudioPlaybackButton", () => {
 
     await user.click(pauseButton);
     expect(instances[0]?.pause).toHaveBeenCalledOnce();
-    expect(
-      screen.getByRole("button", { name: "播放单词发音" }),
-    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "播放单词发音" })).toBeEnabled();
   });
 
   it("aborts a pending icon-mode request on unmount", async () => {

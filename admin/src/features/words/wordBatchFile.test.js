@@ -7,9 +7,13 @@ import {
 } from "@/features/words/wordBatchFile.js";
 
 function jsonFile(value, name = "words.json") {
-  return new File([typeof value === "string" ? value : JSON.stringify(value)], name, {
-    type: "application/json",
-  });
+  return new File(
+    [typeof value === "string" ? value : JSON.stringify(value)],
+    name,
+    {
+      type: "application/json",
+    },
+  );
 }
 
 describe("wordBatchFile", () => {
@@ -22,8 +26,16 @@ describe("wordBatchFile", () => {
   });
 
   it.each([
-    ["non-json extension", jsonFile({ words: [] }, "words.txt"), "请选择 JSON 文件。"],
-    ["empty file", new File([], "words.json", { type: "application/json" }), "JSON 文件不能为空。"],
+    [
+      "non-json extension",
+      jsonFile({ words: [] }, "words.txt"),
+      "请选择 JSON 文件。",
+    ],
+    [
+      "empty file",
+      new File([], "words.json", { type: "application/json" }),
+      "JSON 文件不能为空。",
+    ],
   ])("rejects a %s", async (_case, file, message) => {
     await expect(readWordBatchFile(file)).rejects.toThrow(message);
   });
@@ -55,9 +67,7 @@ describe("wordBatchFile", () => {
       partOfSpeech: "Interjection",
       usageNote: null,
     });
-    expect(row.senses[0].examples[0].audioFileName).toBe(
-      "hello-example-1.mp3",
-    );
+    expect(row.senses[0].examples[0].audioFileName).toBe("hello-example-1.mp3");
     expect(JSON.parse(WORD_BATCH_EXAMPLE_TEXT)).toEqual(WORD_BATCH_EXAMPLE);
     expect(WORD_BATCH_EXAMPLE_TEXT).not.toContain("audioResourceId");
   });

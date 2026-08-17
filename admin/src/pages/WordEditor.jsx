@@ -400,330 +400,328 @@ function WordEditor() {
           </Button>
         </div>
         {form.senses.map((sense, senseIndex) => (
-            <div
-              key={sense._key}
-              ref={(node) => {
-                if (node) senseCardRefs.current.set(sense._key, node);
-                else senseCardRefs.current.delete(sense._key);
-              }}
-              className="overflow-hidden rounded-lg border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              tabIndex={-1}
-            >
-              <div className="flex items-start justify-between gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium">{`{ 释义 ${senseIndex + 1} }`}</h3>
-                    <span
-                      className="mt-1 truncate text-sm text-muted-foreground"
-                      title={sense.definition || "未填写释义"}
-                    >
-                      {sense.definition || "未填写释义"}
-                    </span>
-                  </div>
-                </div>
-                <OrderButtons
-                  label={`释义 ${senseIndex + 1}`}
-                  index={senseIndex}
-                  count={form.senses.length}
-                  disabled={pending}
-                  deleteDisabled={form.senses.length === 1}
-                  onMove={(offset) =>
-                    setForm({
-                      ...form,
-                      senses: move(form.senses, senseIndex, offset),
-                    })
-                  }
-                  onDelete={() =>
-                    setForm({
-                      ...form,
-                      senses: form.senses.filter(
-                        (item) => item._key !== sense._key,
-                      ),
-                    })
-                  }
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={
-                    collapsedKeys[sense._key]
-                      ? `展开释义 ${senseIndex + 1}`
-                      : `折叠释义 ${senseIndex + 1}`
-                  }
-                  aria-expanded={!collapsedKeys[sense._key]}
-                  onClick={() => toggleCollapse(sense._key)}
-                >
-                  {collapsedKeys[sense._key] ? (
-                    <ChevronDown aria-hidden="true" />
-                  ) : (
-                    <ChevronUp aria-hidden="true" />
-                  )}
-                </Button>
-              </div>
-              {!collapsedKeys[sense._key] && (
-                <div className="space-y-4 border-t p-4">
-                  <div className="grid gap-4 md:grid-cols-[10rem_1fr_10rem]">
-                    <Field label="词性" required>
-                      <Select
-                        value={sense.partOfSpeech}
-                        disabled={pending}
-                        onValueChange={(value) =>
-                          updateSense(sense._key, (item) => ({
-                            ...item,
-                            partOfSpeech: value,
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PART_OF_SPEECH_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field
-                      label="释义"
-                      required
-                      error={fieldError(`senses[${senseIndex}].definition`)}
-                    >
-                      <Input
-                        value={sense.definition}
-                        maxLength={2000}
-                        disabled={pending}
-                        aria-invalid={Boolean(
-                          fieldError(`senses[${senseIndex}].definition`),
-                        )}
-                        onChange={(event) =>
-                          updateSense(sense._key, (item) => ({
-                            ...item,
-                            definition: event.target.value,
-                          }))
-                        }
-                      />
-                    </Field>
-                  </div>
-                  <Field
-                    label="用法说明"
-                    error={fieldError(`senses[${senseIndex}].usageNote`)}
+          <div
+            key={sense._key}
+            ref={(node) => {
+              if (node) senseCardRefs.current.set(sense._key, node);
+              else senseCardRefs.current.delete(sense._key);
+            }}
+            className="overflow-hidden rounded-lg border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            tabIndex={-1}
+          >
+            <div className="flex items-start justify-between gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium">{`{ 释义 ${senseIndex + 1} }`}</h3>
+                  <span
+                    className="mt-1 truncate text-sm text-muted-foreground"
+                    title={sense.definition || "未填写释义"}
                   >
-                    <Textarea
-                      value={sense.usageNote}
-                      maxLength={1000}
+                    {sense.definition || "未填写释义"}
+                  </span>
+                </div>
+              </div>
+              <OrderButtons
+                label={`释义 ${senseIndex + 1}`}
+                index={senseIndex}
+                count={form.senses.length}
+                disabled={pending}
+                deleteDisabled={form.senses.length === 1}
+                onMove={(offset) =>
+                  setForm({
+                    ...form,
+                    senses: move(form.senses, senseIndex, offset),
+                  })
+                }
+                onDelete={() =>
+                  setForm({
+                    ...form,
+                    senses: form.senses.filter(
+                      (item) => item._key !== sense._key,
+                    ),
+                  })
+                }
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={
+                  collapsedKeys[sense._key]
+                    ? `展开释义 ${senseIndex + 1}`
+                    : `折叠释义 ${senseIndex + 1}`
+                }
+                aria-expanded={!collapsedKeys[sense._key]}
+                onClick={() => toggleCollapse(sense._key)}
+              >
+                {collapsedKeys[sense._key] ? (
+                  <ChevronDown aria-hidden="true" />
+                ) : (
+                  <ChevronUp aria-hidden="true" />
+                )}
+              </Button>
+            </div>
+            {!collapsedKeys[sense._key] && (
+              <div className="space-y-4 border-t p-4">
+                <div className="grid gap-4 md:grid-cols-[10rem_1fr_10rem]">
+                  <Field label="词性" required>
+                    <Select
+                      value={sense.partOfSpeech}
                       disabled={pending}
-                      className="min-h-20"
+                      onValueChange={(value) =>
+                        updateSense(sense._key, (item) => ({
+                          ...item,
+                          partOfSpeech: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PART_OF_SPEECH_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field
+                    label="释义"
+                    required
+                    error={fieldError(`senses[${senseIndex}].definition`)}
+                  >
+                    <Input
+                      value={sense.definition}
+                      maxLength={2000}
+                      disabled={pending}
+                      aria-invalid={Boolean(
+                        fieldError(`senses[${senseIndex}].definition`),
+                      )}
                       onChange={(event) =>
                         updateSense(sense._key, (item) => ({
                           ...item,
-                          usageNote: event.target.value,
+                          definition: event.target.value,
                         }))
                       }
                     />
                   </Field>
-                  <div className="space-y-3 border-t pt-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <h4 className="text-sm font-medium">例句</h4>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={pending || sense.examples.length >= 20}
-                        onClick={() => addExample(sense._key)}
-                      >
-                        <Plus aria-hidden="true" />
-                        添加例句
-                      </Button>
-                    </div>
-                    {sense.examples.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        暂无例句。
-                      </p>
-                    ) : (
-                      sense.examples.map((example, exampleIndex) => {
-                        const prefix = `senses[${senseIndex}].examples[${exampleIndex}]`;
-                        return (
-                          <div
-                            key={example._key}
-                            ref={(node) => {
-                              if (node)
-                                exampleCardRefs.current.set(example._key, node);
-                              else exampleCardRefs.current.delete(example._key);
-                            }}
-                            className="overflow-hidden rounded-lg border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            tabIndex={-1}
-                          >
-                            <div className="flex items-center justify-between gap-3 px-3 py-2">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="text-sm font-medium whitespace-nowrap">
-                                    [ 例句 {exampleIndex + 1} ]
-                                  </h4>
+                </div>
+                <Field
+                  label="用法说明"
+                  error={fieldError(`senses[${senseIndex}].usageNote`)}
+                >
+                  <Textarea
+                    value={sense.usageNote}
+                    maxLength={1000}
+                    disabled={pending}
+                    className="min-h-20"
+                    onChange={(event) =>
+                      updateSense(sense._key, (item) => ({
+                        ...item,
+                        usageNote: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+                <div className="space-y-3 border-t pt-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-medium">例句</h4>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending || sense.examples.length >= 20}
+                      onClick={() => addExample(sense._key)}
+                    >
+                      <Plus aria-hidden="true" />
+                      添加例句
+                    </Button>
+                  </div>
+                  {sense.examples.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">暂无例句。</p>
+                  ) : (
+                    sense.examples.map((example, exampleIndex) => {
+                      const prefix = `senses[${senseIndex}].examples[${exampleIndex}]`;
+                      return (
+                        <div
+                          key={example._key}
+                          ref={(node) => {
+                            if (node)
+                              exampleCardRefs.current.set(example._key, node);
+                            else exampleCardRefs.current.delete(example._key);
+                          }}
+                          className="overflow-hidden rounded-lg border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          tabIndex={-1}
+                        >
+                          <div className="flex items-center justify-between gap-3 px-3 py-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-medium whitespace-nowrap">
+                                  [ 例句 {exampleIndex + 1} ]
+                                </h4>
 
-                                  {example.audio ? (
-                                    <Badge variant="outline">已关联音频</Badge>
-                                  ) : null}
+                                {example.audio ? (
+                                  <Badge variant="outline">已关联音频</Badge>
+                                ) : null}
 
-                                  {collapsedKeys[example._key] && (
-                                    <span className="text-sm text-muted-foreground truncate max-w-37.5 sm:max-w-75">
-                                      {example.sentence || "（未填写例句原文）"}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <OrderButtons
-                                label={`例句 ${exampleIndex + 1}`}
-                                index={exampleIndex}
-                                count={sense.examples.length}
-                                disabled={pending}
-                                onMove={(offset) =>
-                                  updateSense(sense._key, (item) => ({
-                                    ...item,
-                                    examples: move(
-                                      item.examples,
-                                      exampleIndex,
-                                      offset,
-                                    ),
-                                  }))
-                                }
-                                onDelete={() =>
-                                  updateSense(sense._key, (item) => ({
-                                    ...item,
-                                    examples: item.examples.filter(
-                                      (value) => value._key !== example._key,
-                                    ),
-                                  }))
-                                }
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                aria-label={
-                                  collapsedKeys[example._key]
-                                    ? `展开例句 ${exampleIndex + 1}`
-                                    : `折叠例句 ${exampleIndex + 1}`
-                                }
-                                aria-expanded={!collapsedKeys[example._key]}
-                                onClick={() => toggleCollapse(example._key)}
-                              >
-                                {collapsedKeys[example._key] ? (
-                                  <ChevronDown className="size-4" />
-                                ) : (
-                                  <ChevronUp className="size-4" />
+                                {collapsedKeys[example._key] && (
+                                  <span className="text-sm text-muted-foreground truncate max-w-37.5 sm:max-w-75">
+                                    {example.sentence || "（未填写例句原文）"}
+                                  </span>
                                 )}
-                              </Button>
+                              </div>
                             </div>
-                            {!collapsedKeys[example._key] && (
-                              <div className="space-y-3 border-t p-3">
-                                <Field
-                                  label="例句原文"
-                                  required
-                                  error={fieldError(`${prefix}.sentence`)}
-                                >
-                                  <Textarea
-                                    value={example.sentence}
-                                    maxLength={2000}
-                                    disabled={pending}
-                                    className="min-h-18"
-                                    onChange={(event) =>
-                                      updateSense(sense._key, (item) => ({
-                                        ...item,
-                                        examples: item.examples.map((value) =>
-                                          value._key === example._key
-                                            ? {
-                                                ...value,
-                                                sentence: event.target.value,
-                                              }
-                                            : value,
-                                        ),
-                                      }))
-                                    }
-                                  />
-                                </Field>
-                                <Field
-                                  label="译文"
-                                  required
-                                  error={fieldError(`${prefix}.translation`)}
-                                >
-                                  <Textarea
-                                    value={example.translation}
-                                    maxLength={2000}
-                                    disabled={pending}
-                                    className="min-h-18"
-                                    onChange={(event) =>
-                                      updateSense(sense._key, (item) => ({
-                                        ...item,
-                                        examples: item.examples.map((value) =>
-                                          value._key === example._key
-                                            ? {
-                                                ...value,
-                                                translation: event.target.value,
-                                              }
-                                            : value,
-                                        ),
-                                      }))
-                                    }
-                                  />
-                                </Field>
-                                <ExampleSentenceAudioControl
-                                  value={example.audio}
+
+                            <OrderButtons
+                              label={`例句 ${exampleIndex + 1}`}
+                              index={exampleIndex}
+                              count={sense.examples.length}
+                              disabled={pending}
+                              onMove={(offset) =>
+                                updateSense(sense._key, (item) => ({
+                                  ...item,
+                                  examples: move(
+                                    item.examples,
+                                    exampleIndex,
+                                    offset,
+                                  ),
+                                }))
+                              }
+                              onDelete={() =>
+                                updateSense(sense._key, (item) => ({
+                                  ...item,
+                                  examples: item.examples.filter(
+                                    (value) => value._key !== example._key,
+                                  ),
+                                }))
+                              }
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={
+                                collapsedKeys[example._key]
+                                  ? `展开例句 ${exampleIndex + 1}`
+                                  : `折叠例句 ${exampleIndex + 1}`
+                              }
+                              aria-expanded={!collapsedKeys[example._key]}
+                              onClick={() => toggleCollapse(example._key)}
+                            >
+                              {collapsedKeys[example._key] ? (
+                                <ChevronDown className="size-4" />
+                              ) : (
+                                <ChevronUp className="size-4" />
+                              )}
+                            </Button>
+                          </div>
+                          {!collapsedKeys[example._key] && (
+                            <div className="space-y-3 border-t p-3">
+                              <Field
+                                label="例句原文"
+                                required
+                                error={fieldError(`${prefix}.sentence`)}
+                              >
+                                <Textarea
+                                  value={example.sentence}
+                                  maxLength={2000}
                                   disabled={pending}
-                                  onChange={(audio) =>
+                                  className="min-h-18"
+                                  onChange={(event) =>
                                     updateSense(sense._key, (item) => ({
                                       ...item,
                                       examples: item.examples.map((value) =>
                                         value._key === example._key
-                                          ? { ...value, audio }
+                                          ? {
+                                              ...value,
+                                              sentence: event.target.value,
+                                            }
                                           : value,
                                       ),
                                     }))
                                   }
                                 />
-                                <div className="flex justify-end border-t pt-3">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    // variant="outline"
-                                    disabled={
-                                      pending || sense.examples.length >= 20
-                                    }
-                                    onClick={() =>
-                                      addExample(sense._key, example._key)
-                                    }
-                                  >
-                                    <Plus aria-hidden="true" />
-                                    收起并添加下一条例句
-                                  </Button>
-                                </div>
+                              </Field>
+                              <Field
+                                label="译文"
+                                required
+                                error={fieldError(`${prefix}.translation`)}
+                              >
+                                <Textarea
+                                  value={example.translation}
+                                  maxLength={2000}
+                                  disabled={pending}
+                                  className="min-h-18"
+                                  onChange={(event) =>
+                                    updateSense(sense._key, (item) => ({
+                                      ...item,
+                                      examples: item.examples.map((value) =>
+                                        value._key === example._key
+                                          ? {
+                                              ...value,
+                                              translation: event.target.value,
+                                            }
+                                          : value,
+                                      ),
+                                    }))
+                                  }
+                                />
+                              </Field>
+                              <ExampleSentenceAudioControl
+                                value={example.audio}
+                                disabled={pending}
+                                onChange={(audio) =>
+                                  updateSense(sense._key, (item) => ({
+                                    ...item,
+                                    examples: item.examples.map((value) =>
+                                      value._key === example._key
+                                        ? { ...value, audio }
+                                        : value,
+                                    ),
+                                  }))
+                                }
+                              />
+                              <div className="flex justify-end border-t pt-3">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  // variant="outline"
+                                  disabled={
+                                    pending || sense.examples.length >= 20
+                                  }
+                                  onClick={() =>
+                                    addExample(sense._key, example._key)
+                                  }
+                                >
+                                  <Plus aria-hidden="true" />
+                                  收起并添加下一条例句
+                                </Button>
                               </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                  <div className="flex justify-end border-t pt-4">
-                    <Button
-                      type="button"
-                      size="sm"
-                      // variant="outline"
-                      disabled={pending || form.senses.length >= 20}
-                      onClick={() => addSense(sense._key)}
-                    >
-                      <Plus aria-hidden="true" />
-                      收起并添加下一条释义
-                    </Button>
-                  </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+                <div className="flex justify-end border-t pt-4">
+                  <Button
+                    type="button"
+                    size="sm"
+                    // variant="outline"
+                    disabled={pending || form.senses.length >= 20}
+                    onClick={() => addSense(sense._key)}
+                  >
+                    <Plus aria-hidden="true" />
+                    收起并添加下一条释义
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </section>
       {word ? (
         <section className="grid gap-3 border-y py-4 text-sm sm:grid-cols-3">

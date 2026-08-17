@@ -54,9 +54,7 @@ function Words() {
       );
   }, [data, filters, setSearchParams]);
   const hasFilters = Boolean(
-    filters.keyword ||
-    filters.partOfSpeech ||
-    filters.definition,
+    filters.keyword || filters.partOfSpeech || filters.definition,
   );
   return (
     <div className="space-y-5">

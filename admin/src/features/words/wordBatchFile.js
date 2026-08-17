@@ -30,8 +30,7 @@ export const WORD_BATCH_EXAMPLE_TEXT = JSON.stringify(
   null,
   2,
 );
-export const WORD_BATCH_EXAMPLE_URL =
-  `data:application/json;charset=utf-8,${encodeURIComponent(WORD_BATCH_EXAMPLE_TEXT)}`;
+export const WORD_BATCH_EXAMPLE_URL = `data:application/json;charset=utf-8,${encodeURIComponent(WORD_BATCH_EXAMPLE_TEXT)}`;
 
 /** Reads only the file envelope and JSON root needed before server validation. */
 export async function readWordBatchFile(file) {

@@ -23,7 +23,8 @@ describe("wordStudyApi", () => {
     const requests: InternalAxiosRequestConfig[] = [];
     httpClient.defaults.adapter = (async (config) => {
       requests.push(config);
-      const data = config.url === `/word-study/sessions/${SESSION_ID}/items`
+      const data =
+        config.url === `/word-study/sessions/${SESSION_ID}/items`
           ? [
               {
                 itemId: ITEM_ID,
@@ -106,11 +107,13 @@ describe("wordStudyApi", () => {
       ["get", `/word-study/sessions/${SESSION_ID}/items`],
     ]);
     expect(
-      wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(store.getState())
-        .data?.[0]?.content?.audioResourceId,
+      wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(
+        store.getState(),
+      ).data?.[0]?.content?.audioResourceId,
     ).toBe(AUDIO_ID);
     expect(
-      wordStudyApi.endpoints.getSessionItems.select(SESSION_ID)(store.getState())
+      wordStudyApi.endpoints.getSessionItems
+        .select(SESSION_ID)(store.getState())
         .data?.[0]?.content?.senses[0]?.examples.map(
           (example) => example.audioResourceId,
         ),

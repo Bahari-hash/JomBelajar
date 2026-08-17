@@ -34,9 +34,7 @@ export const NAVIGATION_GROUPS = Object.freeze([
   },
   {
     label: "设置",
-    items: [
-      { label: "系统设置", href: "/settings", icon: Settings },
-    ],
+    items: [{ label: "系统设置", href: "/settings", icon: Settings }],
   },
 ]);
 

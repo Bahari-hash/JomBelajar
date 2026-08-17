@@ -29,7 +29,9 @@ function ValidationSummary({ validation }) {
   return (
     <>
       <Alert variant={validation.isValid ? "default" : "destructive"}>
-        <AlertTitle>{validation.isValid ? "校验通过" : "校验未通过"}</AlertTitle>
+        <AlertTitle>
+          {validation.isValid ? "校验通过" : "校验未通过"}
+        </AlertTitle>
         <AlertDescription>
           {validation.isValid
             ? "校验通过，可以导入。"
@@ -37,7 +39,10 @@ function ValidationSummary({ validation }) {
         </AlertDescription>
       </Alert>
 
-      <section className="space-y-3 border-y py-4" aria-labelledby="batch-summary-title">
+      <section
+        className="space-y-3 border-y py-4"
+        aria-labelledby="batch-summary-title"
+      >
         <h2 id="batch-summary-title" className="text-sm font-semibold">
           批次统计
         </h2>
@@ -45,7 +50,9 @@ function ValidationSummary({ validation }) {
           {SUMMARY_ITEMS.map(([key, label]) => (
             <div key={key} className="flex items-center justify-between gap-4">
               <dt className="text-muted-foreground">{label}</dt>
-              <dd className="font-medium tabular-nums">{validation.summary[key]}</dd>
+              <dd className="font-medium tabular-nums">
+                {validation.summary[key]}
+              </dd>
             </div>
           ))}
         </dl>
@@ -67,11 +74,17 @@ function ValidationSummary({ validation }) {
               </thead>
               <tbody className="divide-y">
                 {validation.errors.map((error, index) => (
-                  <tr key={`${error.rowNumber ?? "batch"}-${error.field}-${index}`}>
+                  <tr
+                    key={`${error.rowNumber ?? "batch"}-${error.field}-${index}`}
+                  >
                     <td className="whitespace-nowrap px-3 py-2">
-                      {error.rowNumber ? `第 ${error.rowNumber} 行` : "整个批次"}
+                      {error.rowNumber
+                        ? `第 ${error.rowNumber} 行`
+                        : "整个批次"}
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs">{error.field}</td>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {error.field}
+                    </td>
                     <td className="px-3 py-2">{error.message}</td>
                   </tr>
                 ))}
@@ -101,7 +114,9 @@ function ValidationSummary({ validation }) {
               {validation.rows.map((row) => (
                 <tr key={row.rowNumber}>
                   <td className="px-3 py-2 tabular-nums">{row.rowNumber}</td>
-                  <td className="px-3 py-2 font-medium">{row.headword ?? "-"}</td>
+                  <td className="px-3 py-2 font-medium">
+                    {row.headword ?? "-"}
+                  </td>
                   <td className="px-3 py-2">{row.normalizedHeadword ?? "-"}</td>
                   <td className="px-3 py-2">{row.wordAudioName ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-2">
@@ -134,7 +149,10 @@ function WordBatchImport() {
   const [validateBatch, validateState] = useValidateWordBatchMutation();
   const [importBatch, importState] = useImportWordBatchMutation();
   const pending = validateState.isLoading || importState.isLoading;
-  const blocker = useUnsavedChanges(Boolean(payload) && !completed, allowNavigationRef);
+  const blocker = useUnsavedChanges(
+    Boolean(payload) && !completed,
+    allowNavigationRef,
+  );
   const canImport = Boolean(payload && validation?.isValid && !pending);
 
   const selectFile = async (nextFile) => {
@@ -203,7 +221,10 @@ function WordBatchImport() {
         </div>
       </header>
 
-      <section className="space-y-3 border-y py-4" aria-labelledby="batch-file-title">
+      <section
+        className="space-y-3 border-y py-4"
+        aria-labelledby="batch-file-title"
+      >
         <div>
           <h2 id="batch-file-title" className="text-sm font-semibold">
             JSON 文件
@@ -233,10 +254,15 @@ function WordBatchImport() {
             <FileJson aria-hidden="true" />
             {file ? "重新选择 JSON" : "选择 JSON 文件"}
           </Button>
-          <span className="min-w-0 truncate text-sm text-muted-foreground" title={file?.name}>
+          <span
+            className="min-w-0 truncate text-sm text-muted-foreground"
+            title={file?.name}
+          >
             {file?.name ?? "尚未选择文件"}
           </span>
-          {validateState.isLoading ? <span className="text-sm">正在校验</span> : null}
+          {validateState.isLoading ? (
+            <span className="text-sm">正在校验</span>
+          ) : null}
         </div>
       </section>
 

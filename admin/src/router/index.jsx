@@ -97,7 +97,9 @@ export const routes = [
               },
               {
                 path: "words/batch",
-                lazy: lazyComponent(() => import("@/pages/WordBatchImport.jsx")),
+                lazy: lazyComponent(
+                  () => import("@/pages/WordBatchImport.jsx"),
+                ),
               },
               {
                 path: "words/:wordId",
@@ -117,9 +119,7 @@ export const routes = [
               },
               {
                 path: "settings",
-                lazy: lazyComponent(
-                  () => import("@/pages/SystemSettings.jsx"),
-                ),
+                lazy: lazyComponent(() => import("@/pages/SystemSettings.jsx")),
               },
               {
                 path: "*",

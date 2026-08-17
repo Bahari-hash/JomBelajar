@@ -39,9 +39,7 @@ export function formatProfileDate(value: string) {
   }).format(date);
 }
 
-export function profileToDraft(
-  profile: CurrentUserProfile,
-): ProfileDraft {
+export function profileToDraft(profile: CurrentUserProfile): ProfileDraft {
   return {
     nickname: profile.nickname ?? "",
     avatarMediaResourceId: null,

@@ -69,7 +69,7 @@ public sealed record WordStudyNextItemResponse(
     Guid WordId,
     string Headword,
     IReadOnlyList<WordSenseResponse> Senses,
-    IReadOnlyList<WordPronunciationResponse> Pronunciations);
+    Guid? AudioResourceId);
 
 /// <summary>
 /// 返回会话项目当前仍可见的词头、释义、例句和发音内容。
@@ -77,7 +77,7 @@ public sealed record WordStudyNextItemResponse(
 public sealed record WordStudySessionItemContentResponse(
     string Headword,
     IReadOnlyList<WordSenseResponse> Senses,
-    IReadOnlyList<WordPronunciationResponse> Pronunciations);
+    Guid? AudioResourceId);
 
 /// <summary>
 /// 返回固定会话项目的顺序、结果状态和可选实时词条内容。

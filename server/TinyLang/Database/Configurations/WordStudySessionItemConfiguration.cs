@@ -40,6 +40,6 @@ public sealed class WordStudySessionItemConfiguration
         builder.HasOne(value => value.Word)
             .WithMany(value => value.StudySessionItems)
             .HasForeignKey(value => value.WordId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

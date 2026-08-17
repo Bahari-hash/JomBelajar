@@ -38,6 +38,6 @@ public sealed class UserWordProgressConfiguration
         builder.HasOne(value => value.Word)
             .WithMany(value => value.UserProgress)
             .HasForeignKey(value => value.WordId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

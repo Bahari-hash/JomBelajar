@@ -55,7 +55,7 @@ public sealed class WordStudyModelTests
     }
 
     /// <summary>
-    /// 验证 User/Session 级联清理而 Word 学习历史使用 Restrict。
+    /// 验证用户、会话和单词删除都会级联清理直接关联的学习记录。
     /// </summary>
     [Fact]
     public void ModelShouldUseExpectedStudyDeleteBehaviors()
@@ -73,7 +73,7 @@ public sealed class WordStudyModelTests
             .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
         progress.GetForeignKeys().Single(value =>
                 value.PrincipalEntityType.ClrType == typeof(Word))
-            .DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
+            .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
         session.GetForeignKeys().Single(value =>
                 value.PrincipalEntityType.ClrType == typeof(User))
             .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
@@ -82,7 +82,7 @@ public sealed class WordStudyModelTests
             .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
         item.GetForeignKeys().Single(value =>
                 value.PrincipalEntityType.ClrType == typeof(Word))
-            .DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
+            .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
     }
 
     /// <summary>

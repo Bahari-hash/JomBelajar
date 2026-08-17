@@ -2,41 +2,37 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using TinyLang.Database;
-using TinyLang.Dtos;
 using TinyLang.Entities;
-using TinyLang.Entities.Enums;
 
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证词条 EF model 中的关键唯一索引、partial filter 和删除行为。
+/// 验证重构后词条 EF model 的唯一索引、共享音频关系和删除行为。
 /// </summary>
 public sealed class WordModelTests
 {
     [Fact]
-    public void WordTextModelsShouldNotExposeAudioClipReferences()
+    public void WordShouldExposeSingleOptionalAudioReferenceWithoutLifecycleFields()
     {
-        typeof(WordPronunciation).GetProperty("AudioClipId").Should().BeNull();
-        typeof(WordPronunciation).GetProperty("AudioClip").Should().BeNull();
-        typeof(ExampleSentence).GetProperty("AudioClipId").Should().BeNull();
-        typeof(ExampleSentence).GetProperty("AudioClip").Should().BeNull();
-        typeof(WordPronunciationInput).GetProperty("AudioClipId").Should().BeNull();
-        typeof(ExampleSentenceInput).GetProperty("AudioClipId").Should().BeNull();
-        typeof(AdminWordPronunciationResponse).GetProperty("AudioClipId").Should().BeNull();
-        typeof(AdminExampleSentenceResponse).GetProperty("AudioClipId").Should().BeNull();
-        typeof(WordPronunciationResponse).GetProperty("AudioClipId").Should().BeNull();
-        typeof(ExampleSentenceResponse).GetProperty("AudioClipId").Should().BeNull();
+        var wordType = typeof(Word);
+
+        wordType.GetProperty("AudioResourceId").Should().NotBeNull();
+        wordType.GetProperty("AudioResource").Should().NotBeNull();
+        wordType.GetProperty("Status").Should().BeNull();
+        wordType.GetProperty("PublishedAt").Should().BeNull();
+        wordType.GetProperty("ArchivedAt").Should().BeNull();
+        wordType.GetProperty("CreatedById").Should().BeNull();
+        wordType.GetProperty("CreatedBy").Should().BeNull();
+        wordType.GetProperty("LastEditorId").Should().BeNull();
+        wordType.GetProperty("LastEditor").Should().BeNull();
+        wordType.GetProperty("Pronunciations").Should().BeNull();
     }
 
-    /// <summary>
-    /// 验证规范化词头、排序和默认发音约束已进入 EF model。
-    /// </summary>
     [Fact]
-    public void ModelShouldContainWordUniqueAndPartialIndexes()
+    public void ModelShouldContainWordUniqueAndAudioIndexes()
     {
         using var db = CreateDbContext();
         var word = db.Model.FindEntityType(typeof(Word));
-        var pronunciation = db.Model.FindEntityType(typeof(WordPronunciation));
         var sense = db.Model.FindEntityType(typeof(WordSense));
         var example = db.Model.FindEntityType(typeof(ExampleSentence));
 
@@ -45,65 +41,60 @@ public sealed class WordModelTests
             index.IsUnique &&
             index.Properties.Select(value => value.Name).SequenceEqual(
                 new[] { nameof(Word.NormalizedHeadword) }));
-        pronunciation!.GetIndexes().Should().Contain(index =>
-            index.IsUnique && index.GetFilter() == "\"IsDefault\" = TRUE");
-        pronunciation.GetIndexes().Should().Contain(index =>
-            index.IsUnique && index.Properties.Select(value => value.Name).SequenceEqual(
-                new[]
-                {
-                    nameof(WordPronunciation.WordId),
-                    nameof(WordPronunciation.SortOrder)
-                }));
+        word.GetIndexes().Should().Contain(index =>
+            index.Properties.Select(value => value.Name).SequenceEqual(
+                new[] { "AudioResourceId" }));
+        word.FindProperty("AudioResourceId")!.IsNullable.Should().BeTrue();
+        word.GetForeignKeys().Single(value =>
+            value.PrincipalEntityType.ClrType == typeof(AudioResource))
+            .DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
+
         sense!.GetIndexes().Should().Contain(index => index.IsUnique &&
             index.Properties.Select(value => value.Name).Contains(nameof(WordSense.SortOrder)));
         sense.GetIndexes().Should().Contain(index =>
             index.Properties.Select(value => value.Name).SequenceEqual(
                 new[] { nameof(WordSense.PartOfSpeech), nameof(WordSense.WordId) }));
         example!.GetIndexes().Should().Contain(index => index.IsUnique &&
-            index.Properties.Select(value => value.Name).Contains(nameof(ExampleSentence.SortOrder)));
+            index.Properties.Select(value => value.Name).Contains(
+                nameof(ExampleSentence.SortOrder)));
     }
 
-    /// <summary>
-    /// 验证归档状态和归档时间进入可空实体模型且状态枚举包含终态。
-    /// </summary>
     [Fact]
-    public void ModelShouldContainArchivedStateAndTimestamp()
+    public void RetiredPronunciationModelShouldBeAbsent()
     {
         using var db = CreateDbContext();
-        var word = db.Model.FindEntityType(typeof(Word));
 
-        Enum.IsDefined(WordPublicationStatus.Archived).Should().BeTrue();
-        word.Should().NotBeNull();
-        var archivedAt = word!.FindProperty(nameof(Word.ArchivedAt));
-        archivedAt.Should().NotBeNull();
-        archivedAt!.IsNullable.Should().BeTrue();
+        typeof(Word).Assembly.GetType("TinyLang.Entities.WordPronunciation")
+            .Should().BeNull();
+        db.Model.FindEntityType("TinyLang.Entities.WordPronunciation")
+            .Should().BeNull();
+        typeof(ApplicationDbContext).GetProperty("WordPronunciations")
+            .Should().BeNull();
     }
 
-    /// <summary>
-    /// 验证私有子项保留级联删除且不再存在 AudioClip 外键。
-    /// </summary>
     [Fact]
-    public void ModelShouldUseCascadeForChildrenWithoutAudioForeignKeys()
+    public void ModelShouldCascadeWordChildrenAndStudyReferences()
     {
         using var db = CreateDbContext();
-        var pronunciation = db.Model.FindEntityType(typeof(WordPronunciation))!;
+        var sense = db.Model.FindEntityType(typeof(WordSense))!;
         var example = db.Model.FindEntityType(typeof(ExampleSentence))!;
+        var progress = db.Model.FindEntityType(typeof(UserWordProgress))!;
+        var studyItem = db.Model.FindEntityType(typeof(WordStudySessionItem))!;
 
-        pronunciation.GetForeignKeys().Single(value =>
+        sense.GetForeignKeys().Single(value =>
             value.PrincipalEntityType.ClrType == typeof(Word))
             .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
-        pronunciation.GetForeignKeys().Should().NotContain(value =>
-            value.PrincipalEntityType.ClrType.FullName == "TinyLang.Entities.AudioClip");
         example.GetForeignKeys().Single(value =>
             value.PrincipalEntityType.ClrType == typeof(WordSense))
             .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
-        example.GetForeignKeys().Should().NotContain(value =>
-            value.PrincipalEntityType.ClrType.FullName == "TinyLang.Entities.AudioClip");
+        progress.GetForeignKeys().Single(value =>
+            value.PrincipalEntityType.ClrType == typeof(Word))
+            .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
+        studyItem.GetForeignKeys().Single(value =>
+            value.PrincipalEntityType.ClrType == typeof(Word))
+            .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
     }
 
-    /// <summary>
-    /// 创建仅用于读取 EF model 的隔离上下文。
-    /// </summary>
     private static ApplicationDbContext CreateDbContext()
         => new(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())

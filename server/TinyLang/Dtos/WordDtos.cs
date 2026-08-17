@@ -9,12 +9,12 @@ namespace TinyLang.Dtos;
 public abstract record WordUpsertRequest
 {
     public required string Headword { get; init; }
+    public Guid? AudioResourceId { get; init; }
     public IReadOnlyCollection<WordSenseInput> Senses { get; init; } = [];
-    public IReadOnlyCollection<WordPronunciationInput> Pronunciations { get; init; } = [];
 }
 
 /// <summary>
-/// 描述创建词条草稿及其可选子项的请求。
+/// 描述创建一个立即有效词条的请求。
 /// </summary>
 public sealed record CreateWordRequest : WordUpsertRequest;
 
@@ -28,9 +28,9 @@ public sealed record UpdateWordRequest : WordUpsertRequest
 }
 
 /// <summary>
-/// 描述发布、下架、归档和硬删除词条所需的并发前置条件。
+/// 描述硬删除词条所需的并发前置条件。
 /// </summary>
-public sealed record WordMutationRequest
+public sealed record DeleteWordRequest
 {
     [Required]
     public Guid ConcurrencyStamp { get; init; }
@@ -61,18 +61,6 @@ public sealed record ExampleSentenceInput
 }
 
 /// <summary>
-/// 描述一个待新增或更新的词条发音关联。
-/// </summary>
-public sealed record WordPronunciationInput
-{
-    public Guid? Id { get; init; }
-    public string? AccentTag { get; init; }
-    public string? Ipa { get; init; }
-    public bool IsDefault { get; init; }
-    public int SortOrder { get; init; }
-}
-
-/// <summary>
 /// 描述管理员词条列表的筛选和分页条件。
 /// </summary>
 public sealed record AdminWordListRequest
@@ -80,7 +68,6 @@ public sealed record AdminWordListRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
-    public WordPublicationStatus? Status { get; init; }
     public PartOfSpeech? PartOfSpeech { get; init; }
     public string? Definition { get; init; }
 }
@@ -116,29 +103,24 @@ public sealed record AdminWordSenseResponse(
     IReadOnlyList<AdminExampleSentenceResponse> Examples);
 
 /// <summary>
-/// 返回管理员管理词条时所需的发音关联。
+/// 返回管理员编辑词条时所需的共享音频摘要。
 /// </summary>
-public sealed record AdminWordPronunciationResponse(
+public sealed record AdminWordAudioResponse(
     Guid Id,
-    string? AccentTag,
-    string? Ipa,
-    bool IsDefault,
-    int SortOrder);
+    string Name,
+    AudioResourceStatus Status,
+    double? DurationSeconds,
+    string? LastFailureCode);
 
 /// <summary>
-/// 返回词条的完整编辑状态、审计信息和嵌套内容。
+/// 返回词条的完整编辑状态和嵌套内容。
 /// </summary>
 public sealed record AdminWordResponse(
     Guid Id,
     string Headword,
-    WordPublicationStatus Status,
-    ContentAuditUserResponse CreatedBy,
-    ContentAuditUserResponse LastEditor,
-    DateTimeOffset? PublishedAt,
-    DateTimeOffset? ArchivedAt,
+    AdminWordAudioResponse? Audio,
     Guid ConcurrencyStamp,
     IReadOnlyList<AdminWordSenseResponse> Senses,
-    IReadOnlyList<AdminWordPronunciationResponse> Pronunciations,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -148,16 +130,11 @@ public sealed record AdminWordResponse(
 public sealed record AdminWordListItemResponse(
     Guid Id,
     string Headword,
-    WordPublicationStatus Status,
     PartOfSpeech? PrimaryPartOfSpeech,
     string? PrimaryDefinition,
     int SenseCount,
     int ExampleCount,
-    int PronunciationCount,
-    ContentAuditUserResponse CreatedBy,
-    ContentAuditUserResponse LastEditor,
-    DateTimeOffset? PublishedAt,
-    DateTimeOffset? ArchivedAt,
+    bool HasAudio,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     Guid ConcurrencyStamp);
@@ -181,34 +158,25 @@ public sealed record WordSenseResponse(
     IReadOnlyList<ExampleSentenceResponse> Examples);
 
 /// <summary>
-/// 返回用户可见的发音文本元数据。
-/// </summary>
-public sealed record WordPronunciationResponse(
-    string? AccentTag,
-    string? Ipa,
-    bool IsDefault,
-    int SortOrder);
-
-/// <summary>
-/// 返回用户词条列表中的首要释义和默认发音摘要。
+/// 返回用户词条列表中的首要释义和可选共享音频。
 /// </summary>
 public sealed record WordListItemResponse(
     Guid Id,
     string Headword,
     PartOfSpeech PartOfSpeech,
     string Definition,
-    WordPronunciationResponse DefaultPronunciation,
-    DateTimeOffset PublishedAt);
+    Guid? AudioResourceId,
+    DateTimeOffset UpdatedAt);
 
 /// <summary>
-/// 返回用户可见的完整已发布词条内容。
+/// 返回用户可见的完整词条内容。
 /// </summary>
 public sealed record WordResponse(
     Guid Id,
     string Headword,
     IReadOnlyList<WordSenseResponse> Senses,
-    IReadOnlyList<WordPronunciationResponse> Pronunciations,
-    DateTimeOffset PublishedAt);
+    Guid? AudioResourceId,
+    DateTimeOffset UpdatedAt);
 
 /// <summary>
 /// 定义词条请求和持久化模型共享的有界限制。
@@ -218,10 +186,7 @@ public static class WordConstraints
     public const int MaxHeadwordLength = 200;
     public const int MaxTextLength = 2000;
     public const int MaxUsageNoteLength = 1000;
-    public const int MaxAccentTagLength = 100;
-    public const int MaxIpaLength = 200;
     public const int MaxSenseCount = 20;
     public const int MaxExampleCount = 20;
-    public const int MaxPronunciationCount = 20;
     public const int MaxSortOrder = 10_000;
 }

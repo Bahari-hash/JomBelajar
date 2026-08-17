@@ -1,574 +1,355 @@
 ﻿using System.Linq;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using Moq;
+using Microsoft.Extensions.Logging.Abstractions;
 using TinyLang.Database;
 using TinyLang.Dtos;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
 using TinyLang.Exceptions;
-using TinyLang.Interfaces;
+using TinyLang.Infrastructure;
 using TinyLang.Services;
 
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证词条聚合写入、生命周期、并发和用户可见性。
+/// 验证词条聚合写入、共享音频、并发和立即可见性。
 /// </summary>
 public sealed class WordServiceTests
 {
-    private static readonly DateTimeOffset Now = new(
-        2026, 7, 29, 4, 0, 0, TimeSpan.Zero);
-
-    /// <summary>
-    /// 验证创建会规范化身份字段并一次保存完整嵌套结构和审计人。
-    /// </summary>
-    [Fact]
-    public async Task CreateDraftShouldNormalizeAndPersistCompleteAggregate()
+    [Theory]
+    [InlineData(AudioResourceStatus.Uploading)]
+    [InlineData(AudioResourceStatus.Failed)]
+    [InlineData(AudioResourceStatus.Ready)]
+    public async Task CreateShouldNormalizePersistAndAcceptAnyAudioStatus(
+        AudioResourceStatus status)
     {
         await using var db = CreateDbContext();
-        var adminId = Guid.NewGuid();
+        var admin = CreateAdmin();
+        var audio = CreateAudio(admin, status);
+        db.AddRange(admin, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
-        var response = await service.CreateDraftAsync(
-            adminId,
-            CreateCompleteRequest() with
-            {
-                Headword = "  Cafe\u0301  ",
-            },
+        var response = await service.CreateAsync(
+            admin.Id,
+            CreateRequest(audio.Id) with { Headword = "  Cafe\u0301  " },
             TestContext.Current.CancellationToken);
 
         response.Headword.Should().Be("Caf\u00e9");
-        response.CreatedBy.Id.Should().Be(adminId);
-        response.LastEditor.Id.Should().Be(adminId);
+        response.Audio.Should().NotBeNull();
+        response.Audio!.Id.Should().Be(audio.Id);
+        response.Audio.Status.Should().Be(status);
         response.Senses.Should().ContainSingle();
-        response.Senses.Single().Examples.Should().ContainSingle();
-        response.Pronunciations.Should().ContainSingle();
+        response.Senses.Single().Examples.Should().BeEmpty();
         var stored = await db.Words.Include(value => value.Senses)
-            .ThenInclude(value => value.Examples)
-            .Include(value => value.Pronunciations)
-            .SingleAsync(value => value.Id == response.Id, TestContext.Current.CancellationToken);
+            .SingleAsync(value => value.Id == response.Id,
+                TestContext.Current.CancellationToken);
         stored.NormalizedHeadword.Should().Be("CAF\u00c9");
+        stored.AudioResourceId.Should().Be(audio.Id);
     }
 
-    /// <summary>
-    /// 验证规范化词头在全局范围内保持唯一。
-    /// </summary>
     [Fact]
-    public async Task NormalizedHeadwordShouldBeGloballyUnique()
+    public async Task CreatedWordWithoutAudioShouldBeImmediatelyVisible()
     {
         await using var db = CreateDbContext();
         var service = CreateService(db);
-        var adminId = Guid.NewGuid();
-        await service.CreateDraftAsync(
-            adminId,
-            new CreateWordRequest { Headword = " Hello " },
-            TestContext.Current.CancellationToken);
 
-        var duplicate = async () => await service.CreateDraftAsync(
-            adminId,
-            new CreateWordRequest { Headword = "hello" },
-            TestContext.Current.CancellationToken);
-
-        await duplicate.Should().ThrowAsync<ConflictException>();
-    }
-
-    /// <summary>
-    /// 验证完整更新保留已有 ID、删除遗漏项、加入新项并可交换默认发音和排序。
-    /// </summary>
-    [Fact]
-    public async Task UpdateShouldSynchronizeCompleteTargetAndPreserveExistingIds()
-    {
-        await using var db = CreateDbContext();
-        var service = CreateService(db);
-        var created = await service.CreateDraftAsync(
+        var created = await service.CreateAsync(
             Guid.NewGuid(),
-            CreateCompleteRequest() with
-            {
-                Pronunciations =
-                [
-                    new WordPronunciationInput
-                    {
-                        AccentTag = "US",
-                        IsDefault = true,
-                        SortOrder = 0
-                    },
-                    new WordPronunciationInput
-                    {
-                        AccentTag = "UK",
-                        SortOrder = 1
-                    }
-                ]
-            },
+            CreateRequest(),
+            TestContext.Current.CancellationToken);
+        var detail = await service.GetUserByIdAsync(
+            created.Id,
+            TestContext.Current.CancellationToken);
+        var list = await service.GetUserListAsync(
+            new WordListRequest(),
+            TestContext.Current.CancellationToken);
+
+        detail.AudioResourceId.Should().BeNull();
+        detail.Senses.Single().Examples.Should().BeEmpty();
+        list.Items.Should().ContainSingle(value => value.Id == created.Id);
+    }
+
+    [Fact]
+    public async Task CreateShouldRejectMissingAudioResource()
+    {
+        await using var db = CreateDbContext();
+        var service = CreateService(db);
+
+        var action = () => service.CreateAsync(
+            Guid.NewGuid(),
+            CreateRequest(Guid.NewGuid()),
+            TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<NotFoundException>();
+        exception.Which.ErrorCode.Should().Be(ErrorCodes.WordAudioInvalid);
+    }
+
+    [Fact]
+    public async Task UpdateShouldSynchronizeChildrenAndClearAudio()
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateAdmin();
+        var audio = CreateAudio(admin, AudioResourceStatus.Ready);
+        db.AddRange(admin, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+        var created = await service.CreateAsync(
+            admin.Id,
+            CreateRequest(audio.Id, includeExample: true),
             TestContext.Current.CancellationToken);
         var existingSense = created.Senses.Single();
         var existingExample = existingSense.Examples.Single();
-        var firstAssociation = created.Pronunciations.Single(value =>
-            value.AccentTag == "US");
-        var secondAssociation = created.Pronunciations.Single(value =>
-            value.AccentTag == "UK");
 
         var updated = await service.UpdateAsync(
             created.Id,
-            Guid.NewGuid(),
+            admin.Id,
             new UpdateWordRequest
             {
                 Headword = "hello",
+                AudioResourceId = null,
                 ConcurrencyStamp = created.ConcurrencyStamp,
                 Senses =
                 [
-                    CreateSenseInput(sortOrder: 1) with
+                    CreateSense(1) with
                     {
                         Id = existingSense.Id,
                         Definition = "an updated greeting",
                         Examples =
                         [
-                            CreateExampleInput(0) with
+                            CreateExample(0) with
                             {
                                 Id = existingExample.Id,
                                 Sentence = "Hello again."
                             }
                         ]
                     },
-                    CreateSenseInput(sortOrder: 0) with
+                    CreateSense(0) with
                     {
                         PartOfSpeech = PartOfSpeech.Interjection,
                         Definition = "used to attract attention"
-                    }
-                ],
-                Pronunciations =
-                [
-                    new WordPronunciationInput
-                    {
-                        Id = firstAssociation.Id,
-                        AccentTag = "US",
-                        SortOrder = 1
-                    },
-                    new WordPronunciationInput
-                    {
-                        Id = secondAssociation.Id,
-                        AccentTag = "UK",
-                        IsDefault = true,
-                        SortOrder = 0
                     }
                 ]
             },
             TestContext.Current.CancellationToken);
 
+        updated.Audio.Should().BeNull();
         updated.Senses.Should().HaveCount(2);
-        updated.Senses.Should().Contain(value =>
-            value.Id == existingSense.Id && value.Definition == "an updated greeting");
         updated.Senses.Single(value => value.Id == existingSense.Id)
             .Examples.Single().Id.Should().Be(existingExample.Id);
-        updated.Pronunciations.Single(value => value.Id == secondAssociation.Id)
-            .IsDefault.Should().BeTrue();
-        updated.Pronunciations.Single(value => value.Id == firstAssociation.Id)
-            .IsDefault.Should().BeFalse();
         updated.ConcurrencyStamp.Should().NotBe(created.ConcurrencyStamp);
     }
 
-    /// <summary>
-    /// 验证跨聚合子项标识和过期并发标识均产生稳定失败。
-    /// </summary>
     [Fact]
-    public async Task UpdateShouldRejectForeignChildAndStaleConcurrencyStamp()
+    public async Task UpdateShouldRejectForeignChildAndStaleStamp()
     {
         await using var db = CreateDbContext();
         var service = CreateService(db);
-        var first = await service.CreateDraftAsync(
+        var first = await service.CreateAsync(
             Guid.NewGuid(),
-            CreateCompleteRequest(),
+            CreateRequest(),
             TestContext.Current.CancellationToken);
-        var second = await service.CreateDraftAsync(
+        var second = await service.CreateAsync(
             Guid.NewGuid(),
-            CreateCompleteRequest() with { Headword = "world" },
+            CreateRequest() with { Headword = "world" },
             TestContext.Current.CancellationToken);
 
-        var foreignChild = async () => await service.UpdateAsync(
+        var foreignChild = () => service.UpdateAsync(
             first.Id,
             Guid.NewGuid(),
             new UpdateWordRequest
             {
                 Headword = "hello",
                 ConcurrencyStamp = first.ConcurrencyStamp,
-                Senses =
-                [
-                    CreateSenseInput(0) with { Id = second.Senses.Single().Id }
-                ],
-                Pronunciations = []
+                Senses = [CreateSense(0) with { Id = second.Senses.Single().Id }]
             },
             TestContext.Current.CancellationToken);
         await foreignChild.Should().ThrowAsync<RequestValidationException>();
 
-        var stale = async () => await service.UpdateAsync(
+        var stale = () => service.UpdateAsync(
             first.Id,
             Guid.NewGuid(),
             new UpdateWordRequest
             {
                 Headword = "hello",
-                ConcurrencyStamp = Guid.NewGuid()
+                ConcurrencyStamp = Guid.NewGuid(),
+                Senses = [CreateSense(0)]
             },
             TestContext.Current.CancellationToken);
-        await stale.Should().ThrowAsync<ConflictException>();
-    }
-
-    /// <summary>
-    /// 验证纯文本发音和例句不依赖任何音频资源即可保存。
-    /// </summary>
-    [Fact]
-    public async Task TextOnlyContentShouldNotRequireAudioResources()
-    {
-        await using var db = CreateDbContext();
-        var service = CreateService(db);
-
-        var response = await service.CreateDraftAsync(
-            Guid.NewGuid(),
-            CreateCompleteRequest(),
-            TestContext.Current.CancellationToken);
-
-        response.Pronunciations.Should().ContainSingle();
-        response.Senses.Single().Examples.Should().ContainSingle();
-    }
-
-    /// <summary>
-    /// 验证发布、重复发布、下架和重新发布保持幂等及首次发布时间。
-    /// </summary>
-    [Fact]
-    public async Task PublicationLifecycleShouldBeIdempotentAndPreserveFirstPublishedAt()
-    {
-        await using var db = CreateDbContext();
-        var service = CreateService(db);
-        var adminId = Guid.NewGuid();
-        var created = await service.CreateDraftAsync(
-            adminId,
-            CreateCompleteRequest(),
-            TestContext.Current.CancellationToken);
-
-        var published = await service.PublishAsync(
-            created.Id,
-            adminId,
-            new WordMutationRequest { ConcurrencyStamp = created.ConcurrencyStamp },
-            TestContext.Current.CancellationToken);
-        var repeatedPublish = await service.PublishAsync(
-            created.Id,
-            adminId,
-            new WordMutationRequest { ConcurrencyStamp = published.ConcurrencyStamp },
-            TestContext.Current.CancellationToken);
-        var userDetail = await service.GetUserByIdAsync(
-            created.Id, TestContext.Current.CancellationToken);
-        var unpublished = await service.UnpublishAsync(
-            created.Id,
-            adminId,
-            new WordMutationRequest
-            {
-                ConcurrencyStamp = repeatedPublish.ConcurrencyStamp
-            },
-            TestContext.Current.CancellationToken);
-        var repeatedUnpublish = await service.UnpublishAsync(
-            created.Id,
-            adminId,
-            new WordMutationRequest { ConcurrencyStamp = unpublished.ConcurrencyStamp },
-            TestContext.Current.CancellationToken);
-        var republished = await service.PublishAsync(
-            created.Id,
-            adminId,
-            new WordMutationRequest
-            {
-                ConcurrencyStamp = repeatedUnpublish.ConcurrencyStamp
-            },
-            TestContext.Current.CancellationToken);
-
-        published.Status.Should().Be(WordPublicationStatus.Published);
-        published.PublishedAt.Should().Be(Now);
-        repeatedPublish.ConcurrencyStamp.Should().Be(published.ConcurrencyStamp);
-        userDetail.Id.Should().Be(created.Id);
-        unpublished.PublishedAt.Should().Be(Now);
-        repeatedUnpublish.ConcurrencyStamp.Should().Be(unpublished.ConcurrencyStamp);
-        republished.PublishedAt.Should().Be(Now);
-    }
-
-    /// <summary>
-    /// 验证幂等发布在客户端提交过期并发戳时不会吞掉冲突。
-    /// </summary>
-    [Fact]
-    public async Task PublicationShouldRejectStaleStampBeforeIdempotentStateCheck()
-    {
-        await using var db = CreateDbContext();
-        var service = CreateService(db);
-        var created = await service.CreateDraftAsync(
-            Guid.NewGuid(),
-            CreateCompleteRequest(),
-            TestContext.Current.CancellationToken);
-        var published = await service.PublishAsync(
-            created.Id,
-            Guid.NewGuid(),
-            new WordMutationRequest { ConcurrencyStamp = created.ConcurrencyStamp },
-            TestContext.Current.CancellationToken);
-
-        var action = () => service.PublishAsync(
-            created.Id,
-            Guid.NewGuid(),
-            new WordMutationRequest { ConcurrencyStamp = Guid.NewGuid() },
-            TestContext.Current.CancellationToken);
-
-        var exception = await action.Should().ThrowAsync<ConflictException>();
+        var exception = await stale.Should().ThrowAsync<ConflictException>();
         exception.Which.ErrorCode.Should().Be(ErrorCodes.WordConcurrencyConflict);
-        published.Status.Should().Be(WordPublicationStatus.Published);
     }
 
-    /// <summary>
-    /// 验证归档是不可恢复终态，并从管理员默认列表和用户可见范围排除。
-    /// </summary>
     [Fact]
-    public async Task ArchiveShouldBeTerminalAndExcludedFromDefaultQueries()
+    public async Task NormalizedHeadwordShouldRemainGloballyUnique()
     {
         await using var db = CreateDbContext();
         var service = CreateService(db);
-        var created = await service.CreateDraftAsync(
+        await service.CreateAsync(
             Guid.NewGuid(),
-            new CreateWordRequest { Headword = "archivable" },
+            CreateRequest() with { Headword = " Hello " },
             TestContext.Current.CancellationToken);
 
-        var archived = await service.ArchiveAsync(
-            created.Id,
+        var duplicate = () => service.CreateAsync(
             Guid.NewGuid(),
-            new WordMutationRequest { ConcurrencyStamp = created.ConcurrencyStamp },
-            TestContext.Current.CancellationToken);
-        var defaultList = await service.GetAdminListAsync(
-            new AdminWordListRequest(),
-            TestContext.Current.CancellationToken);
-        var archivedList = await service.GetAdminListAsync(
-            new AdminWordListRequest { Status = WordPublicationStatus.Archived },
-            TestContext.Current.CancellationToken);
-        var userList = await service.GetUserListAsync(
-            new WordListRequest(),
-            TestContext.Current.CancellationToken);
-        var userDetail = () => service.GetUserByIdAsync(
-            created.Id,
-            TestContext.Current.CancellationToken);
-        var repeatArchive = () => service.ArchiveAsync(
-            created.Id,
-            Guid.NewGuid(),
-            new WordMutationRequest { ConcurrencyStamp = archived.ConcurrencyStamp },
-            TestContext.Current.CancellationToken);
-        var update = () => service.UpdateAsync(
-            created.Id,
-            Guid.NewGuid(),
-            new UpdateWordRequest
-            {
-                Headword = "changed",
-                ConcurrencyStamp = archived.ConcurrencyStamp
-            },
-            TestContext.Current.CancellationToken);
-        var staleUpdate = () => service.UpdateAsync(
-            created.Id,
-            Guid.NewGuid(),
-            new UpdateWordRequest
-            {
-                Headword = "changed",
-                ConcurrencyStamp = Guid.NewGuid()
-            },
+            CreateRequest() with { Headword = "hello" },
             TestContext.Current.CancellationToken);
 
-        archived.Status.Should().Be(WordPublicationStatus.Archived);
-        archived.ArchivedAt.Should().Be(Now);
-        defaultList.Items.Should().BeEmpty();
-        archivedList.Items.Should().ContainSingle(value => value.Id == created.Id);
-        userList.Items.Should().BeEmpty();
-        await userDetail.Should().ThrowAsync<NotFoundException>();
-        await repeatArchive.Should().ThrowAsync<ConflictException>();
-        await update.Should().ThrowAsync<ConflictException>();
-        var staleException = await staleUpdate.Should().ThrowAsync<ConflictException>();
-        staleException.Which.ErrorCode.Should().Be(ErrorCodes.WordConcurrencyConflict);
+        var exception = await duplicate.Should().ThrowAsync<ConflictException>();
+        exception.Which.ErrorCode.Should().Be(ErrorCodes.WordDuplicate);
     }
 
-    /// <summary>
-    /// 验证管理员列表可以按词性和定义筛选，并返回首要释义摘要。
-    /// </summary>
     [Fact]
-    public async Task AdminListShouldFilterByPartOfSpeechAndDefinition()
+    public async Task AdminListShouldFilterAndExposeAudioFlag()
     {
         await using var db = CreateDbContext();
+        var admin = CreateAdmin();
+        var audio = CreateAudio(admin, AudioResourceStatus.Processing);
+        db.AddRange(admin, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
-        await service.CreateDraftAsync(
-            Guid.NewGuid(),
-            new CreateWordRequest
+        await service.CreateAsync(
+            admin.Id,
+            CreateRequest(audio.Id) with
             {
                 Headword = "noun-word",
                 Senses =
                 [
-                    new WordSenseInput
+                    CreateSense(0) with
                     {
-                        PartOfSpeech = PartOfSpeech.Noun,
-                        Definition = "A meaningful noun",
-                        SortOrder = 0
+                        Definition = "A meaningful noun"
                     }
                 ]
             },
             TestContext.Current.CancellationToken);
-        await service.CreateDraftAsync(
-            Guid.NewGuid(),
-            new CreateWordRequest
+        await service.CreateAsync(
+            admin.Id,
+            CreateRequest() with
             {
                 Headword = "verb-word",
                 Senses =
                 [
-                    new WordSenseInput
+                    CreateSense(0) with
                     {
                         PartOfSpeech = PartOfSpeech.Verb,
-                        Definition = "An action",
-                        SortOrder = 0
+                        Definition = "An action"
                     }
                 ]
             },
             TestContext.Current.CancellationToken);
 
-        var byPartOfSpeech = await service.GetAdminListAsync(
-            new AdminWordListRequest { PartOfSpeech = PartOfSpeech.Noun },
-            TestContext.Current.CancellationToken);
-        var byDefinition = await service.GetAdminListAsync(
-            new AdminWordListRequest { Definition = "MEANINGFUL" },
-            TestContext.Current.CancellationToken);
-
-        byPartOfSpeech.Items.Should().ContainSingle(value =>
-            value.PrimaryPartOfSpeech == PartOfSpeech.Noun &&
-            value.PrimaryDefinition == "A meaningful noun");
-        byDefinition.Items.Should().ContainSingle(value =>
-            value.Headword == "noun-word" && value.SenseCount == 1);
-    }
-
-    /// <summary>
-    /// 验证已发布的纯文本词条对用户和管理员均保持可见。
-    /// </summary>
-    [Fact]
-    public async Task PublishedTextWordShouldRemainVisibleToUsers()
-    {
-        await using var db = CreateDbContext();
-        var service = CreateService(db);
-        var created = await service.CreateDraftAsync(
-            Guid.NewGuid(),
-            CreateCompleteRequest(),
-            TestContext.Current.CancellationToken);
-        await service.PublishAsync(
-            created.Id,
-            Guid.NewGuid(),
-            new WordMutationRequest { ConcurrencyStamp = created.ConcurrencyStamp },
-            TestContext.Current.CancellationToken);
-        var list = await service.GetUserListAsync(
-            new WordListRequest(), TestContext.Current.CancellationToken);
-        var detail = async () => await service.GetUserByIdAsync(
-            created.Id, TestContext.Current.CancellationToken);
-        var adminDetail = await service.GetAdminByIdAsync(
-            created.Id, TestContext.Current.CancellationToken);
-
-        list.Items.Should().ContainSingle(value => value.Id == created.Id);
-        (await detail()).Id.Should().Be(created.Id);
-        adminDetail.Status.Should().Be(WordPublicationStatus.Published);
-    }
-
-    /// <summary>
-    /// 验证 Published 不能直接删除，而 Draft 可以连同私有文本子项删除。
-    /// </summary>
-    [Fact]
-    public async Task DeleteShouldProtectPublishedWordAndRemoveDraftAggregate()
-    {
-        await using var db = CreateDbContext();
-        var service = CreateService(db);
-        var draft = await service.CreateDraftAsync(
-            Guid.NewGuid(),
-            CreateCompleteRequest(),
-            TestContext.Current.CancellationToken);
-        var published = await service.CreateDraftAsync(
-            Guid.NewGuid(),
-            CreateCompleteRequest() with { Headword = "world" },
-            TestContext.Current.CancellationToken);
-        var publishedResponse = await service.PublishAsync(
-            published.Id,
-            Guid.NewGuid(),
-            new WordMutationRequest { ConcurrencyStamp = published.ConcurrencyStamp },
-            TestContext.Current.CancellationToken);
-
-        var deletePublished = async () => await service.DeleteAsync(
-            published.Id,
-            Guid.NewGuid(),
-            new WordMutationRequest
+        var response = await service.GetAdminListAsync(
+            new AdminWordListRequest
             {
-                ConcurrencyStamp = publishedResponse.ConcurrencyStamp
+                PartOfSpeech = PartOfSpeech.Noun,
+                Definition = "MEANINGFUL"
             },
             TestContext.Current.CancellationToken);
-        await deletePublished.Should().ThrowAsync<ConflictException>();
-        await service.DeleteAsync(
-            draft.Id,
+
+        response.Items.Should().ContainSingle(value =>
+            value.Headword == "noun-word" && value.HasAudio);
+    }
+
+    [Fact]
+    public async Task DeleteShouldRemoveWordAndPrivateChildren()
+    {
+        await using var db = CreateDbContext();
+        var service = CreateService(db);
+        var created = await service.CreateAsync(
             Guid.NewGuid(),
-            new WordMutationRequest { ConcurrencyStamp = draft.ConcurrencyStamp },
+            CreateRequest(includeExample: true),
             TestContext.Current.CancellationToken);
 
-        (await db.Words.AnyAsync(
-            value => value.Id == draft.Id,
+        await service.DeleteAsync(
+            created.Id,
+            Guid.NewGuid(),
+            new DeleteWordRequest { ConcurrencyStamp = created.ConcurrencyStamp },
+            TestContext.Current.CancellationToken);
+
+        (await db.Words.AnyAsync(value => value.Id == created.Id,
             TestContext.Current.CancellationToken)).Should().BeFalse();
-        (await db.WordSenses.AnyAsync(
-            value => value.WordId == draft.Id,
+        (await db.WordSenses.AnyAsync(value => value.WordId == created.Id,
             TestContext.Current.CancellationToken)).Should().BeFalse();
     }
 
-    /// <summary>
-    /// 创建使用隔离 InMemory database 的应用上下文。
-    /// </summary>
+    private static WordService CreateService(ApplicationDbContext db)
+        => new(
+            db,
+            new PostgresDatabaseExceptionClassifier(),
+            NullLogger<WordService>.Instance);
+
     private static ApplicationDbContext CreateDbContext()
         => new(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
-    /// <summary>
-    /// 创建使用固定时间和测试替身依赖的词条服务。
-    /// </summary>
-    private static WordService CreateService(ApplicationDbContext db)
-        => new(
-            db,
-            Mock.Of<IDatabaseExceptionClassifier>(),
-            new TestTimeProvider(Now),
-            Mock.Of<ILogger<WordService>>());
-
-    /// <summary>
-    /// 创建包含一个释义、例句和默认发音的完整词条请求。
-    /// </summary>
-    private static CreateWordRequest CreateCompleteRequest()
+    private static CreateWordRequest CreateRequest(
+        Guid? audioResourceId = null,
+        bool includeExample = false)
         => new()
         {
             Headword = "hello",
-            Senses = [CreateSenseInput(0)],
-            Pronunciations =
+            AudioResourceId = audioResourceId,
+            Senses =
             [
-                new WordPronunciationInput
+                CreateSense(0) with
                 {
-                    AccentTag = "default",
-                    IsDefault = true,
-                    SortOrder = 0
+                    Examples = includeExample ? [CreateExample(0)] : []
                 }
             ]
         };
 
-    /// <summary>
-    /// 创建指定排序的有效释义输入。
-    /// </summary>
-    private static WordSenseInput CreateSenseInput(int sortOrder)
+    private static WordSenseInput CreateSense(int sortOrder)
         => new()
         {
             PartOfSpeech = PartOfSpeech.Noun,
             Definition = "a greeting",
             SortOrder = sortOrder,
-            Examples = [CreateExampleInput(0)]
+            Examples = []
         };
 
-    /// <summary>
-    /// 创建指定排序的有效例句输入。
-    /// </summary>
-    private static ExampleSentenceInput CreateExampleInput(int sortOrder)
+    private static ExampleSentenceInput CreateExample(int sortOrder)
         => new()
         {
             Sentence = "Hello there.",
             Translation = "你好。",
             SortOrder = sortOrder
         };
+
+    private static User CreateAdmin()
+        => new()
+        {
+            Email = $"admin-{Guid.NewGuid():N}@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Admin
+        };
+
+    private static AudioResource CreateAudio(
+        User admin,
+        AudioResourceStatus status)
+    {
+        var source = new MediaResource
+        {
+            Uploader = admin,
+            UploaderId = admin.Id,
+            ObjectName = $"audios/{Guid.NewGuid():N}.mp3",
+            OriginalName = "word.mp3",
+            Module = ResourceModule.Audio,
+            Status = ResourceStatus.Active,
+            Size = 1024,
+            Extension = ".mp3",
+            ContentType = "audio/mpeg"
+        };
+        var audio = AudioResource.Create(admin.Id, "word.mp3", source.Id);
+        audio.SourceMediaResource = source;
+        audio.CreatedBy = admin;
+        audio.LastEditor = admin;
+        audio.Status = status;
+        audio.DurationSeconds = status == AudioResourceStatus.Ready ? 1.5 : null;
+        audio.LastFailureCode = status == AudioResourceStatus.Failed
+            ? "TranscodeFailed"
+            : null;
+        return audio;
+    }
 }

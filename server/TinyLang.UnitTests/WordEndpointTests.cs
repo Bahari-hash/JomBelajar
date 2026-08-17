@@ -46,7 +46,13 @@ public sealed class WordEndpointTests
             .Should().OnlyContain(endpoint => endpoint.Metadata
                 .GetOrderedMetadata<IAuthorizeData>()
                 .Any(value => value.Policy == AuthorizationPolicies.RequireUser));
-        routes.Should().HaveCount(11);
+        routes.Should().HaveCount(8);
+        routes.Select(value => value.RoutePattern.RawText)
+            .Where(value => value != null &&
+                (value.EndsWith("/publish", StringComparison.Ordinal) ||
+                 value.EndsWith("/unpublish", StringComparison.Ordinal) ||
+                 value.EndsWith("/archive", StringComparison.Ordinal)))
+            .Should().BeEmpty();
     }
 
     /// <summary>
@@ -58,16 +64,28 @@ public sealed class WordEndpointTests
         var adminId = Guid.NewGuid();
         var wordId = Guid.NewGuid();
         var service = new Mock<IWordService>();
-        service.Setup(value => value.CreateDraftAsync(
+        service.Setup(value => value.CreateAsync(
                 adminId,
                 It.IsAny<CreateWordRequest>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateAdminResponse(wordId, adminId));
+            .ReturnsAsync(CreateAdminResponse(wordId));
         await using var app = await CreateHttpAppAsync(service.Object, adminId);
 
         var response = await app.GetTestClient().PostAsJsonAsync(
             "/api/admin/words",
-            new CreateWordRequest { Headword = "hello" },
+            new CreateWordRequest
+            {
+                Headword = "hello",
+                Senses =
+                [
+                    new WordSenseInput
+                    {
+                        PartOfSpeech = PartOfSpeech.Interjection,
+                        Definition = "a greeting",
+                        SortOrder = 0
+                    }
+                ]
+            },
             TestContext.Current.CancellationToken);
         var json = await response.Content.ReadAsStringAsync(
             TestContext.Current.CancellationToken);
@@ -75,9 +93,10 @@ public sealed class WordEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().Be($"/api/admin/words/{wordId}");
         json.Should().Contain("Hello there.");
-        json.Should().Contain("accentTag");
-        json.Should().NotContain("audioClipId");
-        service.Verify(value => value.CreateDraftAsync(
+        json.Should().Contain("senses");
+        json.Should().NotContain("pronunciations");
+        json.Should().NotContain("status");
+        service.Verify(value => value.CreateAsync(
             adminId,
             It.Is<CreateWordRequest>(request => request.Headword == "hello"),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -126,7 +145,7 @@ public sealed class WordEndpointTests
             HttpMethod.Delete,
             $"/api/admin/words/{wordId}")
         {
-            Content = JsonContent.Create(new WordMutationRequest
+            Content = JsonContent.Create(new DeleteWordRequest
             {
                 ConcurrencyStamp = concurrencyStamp
             })
@@ -139,7 +158,7 @@ public sealed class WordEndpointTests
         service.Verify(value => value.DeleteAsync(
             wordId,
             adminId,
-            It.Is<WordMutationRequest>(value =>
+            It.Is<DeleteWordRequest>(value =>
                 value.ConcurrencyStamp == concurrencyStamp),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -224,14 +243,10 @@ public sealed class WordEndpointTests
     /// <summary>
     /// 创建 endpoint mock 使用的最小管理员词条响应。
     /// </summary>
-    private static AdminWordResponse CreateAdminResponse(Guid wordId, Guid adminId)
+    private static AdminWordResponse CreateAdminResponse(Guid wordId)
         => new(
             wordId,
             "hello",
-            WordPublicationStatus.Draft,
-            new ContentAuditUserResponse(adminId, null, null),
-            new ContentAuditUserResponse(adminId, null, null),
-            null,
             null,
             Guid.NewGuid(),
             [
@@ -248,14 +263,6 @@ public sealed class WordEndpointTests
                             "你好。",
                             0)
                     ])
-            ],
-            [
-                new AdminWordPronunciationResponse(
-                    Guid.NewGuid(),
-                    "US",
-                    "/həˈloʊ/",
-                    true,
-                    0)
             ],
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow);

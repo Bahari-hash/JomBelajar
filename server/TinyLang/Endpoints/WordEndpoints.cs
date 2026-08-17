@@ -15,11 +15,6 @@ namespace TinyLang.Endpoints;
 /// </summary>
 public static class WordEndpoints
 {
-    /// <summary>
-    /// 注册词条管理和用户查询路由及其授权策略。
-    /// </summary>
-    /// <param name="endpoints">应用顶层 API 路由组。</param>
-    /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapWordsApi(this RouteGroupBuilder endpoints)
     {
         var userGroup = endpoints.MapGroup("/")
@@ -37,33 +32,24 @@ public static class WordEndpoints
         adminGroup.MapPost("/words/{id:guid}", RejectUnsupportedWordPost)
             .ExcludeFromDescription();
         adminGroup.MapPut("/words/{id:guid}", UpdateWordAsync);
-        adminGroup.MapPost("/words/{id:guid}/publish", PublishWordAsync);
-        adminGroup.MapPost("/words/{id:guid}/unpublish", UnpublishWordAsync);
-        adminGroup.MapPost("/words/{id:guid}/archive", ArchiveWordAsync);
         adminGroup.MapDelete("/words/{id:guid}", DeleteWordAsync);
 
         return endpoints;
     }
 
-    /// <summary>
-    /// 以当前管理员身份创建词条草稿。
-    /// </summary>
     public static async Task<Created<AdminWordResponse>> CreateWordAsync(
         CreateWordRequest request,
         ClaimsPrincipal principal,
         IWordService wordService,
         CancellationToken cancellationToken)
     {
-        var response = await wordService.CreateDraftAsync(
+        var response = await wordService.CreateAsync(
             EndpointIdentity.GetUserId(principal),
             request,
             cancellationToken);
         return TypedResults.Created($"/api/admin/words/{response.Id}", response);
     }
 
-    /// <summary>
-    /// 获取管理员可见的全局词条分页列表。
-    /// </summary>
     public static async Task<Ok<PagedResponse<AdminWordListItemResponse>>>
         GetAdminWordsAsync(
             [AsParameters] AdminWordListRequest request,
@@ -73,23 +59,14 @@ public static class WordEndpoints
             request,
             cancellationToken));
 
-    /// <summary>
-    /// 获取管理员可见的词条管理详情。
-    /// </summary>
     public static async Task<Ok<AdminWordResponse>> GetAdminWordAsync(
         Guid id,
         IWordService wordService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await wordService.GetAdminByIdAsync(id, cancellationToken));
 
-    /// <summary>
-    /// 将没有对应的单词 POST 操作的路径视为不存在。
-    /// </summary>
     public static NotFound RejectUnsupportedWordPost() => TypedResults.NotFound();
 
-    /// <summary>
-    /// 以完整目标集合和并发标识更新词条。
-    /// </summary>
     public static async Task<Ok<AdminWordResponse>> UpdateWordAsync(
         Guid id,
         UpdateWordRequest request,
@@ -102,57 +79,9 @@ public static class WordEndpoints
             request,
             cancellationToken));
 
-    /// <summary>
-    /// 以当前管理员身份幂等发布词条。
-    /// </summary>
-    public static async Task<Ok<AdminWordResponse>> PublishWordAsync(
-        Guid id,
-        WordMutationRequest request,
-        ClaimsPrincipal principal,
-        IWordService wordService,
-        CancellationToken cancellationToken)
-        => TypedResults.Ok(await wordService.PublishAsync(
-            id,
-            EndpointIdentity.GetUserId(principal),
-            request,
-            cancellationToken));
-
-    /// <summary>
-    /// 以当前管理员身份幂等下架词条。
-    /// </summary>
-    public static async Task<Ok<AdminWordResponse>> UnpublishWordAsync(
-        Guid id,
-        WordMutationRequest request,
-        ClaimsPrincipal principal,
-        IWordService wordService,
-        CancellationToken cancellationToken)
-        => TypedResults.Ok(await wordService.UnpublishAsync(
-            id,
-            EndpointIdentity.GetUserId(principal),
-            request,
-            cancellationToken));
-
-    /// <summary>
-    /// 以当前管理员身份将可归档词条迁移到不可恢复终态。
-    /// </summary>
-    public static async Task<Ok<AdminWordResponse>> ArchiveWordAsync(
-        Guid id,
-        WordMutationRequest request,
-        ClaimsPrincipal principal,
-        IWordService wordService,
-        CancellationToken cancellationToken)
-        => TypedResults.Ok(await wordService.ArchiveAsync(
-            id,
-            EndpointIdentity.GetUserId(principal),
-            request,
-            cancellationToken));
-
-    /// <summary>
-    /// 删除当前允许删除的词条聚合。
-    /// </summary>
     public static async Task<NoContent> DeleteWordAsync(
         Guid id,
-        [FromBody] WordMutationRequest request,
+        [FromBody] DeleteWordRequest request,
         ClaimsPrincipal principal,
         IWordService wordService,
         CancellationToken cancellationToken)
@@ -165,18 +94,12 @@ public static class WordEndpoints
         return TypedResults.NoContent();
     }
 
-    /// <summary>
-    /// 获取当前可用的已发布词条分页列表。
-    /// </summary>
     public static async Task<Ok<PagedResponse<WordListItemResponse>>> GetWordsAsync(
         [AsParameters] WordListRequest request,
         IWordService wordService,
         CancellationToken cancellationToken)
         => TypedResults.Ok(await wordService.GetUserListAsync(request, cancellationToken));
 
-    /// <summary>
-    /// 获取当前可用的已发布词条详情。
-    /// </summary>
     public static async Task<Ok<WordResponse>> GetWordAsync(
         Guid id,
         IWordService wordService,

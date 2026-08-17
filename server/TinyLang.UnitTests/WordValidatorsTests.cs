@@ -2,6 +2,7 @@
 using FluentAssertions;
 using TinyLang.Dtos;
 using TinyLang.Entities.Enums;
+using TinyLang.Exceptions;
 
 namespace TinyLang.UnitTests;
 
@@ -10,32 +11,33 @@ namespace TinyLang.UnitTests;
 /// </summary>
 public sealed class WordValidatorsTests
 {
-    /// <summary>
-    /// 验证 Draft 可以使用空子集合，同时保留合法词头和语言要求。
-    /// </summary>
     [Fact]
-    public async Task EmptyDraftShouldBeValid()
+    public async Task WordShouldRequireAtLeastOneSense()
     {
         var result = await new CreateWordRequestValidator().ValidateAsync(
             new CreateWordRequest { Headword = "hello" },
             TestContext.Current.CancellationToken);
 
-        result.IsValid.Should().BeTrue();
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(error =>
+            error.ErrorCode == "WordSenseRequired");
     }
 
     [Fact]
-    public async Task TextOnlyPronunciationShouldBeValidWithoutAudioReference()
+    public async Task SenseWithoutExamplesShouldBeValid()
     {
         var result = await new CreateWordRequestValidator().ValidateAsync(
             new CreateWordRequest
             {
                 Headword = "hello",
-                Pronunciations =
+                Senses =
                 [
-                    new WordPronunciationInput
+                    new WordSenseInput
                     {
-                        IsDefault = true,
-                        SortOrder = 0
+                        PartOfSpeech = PartOfSpeech.Noun,
+                        Definition = "a greeting",
+                        SortOrder = 0,
+                        Examples = []
                     }
                 ]
             },
@@ -44,9 +46,15 @@ public sealed class WordValidatorsTests
         result.IsValid.Should().BeTrue();
     }
 
-    /// <summary>
-    /// 验证创建请求不能指定服务端子项标识。
-    /// </summary>
+    [Fact]
+    public void WordContractsShouldExposeOptionalSharedAudioReference()
+    {
+        typeof(WordUpsertRequest).GetProperty("AudioResourceId")
+            .Should().NotBeNull();
+        Enum.TryParse<ErrorCodes>("WordAudioInvalid", out _)
+            .Should().BeTrue();
+    }
+
     [Fact]
     public async Task CreateShouldRejectClientChildIds()
     {
@@ -65,9 +73,6 @@ public sealed class WordValidatorsTests
         result.IsValid.Should().BeFalse();
     }
 
-    /// <summary>
-    /// 验证重复排序、默认项和空并发标识均被拒绝。
-    /// </summary>
     [Fact]
     public async Task UpdateShouldRejectDuplicateTargetsAndEmptyConcurrencyStamp()
     {
@@ -78,19 +83,6 @@ public sealed class WordValidatorsTests
             [
                 CreateSense(0),
                 CreateSense(0)
-            ],
-            Pronunciations =
-            [
-                new WordPronunciationInput
-                {
-                    IsDefault = true,
-                    SortOrder = 0
-                },
-                new WordPronunciationInput
-                {
-                    IsDefault = true,
-                    SortOrder = 0
-                }
             ]
         };
 
@@ -103,9 +95,6 @@ public sealed class WordValidatorsTests
             error.PropertyName == nameof(UpdateWordRequest.ConcurrencyStamp));
     }
 
-    /// <summary>
-    /// 验证嵌套必填文本、语言、词性、音频和排序范围。
-    /// </summary>
     [Fact]
     public async Task NestedInputsShouldRejectInvalidFields()
     {
@@ -129,13 +118,6 @@ public sealed class WordValidatorsTests
                         }
                     ]
                 }
-            ],
-            Pronunciations =
-            [
-                new WordPronunciationInput
-                {
-                    SortOrder = -1
-                }
             ]
         };
 
@@ -144,21 +126,18 @@ public sealed class WordValidatorsTests
             TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().HaveCountGreaterThan(5);
+        result.Errors.Should().HaveCountGreaterThan(4);
     }
 
-    /// <summary>
-    /// 验证两类列表请求拒绝越界分页、非法语言和状态枚举。
-    /// </summary>
     [Fact]
-    public async Task ListsShouldRejectInvalidPagingLanguageAndStatus()
+    public async Task ListsShouldRejectInvalidPagingAndPartOfSpeech()
     {
         var adminResult = await new AdminWordListRequestValidator().ValidateAsync(
             new AdminWordListRequest
             {
                 Page = 0,
                 PageSize = 101,
-                Status = (WordPublicationStatus)999
+                PartOfSpeech = (PartOfSpeech)999
             },
             TestContext.Current.CancellationToken);
         var userResult = await new WordListRequestValidator().ValidateAsync(
@@ -169,9 +148,6 @@ public sealed class WordValidatorsTests
         userResult.IsValid.Should().BeFalse();
     }
 
-    /// <summary>
-    /// 验证管理员定义筛选拒绝空白和控制字符，并接受合法词性。
-    /// </summary>
     [Fact]
     public async Task AdminListShouldValidateDefinitionFilter()
     {
@@ -196,42 +172,24 @@ public sealed class WordValidatorsTests
         valid.IsValid.Should().BeTrue();
     }
 
-    /// <summary>
-    /// 验证状态动作请求必须携带非空并发标识。
-    /// </summary>
     [Fact]
-    public async Task MutationShouldRequireConcurrencyStamp()
+    public void DeleteContractShouldUseDedicatedConcurrencyRequest()
     {
-        var result = await new WordMutationRequestValidator().ValidateAsync(
-            new WordMutationRequest(),
-            TestContext.Current.CancellationToken);
+        var contractAssembly = typeof(CreateWordRequest).Assembly;
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(error =>
-            error.PropertyName == nameof(WordMutationRequest.ConcurrencyStamp));
+        contractAssembly.GetType("TinyLang.Dtos.DeleteWordRequest")
+            .Should().NotBeNull();
+        contractAssembly.GetType("TinyLang.Dtos.WordMutationRequest")
+            .Should().BeNull();
     }
 
-    /// <summary>
-    /// 创建包含一个释义、例句和默认发音的有效请求。
-    /// </summary>
     private static CreateWordRequest CreateValidRequest()
         => new()
         {
             Headword = "hello",
-            Senses = [CreateSense(0)],
-            Pronunciations =
-            [
-                new WordPronunciationInput
-                {
-                    IsDefault = true,
-                    SortOrder = 0
-                }
-            ]
+            Senses = [CreateSense(0)]
         };
 
-    /// <summary>
-    /// 创建指定排序值的有效释义和例句输入。
-    /// </summary>
     private static WordSenseInput CreateSense(int sortOrder)
         => new()
         {

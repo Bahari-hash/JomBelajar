@@ -150,7 +150,7 @@ public sealed class WordStudyEndpointTests
                     0,
                     WordStudySessionItemStatus.Pending,
                     true,
-                    new WordStudySessionItemContentResponse("hello", [], []))
+                    new WordStudySessionItemContentResponse("hello", [], null))
             ]);
         await using var app = await CreateHttpAppAsync(service.Object, userId);
 
@@ -226,10 +226,10 @@ public sealed class WordStudyEndpointTests
     }
 
     /// <summary>
-    /// 验证 next JSON 保留有序文本内容且不暴露音频字段。
+    /// 验证 next JSON 返回共享音频标识且不暴露内部音频字段。
     /// </summary>
     [Fact]
-    public async Task NextResponseShouldNotExposeInternalAudioFields()
+    public async Task NextResponseShouldExposeOnlyAudioResourceId()
     {
         var userId = Guid.NewGuid();
         var sessionId = Guid.NewGuid();
@@ -253,7 +253,7 @@ public sealed class WordStudyEndpointTests
                         0,
                         [new ExampleSentenceResponse("Hello there.", "你好。", 0)])
                 ],
-                [new WordPronunciationResponse("US", "/həˈloʊ/", true, 0)]));
+                Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")));
         await using var app = await CreateHttpAppAsync(service.Object, userId);
 
         var response = await app.GetTestClient().GetAsync(
@@ -268,8 +268,10 @@ public sealed class WordStudyEndpointTests
         json.Should().Contain("Hello there.");
         json.Should().Contain("你好。");
         json.Should().Contain("sortOrder");
-        json.Should().Contain("accentTag");
-        json.Should().Contain("ipa");
+        json.Should().Contain("audioResourceId");
+        json.Should().Contain("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        json.Should().NotContain("accentTag");
+        json.Should().NotContain("ipa");
         json.Should().NotContain("audioClipId");
         json.Should().NotContain("ownerId");
         json.Should().NotContain("objectName");

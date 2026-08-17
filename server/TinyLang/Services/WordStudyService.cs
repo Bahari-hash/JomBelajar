@@ -297,14 +297,7 @@ public sealed class WordStudyService : IWordStudyService
                                     example.SortOrder))
                                 .ToList()))
                         .ToList(),
-                    word.Pronunciations.OrderBy(value => value.SortOrder)
-                        .ThenBy(value => value.Id)
-                        .Select(value => new WordPronunciationResponse(
-                            value.AccentTag,
-                            value.Ipa,
-                            value.IsDefault,
-                            value.SortOrder))
-                        .ToList())
+                    word.AudioResourceId)
             })
             .ToDictionaryAsync(
                 value => value.Id,
@@ -374,14 +367,7 @@ public sealed class WordStudyService : IWordStudyService
                                 example.SortOrder))
                             .ToList()))
                     .ToList(),
-                word.Pronunciations.OrderBy(value => value.SortOrder)
-                    .ThenBy(value => value.Id)
-                    .Select(value => new WordPronunciationResponse(
-                        value.AccentTag,
-                        value.Ipa,
-                        value.IsDefault,
-                        value.SortOrder))
-                    .ToList()))
+                word.AudioResourceId))
             .FirstOrDefaultAsync(cancellationToken);
         var now = _timeProvider.GetUtcNow();
         var changed = false;
@@ -572,7 +558,7 @@ public sealed class WordStudyService : IWordStudyService
             .Where(word => !_db.UserWordProgress.AsNoTracking().Any(
                 progress => progress.UserId == userId &&
                     progress.WordId == word.Id))
-            .OrderByDescending(value => value.PublishedAt)
+            .OrderByDescending(value => value.UpdatedAt)
             .ThenByDescending(value => value.Id)
             .Take(wordCount)
             .Select(value => value.Id)

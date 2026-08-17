@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TinyLang.Dtos;
 using TinyLang.Entities;
-using TinyLang.Entities.Enums;
 using TinyLang.Exceptions;
 using TinyLang.Interfaces;
 using TinyLang.Policies;
@@ -11,53 +10,42 @@ using TinyLang.Policies;
 namespace TinyLang.Services;
 
 /// <summary>
-/// 实现词条聚合写入、发布状态和安全用户查询规则。
+/// 实现立即有效的词条聚合写入、共享音频关联和登录用户查询规则。
 /// </summary>
 public sealed class WordService : IWordService
 {
     private const string HeadwordUniqueIndex =
         "IX_words_NormalizedHeadword";
-    private const string DefaultPronunciationUniqueIndex =
-        "IX_word_pronunciations_WordId";
+    private const string AudioResourceForeignKey =
+        "FK_words_audio_resources_AudioResourceId";
     private static readonly string[] SortOrderUniqueIndexes =
     [
         "IX_word_senses_WordId_SortOrder",
-        "IX_example_sentences_WordSenseId_SortOrder",
-        "IX_word_pronunciations_WordId_SortOrder"
-    ];
-    private static readonly string[] StudyHistoryForeignKeys =
-    [
-        "FK_user_word_progress_words_WordId",
-        "FK_word_study_session_items_words_WordId"
+        "IX_example_sentences_WordSenseId_SortOrder"
     ];
 
     private readonly IApplicationDbContext _db;
     private readonly IDatabaseExceptionClassifier _databaseExceptionClassifier;
-    private readonly TimeProvider _timeProvider;
     private readonly ILogger<WordService> _logger;
 
-    /// <summary>
-    /// 使用数据库、约束异常分类器、时间源和结构化日志创建词条服务。
-    /// </summary>
     public WordService(
         IApplicationDbContext db,
         IDatabaseExceptionClassifier databaseExceptionClassifier,
-        TimeProvider timeProvider,
         ILogger<WordService> logger)
     {
         _db = db;
         _databaseExceptionClassifier = databaseExceptionClassifier;
-        _timeProvider = timeProvider;
         _logger = logger;
     }
 
     /// <inheritdoc />
-    public async Task<AdminWordResponse> CreateDraftAsync(
+    public async Task<AdminWordResponse> CreateAsync(
         Guid adminId,
         CreateWordRequest request,
         CancellationToken cancellationToken = default)
     {
         ValidateTargetCollections(request, allowExistingIds: false);
+        await EnsureAudioExistsAsync(request.AudioResourceId, cancellationToken);
         var identity = NormalizeIdentity(request.Headword);
         await EnsureHeadwordUniqueAsync(
             identity.NormalizedHeadword,
@@ -67,15 +55,14 @@ public sealed class WordService : IWordService
         {
             Headword = identity.Headword,
             NormalizedHeadword = identity.NormalizedHeadword,
-            CreatedById = adminId,
-            LastEditorId = adminId
+            AudioResourceId = request.AudioResourceId
         };
         ApplyNewTarget(word, request);
         _db.Words.Add(word);
         await SaveWordChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Created word draft {WordId} by administrator {AdminId}",
+            "Created word {WordId} by administrator {AdminId}",
             word.Id,
             adminId);
         return await GetAdminByIdAsync(word.Id, cancellationToken);
@@ -91,22 +78,18 @@ public sealed class WordService : IWordService
         ValidateTargetCollections(request, allowExistingIds: true);
         var word = await FindWordForEditAsync(wordId, cancellationToken);
         EnsureExpectedStamp(word, request.ConcurrencyStamp);
-        if (word.Status is WordPublicationStatus.Published or
-            WordPublicationStatus.Archived)
-        {
-            throw ConflictException.Create(ErrorCodes.WordStatusConflict);
-        }
-
         ValidateChildOwnership(word, request);
+        await EnsureAudioExistsAsync(request.AudioResourceId, cancellationToken);
         var identity = NormalizeIdentity(request.Headword);
         await EnsureHeadwordUniqueAsync(
             identity.NormalizedHeadword,
             word.Id,
             cancellationToken);
+
         await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
         word.Headword = identity.Headword;
         word.NormalizedHeadword = identity.NormalizedHeadword;
-        word.LastEditorId = adminId;
+        word.AudioResourceId = request.AudioResourceId;
         word.ConcurrencyStamp = Guid.NewGuid();
         StageExistingChildren(word, request);
         await SaveWordChangesAsync(cancellationToken);
@@ -123,121 +106,14 @@ public sealed class WordService : IWordService
     }
 
     /// <inheritdoc />
-    public async Task<AdminWordResponse> PublishAsync(
-        Guid wordId,
-        Guid adminId,
-        WordMutationRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var word = await FindWordForEditAsync(wordId, cancellationToken);
-        EnsureExpectedStamp(word, request.ConcurrencyStamp);
-        if (word.Status == WordPublicationStatus.Published)
-        {
-            return await GetAdminByIdAsync(wordId, cancellationToken);
-        }
-        if (word.Status is not (WordPublicationStatus.Draft or WordPublicationStatus.Unpublished))
-        {
-            throw ConflictException.Create(ErrorCodes.WordStatusConflict);
-        }
-
-        EnsurePublishableContent(word);
-        word.Status = WordPublicationStatus.Published;
-        word.PublishedAt ??= _timeProvider.GetUtcNow();
-        word.LastEditorId = adminId;
-        word.ConcurrencyStamp = Guid.NewGuid();
-        await SaveWordChangesAsync(cancellationToken);
-
-        _logger.LogInformation(
-            "Published word {WordId} by administrator {AdminId}",
-            word.Id,
-            adminId);
-        return await GetAdminByIdAsync(word.Id, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<AdminWordResponse> UnpublishAsync(
-        Guid wordId,
-        Guid adminId,
-        WordMutationRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var word = await FindWordForEditAsync(wordId, cancellationToken);
-        EnsureExpectedStamp(word, request.ConcurrencyStamp);
-        if (word.Status == WordPublicationStatus.Unpublished)
-        {
-            return await GetAdminByIdAsync(wordId, cancellationToken);
-        }
-        if (word.Status != WordPublicationStatus.Published)
-        {
-            throw ConflictException.Create(ErrorCodes.WordStatusConflict);
-        }
-
-        word.Status = WordPublicationStatus.Unpublished;
-        word.LastEditorId = adminId;
-        word.ConcurrencyStamp = Guid.NewGuid();
-        await SaveWordChangesAsync(cancellationToken);
-
-        _logger.LogInformation(
-            "Unpublished word {WordId} by administrator {AdminId}",
-            word.Id,
-            adminId);
-        return await GetAdminByIdAsync(word.Id, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<AdminWordResponse> ArchiveAsync(
-        Guid wordId,
-        Guid adminId,
-        WordMutationRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var word = await FindWordForEditAsync(wordId, cancellationToken);
-        EnsureExpectedStamp(word, request.ConcurrencyStamp);
-        if (word.Status is not (WordPublicationStatus.Draft or
-            WordPublicationStatus.Unpublished))
-        {
-            throw ConflictException.Create(ErrorCodes.WordArchiveConflict);
-        }
-
-        word.Status = WordPublicationStatus.Archived;
-        word.ArchivedAt = _timeProvider.GetUtcNow();
-        word.LastEditorId = adminId;
-        word.ConcurrencyStamp = Guid.NewGuid();
-        await SaveWordChangesAsync(cancellationToken);
-
-        _logger.LogInformation(
-            "Archived word {WordId} by administrator {AdminId}",
-            word.Id,
-            adminId);
-        return await GetAdminByIdAsync(word.Id, cancellationToken);
-    }
-
-    /// <inheritdoc />
     public async Task DeleteAsync(
         Guid wordId,
         Guid adminId,
-        WordMutationRequest request,
+        DeleteWordRequest request,
         CancellationToken cancellationToken = default)
     {
         var word = await FindWordForEditAsync(wordId, cancellationToken);
         EnsureExpectedStamp(word, request.ConcurrencyStamp);
-        if (word.Status == WordPublicationStatus.Published)
-        {
-            throw ConflictException.Create(ErrorCodes.WordPublishedDeleteConflict);
-        }
-        if (word.Status == WordPublicationStatus.Archived)
-        {
-            throw ConflictException.Create(ErrorCodes.WordStatusConflict);
-        }
-        if (await _db.UserWordProgress.AsNoTracking().AnyAsync(
-                value => value.WordId == wordId,
-                cancellationToken) ||
-            await _db.WordStudySessionItems.AsNoTracking().AnyAsync(
-                value => value.WordId == wordId,
-                cancellationToken))
-        {
-            throw ConflictException.Create(ErrorCodes.WordHasStudyHistory);
-        }
 
         _db.Words.Remove(word);
         await SaveWordChangesAsync(cancellationToken);
@@ -251,17 +127,11 @@ public sealed class WordService : IWordService
     public async Task<AdminWordResponse> GetAdminByIdAsync(
         Guid wordId,
         CancellationToken cancellationToken = default)
-    {
-        var response = await _db.Words.AsNoTracking()
+        => await _db.Words.AsNoTracking()
             .Where(value => value.Id == wordId)
             .Select(ToAdminResponseProjection())
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.WordNotFound);
-        var users = await LoadAuditUsersAsync(
-            [response.CreatedBy.Id, response.LastEditor.Id],
-            cancellationToken);
-        return EnrichAuditUsers(response, users);
-    }
 
     /// <inheritdoc />
     public async Task<PagedResponse<AdminWordListItemResponse>> GetAdminListAsync(
@@ -269,14 +139,6 @@ public sealed class WordService : IWordService
         CancellationToken cancellationToken = default)
     {
         var query = _db.Words.AsNoTracking();
-        if (request.Status is { } status)
-        {
-            query = query.Where(value => value.Status == status);
-        }
-        else
-        {
-            query = query.Where(value => value.Status != WordPublicationStatus.Archived);
-        }
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = WordTextNormalizer.CreateHeadwordComparisonKey(request.Keyword);
@@ -303,10 +165,9 @@ public sealed class WordService : IWordService
             .Select(value => new AdminWordListItemResponse(
                 value.Id,
                 value.Headword,
-                value.Status,
                 value.Senses.OrderBy(sense => sense.SortOrder)
                     .ThenBy(sense => sense.Id)
-                    .Select(sense => (PartOfSpeech?)sense.PartOfSpeech)
+                    .Select(sense => (Entities.Enums.PartOfSpeech?)sense.PartOfSpeech)
                     .FirstOrDefault(),
                 value.Senses.OrderBy(sense => sense.SortOrder)
                     .ThenBy(sense => sense.Id)
@@ -314,29 +175,12 @@ public sealed class WordService : IWordService
                     .FirstOrDefault(),
                 value.Senses.Count,
                 value.Senses.SelectMany(sense => sense.Examples).Count(),
-                value.Pronunciations.Count,
-                new ContentAuditUserResponse(value.CreatedById, null, null),
-                new ContentAuditUserResponse(value.LastEditorId, null, null),
-                value.PublishedAt,
-                value.ArchivedAt,
+                value.AudioResourceId != null,
                 value.CreatedAt,
                 value.UpdatedAt,
                 value.ConcurrencyStamp))
             .ToListAsync(cancellationToken);
-        var auditUserIds = items.SelectMany(value => new[]
-            {
-                value.CreatedBy.Id,
-                value.LastEditor.Id
-            })
-            .Distinct()
-            .ToArray();
-        var auditUsers = await LoadAuditUsersAsync(auditUserIds, cancellationToken);
-        var enrichedItems = items.Select(value => value with
-        {
-            CreatedBy = GetAuditUser(value.CreatedBy.Id, auditUsers),
-            LastEditor = GetAuditUser(value.LastEditor.Id, auditUsers)
-        }).ToArray();
-        return CreatePage(enrichedItems, request.Page, request.PageSize, totalCount);
+        return CreatePage(items, request.Page, request.PageSize, totalCount);
     }
 
     /// <inheritdoc />
@@ -363,7 +207,7 @@ public sealed class WordService : IWordService
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
-            .OrderByDescending(value => value.PublishedAt)
+            .OrderByDescending(value => value.UpdatedAt)
             .ThenByDescending(value => value.Id)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
@@ -378,36 +222,38 @@ public sealed class WordService : IWordService
                     .ThenBy(sense => sense.Id)
                     .Select(sense => sense.Definition)
                     .First(),
-                value.Pronunciations.Where(pronunciation => pronunciation.IsDefault)
-                    .OrderBy(pronunciation => pronunciation.SortOrder)
-                    .ThenBy(pronunciation => pronunciation.Id)
-                    .Select(pronunciation => new WordPronunciationResponse(
-                        pronunciation.AccentTag,
-                        pronunciation.Ipa,
-                        pronunciation.IsDefault,
-                        pronunciation.SortOrder))
-                    .First(),
-                value.PublishedAt!.Value))
+                value.AudioResourceId,
+                value.UpdatedAt))
             .ToListAsync(cancellationToken);
         return CreatePage(items, request.Page, request.PageSize, totalCount);
     }
 
-    /// <summary>
-    /// 加载包含全部私有子项的 tracked 词条聚合。
-    /// </summary>
     private async Task<Word> FindWordForEditAsync(
         Guid wordId,
         CancellationToken cancellationToken)
         => await _db.Words
             .Include(value => value.Senses)
                 .ThenInclude(value => value.Examples)
-            .Include(value => value.Pronunciations)
             .SingleOrDefaultAsync(value => value.Id == wordId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.WordNotFound);
 
-    /// <summary>
-    /// 规范化并验证词头唯一键的持久化形态。
-    /// </summary>
+    private async Task EnsureAudioExistsAsync(
+        Guid? audioResourceId,
+        CancellationToken cancellationToken)
+    {
+        if (audioResourceId is null)
+        {
+            return;
+        }
+        if (audioResourceId == Guid.Empty ||
+            !await _db.AudioResources.AsNoTracking().AnyAsync(
+                value => value.Id == audioResourceId.Value,
+                cancellationToken))
+        {
+            throw NotFoundException.Create(ErrorCodes.WordAudioInvalid);
+        }
+    }
+
     private static WordIdentity NormalizeIdentity(string headword)
     {
         if (string.IsNullOrWhiteSpace(headword))
@@ -425,9 +271,6 @@ public sealed class WordService : IWordService
         return new WordIdentity(display, comparisonKey);
     }
 
-    /// <summary>
-    /// 在数据库约束之外提前识别规范化词头冲突。
-    /// </summary>
     private async Task EnsureHeadwordUniqueAsync(
         string normalizedHeadword,
         Guid? excludedWordId,
@@ -442,22 +285,20 @@ public sealed class WordService : IWordService
         }
     }
 
-    /// <summary>
-    /// 防御性验证完整目标集合的数量、标识、排序和默认发音边界。
-    /// </summary>
     private static void ValidateTargetCollections(
         WordUpsertRequest request,
         bool allowExistingIds)
     {
-        if (request.Senses is null || request.Pronunciations is null ||
+        if (request.Senses is null || request.Senses.Count == 0 ||
             request.Senses.Count > WordConstraints.MaxSenseCount ||
-            request.Pronunciations.Count > WordConstraints.MaxPronunciationCount ||
             request.Senses.Any(value =>
                 value is null || value.Examples is null ||
-                value.Examples.Count > WordConstraints.MaxExampleCount) ||
-            request.Pronunciations.Any(value => value is null))
+                value.Examples.Count > WordConstraints.MaxExampleCount))
         {
-            throw new RequestValidationException(ErrorCodes.WordChildCollectionInvalid);
+            throw new RequestValidationException(
+                request.Senses?.Count == 0
+                    ? ErrorCodes.WordSenseRequired
+                    : ErrorCodes.WordChildCollectionInvalid);
         }
 
         var senseIds = request.Senses.Where(value => value.Id.HasValue)
@@ -465,19 +306,14 @@ public sealed class WordService : IWordService
         var exampleIds = request.Senses.SelectMany(value => value.Examples)
             .Where(value => value.Id.HasValue)
             .Select(value => value.Id.GetValueOrDefault()).ToArray();
-        var pronunciationIds = request.Pronunciations.Where(value => value.Id.HasValue)
-            .Select(value => value.Id.GetValueOrDefault()).ToArray();
         if (senseIds.Any(value => value == Guid.Empty) ||
             exampleIds.Any(value => value == Guid.Empty) ||
-            pronunciationIds.Any(value => value == Guid.Empty) ||
             senseIds.Distinct().Count() != senseIds.Length ||
-            exampleIds.Distinct().Count() != exampleIds.Length ||
-            pronunciationIds.Distinct().Count() != pronunciationIds.Length)
+            exampleIds.Distinct().Count() != exampleIds.Length)
         {
             throw new RequestValidationException(ErrorCodes.WordChildIdConflict);
         }
-        if (!allowExistingIds &&
-            (senseIds.Length > 0 || exampleIds.Length > 0 || pronunciationIds.Length > 0))
+        if (!allowExistingIds && (senseIds.Length > 0 || exampleIds.Length > 0))
         {
             throw new RequestValidationException(ErrorCodes.WordChildIdInvalid);
         }
@@ -486,16 +322,13 @@ public sealed class WordService : IWordService
         {
             throw new RequestValidationException(ErrorCodes.WordChildIdInvalid);
         }
-
         if (request.Senses.Any(value => !Enum.IsDefined(value.PartOfSpeech)))
         {
             throw new RequestValidationException(ErrorCodes.WordPartOfSpeechInvalid);
         }
         if (request.Senses.Any(value =>
-                !IsValidSortOrder(value.SortOrder) ||
-                value.Examples.Any(example => !IsValidSortOrder(example.SortOrder))) ||
-            request.Pronunciations.Any(pronunciation =>
-                !IsValidSortOrder(pronunciation.SortOrder)))
+            !IsValidSortOrder(value.SortOrder) ||
+            value.Examples.Any(example => !IsValidSortOrder(example.SortOrder))))
         {
             throw new RequestValidationException(ErrorCodes.WordSortOrderInvalid);
         }
@@ -503,21 +336,12 @@ public sealed class WordService : IWordService
                 value.Examples.Select(example => example.SortOrder).Distinct().Count() !=
                     value.Examples.Count) ||
             request.Senses.Select(value => value.SortOrder).Distinct().Count() !=
-                request.Senses.Count ||
-            request.Pronunciations.Select(value => value.SortOrder).Distinct().Count() !=
-                request.Pronunciations.Count)
+                request.Senses.Count)
         {
             throw new RequestValidationException(ErrorCodes.WordSortOrderConflict);
         }
-        if (request.Pronunciations.Count(value => value.IsDefault) > 1)
-        {
-            throw new RequestValidationException(ErrorCodes.WordDefaultPronunciationConflict);
-        }
     }
 
-    /// <summary>
-    /// 确保请求中的已有子项属于当前词条和对应父释义。
-    /// </summary>
     private static void ValidateChildOwnership(Word word, UpdateWordRequest request)
     {
         var senses = word.Senses.ToDictionary(value => value.Id);
@@ -531,7 +355,6 @@ public sealed class WordService : IWordService
             {
                 throw new RequestValidationException(ErrorCodes.WordChildIdConflict);
             }
-
             var exampleIds = sense.Examples.Select(value => value.Id).ToHashSet();
             if (input.Examples.Any(value =>
                 value.Id is { } exampleId && !exampleIds.Contains(exampleId)))
@@ -539,33 +362,16 @@ public sealed class WordService : IWordService
                 throw new RequestValidationException(ErrorCodes.WordChildIdConflict);
             }
         }
-
-        var pronunciationIds = word.Pronunciations.Select(value => value.Id).ToHashSet();
-        if (request.Pronunciations.Any(value =>
-            value.Id is { } pronunciationId && !pronunciationIds.Contains(pronunciationId)))
-        {
-            throw new RequestValidationException(ErrorCodes.WordChildIdConflict);
-        }
     }
 
-    /// <summary>
-    /// 将创建请求的全部子项作为新实体加入词条。
-    /// </summary>
     private static void ApplyNewTarget(Word word, WordUpsertRequest request)
     {
         foreach (var senseInput in request.Senses)
         {
             word.Senses.Add(CreateSense(word, senseInput));
         }
-        foreach (var pronunciationInput in request.Pronunciations)
-        {
-            word.Pronunciations.Add(CreatePronunciation(word, pronunciationInput));
-        }
     }
 
-    /// <summary>
-    /// 删除目标集合遗漏的子项，并将保留项移到无冲突的临时排序区。
-    /// </summary>
     private void StageExistingChildren(Word word, UpdateWordRequest request)
     {
         var desiredSenseIds = request.Senses.Where(value => value.Id.HasValue)
@@ -596,26 +402,8 @@ public sealed class WordService : IWordService
                 example.SortOrder = int.MinValue + exampleIndex++;
             }
         }
-
-        var desiredPronunciationIds = request.Pronunciations.Where(value => value.Id.HasValue)
-            .Select(value => value.Id.GetValueOrDefault()).ToHashSet();
-        var pronunciationIndex = 0;
-        foreach (var pronunciation in word.Pronunciations.ToArray())
-        {
-            if (!desiredPronunciationIds.Contains(pronunciation.Id))
-            {
-                _db.WordPronunciations.Remove(pronunciation);
-                word.Pronunciations.Remove(pronunciation);
-                continue;
-            }
-            pronunciation.SortOrder = int.MinValue + pronunciationIndex++;
-            pronunciation.IsDefault = false;
-        }
     }
 
-    /// <summary>
-    /// 将保留项更新到最终值，并加入所有无标识的新子项。
-    /// </summary>
     private void ApplyFinalTarget(Word word, UpdateWordRequest request)
     {
         foreach (var senseInput in request.Senses)
@@ -649,27 +437,8 @@ public sealed class WordService : IWordService
                 }
             }
         }
-
-        foreach (var pronunciationInput in request.Pronunciations)
-        {
-            if (pronunciationInput.Id is { } pronunciationId)
-            {
-                ApplyPronunciationValues(
-                    word.Pronunciations.Single(value => value.Id == pronunciationId),
-                    pronunciationInput);
-            }
-            else
-            {
-                var pronunciation = CreatePronunciation(word, pronunciationInput);
-                word.Pronunciations.Add(pronunciation);
-                _db.WordPronunciations.Add(pronunciation);
-            }
-        }
     }
 
-    /// <summary>
-    /// 创建一个释义及其全部新例句。
-    /// </summary>
     private static WordSense CreateSense(Word word, WordSenseInput input)
     {
         var sense = new WordSense
@@ -686,20 +455,16 @@ public sealed class WordService : IWordService
         return sense;
     }
 
-    /// <summary>
-    /// 将请求中的释义字段应用到 tracked 实体。
-    /// </summary>
     private static void ApplySenseValues(WordSense sense, WordSenseInput input)
     {
         sense.PartOfSpeech = input.PartOfSpeech;
-        sense.Definition = WordTextNormalizer.NormalizeRequiredText(input.Definition);
-        sense.UsageNote = WordTextNormalizer.NormalizeOptionalText(input.UsageNote);
+        sense.Definition = input.Definition.Trim();
+        sense.UsageNote = string.IsNullOrWhiteSpace(input.UsageNote)
+            ? null
+            : input.UsageNote.Trim();
         sense.SortOrder = input.SortOrder;
     }
 
-    /// <summary>
-    /// 创建一个隶属于指定释义的新例句。
-    /// </summary>
     private static ExampleSentence CreateExample(
         WordSense sense,
         ExampleSentenceInput input)
@@ -715,80 +480,28 @@ public sealed class WordService : IWordService
         return example;
     }
 
-    /// <summary>
-    /// 将请求中的例句字段应用到 tracked 实体。
-    /// </summary>
     private static void ApplyExampleValues(
         ExampleSentence example,
         ExampleSentenceInput input)
     {
-        example.Sentence = WordTextNormalizer.NormalizeRequiredText(input.Sentence);
-        example.Translation = WordTextNormalizer.NormalizeRequiredText(input.Translation);
+        example.Sentence = input.Sentence.Trim();
+        example.Translation = input.Translation.Trim();
         example.SortOrder = input.SortOrder;
     }
 
-    /// <summary>
-    /// 创建一个隶属于指定词条的新发音关联。
-    /// </summary>
-    private static WordPronunciation CreatePronunciation(
-        Word word,
-        WordPronunciationInput input)
-    {
-        var pronunciation = new WordPronunciation
-        {
-            WordId = word.Id,
-            Word = word
-        };
-        ApplyPronunciationValues(pronunciation, input);
-        return pronunciation;
-    }
-
-    /// <summary>
-    /// 将请求中的发音字段应用到 tracked 实体。
-    /// </summary>
-    private static void ApplyPronunciationValues(
-        WordPronunciation pronunciation,
-        WordPronunciationInput input)
-    {
-        pronunciation.AccentTag = WordTextNormalizer.NormalizeOptionalText(input.AccentTag);
-        pronunciation.Ipa = WordTextNormalizer.NormalizeOptionalText(input.Ipa);
-        pronunciation.IsDefault = input.IsDefault;
-        pronunciation.SortOrder = input.SortOrder;
-    }
-
-    /// <summary>
-    /// 验证词条聚合满足从草稿进入 Published 的全部内容要求。
-    /// </summary>
-    private static void EnsurePublishableContent(Word word)
-    {
-        if (string.IsNullOrWhiteSpace(word.Headword) ||
-            word.Senses.Count == 0 ||
-            word.Senses.Any(value =>
-                !Enum.IsDefined(value.PartOfSpeech) ||
-                string.IsNullOrWhiteSpace(value.Definition) ||
-                value.Examples.Count == 0 ||
-                value.Examples.Any(example =>
-                    string.IsNullOrWhiteSpace(example.Sentence) ||
-                    string.IsNullOrWhiteSpace(example.Translation))) ||
-            word.Pronunciations.Count == 0 ||
-            word.Pronunciations.Count(value => value.IsDefault) != 1)
-        {
-            throw ConflictException.Create(ErrorCodes.WordPublishRequirementsNotMet);
-        }
-    }
-
-    /// <summary>
-    /// 创建可由 EF Core 翻译的管理员详情 projection。
-    /// </summary>
-    private static Expression<Func<Word, AdminWordResponse>> ToAdminResponseProjection()
+    private static Expression<Func<Word, AdminWordResponse>>
+        ToAdminResponseProjection()
         => word => new AdminWordResponse(
             word.Id,
             word.Headword,
-            word.Status,
-            new ContentAuditUserResponse(word.CreatedById, null, null),
-            new ContentAuditUserResponse(word.LastEditorId, null, null),
-            word.PublishedAt,
-            word.ArchivedAt,
+            word.AudioResource == null
+                ? null
+                : new AdminWordAudioResponse(
+                    word.AudioResource.Id,
+                    word.AudioResource.Name,
+                    word.AudioResource.Status,
+                    word.AudioResource.DurationSeconds,
+                    word.AudioResource.LastFailureCode),
             word.ConcurrencyStamp,
             word.Senses.OrderBy(sense => sense.SortOrder)
                 .ThenBy(sense => sense.Id)
@@ -807,58 +520,9 @@ public sealed class WordService : IWordService
                             example.SortOrder))
                         .ToList()))
                 .ToList(),
-            word.Pronunciations.OrderBy(pronunciation => pronunciation.SortOrder)
-                .ThenBy(pronunciation => pronunciation.Id)
-                .Select(pronunciation => new AdminWordPronunciationResponse(
-                    pronunciation.Id,
-                    pronunciation.AccentTag,
-                    pronunciation.Ipa,
-                    pronunciation.IsDefault,
-                    pronunciation.SortOrder))
-                .ToList(),
             word.CreatedAt,
             word.UpdatedAt);
 
-    /// <summary>
-    /// 一次性加载管理响应所需的最小审计用户资料。
-    /// </summary>
-    private async Task<IReadOnlyDictionary<Guid, ContentAuditUserResponse>>
-        LoadAuditUsersAsync(
-            IReadOnlyCollection<Guid> userIds,
-            CancellationToken cancellationToken)
-        => await _db.Users.AsNoTracking()
-            .Where(user => userIds.Contains(user.Id))
-            .Select(user => new ContentAuditUserResponse(
-                user.Id,
-                user.Nickname,
-                user.AvatarUrl))
-            .ToDictionaryAsync(user => user.Id, cancellationToken);
-
-    /// <summary>
-    /// 将详情 projection 中的审计标识替换为安全用户摘要。
-    /// </summary>
-    private static AdminWordResponse EnrichAuditUsers(
-        AdminWordResponse response,
-        IReadOnlyDictionary<Guid, ContentAuditUserResponse> users)
-        => response with
-        {
-            CreatedBy = GetAuditUser(response.CreatedBy.Id, users),
-            LastEditor = GetAuditUser(response.LastEditor.Id, users)
-        };
-
-    /// <summary>
-    /// 返回审计用户摘要；历史测试或异常孤立数据仅保留稳定标识。
-    /// </summary>
-    private static ContentAuditUserResponse GetAuditUser(
-        Guid userId,
-        IReadOnlyDictionary<Guid, ContentAuditUserResponse> users)
-        => users.TryGetValue(userId, out var user)
-            ? user
-            : new ContentAuditUserResponse(userId, null, null);
-
-    /// <summary>
-    /// 在任何幂等或状态判断之前验证客户端看到的并发版本。
-    /// </summary>
     private static void EnsureExpectedStamp(Word word, Guid expectedStamp)
     {
         if (word.ConcurrencyStamp != expectedStamp)
@@ -867,9 +531,6 @@ public sealed class WordService : IWordService
         }
     }
 
-    /// <summary>
-    /// 创建可由 EF Core 翻译的用户详情 projection。
-    /// </summary>
     private static Expression<Func<Word, WordResponse>> ToUserResponseProjection()
         => word => new WordResponse(
             word.Id,
@@ -889,19 +550,9 @@ public sealed class WordService : IWordService
                             example.SortOrder))
                         .ToList()))
                 .ToList(),
-            word.Pronunciations.OrderBy(pronunciation => pronunciation.SortOrder)
-                .ThenBy(pronunciation => pronunciation.Id)
-                .Select(pronunciation => new WordPronunciationResponse(
-                    pronunciation.AccentTag,
-                    pronunciation.Ipa,
-                    pronunciation.IsDefault,
-                    pronunciation.SortOrder))
-                .ToList(),
-            word.PublishedAt!.Value);
+            word.AudioResourceId,
+            word.UpdatedAt);
 
-    /// <summary>
-    /// 保存词条变更并映射预期唯一约束和乐观并发冲突。
-    /// </summary>
     private async Task SaveWordChangesAsync(CancellationToken cancellationToken)
     {
         try
@@ -925,13 +576,6 @@ public sealed class WordService : IWordService
         catch (DbUpdateException exception) when (
             _databaseExceptionClassifier.IsUniqueConstraintViolation(
                 exception,
-                DefaultPronunciationUniqueIndex))
-        {
-            throw ConflictException.Create(ErrorCodes.WordDefaultPronunciationConflict);
-        }
-        catch (DbUpdateException exception) when (
-            _databaseExceptionClassifier.IsUniqueConstraintViolation(
-                exception,
                 SortOrderUniqueIndexes))
         {
             throw ConflictException.Create(ErrorCodes.WordSortOrderConflict);
@@ -939,21 +583,15 @@ public sealed class WordService : IWordService
         catch (DbUpdateException exception) when (
             _databaseExceptionClassifier.IsForeignKeyConstraintViolation(
                 exception,
-                StudyHistoryForeignKeys))
+                AudioResourceForeignKey))
         {
-            throw ConflictException.Create(ErrorCodes.WordHasStudyHistory);
+            throw NotFoundException.Create(ErrorCodes.WordAudioInvalid);
         }
     }
 
-    /// <summary>
-    /// 判断排序值是否位于请求允许范围。
-    /// </summary>
     private static bool IsValidSortOrder(int value)
         => value is >= 0 and <= WordConstraints.MaxSortOrder;
 
-    /// <summary>
-    /// 创建包含总页数的词条分页响应。
-    /// </summary>
     private static PagedResponse<T> CreatePage<T>(
         IReadOnlyList<T> items,
         int page,
@@ -966,11 +604,7 @@ public sealed class WordService : IWordService
             totalCount,
             (totalCount + pageSize - 1) / pageSize);
 
-    /// <summary>
-    /// 保存规范化后的词条唯一身份字段。
-    /// </summary>
     private readonly record struct WordIdentity(
         string Headword,
         string NormalizedHeadword);
-
 }

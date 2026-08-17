@@ -458,11 +458,11 @@ public enum ErrorCodes
     [Description("例句翻译长度最大不能超过2000个字符.")]
     WordTranslationLengthLimit,
 
-    [Description("发音口音标签长度最大不能超过100个字符.")]
-    WordAccentTagLengthLimit,
+    [Description("词条至少需要一个释义.")]
+    WordSenseRequired,
 
-    [Description("发音 IPA 长度最大不能超过200个字符.")]
-    WordIpaLengthLimit,
+    [Description("词条读音资源无效.")]
+    WordAudioInvalid,
 
     [Description("词条子项集合无效.")]
     WordChildCollectionInvalid,
@@ -482,29 +482,12 @@ public enum ErrorCodes
     [Description("同级词条子项排序值不能重复.")]
     WordSortOrderConflict,
 
-    [Description("词条最多只能包含一个默认发音，发布时必须恰好包含一个.")]
-    WordDefaultPronunciationConflict,
-
-    [Description("词条发布状态无效.")]
-    WordStatusInvalid,
-
-    [Description("相同语言的词条已存在.")]
+    [Description("相同规范化词头的词条已存在.")]
     WordDuplicate,
-
-    [Description("词条内容不满足发布要求.")]
-    WordPublishRequirementsNotMet,
-
-    [Description("词条当前状态不允许执行该操作.")]
-    WordStatusConflict,
 
     [Description("词条已被其他管理员修改，请刷新后重试.")]
     WordConcurrencyConflict,
 
-    [Description("词条当前状态不允许归档.")]
-    WordArchiveConflict,
-
-    [Description("已发布词条必须先下架才能删除.")]
-    WordPublishedDeleteConflict,
 
     // --** Word Study Errors **--
 
@@ -537,9 +520,6 @@ public enum ErrorCodes
 
     [Description("背诵会话已被其他请求修改，请刷新后重试.")]
     WordStudyConcurrencyConflict,
-
-    [Description("词条已有用户学习历史，不能删除.")]
-    WordHasStudyHistory,
 
     // --** Online Quiz Errors **--
 

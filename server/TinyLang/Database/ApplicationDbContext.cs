@@ -31,7 +31,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.Word> Words => Set<Entities.Word>();
     public DbSet<Entities.WordSense> WordSenses => Set<Entities.WordSense>();
     public DbSet<Entities.ExampleSentence> ExampleSentences => Set<Entities.ExampleSentence>();
-    public DbSet<Entities.WordPronunciation> WordPronunciations => Set<Entities.WordPronunciation>();
     public DbSet<Entities.UserWordProgress> UserWordProgress => Set<Entities.UserWordProgress>();
     public DbSet<Entities.WordStudySession> WordStudySessions => Set<Entities.WordStudySession>();
     public DbSet<Entities.WordStudySessionItem> WordStudySessionItems => Set<Entities.WordStudySessionItem>();

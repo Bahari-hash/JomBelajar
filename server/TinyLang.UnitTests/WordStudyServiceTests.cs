@@ -318,31 +318,18 @@ public sealed class WordStudyServiceTests
     }
 
     /// <summary>
-    /// 验证非发布状态和不完整文本词条不会进入初始候选。
+    /// 验证无例句词条仍可学习，而没有释义的异常词条会被排除。
     /// </summary>
     [Fact]
-    public async Task CreationShouldExcludeNonPublishedAndIncompleteWords()
+    public async Task CreationShouldIncludeWordsWithoutExamplesAndExcludeWordsWithoutSenses()
     {
         await using var db = CreateDbContext();
         var valid = CreateVisibleWord("valid", Now);
         var withoutExamples = CreateVisibleWord("without-examples", Now.AddMinutes(-1));
-        var draft = CreateVisibleWord("draft", Now.AddMinutes(-1));
-        var unpublished = CreateVisibleWord("unpublished", Now.AddMinutes(-2));
-        var incomplete = CreateVisibleWord("incomplete", Now.AddMinutes(-3));
-        var archived = CreateVisibleWord("archived", Now.AddMinutes(-4));
+        var withoutSenses = CreateVisibleWord("without-senses", Now.AddMinutes(-2));
         withoutExamples.Senses.Single().Examples.Clear();
-        draft.Status = WordPublicationStatus.Draft;
-        draft.PublishedAt = null;
-        unpublished.Status = WordPublicationStatus.Unpublished;
-        archived.Status = WordPublicationStatus.Archived;
-        incomplete.Senses.Single().Examples.Single().Translation = " ";
-        db.Words.AddRange(
-            valid,
-            withoutExamples,
-            draft,
-            unpublished,
-            incomplete,
-            archived);
+        withoutSenses.Senses.Clear();
+        db.Words.AddRange(valid, withoutExamples, withoutSenses);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
 
@@ -352,11 +339,12 @@ public sealed class WordStudyServiceTests
             TestContext.Current.CancellationToken);
         var selectedWordIds = await db.WordStudySessionItems.AsNoTracking()
             .Where(value => value.SessionId == session.Id)
+            .OrderBy(value => value.Position)
             .Select(value => value.WordId)
             .ToListAsync(TestContext.Current.CancellationToken);
 
-        session.ActualCount.Should().Be(1);
-        selectedWordIds.Should().Equal(valid.Id);
+        session.ActualCount.Should().Be(2);
+        selectedWordIds.Should().Equal(valid.Id, withoutExamples.Id);
     }
 
     /// <summary>
@@ -427,12 +415,7 @@ public sealed class WordStudyServiceTests
         example?.Sentence.Should().Be("Use first.");
         example?.Translation.Should().Be("first");
         example?.SortOrder.Should().Be(0);
-        result[0].Content?.Pronunciations.Should().ContainSingle();
-        var pronunciation = result[0].Content?.Pronunciations.Single();
-        pronunciation?.AccentTag.Should().Be("default");
-        pronunciation?.Ipa.Should().Be("/first/");
-        pronunciation?.IsDefault.Should().BeTrue();
-        pronunciation?.SortOrder.Should().Be(0);
+        result[0].Content?.AudioResourceId.Should().BeNull();
     }
 
     /// <summary>
@@ -451,7 +434,7 @@ public sealed class WordStudyServiceTests
             userId,
             new CreateWordStudySessionRequest { WordCount = 1 },
             TestContext.Current.CancellationToken);
-        word.Status = WordPublicationStatus.Unpublished;
+        word.Senses.Clear();
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var result = await service.GetSessionItemsAsync(
@@ -487,7 +470,7 @@ public sealed class WordStudyServiceTests
             userId,
             new CreateWordStudySessionRequest { WordCount = 2 },
             TestContext.Current.CancellationToken);
-        first.Status = WordPublicationStatus.Unpublished;
+        first.Senses.Clear();
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var next = await service.GetNextItemAsync(
@@ -510,8 +493,7 @@ public sealed class WordStudyServiceTests
         nextValue.Senses.Single().Definition.Should().Be("definition of second");
         nextValue.Senses.Single().Examples.Single().Sentence.Should().Be("Use second.");
         nextValue.Senses.Single().Examples.Single().SortOrder.Should().Be(0);
-        nextValue.Pronunciations.Single().Ipa.Should().Be("/second/");
-        nextValue.Pronunciations.Single().SortOrder.Should().Be(0);
+        nextValue.AudioResourceId.Should().BeNull();
         repeatedValue.ItemId.Should().Be(nextValue.ItemId);
         var firstItem = await db.WordStudySessionItems.AsNoTracking()
             .SingleAsync(
@@ -520,7 +502,7 @@ public sealed class WordStudyServiceTests
                 TestContext.Current.CancellationToken);
         firstItem.Status.Should().Be(WordStudySessionItemStatus.Skipped);
         firstItem.SkipReason.Should().Be(WordStudySkipReason.ContentUnavailable);
-        second.Status = WordPublicationStatus.Unpublished;
+        second.Senses.Clear();
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var finished = await service.GetNextItemAsync(
@@ -699,7 +681,7 @@ public sealed class WordStudyServiceTests
             .Where(value => value.SessionId == session.Id)
             .Select(value => value.Id)
             .SingleAsync(TestContext.Current.CancellationToken);
-        word.Status = WordPublicationStatus.Unpublished;
+        word.Senses.Clear();
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var result = await service.SubmitResultAsync(
@@ -871,20 +853,18 @@ public sealed class WordStudyServiceTests
             Mock.Of<ILogger<WordStudyService>>());
 
     /// <summary>
-    /// 创建一个包含默认文本发音和例句且满足用户可见性规则的词条。
+    /// 创建一个包含释义和例句且满足用户可见性规则的词条。
     /// </summary>
     private static Word CreateVisibleWord(
         string headword,
-        DateTimeOffset publishedAt)
+        DateTimeOffset updatedAt)
     {
         var word = new Word
         {
             Headword = headword,
             NormalizedHeadword = headword.ToUpperInvariant(),
-            Status = WordPublicationStatus.Published,
-            PublishedAt = publishedAt,
-            CreatedById = Guid.NewGuid(),
-            LastEditorId = Guid.NewGuid(),
+            CreatedAt = updatedAt,
+            UpdatedAt = updatedAt,
             Senses =
             [
                 new WordSense
@@ -901,16 +881,6 @@ public sealed class WordStudyServiceTests
                             SortOrder = 0
                         }
                     ]
-                }
-            ],
-            Pronunciations =
-            [
-                new WordPronunciation
-                {
-                    AccentTag = "default",
-                    Ipa = $"/{headword}/",
-                    IsDefault = true,
-                    SortOrder = 0
                 }
             ]
         };

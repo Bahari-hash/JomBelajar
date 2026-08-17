@@ -69,7 +69,7 @@ export function AudioResourcePickerDialog({
         <DialogHeader>
           <DialogTitle>选择音频资源</DialogTitle>
           <DialogDescription>
-            文章可以关联处于任意处理状态的音频资源。
+            可以关联处于任意处理状态的音频资源。
           </DialogDescription>
         </DialogHeader>
 

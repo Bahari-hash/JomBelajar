@@ -56,6 +56,17 @@ function renderPicker(props = {}) {
 }
 
 describe("AudioResourcePickerDialog", () => {
+  it("uses resource-neutral copy for shared consumers", async () => {
+    tokenVault.install("access", "refresh");
+    mockHttpClient(() => Promise.resolve(axiosResponse(audioPage())));
+    renderPicker();
+
+    expect(
+      await screen.findByText("可以关联处于任意处理状态的音频资源。"),
+    ).toBeVisible();
+    expect(screen.queryByText(/文章可以关联/)).toBeNull();
+  });
+
   it("uses the audio directory query for search, status filtering, and pagination", async () => {
     tokenVault.install("access", "refresh");
     const requestMock = mockHttpClient((config) => {
@@ -135,7 +146,7 @@ describe("AudioResourcePickerDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("closes without changing the article selection", async () => {
+  it("closes without changing the current selection", async () => {
     tokenVault.install("access", "refresh");
     mockHttpClient(() => Promise.resolve(axiosResponse(audioPage())));
     const user = userEvent.setup();

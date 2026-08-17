@@ -3,12 +3,11 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  ChevronDown,
+  ChevronUp,
   Plus,
   Save,
   Trash2,
-  Send,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.jsx";
@@ -22,7 +21,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog.jsx";
 import { Button } from "@/components/ui/button.jsx";
-import { Checkbox } from "@/components/ui/checkbox.jsx";
 import { Input } from "@/components/ui/input.jsx";
 import { Label } from "@/components/ui/label.jsx";
 import {
@@ -34,11 +32,8 @@ import {
 } from "@/components/ui/select.jsx";
 import { Skeleton } from "@/components/ui/skeleton.jsx";
 import { Textarea } from "@/components/ui/textarea.jsx";
-import {
-  PART_OF_SPEECH_OPTIONS,
-  getWordStatusLabel,
-} from "@/constants/wordStatus.js";
-import { WordActionDialog } from "@/features/words/WordActionDialog.jsx";
+import { PART_OF_SPEECH_OPTIONS } from "@/constants/wordOptions.js";
+import { WordAudioControl } from "@/features/words/WordAudioControl.jsx";
 import { WordUnsavedChangesDialog } from "@/features/words/WordUnsavedChangesDialog.jsx";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges.js";
@@ -54,11 +49,6 @@ import {
 let draftSequence = 0;
 const GUID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const draftKey = (type) => `${type}-draft-${Date.now()}-${draftSequence++}`;
-const emptyForm = () => ({
-  headword: "",
-  senses: [],
-  pronunciations: [],
-});
 const createSense = () => ({
   _key: draftKey("sense"),
   id: null,
@@ -73,17 +63,16 @@ const createExample = () => ({
   sentence: "",
   translation: "",
 });
-const createPronunciation = () => ({
-  _key: draftKey("pronunciation"),
-  id: null,
-  accentTag: "",
-  ipa: "",
-  isDefault: false,
+const emptyForm = () => ({
+  headword: "",
+  audio: null,
+  senses: [createSense()],
 });
 
 function formFromWord(word) {
   return {
     headword: word.headword,
+    audio: word.audio,
     senses: word.senses.map((sense) => ({
       ...sense,
       _key: sense.id,
@@ -93,18 +82,13 @@ function formFromWord(word) {
         _key: example.id,
       })),
     })),
-    pronunciations: word.pronunciations.map((item) => ({
-      ...item,
-      _key: item.id,
-      accentTag: item.accentTag ?? "",
-      ipa: item.ipa ?? "",
-    })),
   };
 }
 
 function toPayload(form, concurrencyStamp) {
   const payload = {
     headword: form.headword.trim(),
+    audioResourceId: form.audio?.id ?? null,
     senses: form.senses.map((sense, senseIndex) => ({
       ...(sense.id ? { id: sense.id } : {}),
       partOfSpeech: sense.partOfSpeech,
@@ -117,13 +101,6 @@ function toPayload(form, concurrencyStamp) {
         translation: example.translation.trim(),
         sortOrder: exampleIndex,
       })),
-    })),
-    pronunciations: form.pronunciations.map((item, index) => ({
-      ...(item.id ? { id: item.id } : {}),
-      accentTag: item.accentTag.trim() || null,
-      ipa: item.ipa.trim() || null,
-      isDefault: item.isDefault,
-      sortOrder: index,
     })),
   };
   return concurrencyStamp ? { ...payload, concurrencyStamp } : payload;
@@ -170,7 +147,6 @@ function WordEditor() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [statusAction, setStatusAction] = useState(null);
   const [concurrencyConflict, setConcurrencyConflict] = useState(false);
   const { data, error, isLoading, refetch } = useGetAdminWordQuery(wordId, {
     skip: isNew || !hasValidWordId,
@@ -180,7 +156,6 @@ function WordEditor() {
   const pending = createState.isLoading || updateState.isLoading;
   const payload = toPayload(form, word?.concurrencyStamp);
   const dirty = JSON.stringify(payload) !== baseline;
-  const readOnly = word?.status === "Published" || word?.status === "Archived";
   const blocker = useUnsavedChanges(dirty, allowNavigationRef);
 
   const [collapsedKeys, setCollapsedKeys] = useState({});
@@ -271,13 +246,6 @@ function WordEditor() {
         sense._key === senseKey ? updater(sense) : sense,
       ),
     }));
-  const updatePronunciation = (itemKey, updater) =>
-    setForm((current) => ({
-      ...current,
-      pronunciations: current.pronunciations.map((item) =>
-        item._key === itemKey ? updater(item) : item,
-      ),
-    }));
   const fieldError = (path) =>
     Object.entries(fieldErrors).find(
       ([key]) => key.toLowerCase() === path.toLowerCase(),
@@ -285,7 +253,7 @@ function WordEditor() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (pending || readOnly) return;
+    if (pending) return;
     const clientErrors = validateForm(form);
     setFieldErrors(clientErrors);
     setFormError(null);
@@ -302,7 +270,7 @@ function WordEditor() {
             ...toPayload(form, word.concurrencyStamp),
           }).unwrap();
       applyWord(saved);
-      setNotice(isNew ? "单词草稿已创建。" : "单词修改已保存。");
+      setNotice(isNew ? "单词已创建" : "单词修改已保存。");
       if (isNew) {
         allowNavigationRef.current = true;
         await navigate(`/words/${saved.id}`, { replace: true });
@@ -354,14 +322,9 @@ function WordEditor() {
           </h1>
           {word ? (
             <p className="mt-1 text-sm text-muted-foreground">
-              {getWordStatusLabel(word.status)} · 更新于{" "}
-              {formatDateTime(word.updatedAt)}
+              更新于 {formatDateTime(word.updatedAt)}
             </p>
-          ) : (
-            <p className="mt-1 text-sm text-muted-foreground">
-              创建后默认为草稿。
-            </p>
-          )}
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild type="button" variant="outline">
@@ -370,31 +333,7 @@ function WordEditor() {
               返回列表
             </Link>
           </Button>
-          {word ? (
-            <>
-              {word.status === "Published" ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setStatusAction("unpublish")}
-                >
-                  下架后编辑
-                </Button>
-              ) : null}
-              {word.status === "Draft" || word.status === "Unpublished" ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={dirty}
-                  onClick={() => setStatusAction("publish")}
-                >
-                  <Send aria-hidden="true" />
-                  {dirty ? "先保存再发布" : "发布"}
-                </Button>
-              ) : null}
-            </>
-          ) : null}
-          <Button type="submit" disabled={pending || readOnly}>
+          <Button type="submit" disabled={pending}>
             <Save aria-hidden="true" />
             {pending ? "正在保存" : "保存"}
           </Button>
@@ -410,17 +349,7 @@ function WordEditor() {
           <AlertDescription>{formError}</AlertDescription>
         </Alert>
       ) : null}
-      {readOnly ? (
-        <Alert>
-          <AlertTitle>当前内容为只读</AlertTitle>
-          <AlertDescription>
-            {word.status === "Published"
-              ? "已发布单词需要先下架才能编辑。"
-              : "已归档单词不能编辑或恢复。"}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      <section className="grid gap-4 border-y py-5 sm:grid-cols-2">
+      <section className="space-y-5 border-y py-5">
         <Field
           id="word-headword"
           label="词头"
@@ -431,13 +360,21 @@ function WordEditor() {
             id="word-headword"
             value={form.headword}
             maxLength={200}
-            disabled={readOnly}
+            disabled={pending}
             aria-invalid={Boolean(fieldError("headword"))}
             onChange={(event) =>
               setForm({ ...form, headword: event.target.value })
             }
           />
         </Field>
+        <div className="space-y-2">
+          <h2 className="text-sm font-medium">单词读音</h2>
+          <WordAudioControl
+            value={form.audio}
+            disabled={pending}
+            onChange={(audio) => setForm((current) => ({ ...current, audio }))}
+          />
+        </div>
       </section>
       <section className="space-y-4">
         <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -451,19 +388,14 @@ function WordEditor() {
             type="button"
             size="sm"
             variant="outline"
-            disabled={readOnly || form.senses.length >= 20}
+            disabled={pending || form.senses.length >= 20}
             onClick={() => addSense()}
           >
             <Plus aria-hidden="true" />
             添加释义
           </Button>
         </div>
-        {form.senses.length === 0 ? (
-          <p className="border-y py-8 text-center text-sm text-muted-foreground">
-            尚未添加释义。草稿可以保存，但发布时服务端会校验内容完整性。
-          </p>
-        ) : (
-          form.senses.map((sense, senseIndex) => (
+        {form.senses.map((sense, senseIndex) => (
             <div
               key={sense._key}
               ref={(node) => {
@@ -489,7 +421,8 @@ function WordEditor() {
                   label={`释义 ${senseIndex + 1}`}
                   index={senseIndex}
                   count={form.senses.length}
-                  disabled={readOnly}
+                  disabled={pending}
+                  deleteDisabled={form.senses.length === 1}
                   onMove={(offset) =>
                     setForm({
                       ...form,
@@ -530,7 +463,7 @@ function WordEditor() {
                     <Field label="词性" required>
                       <Select
                         value={sense.partOfSpeech}
-                        disabled={readOnly}
+                        disabled={pending}
                         onValueChange={(value) =>
                           updateSense(sense._key, (item) => ({
                             ...item,
@@ -558,7 +491,7 @@ function WordEditor() {
                       <Input
                         value={sense.definition}
                         maxLength={2000}
-                        disabled={readOnly}
+                        disabled={pending}
                         aria-invalid={Boolean(
                           fieldError(`senses[${senseIndex}].definition`),
                         )}
@@ -578,7 +511,7 @@ function WordEditor() {
                     <Textarea
                       value={sense.usageNote}
                       maxLength={1000}
-                      disabled={readOnly}
+                      disabled={pending}
                       className="min-h-20"
                       onChange={(event) =>
                         updateSense(sense._key, (item) => ({
@@ -595,7 +528,7 @@ function WordEditor() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        disabled={readOnly || sense.examples.length >= 20}
+                        disabled={pending || sense.examples.length >= 20}
                         onClick={() => addExample(sense._key)}
                       >
                         <Plus aria-hidden="true" />
@@ -639,7 +572,7 @@ function WordEditor() {
                                 label={`例句 ${exampleIndex + 1}`}
                                 index={exampleIndex}
                                 count={sense.examples.length}
-                                disabled={readOnly}
+                                disabled={pending}
                                 onMove={(offset) =>
                                   updateSense(sense._key, (item) => ({
                                     ...item,
@@ -688,7 +621,7 @@ function WordEditor() {
                                   <Textarea
                                     value={example.sentence}
                                     maxLength={2000}
-                                    disabled={readOnly}
+                                    disabled={pending}
                                     className="min-h-18"
                                     onChange={(event) =>
                                       updateSense(sense._key, (item) => ({
@@ -713,7 +646,7 @@ function WordEditor() {
                                   <Textarea
                                     value={example.translation}
                                     maxLength={2000}
-                                    disabled={readOnly}
+                                    disabled={pending}
                                     className="min-h-18"
                                     onChange={(event) =>
                                       updateSense(sense._key, (item) => ({
@@ -736,7 +669,7 @@ function WordEditor() {
                                     size="sm"
                                     // variant="outline"
                                     disabled={
-                                      readOnly || sense.examples.length >= 20
+                                      pending || sense.examples.length >= 20
                                     }
                                     onClick={() =>
                                       addExample(sense._key, example._key)
@@ -758,7 +691,7 @@ function WordEditor() {
                       type="button"
                       size="sm"
                       // variant="outline"
-                      disabled={readOnly || form.senses.length >= 20}
+                      disabled={pending || form.senses.length >= 20}
                       onClick={() => addSense(sense._key)}
                     >
                       <Plus aria-hidden="true" />
@@ -768,124 +701,12 @@ function WordEditor() {
                 </div>
               )}
             </div>
-          ))
-        )}
-      </section>
-      <section className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">发音</h2>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={readOnly || form.pronunciations.length >= 20}
-            onClick={() =>
-              setForm({
-                ...form,
-                pronunciations: [...form.pronunciations, createPronunciation()],
-              })
-            }
-          >
-            <Plus aria-hidden="true" />
-            添加发音
-          </Button>
-        </div>
-        {form.pronunciations.length === 0 ? (
-          <p className="border-y py-8 text-center text-sm text-muted-foreground">
-            尚未添加发音。
-          </p>
-        ) : (
-          form.pronunciations.map((item, index) => (
-            <div key={item._key} className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="font-medium">发音 {index + 1}</h3>
-                <OrderButtons
-                  label={`发音 ${index + 1}`}
-                  index={index}
-                  count={form.pronunciations.length}
-                  disabled={readOnly}
-                  onMove={(offset) =>
-                    setForm({
-                      ...form,
-                      pronunciations: move(form.pronunciations, index, offset),
-                    })
-                  }
-                  onDelete={() =>
-                    setForm({
-                      ...form,
-                      pronunciations: form.pronunciations.filter(
-                        (value) => value._key !== item._key,
-                      ),
-                    })
-                  }
-                />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="口音标签">
-                  <Input
-                    value={item.accentTag}
-                    maxLength={100}
-                    disabled={readOnly}
-                    onChange={(event) =>
-                      updatePronunciation(item._key, (value) => ({
-                        ...value,
-                        accentTag: event.target.value,
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="国际音标（IPA）">
-                  <Input
-                    value={item.ipa}
-                    maxLength={200}
-                    disabled={readOnly}
-                    onChange={(event) =>
-                      updatePronunciation(item._key, (value) => ({
-                        ...value,
-                        ipa: event.target.value,
-                      }))
-                    }
-                  />
-                </Field>
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={item.isDefault}
-                  disabled={readOnly}
-                  onCheckedChange={(checked) =>
-                    setForm((current) => ({
-                      ...current,
-                      pronunciations: current.pronunciations.map((value) => ({
-                        ...value,
-                        isDefault:
-                          value._key === item._key
-                            ? Boolean(checked)
-                            : checked
-                              ? false
-                              : value.isDefault,
-                      })),
-                    }))
-                  }
-                />
-                设为默认发音
-              </label>
-            </div>
-          ))
-        )}
+          ))}
       </section>
       {word ? (
-        <section className="grid gap-3 border-y py-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          <Info
-            label="创建者"
-            value={word.createdBy.nickname ?? word.createdBy.id}
-          />
-          <Info
-            label="最后修改"
-            value={word.lastEditor.nickname ?? word.lastEditor.id}
-          />
+        <section className="grid gap-3 border-y py-4 text-sm sm:grid-cols-3">
           <Info label="创建时间" value={formatDateTime(word.createdAt)} />
+          <Info label="更新时间" value={formatDateTime(word.updatedAt)} />
           <Info label="并发标识" value={word.concurrencyStamp} />
         </section>
       ) : null}
@@ -921,21 +742,6 @@ function WordEditor() {
           </AlertDialogContent>
         </AlertDialog>
       ) : null}
-      {statusAction && word ? (
-        <WordActionDialog
-          action={statusAction}
-          word={word}
-          onClose={() => setStatusAction(null)}
-          onDone={(message, saved) => {
-            setNotice(message);
-            if (saved) applyWord(saved);
-          }}
-          onConflict={async () => {
-            const result = await refetch();
-            if (result.data && !dirty) applyWord(result.data);
-          }}
-        />
-      ) : null}
     </form>
   );
 }
@@ -962,7 +768,15 @@ function Field({ id, label, required, error, children }) {
     </div>
   );
 }
-function OrderButtons({ label, index, count, disabled, onMove, onDelete }) {
+function OrderButtons({
+  label,
+  index,
+  count,
+  disabled,
+  deleteDisabled = false,
+  onMove,
+  onDelete,
+}) {
   return (
     <div className="flex gap-1">
       <Button
@@ -990,7 +804,7 @@ function OrderButtons({ label, index, count, disabled, onMove, onDelete }) {
         variant="ghost"
         size="icon"
         aria-label={`删除${label}`}
-        disabled={disabled}
+        disabled={disabled || deleteDisabled}
         onClick={onDelete}
       >
         <Trash2 aria-hidden="true" />

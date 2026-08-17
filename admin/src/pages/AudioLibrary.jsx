@@ -185,7 +185,7 @@ function AudioLibrary() {
   const [details, setDetails] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
   const { data, error, isLoading, isFetching, refetch } =
-    useGetAdminAudioResourcesQuery(filters, { pollingInterval: 5000 });
+    useGetAdminAudioResourcesQuery(filters);
   const [getDetails] = useLazyGetAdminAudioResourceQuery();
   const [getPlayback] = useGetAudioPlaybackMutation();
   const [renameAudio, renameState] = useRenameAudioResourceMutation();

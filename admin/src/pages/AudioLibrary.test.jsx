@@ -113,6 +113,27 @@ function installAudioServer(overrides = {}) {
 }
 
 describe("AudioLibrary", () => {
+  it("does not poll the audio list while the page is idle", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const requestMock = installAudioServer();
+      renderAppAt("/audio");
+
+      await screen.findByRole("heading", { level: 1, name: "音频资源" });
+      const listRequestCount = () =>
+        requestMock.mock.calls.filter(([config]) =>
+          config.url.startsWith("/admin/audio?"),
+        ).length;
+      const initialCount = listRequestCount();
+
+      await vi.advanceTimersByTimeAsync(6000);
+
+      expect(listRequestCount()).toBe(initialCount);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("uses batch upload for new resources and refetches without clearing results", async () => {
     const requestMock = installAudioServer();
     const user = userEvent.setup();

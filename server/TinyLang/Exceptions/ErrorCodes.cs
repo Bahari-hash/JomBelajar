@@ -464,6 +464,9 @@ public enum ErrorCodes
     [Description("词条读音资源无效.")]
     WordAudioInvalid,
 
+    [Description("例句音频资源无效.")]
+    WordExampleAudioInvalid,
+
     [Description("词条子项集合无效.")]
     WordChildCollectionInvalid,
 

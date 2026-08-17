@@ -251,7 +251,7 @@ public sealed class WordStudyEndpointTests
                         "a greeting",
                         null,
                         0,
-                        [new ExampleSentenceResponse("Hello there.", "你好。", 0)])
+                        [new ExampleSentenceResponse("Hello there.", "你好。", null, 0)])
                 ],
                 Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")));
         await using var app = await CreateHttpAppAsync(service.Object, userId);

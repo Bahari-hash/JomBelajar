@@ -2,12 +2,15 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using Npgsql;
 using TinyLang.Database;
 using TinyLang.Dtos;
 using TinyLang.Entities;
 using TinyLang.Entities.Enums;
 using TinyLang.Exceptions;
 using TinyLang.Infrastructure;
+using TinyLang.Interfaces;
 using TinyLang.Services;
 
 namespace TinyLang.UnitTests;
@@ -69,6 +72,249 @@ public sealed class WordServiceTests
         detail.AudioResourceId.Should().BeNull();
         detail.Senses.Single().Examples.Should().BeEmpty();
         list.Items.Should().ContainSingle(value => value.Id == created.Id);
+    }
+
+    [Fact]
+    public async Task CreateShouldAllowExampleWithoutAudio()
+    {
+        await using var db = CreateDbContext();
+        var service = CreateService(db);
+
+        var created = await service.CreateAsync(
+            Guid.NewGuid(),
+            CreateRequest(includeExample: true),
+            TestContext.Current.CancellationToken);
+
+        created.Senses.Single().Examples.Single().Audio.Should().BeNull();
+        (await db.ExampleSentences.SingleAsync(
+            TestContext.Current.CancellationToken)).AudioResourceId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CreateShouldAllowRepeatedUploadingExampleAudioAndProjectDetails()
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateAdmin();
+        var audio = CreateAudio(admin, AudioResourceStatus.Uploading);
+        audio.DurationSeconds = 2.25;
+        audio.LastFailureCode = "UploadPending";
+        db.AddRange(admin, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+        var request = CreateRequest() with
+        {
+            Senses =
+            [
+                CreateSense(0) with
+                {
+                    Examples =
+                    [
+                        CreateExample(0) with { AudioResourceId = audio.Id },
+                        CreateExample(1) with { AudioResourceId = audio.Id }
+                    ]
+                }
+            ]
+        };
+
+        var created = await service.CreateAsync(
+            admin.Id,
+            request,
+            TestContext.Current.CancellationToken);
+        var user = await service.GetUserByIdAsync(
+            created.Id,
+            TestContext.Current.CancellationToken);
+
+        created.Senses.Single().Examples.Should().OnlyContain(example =>
+            example.Audio != null &&
+            example.Audio.Id == audio.Id &&
+            example.Audio.Name == "word.mp3" &&
+            example.Audio.Status == AudioResourceStatus.Uploading &&
+            example.Audio.DurationSeconds == 2.25 &&
+            example.Audio.LastFailureCode == "UploadPending");
+        user.Senses.Single().Examples.Should().OnlyContain(example =>
+            example.AudioResourceId == audio.Id);
+        (await db.ExampleSentences.CountAsync(example =>
+            example.AudioResourceId == audio.Id,
+            TestContext.Current.CancellationToken)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task CreateShouldRejectMissingExampleAudioResource()
+    {
+        await using var db = CreateDbContext();
+        var service = CreateService(db);
+        var missingAudioId = Guid.NewGuid();
+        var request = CreateRequest() with
+        {
+            Senses =
+            [
+                CreateSense(0) with
+                {
+                    Examples =
+                    [CreateExample(0) with { AudioResourceId = missingAudioId }]
+                }
+            ]
+        };
+
+        var action = () => service.CreateAsync(
+            Guid.NewGuid(),
+            request,
+            TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<NotFoundException>();
+        exception.Which.ErrorCode.Should().Be(ErrorCodes.WordExampleAudioInvalid);
+    }
+
+    [Fact]
+    public async Task UpdateShouldPreserveReplaceAndClearExampleAudio()
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateAdmin();
+        var originalAudio = CreateAudio(admin, AudioResourceStatus.Ready);
+        var replacementAudio = CreateAudio(admin, AudioResourceStatus.Failed);
+        db.AddRange(admin, originalAudio, replacementAudio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+        var created = await service.CreateAsync(
+            admin.Id,
+            CreateRequest() with
+            {
+                Senses =
+                [
+                    CreateSense(0) with
+                    {
+                        Examples =
+                        [CreateExample(0) with { AudioResourceId = originalAudio.Id }]
+                    }
+                ]
+            },
+            TestContext.Current.CancellationToken);
+        var sense = created.Senses.Single();
+        var example = sense.Examples.Single();
+
+        var preserved = await service.UpdateAsync(
+            created.Id,
+            admin.Id,
+            CreateUpdateRequest(created, sense.Id, example.Id, originalAudio.Id),
+            TestContext.Current.CancellationToken);
+        var replaced = await service.UpdateAsync(
+            created.Id,
+            admin.Id,
+            CreateUpdateRequest(
+                preserved,
+                sense.Id,
+                example.Id,
+                replacementAudio.Id),
+            TestContext.Current.CancellationToken);
+        var cleared = await service.UpdateAsync(
+            created.Id,
+            admin.Id,
+            CreateUpdateRequest(replaced, sense.Id, example.Id, null),
+            TestContext.Current.CancellationToken);
+
+        preserved.Senses.Single().Examples.Single().Audio!.Id
+            .Should().Be(originalAudio.Id);
+        replaced.Senses.Single().Examples.Single().Audio!.Id
+            .Should().Be(replacementAudio.Id);
+        cleared.Senses.Single().Examples.Single().Audio.Should().BeNull();
+        (await db.ExampleSentences.SingleAsync(
+            TestContext.Current.CancellationToken)).AudioResourceId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RemovingExampleShouldNotDeleteSharedAudio()
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateAdmin();
+        var audio = CreateAudio(admin, AudioResourceStatus.Ready);
+        db.AddRange(admin, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+        var created = await service.CreateAsync(
+            admin.Id,
+            CreateRequest() with
+            {
+                Senses =
+                [
+                    CreateSense(0) with
+                    {
+                        Examples = [CreateExample(0) with { AudioResourceId = audio.Id }]
+                    }
+                ]
+            },
+            TestContext.Current.CancellationToken);
+        var sense = created.Senses.Single();
+
+        await service.UpdateAsync(
+            created.Id,
+            admin.Id,
+            new UpdateWordRequest
+            {
+                Headword = created.Headword,
+                ConcurrencyStamp = created.ConcurrencyStamp,
+                Senses = [CreateSense(0) with { Id = sense.Id, Examples = [] }]
+            },
+            TestContext.Current.CancellationToken);
+
+        (await db.ExampleSentences.CountAsync(
+            TestContext.Current.CancellationToken)).Should().Be(0);
+        (await db.AudioResources.AnyAsync(value => value.Id == audio.Id,
+            TestContext.Current.CancellationToken)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task CreateShouldMapExampleAudioForeignKeyRaceToStableError()
+    {
+        await using var db = CreateDbContext();
+        var admin = CreateAdmin();
+        var audio = CreateAudio(admin, AudioResourceStatus.Ready);
+        db.AddRange(admin, audio);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var failure = CreateForeignKeyFailure(
+            "FK_example_sentences_audio_resources_AudioResourceId");
+        var context = CreateFailingContext(db, failure);
+        var service = new WordService(
+            context.Object,
+            new PostgresDatabaseExceptionClassifier(),
+            NullLogger<WordService>.Instance);
+        var request = CreateRequest() with
+        {
+            Senses =
+            [
+                CreateSense(0) with
+                {
+                    Examples = [CreateExample(0) with { AudioResourceId = audio.Id }]
+                }
+            ]
+        };
+
+        var action = () => service.CreateAsync(
+            admin.Id,
+            request,
+            TestContext.Current.CancellationToken);
+
+        var exception = await action.Should().ThrowAsync<NotFoundException>();
+        exception.Which.ErrorCode.Should().Be(ErrorCodes.WordExampleAudioInvalid);
+    }
+
+    [Fact]
+    public async Task CreateShouldNotMapUnrelatedForeignKeyFailureToExampleAudioError()
+    {
+        await using var db = CreateDbContext();
+        var failure = CreateForeignKeyFailure("FK_other_table_other_principal_OtherId");
+        var context = CreateFailingContext(db, failure);
+        var service = new WordService(
+            context.Object,
+            new PostgresDatabaseExceptionClassifier(),
+            NullLogger<WordService>.Instance);
+
+        var action = () => service.CreateAsync(
+            Guid.NewGuid(),
+            CreateRequest(),
+            TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<DbUpdateException>()
+            .Where(exception => ReferenceEquals(exception, failure));
     }
 
     [Fact]
@@ -284,6 +530,32 @@ public sealed class WordServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
+    private static Mock<IApplicationDbContext> CreateFailingContext(
+        ApplicationDbContext db,
+        DbUpdateException failure)
+    {
+        var context = new Mock<IApplicationDbContext>();
+        context.SetupGet(value => value.Words).Returns(db.Words);
+        context.SetupGet(value => value.WordSenses).Returns(db.WordSenses);
+        context.SetupGet(value => value.ExampleSentences).Returns(db.ExampleSentences);
+        context.SetupGet(value => value.AudioResources).Returns(db.AudioResources);
+        context.Setup(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(failure);
+        return context;
+    }
+
+    private static DbUpdateException CreateForeignKeyFailure(string constraintName)
+        => new(
+            "write failed",
+            new PostgresException(
+                "insert or update violates foreign key",
+                "ERROR",
+                "ERROR",
+                PostgresErrorCodes.ForeignKeyViolation,
+                schemaName: "public",
+                tableName: "example_sentences",
+                constraintName: constraintName));
+
     private static CreateWordRequest CreateRequest(
         Guid? audioResourceId = null,
         bool includeExample = false)
@@ -315,6 +587,32 @@ public sealed class WordServiceTests
             Sentence = "Hello there.",
             Translation = "你好。",
             SortOrder = sortOrder
+        };
+
+    private static UpdateWordRequest CreateUpdateRequest(
+        AdminWordResponse current,
+        Guid senseId,
+        Guid exampleId,
+        Guid? exampleAudioResourceId)
+        => new()
+        {
+            Headword = current.Headword,
+            ConcurrencyStamp = current.ConcurrencyStamp,
+            Senses =
+            [
+                CreateSense(0) with
+                {
+                    Id = senseId,
+                    Examples =
+                    [
+                        CreateExample(0) with
+                        {
+                            Id = exampleId,
+                            AudioResourceId = exampleAudioResourceId
+                        }
+                    ]
+                }
+            ]
         };
 
     private static User CreateAdmin()

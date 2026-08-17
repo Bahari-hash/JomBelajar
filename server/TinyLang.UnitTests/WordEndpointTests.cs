@@ -261,6 +261,7 @@ public sealed class WordEndpointTests
                             Guid.NewGuid(),
                             "Hello there.",
                             "你好。",
+                            null,
                             0)
                     ])
             ],

@@ -17,6 +17,8 @@ public sealed class ExampleSentence : BaseEntity
 
     public Guid WordSenseId { get; set; }
     public WordSense? WordSense { get; set; }
+    public Guid? AudioResourceId { get; set; }
+    public AudioResource? AudioResource { get; set; }
     public required string Sentence { get; set; }
     public required string Translation { get; set; }
     public int SortOrder { get; set; }

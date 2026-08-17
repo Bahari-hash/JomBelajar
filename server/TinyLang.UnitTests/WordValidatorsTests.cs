@@ -56,6 +56,57 @@ public sealed class WordValidatorsTests
     }
 
     [Fact]
+    public void ExampleContractsShouldExposeOptionalSharedAudioReference()
+    {
+        typeof(ExampleSentenceInput).GetProperty("AudioResourceId")
+            .Should().NotBeNull();
+        typeof(ExampleSentenceResponse).GetProperty("AudioResourceId")
+            .Should().NotBeNull();
+        typeof(AdminExampleSentenceResponse).GetProperty("Audio")
+            .Should().NotBeNull();
+        typeof(ExampleSentenceInput).Assembly
+            .GetType("TinyLang.Dtos.AdminExampleSentenceAudioResponse")
+            .Should().NotBeNull();
+        Enum.TryParse<ErrorCodes>("WordExampleAudioInvalid", out _)
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ExampleAudioReferenceShouldAllowNull()
+    {
+        var result = await new ExampleSentenceInputValidator().ValidateAsync(
+            new ExampleSentenceInput
+            {
+                AudioResourceId = null,
+                Sentence = "Hello there.",
+                Translation = "你好。",
+                SortOrder = 0
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ExampleAudioReferenceShouldRejectEmptyId()
+    {
+        var result = await new ExampleSentenceInputValidator().ValidateAsync(
+            new ExampleSentenceInput
+            {
+                AudioResourceId = Guid.Empty,
+                Sentence = "Hello there.",
+                Translation = "你好。",
+                SortOrder = 0
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainSingle(error =>
+            error.PropertyName == nameof(ExampleSentenceInput.AudioResourceId) &&
+            error.ErrorCode == nameof(ErrorCodes.WordExampleAudioInvalid));
+    }
+
+    [Fact]
     public async Task CreateShouldRejectClientChildIds()
     {
         var request = CreateValidRequest() with

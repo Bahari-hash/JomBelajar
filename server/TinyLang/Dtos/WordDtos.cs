@@ -55,6 +55,7 @@ public sealed record WordSenseInput
 public sealed record ExampleSentenceInput
 {
     public Guid? Id { get; init; }
+    public Guid? AudioResourceId { get; init; }
     public required string Sentence { get; init; }
     public required string Translation { get; init; }
     public int SortOrder { get; init; }
@@ -83,12 +84,23 @@ public sealed record WordListRequest
 }
 
 /// <summary>
+/// 返回管理员编辑例句时所需的共享音频摘要。
+/// </summary>
+public sealed record AdminExampleSentenceAudioResponse(
+    Guid Id,
+    string Name,
+    AudioResourceStatus Status,
+    double? DurationSeconds,
+    string? LastFailureCode);
+
+/// <summary>
 /// 返回管理员管理词条时所需的例句内容和服务端标识。
 /// </summary>
 public sealed record AdminExampleSentenceResponse(
     Guid Id,
     string Sentence,
     string Translation,
+    AdminExampleSentenceAudioResponse? Audio,
     int SortOrder);
 
 /// <summary>
@@ -145,6 +157,7 @@ public sealed record AdminWordListItemResponse(
 public sealed record ExampleSentenceResponse(
     string Sentence,
     string Translation,
+    Guid? AudioResourceId,
     int SortOrder);
 
 /// <summary>

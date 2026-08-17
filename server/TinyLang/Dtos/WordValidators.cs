@@ -157,6 +157,9 @@ public sealed class ExampleSentenceInputValidator
         RuleFor(value => value.Id)
             .Must(value => value is null || value != Guid.Empty)
             .WithErrKey(ErrorCodes.WordChildIdInvalid);
+        RuleFor(value => value.AudioResourceId)
+            .Must(value => value is null || value != Guid.Empty)
+            .WithErrKey(ErrorCodes.WordExampleAudioInvalid);
         RuleFor(value => value.Sentence)
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithErrKey(ErrorCodes.WordSentenceRequired)

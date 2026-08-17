@@ -18,6 +18,8 @@ public sealed class WordService : IWordService
         "IX_words_NormalizedHeadword";
     private const string AudioResourceForeignKey =
         "FK_words_audio_resources_AudioResourceId";
+    private const string ExampleAudioResourceForeignKey =
+        "FK_example_sentences_audio_resources_AudioResourceId";
     private static readonly string[] SortOrderUniqueIndexes =
     [
         "IX_word_senses_WordId_SortOrder",
@@ -46,6 +48,7 @@ public sealed class WordService : IWordService
     {
         ValidateTargetCollections(request, allowExistingIds: false);
         await EnsureAudioExistsAsync(request.AudioResourceId, cancellationToken);
+        await EnsureExampleAudiosExistAsync(request, cancellationToken);
         var identity = NormalizeIdentity(request.Headword);
         await EnsureHeadwordUniqueAsync(
             identity.NormalizedHeadword,
@@ -80,6 +83,7 @@ public sealed class WordService : IWordService
         EnsureExpectedStamp(word, request.ConcurrencyStamp);
         ValidateChildOwnership(word, request);
         await EnsureAudioExistsAsync(request.AudioResourceId, cancellationToken);
+        await EnsureExampleAudiosExistAsync(request, cancellationToken);
         var identity = NormalizeIdentity(request.Headword);
         await EnsureHeadwordUniqueAsync(
             identity.NormalizedHeadword,
@@ -251,6 +255,35 @@ public sealed class WordService : IWordService
                 cancellationToken))
         {
             throw NotFoundException.Create(ErrorCodes.WordAudioInvalid);
+        }
+    }
+
+    private async Task EnsureExampleAudiosExistAsync(
+        WordUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        var audioResourceIds = request.Senses
+            .SelectMany(value => value.Examples)
+            .Where(value => value.AudioResourceId.HasValue)
+            .Select(value => value.AudioResourceId.GetValueOrDefault())
+            .Distinct()
+            .ToArray();
+        if (audioResourceIds.Length == 0)
+        {
+            return;
+        }
+        if (audioResourceIds.Contains(Guid.Empty))
+        {
+            throw NotFoundException.Create(ErrorCodes.WordExampleAudioInvalid);
+        }
+
+        var existingAudioResourceIds = await _db.AudioResources.AsNoTracking()
+            .Where(value => audioResourceIds.Contains(value.Id))
+            .Select(value => value.Id)
+            .ToArrayAsync(cancellationToken);
+        if (existingAudioResourceIds.Length != audioResourceIds.Length)
+        {
+            throw NotFoundException.Create(ErrorCodes.WordExampleAudioInvalid);
         }
     }
 
@@ -484,6 +517,7 @@ public sealed class WordService : IWordService
         ExampleSentence example,
         ExampleSentenceInput input)
     {
+        example.AudioResourceId = input.AudioResourceId;
         example.Sentence = input.Sentence.Trim();
         example.Translation = input.Translation.Trim();
         example.SortOrder = input.SortOrder;
@@ -517,6 +551,14 @@ public sealed class WordService : IWordService
                             example.Id,
                             example.Sentence,
                             example.Translation,
+                            example.AudioResource == null
+                                ? null
+                                : new AdminExampleSentenceAudioResponse(
+                                    example.AudioResource.Id,
+                                    example.AudioResource.Name,
+                                    example.AudioResource.Status,
+                                    example.AudioResource.DurationSeconds,
+                                    example.AudioResource.LastFailureCode),
                             example.SortOrder))
                         .ToList()))
                 .ToList(),
@@ -547,6 +589,7 @@ public sealed class WordService : IWordService
                         .Select(example => new ExampleSentenceResponse(
                             example.Sentence,
                             example.Translation,
+                            example.AudioResourceId,
                             example.SortOrder))
                         .ToList()))
                 .ToList(),
@@ -586,6 +629,13 @@ public sealed class WordService : IWordService
                 AudioResourceForeignKey))
         {
             throw NotFoundException.Create(ErrorCodes.WordAudioInvalid);
+        }
+        catch (DbUpdateException exception) when (
+            _databaseExceptionClassifier.IsForeignKeyConstraintViolation(
+                exception,
+                ExampleAudioResourceForeignKey))
+        {
+            throw NotFoundException.Create(ErrorCodes.WordExampleAudioInvalid);
         }
     }
 

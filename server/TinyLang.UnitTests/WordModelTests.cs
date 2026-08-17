@@ -29,6 +29,15 @@ public sealed class WordModelTests
     }
 
     [Fact]
+    public void ExampleSentenceShouldExposeOptionalAudioReference()
+    {
+        var exampleType = typeof(ExampleSentence);
+
+        exampleType.GetProperty("AudioResourceId").Should().NotBeNull();
+        exampleType.GetProperty("AudioResource").Should().NotBeNull();
+    }
+
+    [Fact]
     public void ModelShouldContainWordUniqueAndAudioIndexes()
     {
         using var db = CreateDbContext();
@@ -57,6 +66,13 @@ public sealed class WordModelTests
         example!.GetIndexes().Should().Contain(index => index.IsUnique &&
             index.Properties.Select(value => value.Name).Contains(
                 nameof(ExampleSentence.SortOrder)));
+        example.GetIndexes().Should().Contain(index =>
+            index.Properties.Select(value => value.Name).SequenceEqual(
+                new[] { "AudioResourceId" }));
+        example.FindProperty("AudioResourceId")!.IsNullable.Should().BeTrue();
+        example.GetForeignKeys().Single(value =>
+            value.PrincipalEntityType.ClrType == typeof(AudioResource))
+            .DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
     }
 
     [Fact]

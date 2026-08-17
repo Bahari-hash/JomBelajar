@@ -294,6 +294,7 @@ public sealed class WordStudyService : IWordStudyService
                                 .Select(example => new ExampleSentenceResponse(
                                     example.Sentence,
                                     example.Translation,
+                                    example.AudioResourceId,
                                     example.SortOrder))
                                 .ToList()))
                         .ToList(),
@@ -364,6 +365,7 @@ public sealed class WordStudyService : IWordStudyService
                             .Select(example => new ExampleSentenceResponse(
                                 example.Sentence,
                                 example.Translation,
+                                example.AudioResourceId,
                                 example.SortOrder))
                             .ToList()))
                     .ToList(),

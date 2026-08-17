@@ -356,6 +356,8 @@ public sealed class WordStudyServiceTests
         await using var db = CreateDbContext();
         var userId = Guid.NewGuid();
         var first = CreateVisibleWord("first", Now);
+        var firstExampleAudioId = Guid.NewGuid();
+        first.Senses.Single().Examples.Single().AudioResourceId = firstExampleAudioId;
         var second = CreateVisibleWord("second", Now.AddMinutes(-1));
         var third = CreateVisibleWord("third", Now.AddMinutes(-2));
         var fourth = CreateVisibleWord("fourth", Now.AddMinutes(-3));
@@ -414,6 +416,7 @@ public sealed class WordStudyServiceTests
         var example = result[0].Content?.Senses[0].Examples.Single();
         example?.Sentence.Should().Be("Use first.");
         example?.Translation.Should().Be("first");
+        example?.AudioResourceId.Should().Be(firstExampleAudioId);
         example?.SortOrder.Should().Be(0);
         result[0].Content?.AudioResourceId.Should().BeNull();
     }
@@ -463,6 +466,8 @@ public sealed class WordStudyServiceTests
         var userId = Guid.NewGuid();
         var first = CreateVisibleWord("first", Now);
         var second = CreateVisibleWord("second", Now.AddMinutes(-1));
+        var secondExampleAudioId = Guid.NewGuid();
+        second.Senses.Single().Examples.Single().AudioResourceId = secondExampleAudioId;
         db.Words.AddRange(first, second);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = CreateService(db);
@@ -492,6 +497,8 @@ public sealed class WordStudyServiceTests
         nextValue.Headword.Should().Be("second");
         nextValue.Senses.Single().Definition.Should().Be("definition of second");
         nextValue.Senses.Single().Examples.Single().Sentence.Should().Be("Use second.");
+        nextValue.Senses.Single().Examples.Single().AudioResourceId
+            .Should().Be(secondExampleAudioId);
         nextValue.Senses.Single().Examples.Single().SortOrder.Should().Be(0);
         nextValue.AudioResourceId.Should().BeNull();
         repeatedValue.ItemId.Should().Be(nextValue.ItemId);

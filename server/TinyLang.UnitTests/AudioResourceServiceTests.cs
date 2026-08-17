@@ -757,8 +757,11 @@ public sealed class AudioResourceServiceTests
             .Should().Be(0);
     }
 
-    [Fact]
-    public async Task DeleteShouldMapPostgresRestrictViolationToAudioInUse()
+    [Theory]
+    [InlineData("FK_articles_audio_resources_ReadingAudioResourceId")]
+    [InlineData("FK_example_sentences_audio_resources_AudioResourceId")]
+    public async Task DeleteShouldMapPostgresRestrictViolationToAudioInUse(
+        string constraintName)
     {
         await using var db = new ApplicationDbContext(
             new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -777,7 +780,7 @@ public sealed class AudioResourceServiceTests
             PostgresErrorCodes.RestrictViolation,
             schemaName: "public",
             tableName: "articles",
-            constraintName: "FK_articles_audio_resources_ReadingAudioResourceId");
+            constraintName: constraintName);
         var failure = new DbUpdateException("write failed", postgresException);
         var transaction = new Mock<IApplicationDbTransaction>();
         var context = new Mock<IApplicationDbContext>();

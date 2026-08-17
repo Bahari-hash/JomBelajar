@@ -18,9 +18,14 @@ public sealed class ExampleSentenceConfiguration
         builder.Property(value => value.Sentence).HasMaxLength(2000).IsRequired();
         builder.Property(value => value.Translation).HasMaxLength(2000).IsRequired();
         builder.HasIndex(value => new { value.WordSenseId, value.SortOrder }).IsUnique();
+        builder.HasIndex(value => value.AudioResourceId);
         builder.HasOne(value => value.WordSense)
             .WithMany(value => value.Examples)
             .HasForeignKey(value => value.WordSenseId)
             .OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(value => value.AudioResource)
+            .WithMany()
+            .HasForeignKey(value => value.AudioResourceId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

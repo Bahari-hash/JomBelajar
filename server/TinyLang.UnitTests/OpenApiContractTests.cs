@@ -382,6 +382,62 @@ public sealed class OpenApiContractTests
                 "lastFailureCode");
     }
 
+    [Fact]
+    public async Task OpenApiShouldExposeExampleSentenceAudioThroughSharedAudioContract()
+    {
+        await using var app = await CreateAppAsync();
+        var json = await app.GetTestClient().GetStringAsync(
+            "/openapi/v1.json",
+            TestContext.Current.CancellationToken);
+        using var document = JsonDocument.Parse(json);
+        var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
+
+        var exampleInput = GetSchema(schemas, "ExampleSentenceInput")
+            .GetProperty("properties");
+        AssertNullableUuid(exampleInput.GetProperty("audioResourceId"), schemas);
+
+        var adminExample = GetSchema(schemas, "AdminExampleSentenceResponse")
+            .GetProperty("properties");
+        var adminExampleAudio = adminExample.GetProperty("audio");
+        IsNullable(adminExampleAudio).Should().BeTrue(
+            "audio schema was {0}",
+            adminExampleAudio.GetRawText());
+        GetReferencedSchemas(adminExampleAudio, schemas)
+            .Should().Contain("AdminExampleSentenceAudioResponse")
+            .And.Contain("AudioResourceStatus");
+
+        var publicExample = GetSchema(schemas, "ExampleSentenceResponse")
+            .GetProperty("properties");
+        AssertNullableUuid(publicExample.GetProperty("audioResourceId"), schemas);
+
+        foreach (var (schemaName, allowedAudioProperty) in new[]
+                 {
+                     ("ExampleSentenceInput", "audioResourceId"),
+                     ("AdminExampleSentenceResponse", "audio"),
+                     ("ExampleSentenceResponse", "audioResourceId")
+                 })
+        {
+            var properties = GetSchema(schemas, schemaName).GetProperty("properties");
+            properties.TryGetProperty("audioClipId", out _).Should().BeFalse();
+            properties.EnumerateObject()
+                .Select(property => property.Name)
+                .Should().NotContain(name => IsStorageOrUploadProperty(name));
+            GetAudioProperties(GetSchema(schemas, schemaName))
+                .Should().Equal(allowedAudioProperty);
+        }
+
+        GetSchema(schemas, "AdminExampleSentenceAudioResponse")
+            .GetProperty("properties")
+            .EnumerateObject()
+            .Select(property => property.Name)
+            .Should().BeEquivalentTo(
+                "id",
+                "name",
+                "status",
+                "durationSeconds",
+                "lastFailureCode");
+    }
+
     /// <summary>
     /// 创建只承载目标 endpoints 和 OpenAPI 文档的内存 Web 应用。
     /// </summary>

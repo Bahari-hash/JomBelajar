@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<IVideoService, VideoService>();
         services.AddScoped<IAudioResourceService, AudioResourceService>();
         services.AddScoped<IWordService, WordService>();
+        services.AddScoped<IWordBatchService, WordBatchService>();
         services.AddScoped<IWordStudyService, WordStudyService>();
         services.AddScoped<IPaperService, PaperService>();
         services.AddScoped<IPaperAttemptService, PaperAttemptService>();

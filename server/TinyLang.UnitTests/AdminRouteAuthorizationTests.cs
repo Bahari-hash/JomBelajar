@@ -25,6 +25,8 @@ public sealed class AdminRouteAuthorizationTests
     [Theory]
     [InlineData("GET", "/api/admin/articles")]
     [InlineData("GET", "/api/admin/words")]
+    [InlineData("POST", "/api/admin/words/batch/validate")]
+    [InlineData("POST", "/api/admin/words/batch")]
     [InlineData("GET", "/api/admin/papers")]
     [InlineData("GET", "/api/admin/videos")]
     [InlineData("GET", "/api/admin/audio")]
@@ -50,6 +52,8 @@ public sealed class AdminRouteAuthorizationTests
     [Theory]
     [InlineData("GET", "/api/admin/articles")]
     [InlineData("GET", "/api/admin/words")]
+    [InlineData("POST", "/api/admin/words/batch/validate")]
+    [InlineData("POST", "/api/admin/words/batch")]
     [InlineData("GET", "/api/admin/papers")]
     [InlineData("GET", "/api/admin/videos")]
     [InlineData("GET", "/api/admin/audio")]
@@ -109,6 +113,7 @@ public sealed class AdminRouteAuthorizationTests
         builder.Services.AddSingleton(Mock.Of<IArticleService>());
         builder.Services.AddSingleton(Mock.Of<IArticleCategoryService>());
         builder.Services.AddSingleton(Mock.Of<IWordService>());
+        builder.Services.AddSingleton(Mock.Of<IWordBatchService>());
         builder.Services.AddSingleton(Mock.Of<IPaperService>());
         builder.Services.AddSingleton(Mock.Of<IPaperAttemptService>());
         builder.Services.AddSingleton(Mock.Of<IVideoService>());

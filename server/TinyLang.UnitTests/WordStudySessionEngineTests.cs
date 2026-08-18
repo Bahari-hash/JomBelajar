@@ -16,6 +16,53 @@ namespace TinyLang.UnitTests;
 public sealed class WordStudySessionEngineTests
 {
     [Fact]
+    public async Task SuccessfulReviewShouldAdvanceSchedule()
+    {
+        await using var db = CreateDbContext();
+        var user = new User { Email = "review@example.test", PasswordHash = "hash" };
+        var word = CreateWord("review", 1);
+        db.AddRange(user, word);
+        db.UserWordProgress.Add(new UserWordProgress
+        {
+            UserId = user.Id,
+            WordId = word.Id,
+            FirstStudiedAt = DateTimeOffset.Parse("2026-08-17T03:00:00Z"),
+            LastStudiedAt = DateTimeOffset.Parse("2026-08-17T03:00:00Z"),
+            ReviewStage = 0,
+            NextReviewAt = DateTimeOffset.Parse("2026-08-18T03:00:00Z")
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+        var session = await service.StartReviewSessionAsync(user.Id, TestContext.Current.CancellationToken);
+        var memorized = await service.SubmitReviewMemorizationAsync(
+            user.Id,
+            session.Id,
+            session.CurrentItem!.ItemId,
+            new SubmitWordMemorizationRequest(
+                WordMemorizationResult.Remembered,
+                session.CurrentItem.ItemConcurrencyStamp),
+            TestContext.Current.CancellationToken);
+        var completed = await service.SubmitReviewSpellingAsync(
+            user.Id,
+            session.Id,
+            memorized.Session.CurrentItem!.ItemId,
+            new SubmitWordSpellingRequest
+            {
+                Answer = "review",
+                ItemConcurrencyStamp = memorized.Session.CurrentItem.ItemConcurrencyStamp
+            },
+            TestContext.Current.CancellationToken);
+
+        completed.Session.Status.Should().Be(WordStudySessionStatus.Completed);
+        var progress = await db.UserWordProgress.SingleAsync(
+            value => value.UserId == user.Id && value.WordId == word.Id,
+            TestContext.Current.CancellationToken);
+        progress.ReviewStage.Should().Be(1);
+        progress.SuccessfulReviewCount.Should().Be(1);
+        progress.NextReviewAt.Should().Be(DateTimeOffset.Parse("2026-08-20T03:00:00Z"));
+    }
+
+    [Fact]
     public async Task SpellingShouldRequeueIncorrectAndCompleteCorrectLearning()
     {
         await using var db = CreateDbContext();

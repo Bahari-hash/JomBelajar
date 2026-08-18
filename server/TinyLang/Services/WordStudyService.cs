@@ -191,6 +191,83 @@ public sealed class WordStudyService : IWordStudyService
                 request,
                 cancellationToken);
 
+    public async Task<WordReviewOverviewResponse> GetReviewOverviewAsync(
+        Guid userId, CancellationToken cancellationToken = default)
+    {
+        var now = _timeProvider.GetUtcNow();
+        var dayStart = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero);
+        var due = await _db.UserWordProgress.AsNoTracking().CountAsync(value =>
+            value.UserId == userId && !value.IsReviewExcluded && value.NextReviewAt != null &&
+            value.NextReviewAt <= now, cancellationToken);
+        var overdue = await _db.UserWordProgress.AsNoTracking().CountAsync(value =>
+            value.UserId == userId && !value.IsReviewExcluded && value.NextReviewAt != null &&
+            value.NextReviewAt < dayStart, cancellationToken);
+        var active = await LoadReviewSessionAsync(userId, null, cancellationToken);
+        return new WordReviewOverviewResponse(
+            due,
+            overdue,
+            active is null ? null : await ProjectStateAsync(userId, active, cancellationToken));
+    }
+
+    public async Task<WordStudySessionStateResponse> StartReviewSessionAsync(
+        Guid userId, CancellationToken cancellationToken = default)
+    {
+        var existing = await LoadReviewSessionAsync(userId, null, cancellationToken);
+        if (existing is not null)
+            return await ProjectStateAsync(userId, existing, cancellationToken);
+        var count = await _db.Users.AsNoTracking().Where(value => value.Id == userId)
+            .Select(value => (int?)value.DailyWordReviewCount)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
+        var now = _timeProvider.GetUtcNow();
+        var ids = await _db.UserWordProgress.AsNoTracking()
+            .Where(value => value.UserId == userId && !value.IsReviewExcluded &&
+                value.NextReviewAt != null && value.NextReviewAt <= now)
+            .OrderBy(value => value.NextReviewAt)
+            .ThenBy(value => value.Word!.StudyOrder)
+            .Take(count)
+            .Select(value => value.WordId)
+            .ToListAsync(cancellationToken);
+        if (ids.Count == 0)
+            throw ConflictException.Create(ErrorCodes.WordReviewNoDueWords);
+        var session = new WordStudySession
+        {
+            UserId = userId,
+            RequestedCount = count,
+            ActualCount = ids.Count,
+            SessionType = WordStudySessionType.Review,
+            Phase = WordStudyPhase.Memorization,
+            StartedAt = now,
+            Items = ids.Select((id, position) => new WordStudySessionItem
+            {
+                WordId = id,
+                Position = position,
+                MemorizationQueueOrder = position,
+                SpellingQueueOrder = position
+            }).ToArray()
+        };
+        _db.WordStudySessions.Add(session);
+        await _db.SaveChangesAsync(cancellationToken);
+        return await GetReviewSessionAsync(userId, session.Id, cancellationToken);
+    }
+
+    public async Task<WordStudySessionStateResponse> GetReviewSessionAsync(
+        Guid userId, Guid sessionId, CancellationToken cancellationToken = default)
+    {
+        var session = await LoadReviewSessionAsync(userId, sessionId, cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);
+        await new WordStudySessionEngine(_db, _timeProvider)
+            .NormalizeCurrentItemAsync(session, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+        return await ProjectStateAsync(userId, session, cancellationToken);
+    }
+
+    public Task<WordStudyCommandResponse> ExcludeFromReviewAsync(
+        Guid userId, Guid sessionId, Guid itemId, ExcludeWordFromReviewRequest request,
+        CancellationToken cancellationToken = default)
+        => new WordStudySessionEngine(_db, _timeProvider)
+            .ExcludeFromReviewAsync(userId, sessionId, itemId, request, cancellationToken);
+
     private async Task<WordStudySession?> LoadLearningSessionAsync(
         Guid userId,
         Guid? sessionId,
@@ -211,6 +288,21 @@ public sealed class WordStudyService : IWordStudyService
         {
             query = query.Where(value => value.Status == WordStudySessionStatus.Active);
         }
+        return await query.SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private async Task<WordStudySession?> LoadReviewSessionAsync(
+        Guid userId, Guid? sessionId, CancellationToken cancellationToken)
+    {
+        var query = _db.WordStudySessions
+            .Include(value => value.Items)
+                .ThenInclude(value => value.Word!)
+                    .ThenInclude(value => value.Senses)
+                        .ThenInclude(value => value.Examples)
+            .Where(value => value.UserId == userId && value.SessionType == WordStudySessionType.Review);
+        query = sessionId.HasValue
+            ? query.Where(value => value.Id == sessionId.Value)
+            : query.Where(value => value.Status == WordStudySessionStatus.Active);
         return await query.SingleOrDefaultAsync(cancellationToken);
     }
 

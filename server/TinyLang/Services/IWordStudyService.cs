@@ -39,6 +39,18 @@ public interface IWordStudyService
         Guid itemId,
         SubmitWordSpellingRequest request,
         CancellationToken cancellationToken = default);
+    Task<WordReviewOverviewResponse> GetReviewOverviewAsync(
+        Guid userId, CancellationToken cancellationToken = default);
+    Task<WordStudySessionStateResponse> StartReviewSessionAsync(
+        Guid userId, CancellationToken cancellationToken = default);
+    Task<WordStudySessionStateResponse> GetReviewSessionAsync(
+        Guid userId, Guid sessionId, CancellationToken cancellationToken = default);
+    Task<WordStudyCommandResponse> ExcludeFromReviewAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        ExcludeWordFromReviewRequest request,
+        CancellationToken cancellationToken = default);
     /// <summary>
     /// 获取当前 UTC 日期的每日背诵状态。
     /// </summary>

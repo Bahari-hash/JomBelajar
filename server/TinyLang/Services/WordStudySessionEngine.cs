@@ -13,6 +13,58 @@ namespace TinyLang.Services;
 /// </summary>
 public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvider timeProvider)
 {
+    public async Task<WordStudyCommandResponse> ExcludeFromReviewAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        ExcludeWordFromReviewRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await db.BeginTransactionAsync(cancellationToken);
+        var session = await db.WordStudySessions.Include(value => value.Items)
+            .SingleOrDefaultAsync(value => value.Id == sessionId && value.UserId == userId,
+                cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);
+        if (session.SessionType != WordStudySessionType.Review)
+            throw ConflictException.Create(ErrorCodes.WordStudySessionTypeConflict);
+        if (session.Status != WordStudySessionStatus.Active)
+            throw ConflictException.Create(ErrorCodes.WordStudySessionNotActive);
+        if (session.Phase != WordStudyPhase.Memorization)
+            throw ConflictException.Create(ErrorCodes.WordStudyPhaseConflict);
+        var current = session.Items.Where(value => value.Status == WordStudySessionItemStatus.Pending)
+            .OrderBy(value => value.MemorizationQueueOrder).FirstOrDefault();
+        if (current is null || current.Id != itemId)
+            throw ConflictException.Create(ErrorCodes.WordStudyQueueConflict);
+        if (request.ItemConcurrencyStamp == Guid.Empty || current.ConcurrencyStamp != request.ItemConcurrencyStamp)
+            throw ConflictException.Create(ErrorCodes.WordStudyConcurrencyConflict);
+        var progress = await db.UserWordProgress.SingleOrDefaultAsync(value =>
+            value.UserId == userId && value.WordId == current.WordId, cancellationToken);
+        if (progress is null)
+            throw NotFoundException.Create(ErrorCodes.WordReviewProgressNotFound);
+        var now = timeProvider.GetUtcNow();
+        current.Status = WordStudySessionItemStatus.Excluded;
+        current.CompletedAt = now;
+        current.ConcurrencyStamp = Guid.NewGuid();
+        progress.IsReviewExcluded = true;
+        progress.ReviewExcludedAt = now;
+        progress.NextReviewAt = null;
+        progress.ConcurrencyStamp = Guid.NewGuid();
+        if (session.Items.All(value => value.Status != WordStudySessionItemStatus.Pending))
+        {
+            session.Status = WordStudySessionStatus.Completed;
+            session.CompletedAt = now;
+        }
+        else if (session.Items.Where(value => value.Status == WordStudySessionItemStatus.Pending)
+            .All(value => value.MemorizationPassedAt is not null))
+        {
+            session.Phase = WordStudyPhase.Spelling;
+        }
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new WordStudyCommandResponse(
+            null,
+            await new WordStudySessionProjector(db).ProjectAsync(userId, session, cancellationToken));
+    }
     public async Task<WordStudyCommandResponse> SubmitSpellingAsync(
         Guid userId,
         Guid sessionId,
@@ -84,6 +136,26 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
                     ReviewStage = schedule.Stage,
                     NextReviewAt = schedule.NextReviewAt
                 });
+            }
+            else if (expectedType == WordStudySessionType.Review)
+            {
+                var progress = await db.UserWordProgress.SingleOrDefaultAsync(value =>
+                    value.UserId == userId && value.WordId == current.WordId,
+                    cancellationToken) ?? throw NotFoundException.Create(ErrorCodes.WordReviewProgressNotFound);
+                var schedule = WordStudySchedule.AfterReview(
+                    progress.ReviewStage,
+                    current.HadMemorizationFailure || current.HadSpellingFailure,
+                    now);
+                progress.ReviewStage = schedule.Stage;
+                progress.NextReviewAt = schedule.NextReviewAt;
+                progress.LastReviewedAt = now;
+                progress.LastStudiedAt = now;
+                progress.ReviewCount++;
+                if (current.HadMemorizationFailure || current.HadSpellingFailure)
+                    progress.FailedReviewCount++;
+                else
+                    progress.SuccessfulReviewCount++;
+                progress.ConcurrencyStamp = Guid.NewGuid();
             }
         }
         current.ConcurrencyStamp = Guid.NewGuid();

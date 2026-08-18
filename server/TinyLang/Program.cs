@@ -83,6 +83,7 @@ try
     app.MapGroup("/api")
         .MapAuthApi()
         .MapUsersApi()
+        .MapUserWordLibraryApi()
         .MapSecurityApi()
         .MapUploadsApi()
         .MapArticlesApi()

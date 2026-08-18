@@ -9,165 +9,60 @@ using TinyLang.Services;
 
 namespace TinyLang.Endpoints;
 
-/// <summary>
-/// 定义登录用户创建、恢复和推进基础单词背诵会话的 HTTP endpoints。
-/// </summary>
 public static class WordStudyEndpoints
 {
-    /// <summary>
-    /// 注册基础单词背诵路由并统一应用登录用户授权策略。
-    /// </summary>
-    /// <param name="endpoints">应用顶层 API 路由组。</param>
-    /// <returns>完成注册后的同一路由组。</returns>
     public static RouteGroupBuilder MapWordStudyApi(this RouteGroupBuilder endpoints)
     {
-        var userGroup = endpoints.MapGroup("/")
+        var learning = endpoints.MapGroup("/word-study/learning")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
+        learning.MapGet("/overview", GetLearningOverviewAsync);
+        learning.MapPost("/sessions", StartLearningAsync);
+        learning.MapGet("/sessions/{sessionId:guid}", GetLearningSessionAsync);
+        learning.MapGet("/sessions/{sessionId:guid}/results", GetResultsAsync);
+        learning.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/memorization", SubmitLearningMemorizationAsync);
+        learning.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/spelling", SubmitLearningSpellingAsync);
 
-        userGroup.MapPost("/word-study/sessions", CreateSessionAsync);
-        userGroup.MapGet("/word-study/today", GetTodayAsync);
-        userGroup.MapPost("/word-study/today/start", StartTodayAsync);
-        userGroup.MapGet("/word-study/sessions/active", GetActiveSessionAsync);
-        userGroup.MapGet("/word-study/sessions/{sessionId:guid}", GetSessionAsync);
-        userGroup.MapGet("/word-study/sessions/{sessionId:guid}/items", GetSessionItemsAsync);
-        userGroup.MapGet("/word-study/sessions/{sessionId:guid}/next", GetNextItemAsync);
-        userGroup.MapPost("/word-study/sessions/{sessionId:guid}/items/{itemId:guid}/result", SubmitResultAsync);
-        userGroup.MapPost("/word-study/sessions/{sessionId:guid}/abandon", AbandonSessionAsync);
-
+        var review = endpoints.MapGroup("/word-study/review")
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
+        review.MapGet("/overview", GetReviewOverviewAsync);
+        review.MapPost("/sessions", StartReviewAsync);
+        review.MapGet("/sessions/{sessionId:guid}", GetReviewSessionAsync);
+        review.MapGet("/sessions/{sessionId:guid}/results", GetResultsAsync);
+        review.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/memorization", SubmitReviewMemorizationAsync);
+        review.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/spelling", SubmitReviewSpellingAsync);
+        review.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/exclude", ExcludeAsync);
         return endpoints;
     }
 
-    /// <summary>
-    /// 获取当前登录用户今天的 UTC 背诵状态。
-    /// </summary>
-    public static async Task<Ok<WordStudyTodayResponse>> GetTodayAsync(
-        ClaimsPrincipal principal,
-        IWordStudyService studyService,
-        CancellationToken cancellationToken)
-        => TypedResults.Ok(await studyService.GetTodayAsync(
-            EndpointIdentity.GetUserId(principal), cancellationToken));
-
-    /// <summary>
-    /// 幂等启动或恢复当前登录用户今天的 UTC 背诵会话。
-    /// </summary>
-    public static async Task<Created<WordStudySessionResponse>> StartTodayAsync(
-        ClaimsPrincipal principal,
-        IWordStudyService studyService,
-        CancellationToken cancellationToken)
+    public static async Task<Ok<WordLearningOverviewResponse>> GetLearningOverviewAsync(ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.GetLearningOverviewAsync(EndpointIdentity.GetUserId(principal), ct));
+    public static async Task<Created<WordStudySessionStateResponse>> StartLearningAsync(ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
     {
-        var response = await studyService.StartTodayAsync(
-            EndpointIdentity.GetUserId(principal), cancellationToken);
-        return TypedResults.Created($"/api/word-study/sessions/{response.Id}", response);
+        var response = await service.StartLearningSessionAsync(EndpointIdentity.GetUserId(principal), ct);
+        return TypedResults.Created($"/api/word-study/learning/sessions/{response.Id}", response);
     }
+    public static async Task<Ok<WordStudySessionStateResponse>> GetLearningSessionAsync(Guid sessionId, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.GetLearningSessionAsync(EndpointIdentity.GetUserId(principal), sessionId, ct));
+    public static async Task<Ok<IReadOnlyList<WordStudyCompletedItemResponse>>> GetResultsAsync(Guid sessionId, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.GetCompletedSessionItemsAsync(EndpointIdentity.GetUserId(principal), sessionId, ct));
+    public static async Task<Ok<WordStudyCommandResponse>> SubmitLearningMemorizationAsync(Guid sessionId, Guid itemId, SubmitWordMemorizationRequest request, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.SubmitLearningMemorizationAsync(EndpointIdentity.GetUserId(principal), sessionId, itemId, request, ct));
+    public static async Task<Ok<WordStudyCommandResponse>> SubmitLearningSpellingAsync(Guid sessionId, Guid itemId, SubmitWordSpellingRequest request, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.SubmitLearningSpellingAsync(EndpointIdentity.GetUserId(principal), sessionId, itemId, request, ct));
 
-    /// <summary>
-    /// 以当前登录用户身份创建固定内容的背诵会话。
-    /// </summary>
-    public static async Task<Created<WordStudySessionResponse>> CreateSessionAsync(
-        CreateWordStudySessionRequest request,
-        ClaimsPrincipal principal,
-        IWordStudyService studyService,
-        CancellationToken cancellationToken)
+    public static async Task<Ok<WordReviewOverviewResponse>> GetReviewOverviewAsync(ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.GetReviewOverviewAsync(EndpointIdentity.GetUserId(principal), ct));
+    public static async Task<Created<WordStudySessionStateResponse>> StartReviewAsync(ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
     {
-        var response = await studyService.CreateSessionAsync(
-            EndpointIdentity.GetUserId(principal),
-            request,
-            cancellationToken);
-        return TypedResults.Created(
-            $"/api/word-study/sessions/{response.Id}",
-            response);
+        var response = await service.StartReviewSessionAsync(EndpointIdentity.GetUserId(principal), ct);
+        return TypedResults.Created($"/api/word-study/review/sessions/{response.Id}", response);
     }
-
-    /// <summary>
-    /// 获取当前登录用户可恢复的活动会话或返回无内容。
-    /// </summary>
-    public static async Task<Results<Ok<WordStudySessionResponse>, NoContent>>
-        GetActiveSessionAsync(
-            ClaimsPrincipal principal,
-            IWordStudyService studyService,
-            CancellationToken cancellationToken)
-    {
-        var response = await studyService.GetActiveSessionAsync(
-            EndpointIdentity.GetUserId(principal),
-            cancellationToken);
-        return response is null
-            ? TypedResults.NoContent()
-            : TypedResults.Ok(response);
-    }
-
-    /// <summary>
-    /// 获取当前登录用户拥有的指定会话摘要。
-    /// </summary>
-    public static async Task<Ok<WordStudySessionResponse>> GetSessionAsync(
-        Guid sessionId,
-        ClaimsPrincipal principal,
-        IWordStudyService studyService,
-        CancellationToken cancellationToken)
-        => TypedResults.Ok(await studyService.GetSessionAsync(
-            EndpointIdentity.GetUserId(principal),
-            sessionId,
-            cancellationToken));
-
-    /// <summary>
-    /// 获取当前登录用户指定会话的完整有序词单和实时可见内容。
-    /// </summary>
-    public static async Task<Ok<IReadOnlyList<WordStudySessionItemResponse>>>
-        GetSessionItemsAsync(
-            Guid sessionId,
-            ClaimsPrincipal principal,
-            IWordStudyService studyService,
-            CancellationToken cancellationToken)
-        => TypedResults.Ok(await studyService.GetSessionItemsAsync(
-            EndpointIdentity.GetUserId(principal),
-            sessionId,
-            cancellationToken));
-
-    /// <summary>
-    /// 获取会话中下一个仍可见的待背诵词条或完成空结果。
-    /// </summary>
-    public static async Task<Results<Ok<WordStudyNextItemResponse>, NoContent>>
-        GetNextItemAsync(
-            Guid sessionId,
-            ClaimsPrincipal principal,
-            IWordStudyService studyService,
-            CancellationToken cancellationToken)
-    {
-        var response = await studyService.GetNextItemAsync(
-            EndpointIdentity.GetUserId(principal),
-            sessionId,
-            cancellationToken);
-        return response is null
-            ? TypedResults.NoContent()
-            : TypedResults.Ok(response);
-    }
-
-    /// <summary>
-    /// 为当前登录用户幂等提交一个会话项的 Remembered 或 Forgotten 结果。
-    /// </summary>
-    public static async Task<Ok<WordStudySessionResponse>> SubmitResultAsync(
-        Guid sessionId,
-        Guid itemId,
-        SubmitWordStudyResultRequest request,
-        ClaimsPrincipal principal,
-        IWordStudyService studyService,
-        CancellationToken cancellationToken)
-        => TypedResults.Ok(await studyService.SubmitResultAsync(
-            EndpointIdentity.GetUserId(principal),
-            sessionId,
-            itemId,
-            request,
-            cancellationToken));
-
-    /// <summary>
-    /// 以当前登录用户身份幂等放弃仍未完成的指定会话。
-    /// </summary>
-    public static async Task<Ok<WordStudySessionResponse>> AbandonSessionAsync(
-        Guid sessionId,
-        ClaimsPrincipal principal,
-        IWordStudyService studyService,
-        CancellationToken cancellationToken)
-        => TypedResults.Ok(await studyService.AbandonSessionAsync(
-            EndpointIdentity.GetUserId(principal),
-            sessionId,
-            cancellationToken));
+    public static async Task<Ok<WordStudySessionStateResponse>> GetReviewSessionAsync(Guid sessionId, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.GetReviewSessionAsync(EndpointIdentity.GetUserId(principal), sessionId, ct));
+    public static async Task<Ok<WordStudyCommandResponse>> SubmitReviewMemorizationAsync(Guid sessionId, Guid itemId, SubmitWordMemorizationRequest request, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.SubmitReviewMemorizationAsync(EndpointIdentity.GetUserId(principal), sessionId, itemId, request, ct));
+    public static async Task<Ok<WordStudyCommandResponse>> SubmitReviewSpellingAsync(Guid sessionId, Guid itemId, SubmitWordSpellingRequest request, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.SubmitReviewSpellingAsync(EndpointIdentity.GetUserId(principal), sessionId, itemId, request, ct));
+    public static async Task<Ok<WordStudyCommandResponse>> ExcludeAsync(Guid sessionId, Guid itemId, ExcludeWordFromReviewRequest request, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.ExcludeFromReviewAsync(EndpointIdentity.GetUserId(principal), sessionId, itemId, request, ct));
 }

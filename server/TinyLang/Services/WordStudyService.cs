@@ -115,7 +115,11 @@ public sealed class WordStudyService : IWordStudyService
         Guid sessionId,
         CancellationToken cancellationToken = default)
     {
-        var session = await LoadLearningSessionAsync(userId, sessionId, cancellationToken)
+        var session = await _db.WordStudySessions.AsNoTracking()
+            .Include(value => value.Items)
+                .ThenInclude(value => value.Word)
+            .SingleOrDefaultAsync(value => value.UserId == userId && value.Id == sessionId,
+                cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);
         return session.Items
             .Where(value => value.Status != WordStudySessionItemStatus.Pending)

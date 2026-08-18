@@ -16,6 +16,58 @@ namespace TinyLang.UnitTests;
 public sealed class WordStudySessionEngineTests
 {
     [Fact]
+    public async Task SpellingShouldRequeueIncorrectAndCompleteCorrectLearning()
+    {
+        await using var db = CreateDbContext();
+        var user = new User { Email = "spelling@example.test", PasswordHash = "hash" };
+        var word = CreateWord("école", 1);
+        db.AddRange(user, word);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = CreateService(db);
+        var session = await service.StartLearningSessionAsync(user.Id, TestContext.Current.CancellationToken);
+        var memorized = await service.SubmitLearningMemorizationAsync(
+            user.Id,
+            session.Id,
+            session.CurrentItem!.ItemId,
+            new SubmitWordMemorizationRequest(
+                WordMemorizationResult.Remembered,
+                session.CurrentItem.ItemConcurrencyStamp),
+            TestContext.Current.CancellationToken);
+
+        var incorrect = await service.SubmitLearningSpellingAsync(
+            user.Id,
+            session.Id,
+            memorized.Session.CurrentItem!.ItemId,
+            new SubmitWordSpellingRequest
+            {
+                Answer = "wrong",
+                ItemConcurrencyStamp = memorized.Session.CurrentItem.ItemConcurrencyStamp
+            },
+            TestContext.Current.CancellationToken);
+        incorrect.SpellingResult.Should().Be(WordSpellingResult.Incorrect);
+        incorrect.Session.Status.Should().Be(WordStudySessionStatus.Active);
+
+        var correct = await service.SubmitLearningSpellingAsync(
+            user.Id,
+            session.Id,
+            incorrect.Session.CurrentItem!.ItemId,
+            new SubmitWordSpellingRequest
+            {
+                Answer = " ÉCOLE ",
+                ItemConcurrencyStamp = incorrect.Session.CurrentItem.ItemConcurrencyStamp
+            },
+            TestContext.Current.CancellationToken);
+
+        correct.SpellingResult.Should().Be(WordSpellingResult.Correct);
+        correct.Session.Status.Should().Be(WordStudySessionStatus.Completed);
+        var progress = await db.UserWordProgress.SingleAsync(
+            value => value.UserId == user.Id && value.WordId == word.Id,
+            TestContext.Current.CancellationToken);
+        progress.ReviewStage.Should().Be(0);
+        progress.NextReviewAt.Should().Be(DateTimeOffset.Parse("2026-08-19T03:00:00Z"));
+    }
+
+    [Fact]
     public async Task ForgottenMemorizationShouldMoveItemToQueueTail()
     {
         await using var db = CreateDbContext();

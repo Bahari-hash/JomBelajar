@@ -161,6 +161,36 @@ public sealed class WordStudyService : IWordStudyService
                 request,
                 cancellationToken);
 
+    public Task<WordStudyCommandResponse> SubmitLearningSpellingAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        SubmitWordSpellingRequest request,
+        CancellationToken cancellationToken = default)
+        => new WordStudySessionEngine(_db, _timeProvider)
+            .SubmitSpellingAsync(
+                userId,
+                sessionId,
+                itemId,
+                WordStudySessionType.Learning,
+                request,
+                cancellationToken);
+
+    public Task<WordStudyCommandResponse> SubmitReviewSpellingAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        SubmitWordSpellingRequest request,
+        CancellationToken cancellationToken = default)
+        => new WordStudySessionEngine(_db, _timeProvider)
+            .SubmitSpellingAsync(
+                userId,
+                sessionId,
+                itemId,
+                WordStudySessionType.Review,
+                request,
+                cancellationToken);
+
     private async Task<WordStudySession?> LoadLearningSessionAsync(
         Guid userId,
         Guid? sessionId,

@@ -27,6 +27,18 @@ public interface IWordStudyService
         Guid itemId,
         SubmitWordMemorizationRequest request,
         CancellationToken cancellationToken = default);
+    Task<WordStudyCommandResponse> SubmitLearningSpellingAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        SubmitWordSpellingRequest request,
+        CancellationToken cancellationToken = default);
+    Task<WordStudyCommandResponse> SubmitReviewSpellingAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        SubmitWordSpellingRequest request,
+        CancellationToken cancellationToken = default);
     /// <summary>
     /// 获取当前 UTC 日期的每日背诵状态。
     /// </summary>

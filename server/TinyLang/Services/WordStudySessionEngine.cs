@@ -13,6 +13,95 @@ namespace TinyLang.Services;
 /// </summary>
 public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvider timeProvider)
 {
+    public async Task<WordStudyCommandResponse> SubmitSpellingAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        WordStudySessionType expectedType,
+        SubmitWordSpellingRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await db.BeginTransactionAsync(cancellationToken);
+        var session = await db.WordStudySessions
+            .Include(value => value.Items)
+                .ThenInclude(value => value.Word!)
+                    .ThenInclude(value => value.Senses)
+                        .ThenInclude(value => value.Examples)
+            .SingleOrDefaultAsync(value => value.Id == sessionId && value.UserId == userId,
+                cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);
+        if (session.SessionType != expectedType)
+        {
+            throw ConflictException.Create(ErrorCodes.WordStudySessionTypeConflict);
+        }
+        if (session.Status != WordStudySessionStatus.Active)
+        {
+            throw ConflictException.Create(ErrorCodes.WordStudySessionNotActive);
+        }
+        if (session.Phase != WordStudyPhase.Spelling)
+        {
+            throw ConflictException.Create(ErrorCodes.WordStudyPhaseConflict);
+        }
+        var current = session.Items
+            .Where(value => value.Status == WordStudySessionItemStatus.Pending)
+            .OrderBy(value => value.SpellingQueueOrder)
+            .FirstOrDefault();
+        if (current is null || current.Id != itemId)
+        {
+            throw ConflictException.Create(ErrorCodes.WordStudyQueueConflict);
+        }
+        if (request.ItemConcurrencyStamp == Guid.Empty ||
+            current.ConcurrencyStamp != request.ItemConcurrencyStamp)
+        {
+            throw ConflictException.Create(ErrorCodes.WordStudyConcurrencyConflict);
+        }
+        var now = timeProvider.GetUtcNow();
+        var correct = WordStudySchedule.IsCorrectSpelling(
+            request.Answer,
+            current.Word!.Headword);
+        current.SpellingAttemptCount++;
+        if (!correct)
+        {
+            current.HadSpellingFailure = true;
+            current.SpellingQueueOrder = session.Items.Max(value => value.SpellingQueueOrder) + 1;
+        }
+        else
+        {
+            current.Status = WordStudySessionItemStatus.Completed;
+            current.CompletedAt = now;
+            if (expectedType == WordStudySessionType.Learning &&
+                !await db.UserWordProgress.AnyAsync(value =>
+                    value.UserId == userId && value.WordId == current.WordId,
+                    cancellationToken))
+            {
+                var schedule = WordStudySchedule.AfterInitialLearning(now);
+                db.UserWordProgress.Add(new UserWordProgress
+                {
+                    UserId = userId,
+                    WordId = current.WordId,
+                    FirstStudiedAt = now,
+                    LastStudiedAt = now,
+                    ReviewStage = schedule.Stage,
+                    NextReviewAt = schedule.NextReviewAt
+                });
+            }
+        }
+        current.ConcurrencyStamp = Guid.NewGuid();
+        if (session.Items.All(value =>
+            value.Status != WordStudySessionItemStatus.Pending))
+        {
+            session.Status = WordStudySessionStatus.Completed;
+            session.CompletedAt = now;
+            session.ConcurrencyStamp = Guid.NewGuid();
+        }
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new WordStudyCommandResponse(
+            correct ? WordSpellingResult.Correct : WordSpellingResult.Incorrect,
+            await new WordStudySessionProjector(db)
+                .ProjectAsync(userId, session, cancellationToken));
+    }
+
     public async Task<WordStudyCommandResponse> SubmitMemorizationAsync(
         Guid userId,
         Guid sessionId,

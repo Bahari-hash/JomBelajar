@@ -418,10 +418,12 @@ public sealed class WordStudyService : IWordStudyService
         var month = request.Month ?? now.UtcDateTime.Month;
         var monthStart = new DateOnly(year, month, 1);
         var monthEnd = monthStart.AddMonths(1);
+        var monthStartUtc = GetUtcMonthStart(monthStart);
+        var monthEndUtc = GetUtcMonthStart(monthEnd);
         var rowValues = await _db.WordStudyCheckIns.AsNoTracking()
             .Where(value => value.UserId == userId &&
-                value.StudyDateUtc >= monthStart.ToDateTime(TimeOnly.MinValue) &&
-                value.StudyDateUtc < monthEnd.ToDateTime(TimeOnly.MinValue))
+                value.StudyDateUtc >= monthStartUtc &&
+                value.StudyDateUtc < monthEndUtc)
             .OrderBy(value => value.StudyDateUtc)
             .Select(value => new { value.StudyDateUtc, value.CheckedInAtUtc })
             .ToListAsync(cancellationToken);
@@ -465,6 +467,9 @@ public sealed class WordStudyService : IWordStudyService
         }
         return count;
     }
+
+    internal static DateTimeOffset GetUtcMonthStart(DateOnly date)
+        => new(date.Year, date.Month, date.Day, 0, 0, 0, TimeSpan.Zero);
 
     private static int GetLongestStreak(IReadOnlyList<DateOnly> dates)
     {

@@ -14,6 +14,16 @@ namespace TinyLang.UnitTests;
 public sealed class WordStudyDailyReviewServiceTests
 {
     [Fact]
+    public void CheckInMonthBoundaryShouldAlwaysUseUtcOffset()
+    {
+        var boundary = WordStudyService.GetUtcMonthStart(new DateOnly(2026, 8, 1));
+
+        boundary.Offset.Should().Be(TimeSpan.Zero);
+        boundary.Should().Be(new DateTimeOffset(
+            2026, 8, 1, 0, 0, 0, TimeSpan.Zero));
+    }
+
+    [Fact]
     public async Task TodayReviewShouldFilterHiddenWordsAndKeepActivityTypes()
     {
         await using var db = CreateDbContext();

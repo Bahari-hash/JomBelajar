@@ -173,6 +173,7 @@ export default function WordReviewPage() {
           .then(() => undefined)
       }
       canContinue={(overview.data?.dueCount ?? 0) > 0}
+      showTodayReview
       onContinue={async () => {
         const latest = await overview.refetch().unwrap();
         if (latest.dueCount === 0) return;

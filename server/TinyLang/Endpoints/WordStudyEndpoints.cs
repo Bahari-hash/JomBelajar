@@ -32,6 +32,10 @@ public static class WordStudyEndpoints
         review.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/memorization", SubmitReviewMemorizationAsync);
         review.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/spelling", SubmitReviewSpellingAsync);
         review.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/exclude", ExcludeAsync);
+        endpoints.MapGet("/word-study/review/today", GetTodayReviewAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
+        endpoints.MapGet("/word-study/check-ins", GetCheckInCalendarAsync)
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
         return endpoints;
     }
 
@@ -68,4 +72,20 @@ public static class WordStudyEndpoints
         => TypedResults.Ok(await service.SubmitReviewSpellingAsync(EndpointIdentity.GetUserId(principal), sessionId, itemId, request, ct));
     public static async Task<Ok<WordStudyCommandResponse>> ExcludeAsync(Guid sessionId, Guid itemId, ExcludeWordFromReviewRequest request, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
         => TypedResults.Ok(await service.ExcludeFromReviewAsync(EndpointIdentity.GetUserId(principal), sessionId, itemId, request, ct));
+
+    public static async Task<Ok<WordStudyTodayReviewResponse>> GetTodayReviewAsync(
+        [AsParameters] WordStudyTodayReviewRequest request,
+        ClaimsPrincipal principal,
+        IWordStudyService service,
+        CancellationToken ct)
+        => TypedResults.Ok(await service.GetTodayReviewAsync(
+            EndpointIdentity.GetUserId(principal), request, ct));
+
+    public static async Task<Ok<WordStudyCheckInCalendarResponse>> GetCheckInCalendarAsync(
+        [AsParameters] WordStudyCheckInCalendarRequest request,
+        ClaimsPrincipal principal,
+        IWordStudyService service,
+        CancellationToken ct)
+        => TypedResults.Ok(await service.GetCheckInCalendarAsync(
+            EndpointIdentity.GetUserId(principal), request, ct));
 }

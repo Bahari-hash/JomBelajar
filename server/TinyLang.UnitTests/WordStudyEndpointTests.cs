@@ -27,7 +27,7 @@ public sealed class WordStudyEndpointTests
             .Where(endpoint => endpoint.RoutePattern.RawText?.Contains("word-study") == true)
             .ToArray();
 
-        routes.Should().HaveCount(13);
+        routes.Should().HaveCount(15);
         routes.Should().OnlyContain(route => route.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
             .Any(value => value.Policy == AuthorizationPolicies.RequireUser));
@@ -36,6 +36,8 @@ public sealed class WordStudyEndpointTests
         routes.Select(route => route.RoutePattern.RawText)
             .Should().Contain(path => path!.Contains("/word-study/review/"));
         routes.Select(route => route.RoutePattern.RawText)
-            .Should().NotContain(path => path!.Contains("/word-study/today"));
+            .Should().Contain("/api/word-study/review/today");
+        routes.Select(route => route.RoutePattern.RawText)
+            .Should().Contain("/api/word-study/check-ins");
     }
 }

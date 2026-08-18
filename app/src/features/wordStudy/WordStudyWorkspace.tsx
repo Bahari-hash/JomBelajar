@@ -27,6 +27,7 @@ interface Props {
   onExclude?: (item: WordStudyCurrentItem) => Promise<void>;
   onContinue?: () => Promise<void>;
   canContinue?: boolean;
+  showTodayReview?: boolean;
 }
 
 export default function WordStudyWorkspace(props: Props) {
@@ -44,6 +45,7 @@ export default function WordStudyWorkspace(props: Props) {
         continueLabel={props.mode === "learning" ? "再学一组" : "再复习一组"}
         canContinue={props.canContinue ?? true}
         onContinue={props.onContinue}
+        showTodayReview={props.showTodayReview}
       />
     );
   const item = props.session.currentItem;

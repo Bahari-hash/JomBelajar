@@ -176,6 +176,13 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
                     progress.SuccessfulReviewCount++;
                 progress.ConcurrencyStamp = Guid.NewGuid();
             }
+
+            await AddActivityIfMissingAsync(
+                userId,
+                current,
+                expectedType,
+                now,
+                cancellationToken);
         }
         current.ConcurrencyStamp = Guid.NewGuid();
         if (session.Items.All(value =>
@@ -184,6 +191,10 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
             session.Status = WordStudySessionStatus.Completed;
             session.CompletedAt = now;
             session.ConcurrencyStamp = Guid.NewGuid();
+            if (expectedType == WordStudySessionType.Learning)
+            {
+                await AddCheckInIfMissingAsync(userId, now, cancellationToken);
+            }
         }
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -320,11 +331,72 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
         IApplicationDbTransaction transaction,
         CancellationToken cancellationToken)
     {
+        if (session.SessionType == WordStudySessionType.Learning &&
+            session.Status == WordStudySessionStatus.Completed)
+        {
+            await AddCheckInIfMissingAsync(
+                userId,
+                session.CompletedAt ?? timeProvider.GetUtcNow(),
+                cancellationToken);
+        }
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new WordStudyCommandResponse(
             null,
             await new WordStudySessionProjector(db)
                 .ProjectAsync(userId, session, cancellationToken));
+    }
+
+    private async Task AddActivityIfMissingAsync(
+        Guid userId,
+        WordStudySessionItem item,
+        WordStudySessionType sessionType,
+        DateTimeOffset completedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var activityType = sessionType == WordStudySessionType.Learning
+            ? WordStudyActivityType.Learning
+            : WordStudyActivityType.Review;
+        var exists = await db.WordStudyActivities.AnyAsync(value =>
+            value.SessionItemId == item.Id && value.ActivityType == activityType,
+            cancellationToken);
+        if (exists)
+        {
+            return;
+        }
+        db.WordStudyActivities.Add(new WordStudyActivity
+        {
+            UserId = userId,
+            WordId = item.WordId,
+            SessionId = item.SessionId,
+            SessionItemId = item.Id,
+            ActivityType = activityType,
+            CompletedAtUtc = completedAtUtc,
+            CreatedAt = completedAtUtc
+        });
+    }
+
+    private async Task AddCheckInIfMissingAsync(
+        Guid userId,
+        DateTimeOffset checkedInAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var studyDate = new DateTimeOffset(
+            checkedInAtUtc.UtcDateTime.Date,
+            TimeSpan.Zero);
+        var exists = await db.WordStudyCheckIns.AnyAsync(value =>
+            value.UserId == userId && value.StudyDateUtc == studyDate,
+            cancellationToken);
+        if (exists)
+        {
+            return;
+        }
+        db.WordStudyCheckIns.Add(new WordStudyCheckIn
+        {
+            UserId = userId,
+            StudyDateUtc = studyDate,
+            CheckedInAtUtc = checkedInAtUtc,
+            CreatedAt = checkedInAtUtc
+        });
     }
 }

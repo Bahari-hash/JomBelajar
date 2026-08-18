@@ -83,3 +83,32 @@ public sealed record WordReviewOverviewResponse(
     int DueCount,
     int OverdueCount,
     WordStudySessionStateResponse? ActiveSession);
+
+public sealed record WordStudyTodayReviewItemResponse(
+    Guid WordId,
+    string Headword,
+    WordStudyActivityType ActivityType,
+    DateTimeOffset CompletedAtUtc,
+    IReadOnlyList<WordSenseResponse> Senses,
+    Guid? AudioResourceId,
+    bool IsFavorite);
+
+public sealed record WordStudyTodayReviewResponse(
+    DateOnly StudyDateUtc,
+    IReadOnlyList<WordStudyTodayReviewItemResponse> Items,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    int TotalPages);
+
+public sealed record WordStudyCheckInResponse(
+    DateOnly StudyDateUtc,
+    DateTimeOffset CheckedInAtUtc);
+
+public sealed record WordStudyCheckInCalendarResponse(
+    int Year,
+    int Month,
+    IReadOnlyList<WordStudyCheckInResponse> CheckedInDates,
+    int CurrentStreak,
+    int LongestStreak,
+    int TotalCheckInDays);

@@ -12,9 +12,15 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
     /// <inheritdoc />
     public void Configure(EntityTypeBuilder<User> builder)
     {
-        builder.ToTable("users", table => table.HasCheckConstraint(
-            "CK_users_daily_word_study_count",
-            "\"DailyWordStudyCount\" BETWEEN 1 AND 100"));
+        builder.ToTable("users", table =>
+        {
+            table.HasCheckConstraint(
+                "CK_users_daily_word_study_count",
+                "\"DailyWordStudyCount\" BETWEEN 1 AND 100");
+            table.HasCheckConstraint(
+                "CK_users_daily_word_review_count",
+                "\"DailyWordReviewCount\" BETWEEN 1 AND 200");
+        });
 
         builder.HasKey(x => x.Id);
 
@@ -37,6 +43,8 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(500);
         builder.Property(x => x.DailyWordStudyCount)
             .HasDefaultValue(20);
+        builder.Property(x => x.DailyWordReviewCount)
+            .HasDefaultValue(50);
         builder.Property(x => x.BannedReason)
             .HasMaxLength(500);
 

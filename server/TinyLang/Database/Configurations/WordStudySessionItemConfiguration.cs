@@ -14,24 +14,37 @@ public sealed class WordStudySessionItemConfiguration
     public void Configure(EntityTypeBuilder<WordStudySessionItem> builder)
     {
         builder.ToTable("word_study_session_items", table =>
+        {
             table.HasCheckConstraint(
                 "CK_word_study_session_items_position",
-                "\"Position\" >= 0"));
+                "\"Position\" >= 0");
+            table.HasCheckConstraint(
+                "CK_word_study_session_items_attempt_counts",
+                "\"MemorizationAttemptCount\" >= 0 AND \"SpellingAttemptCount\" >= 0 " +
+                "AND \"MemorizationQueueOrder\" >= 0 AND \"SpellingQueueOrder\" >= 0");
+        });
         builder.HasKey(value => value.Id);
         builder.Property(value => value.Status)
             .HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(value => value.SkipReason)
             .HasConversion<string>().HasMaxLength(32);
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
+        builder.Ignore(value => value.AnsweredAt);
 
         builder.HasIndex(value => new { value.SessionId, value.WordId }).IsUnique();
         builder.HasIndex(value => new { value.SessionId, value.Position }).IsUnique();
         builder.HasIndex(value => new
-        {
-            value.SessionId,
-            value.Status,
-            value.Position
-        });
+            {
+                value.SessionId,
+                value.Status,
+                value.MemorizationQueueOrder
+            }, "IX_word_study_items_memorization_queue");
+        builder.HasIndex(value => new
+            {
+                value.SessionId,
+                value.Status,
+                value.SpellingQueueOrder
+            }, "IX_word_study_items_spelling_queue");
 
         builder.HasOne(value => value.Session)
             .WithMany(value => value.Items)

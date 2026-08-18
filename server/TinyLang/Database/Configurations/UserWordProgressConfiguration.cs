@@ -14,20 +14,32 @@ public sealed class UserWordProgressConfiguration
     public void Configure(EntityTypeBuilder<UserWordProgress> builder)
     {
         builder.ToTable("user_word_progress", table =>
+        {
             table.HasCheckConstraint(
-                "CK_user_word_progress_counts",
-                "\"ReviewCount\" >= 0 AND \"RememberedCount\" >= 0 " +
-                "AND \"ForgottenCount\" >= 0 AND \"ReviewCount\" = " +
-                "\"RememberedCount\" + \"ForgottenCount\""));
+                "CK_user_word_progress_review_stage",
+                "\"ReviewStage\" BETWEEN 0 AND 5");
+            table.HasCheckConstraint(
+                "CK_user_word_progress_review_counts",
+                "\"ReviewCount\" >= 0 AND \"SuccessfulReviewCount\" >= 0 " +
+                "AND \"FailedReviewCount\" >= 0 AND \"ReviewCount\" = " +
+                "\"SuccessfulReviewCount\" + \"FailedReviewCount\"");
+            table.HasCheckConstraint(
+                "CK_user_word_progress_review_exclusion",
+                "(NOT \"IsReviewExcluded\" AND \"ReviewExcludedAt\" IS NULL) OR " +
+                "(\"IsReviewExcluded\" AND \"ReviewExcludedAt\" IS NOT NULL " +
+                "AND \"NextReviewAt\" IS NULL)");
+        });
         builder.HasKey(value => value.Id);
-        builder.Property(value => value.LastResult)
-            .HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
+        builder.Ignore(value => value.LastResult);
+        builder.Ignore(value => value.RememberedCount);
+        builder.Ignore(value => value.ForgottenCount);
 
         builder.HasIndex(value => new { value.UserId, value.WordId }).IsUnique();
         builder.HasIndex(value => new
         {
             value.UserId,
-            value.LastStudiedAt,
+            value.NextReviewAt,
             value.WordId
         });
 

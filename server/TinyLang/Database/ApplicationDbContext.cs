@@ -32,6 +32,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.WordSense> WordSenses => Set<Entities.WordSense>();
     public DbSet<Entities.ExampleSentence> ExampleSentences => Set<Entities.ExampleSentence>();
     public DbSet<Entities.UserWordProgress> UserWordProgress => Set<Entities.UserWordProgress>();
+    public DbSet<Entities.UserWordFavorite> UserWordFavorites => Set<Entities.UserWordFavorite>();
     public DbSet<Entities.WordStudySession> WordStudySessions => Set<Entities.WordStudySession>();
     public DbSet<Entities.WordStudySessionItem> WordStudySessionItems => Set<Entities.WordStudySessionItem>();
     public DbSet<Entities.Paper> Papers => Set<Entities.Paper>();
@@ -58,6 +59,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.HasSequence<long>("word_study_order_seq");
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
     }
 

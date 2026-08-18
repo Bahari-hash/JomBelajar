@@ -166,11 +166,14 @@ export const wordStudyApi = createApi({
       query: () => ({ url: "/users/me/word-study-settings" }),
       providesTags: ["WordStudySettings"],
     }),
-    updateSettings: builder.mutation<WordStudySettings, number>({
-      query: (dailyWordStudyCount) => ({
+    updateSettings: builder.mutation<
+      WordStudySettings,
+      { dailyWordStudyCount: number; dailyWordReviewCount: number }
+    >({
+      query: (data) => ({
         url: "/users/me/word-study-settings",
         method: "PUT",
-        data: { dailyWordStudyCount },
+        data,
       }),
       invalidatesTags: ["WordStudySettings", "WordStudyToday"],
     }),

@@ -18,6 +18,9 @@ import {
 import { uploadAvatar } from "@/features/profile/profileApi";
 import AccountSecurityPanel from "@/features/profile/AccountSecurityPanel";
 import WordStudySettingsPanel from "@/features/wordStudy/WordStudySettingsPanel";
+import WordStudySummaryPanel from "@/features/wordStudy/WordStudySummaryPanel";
+import WordFavoritesPanel from "@/features/wordStudy/WordFavoritesPanel";
+import WordReviewExclusionsPanel from "@/features/wordStudy/WordReviewExclusionsPanel";
 import {
   formatProfileDate,
   getRoleLabel,
@@ -349,7 +352,10 @@ export default function ProfilePage() {
           </form>
         </section>
       </div>
+      <WordStudySummaryPanel />
       <WordStudySettingsPanel />
+      <WordFavoritesPanel />
+      <WordReviewExclusionsPanel />
       <AccountSecurityPanel currentEmail={profile.email} />
     </div>
   );

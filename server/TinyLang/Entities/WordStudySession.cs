@@ -28,4 +28,5 @@ public sealed class WordStudySession : BaseAuditableEntity
     public DateTimeOffset? CompletedAt { get; set; }
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
     public ICollection<WordStudySessionItem> Items { get; set; } = [];
+    public ICollection<WordStudyActivity> Activities { get; set; } = [];
 }

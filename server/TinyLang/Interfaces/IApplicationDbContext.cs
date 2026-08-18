@@ -31,6 +31,8 @@ public interface IApplicationDbContext
     DbSet<UserWordFavorite> UserWordFavorites { get; }
     DbSet<WordStudySession> WordStudySessions { get; }
     DbSet<WordStudySessionItem> WordStudySessionItems { get; }
+    DbSet<WordStudyActivity> WordStudyActivities { get; }
+    DbSet<WordStudyCheckIn> WordStudyCheckIns { get; }
     DbSet<Paper> Papers { get; }
     DbSet<PaperQuestion> PaperQuestions { get; }
     DbSet<PaperQuestionOption> PaperQuestionOptions { get; }

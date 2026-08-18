@@ -25,4 +25,5 @@ public sealed class Word : BaseAuditableEntity
     public ICollection<UserWordProgress> UserProgress { get; set; } = [];
     public ICollection<UserWordFavorite> Favorites { get; set; } = [];
     public ICollection<WordStudySessionItem> StudySessionItems { get; set; } = [];
+    public ICollection<WordStudyActivity> WordStudyActivities { get; set; } = [];
 }

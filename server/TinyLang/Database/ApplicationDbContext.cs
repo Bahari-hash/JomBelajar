@@ -35,6 +35,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.UserWordFavorite> UserWordFavorites => Set<Entities.UserWordFavorite>();
     public DbSet<Entities.WordStudySession> WordStudySessions => Set<Entities.WordStudySession>();
     public DbSet<Entities.WordStudySessionItem> WordStudySessionItems => Set<Entities.WordStudySessionItem>();
+    public DbSet<Entities.WordStudyActivity> WordStudyActivities => Set<Entities.WordStudyActivity>();
+    public DbSet<Entities.WordStudyCheckIn> WordStudyCheckIns => Set<Entities.WordStudyCheckIn>();
     public DbSet<Entities.Paper> Papers => Set<Entities.Paper>();
     public DbSet<Entities.PaperQuestion> PaperQuestions => Set<Entities.PaperQuestion>();
     public DbSet<Entities.PaperQuestionOption> PaperQuestionOptions => Set<Entities.PaperQuestionOption>();

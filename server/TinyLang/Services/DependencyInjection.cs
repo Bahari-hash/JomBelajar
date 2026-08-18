@@ -33,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IWordService, WordService>();
         services.AddScoped<IWordBatchService, WordBatchService>();
         services.AddScoped<IWordStudyService, WordStudyService>();
+        services.AddScoped<IUserWordLibraryService, UserWordLibraryService>();
         services.AddScoped<WordStudySessionEngine>();
         services.AddScoped<WordStudySessionProjector>();
         services.AddScoped<IPaperService, PaperService>();

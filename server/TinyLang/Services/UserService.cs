@@ -160,7 +160,9 @@ public sealed class UserService(
         CancellationToken cancellationToken = default)
         => await db.Users.AsNoTracking()
             .Where(user => user.Id == userId && !user.IsDeleted && !user.IsBanned)
-            .Select(user => new WordStudySettingsResponse(user.DailyWordStudyCount))
+            .Select(user => new WordStudySettingsResponse(
+                user.DailyWordStudyCount,
+                user.DailyWordReviewCount))
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
 
@@ -175,6 +177,11 @@ public sealed class UserService(
         {
             throw new RequestValidationException(ErrorCodes.WordStudyWordCountInvalid);
         }
+        if (request.DailyWordReviewCount is < WordStudyConstraints.MinReviewCount or
+            > WordStudyConstraints.MaxReviewCount)
+        {
+            throw new RequestValidationException(ErrorCodes.WordReviewCountInvalid);
+        }
 
         var user = await FindManagedUserAsync(userId, cancellationToken);
         if (user.IsBanned)
@@ -183,8 +190,11 @@ public sealed class UserService(
         }
 
         user.DailyWordStudyCount = request.DailyWordStudyCount;
+        user.DailyWordReviewCount = request.DailyWordReviewCount;
         await db.SaveChangesAsync(cancellationToken);
-        return new WordStudySettingsResponse(user.DailyWordStudyCount);
+        return new WordStudySettingsResponse(
+            user.DailyWordStudyCount,
+            user.DailyWordReviewCount);
     }
 
     /// <inheritdoc />

@@ -17,6 +17,7 @@ public sealed class Word : BaseAuditableEntity
     public required string Headword { get; set; }
     public required string NormalizedHeadword { get; set; }
     public long StudyOrder { get; set; }
+    public bool IsDeleted { get; set; }
     public Guid? AudioResourceId { get; set; }
     public AudioResource? AudioResource { get; set; }
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();

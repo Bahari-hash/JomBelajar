@@ -1,12 +1,8 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { axiosBaseQuery } from "@/services/axiosBaseQuery";
 import type {
-  WordStudyNextItem,
-  WordStudyResult,
-  WordStudySession,
-  WordStudySessionItem,
+  WordMemorizationResult,
   WordStudySettings,
-  WordStudyToday,
   WordLearningOverview,
   WordReviewOverview,
   WordStudyCommandResponse,
@@ -22,9 +18,7 @@ export const wordStudyApi = createApi({
   baseQuery: axiosBaseQuery(),
   tagTypes: [
     "WordStudySettings",
-    "WordStudyToday",
     "WordStudySession",
-    "WordStudySessionItems",
     "LearningOverview",
     "ReviewOverview",
     "WordFavorites",
@@ -48,7 +42,7 @@ export const wordStudyApi = createApi({
       {
         sessionId: string;
         itemId: string;
-        result: WordStudyResult;
+        result: WordMemorizationResult;
         itemConcurrencyStamp: string;
       }
     >({
@@ -92,7 +86,7 @@ export const wordStudyApi = createApi({
       {
         sessionId: string;
         itemId: string;
-        result: WordStudyResult;
+        result: WordMemorizationResult;
         itemConcurrencyStamp: string;
       }
     >({
@@ -175,77 +169,11 @@ export const wordStudyApi = createApi({
         method: "PUT",
         data,
       }),
-      invalidatesTags: ["WordStudySettings", "WordStudyToday"],
-    }),
-    getToday: builder.query<WordStudyToday, void>({
-      query: () => ({ url: "/word-study/today" }),
-      providesTags: ["WordStudyToday"],
-    }),
-    startToday: builder.mutation<WordStudySession, void>({
-      query: () => ({ url: "/word-study/today/start", method: "POST" }),
-      invalidatesTags: ["WordStudyToday", "WordStudySession"],
-    }),
-    getNextItem: builder.query<WordStudyNextItem | null, string>({
-      query: (sessionId) => ({ url: `/word-study/sessions/${sessionId}/next` }),
-      providesTags: (_result, _error, sessionId) => [
-        { type: "WordStudySession", id: sessionId },
+      invalidatesTags: [
+        "WordStudySettings",
+        "LearningOverview",
+        "ReviewOverview",
       ],
-    }),
-    getSessionItems: builder.query<WordStudySessionItem[], string>({
-      query: (sessionId) => ({
-        url: `/word-study/sessions/${sessionId}/items`,
-      }),
-      providesTags: (_result, _error, sessionId) => [
-        { type: "WordStudySessionItems", id: sessionId },
-      ],
-    }),
-    submitResult: builder.mutation<
-      WordStudySession,
-      {
-        sessionId: string;
-        itemId: string;
-        result: WordStudyResult;
-      }
-    >({
-      query: ({ sessionId, itemId, result }) => ({
-        url: `/word-study/sessions/${sessionId}/items/${itemId}/result`,
-        method: "POST",
-        data: { result },
-      }),
-      onQueryStarted: async (
-        { sessionId, itemId, result },
-        { dispatch, queryFulfilled },
-      ) => {
-        const patch = dispatch(
-          wordStudyApi.util.updateQueryData(
-            "getSessionItems",
-            sessionId,
-            (items) => {
-              const item = items.find((value) => value.itemId === itemId);
-              if (item) {
-                item.status = result;
-              }
-            },
-          ),
-        );
-        try {
-          await queryFulfilled;
-        } catch {
-          patch.undo();
-        }
-      },
-      invalidatesTags: (_result, _error, request) => [
-        "WordStudyToday",
-        { type: "WordStudySession", id: request.sessionId },
-        { type: "WordStudySessionItems", id: request.sessionId },
-      ],
-    }),
-    abandon: builder.mutation<WordStudySession, string>({
-      query: (sessionId) => ({
-        url: `/word-study/sessions/${sessionId}/abandon`,
-        method: "POST",
-      }),
-      invalidatesTags: ["WordStudyToday", "WordStudySession"],
     }),
   }),
 });
@@ -254,11 +182,13 @@ export const {
   useGetLearningOverviewQuery,
   useStartLearningMutation,
   useGetLearningSessionQuery,
+  useLazyGetLearningSessionQuery,
   useSubmitLearningMemorizationMutation,
   useSubmitLearningSpellingMutation,
   useGetReviewOverviewQuery,
   useStartReviewMutation,
   useGetReviewSessionQuery,
+  useLazyGetReviewSessionQuery,
   useSubmitReviewMemorizationMutation,
   useSubmitReviewSpellingMutation,
   useExcludeReviewItemMutation,
@@ -268,10 +198,4 @@ export const {
   useRestoreReviewMutation,
   useGetSettingsQuery,
   useUpdateSettingsMutation,
-  useGetTodayQuery,
-  useStartTodayMutation,
-  useLazyGetNextItemQuery,
-  useGetSessionItemsQuery,
-  useSubmitResultMutation,
-  useAbandonMutation,
 } = wordStudyApi;

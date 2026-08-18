@@ -29,8 +29,6 @@ public sealed class WordStudySessionItemConfiguration
         builder.Property(value => value.SkipReason)
             .HasConversion<string>().HasMaxLength(32);
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
-        builder.Ignore(value => value.AnsweredAt);
-
         builder.HasIndex(value => new { value.SessionId, value.WordId }).IsUnique();
         builder.HasIndex(value => new { value.SessionId, value.Position }).IsUnique();
         builder.HasIndex(value => new

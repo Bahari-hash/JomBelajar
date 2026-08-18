@@ -31,7 +31,6 @@ public sealed class WordStudySessionItem : BaseEntity
     public int SpellingAttemptCount { get; set; }
     public bool HadSpellingFailure { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
-    public DateTimeOffset? AnsweredAt { get; set; }
     public WordStudySkipReason? SkipReason { get; set; }
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 }

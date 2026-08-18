@@ -11,12 +11,12 @@ using TinyLang.Services;
 namespace TinyLang.UnitTests;
 
 /// <summary>
-/// 验证词条硬删除会级联清除直接关联的用户学习记录。
+/// 验证词条删除会保留学习历史，以便活动会话将不可见词标记为跳过。
 /// </summary>
 public sealed class WordStudyWordDeletionTests
 {
     [Fact]
-    public async Task DeleteShouldCascadeProgressAndSessionItems()
+    public async Task DeleteShouldTombstoneWordAndPreserveStudyHistory()
     {
         await using var db = new ApplicationDbContext(
             new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -30,25 +30,27 @@ public sealed class WordStudyWordDeletionTests
         {
             UserId = Guid.NewGuid(),
             WordId = progressWord.Id,
-            ReviewCount = 1,
-            RememberedCount = 1,
-            LastResult = WordStudyResult.Remembered,
             FirstStudiedAt = DateTimeOffset.UtcNow,
-            LastStudiedAt = DateTimeOffset.UtcNow
+            LastStudiedAt = DateTimeOffset.UtcNow,
+            ReviewStage = 0,
+            NextReviewAt = DateTimeOffset.UtcNow.AddDays(1)
         });
         var session = new WordStudySession
         {
             UserId = Guid.NewGuid(),
             RequestedCount = 1,
             ActualCount = 1,
-            StudyDateUtc = DateTimeOffset.UtcNow.Date,
+            SessionType = WordStudySessionType.Learning,
+            Phase = WordStudyPhase.Memorization,
             StartedAt = DateTimeOffset.UtcNow,
             Items =
             [
                 new WordStudySessionItem
                 {
                     WordId = itemWord.Id,
-                    Position = 0
+                    Position = 0,
+                    MemorizationQueueOrder = 0,
+                    SpellingQueueOrder = 0
                 }
             ]
         };
@@ -78,10 +80,13 @@ public sealed class WordStudyWordDeletionTests
 
         (await db.UserWordProgress.AnyAsync(
             value => value.WordId == progressWord.Id,
-            TestContext.Current.CancellationToken)).Should().BeFalse();
+            TestContext.Current.CancellationToken)).Should().BeTrue();
         (await db.WordStudySessionItems.AnyAsync(
             value => value.WordId == itemWord.Id,
-            TestContext.Current.CancellationToken)).Should().BeFalse();
+            TestContext.Current.CancellationToken)).Should().BeTrue();
+        (await db.Words.SingleAsync(
+            value => value.Id == itemWord.Id,
+            TestContext.Current.CancellationToken)).IsDeleted.Should().BeTrue();
         (await db.WordStudySessions.AnyAsync(
             value => value.Id == session.Id,
             TestContext.Current.CancellationToken)).Should().BeTrue();

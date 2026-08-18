@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Moq;
 using TinyLang.Database;
 using TinyLang.Entities;
@@ -84,12 +83,46 @@ public sealed class WordStudyLearningServiceTests
         overview.HasMoreWords.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task LearningOverviewShouldUseHalfOpenUtcDayForStatistics()
+    {
+        await using var db = CreateDbContext();
+        var user = new User { Email = "stats@example.test", PasswordHash = "hash" };
+        var before = CreateWord("before", 1);
+        var start = CreateWord("start", 2);
+        var end = CreateWord("end", 3);
+        db.AddRange(user, before, start, end);
+        db.UserWordProgress.AddRange(
+            CreateProgress(user, before, "2026-08-17T23:59:59Z"),
+            CreateProgress(user, start, "2026-08-18T00:00:00Z"),
+            CreateProgress(user, end, "2026-08-18T23:59:59Z"));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var overview = await CreateService(db).GetLearningOverviewAsync(
+            user.Id,
+            TestContext.Current.CancellationToken);
+
+        overview.TotalLearnedCount.Should().Be(3);
+        overview.TodayLearnedCount.Should().Be(2);
+    }
+
+    private static UserWordProgress CreateProgress(
+        User user,
+        Word word,
+        string firstStudiedAt)
+        => new()
+        {
+            UserId = user.Id,
+            WordId = word.Id,
+            FirstStudiedAt = DateTimeOffset.Parse(firstStudiedAt),
+            LastStudiedAt = DateTimeOffset.Parse(firstStudiedAt)
+        };
+
     private static WordStudyService CreateService(ApplicationDbContext db)
         => new(
             db,
             Mock.Of<IDatabaseExceptionClassifier>(),
-            new TestTimeProvider(DateTimeOffset.Parse("2026-08-18T03:00:00Z")),
-            Mock.Of<ILogger<WordStudyService>>());
+            new TestTimeProvider(DateTimeOffset.Parse("2026-08-18T03:00:00Z")));
 
     private static ApplicationDbContext CreateDbContext()
         => new(new DbContextOptionsBuilder<ApplicationDbContext>()

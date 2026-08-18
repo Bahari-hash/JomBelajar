@@ -1,8 +1,10 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using TinyLang.Database;
 using TinyLang.Dtos;
 using TinyLang.Entities;
+using TinyLang.Interfaces;
 using TinyLang.Services;
 
 namespace TinyLang.UnitTests;
@@ -25,6 +27,7 @@ public sealed class UserWordLibraryServiceTests
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var service = new UserWordLibraryService(
             db,
+            Mock.Of<IDatabaseExceptionClassifier>(),
             new TestTimeProvider(DateTimeOffset.Parse("2026-08-18T03:00:00Z")));
 
         await service.SetFavoriteAsync(user.Id, word.Id, true, TestContext.Current.CancellationToken);
@@ -60,10 +63,21 @@ public sealed class UserWordLibraryServiceTests
             ReviewExcludedAt = DateTimeOffset.Parse("2026-08-17T03:00:00Z")
         });
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        await new UserWordLibraryService(
+        var timeProvider = new TestTimeProvider(
+            DateTimeOffset.Parse("2026-08-18T03:00:00Z"));
+        var service = new UserWordLibraryService(
             db,
-            new TestTimeProvider(DateTimeOffset.Parse("2026-08-18T03:00:00Z")))
-            .RestoreReviewAsync(user.Id, word.Id, TestContext.Current.CancellationToken);
+            Mock.Of<IDatabaseExceptionClassifier>(),
+            timeProvider);
+        await service.RestoreReviewAsync(
+            user.Id,
+            word.Id,
+            TestContext.Current.CancellationToken);
+        timeProvider.Advance(TimeSpan.FromDays(5));
+        await service.RestoreReviewAsync(
+            user.Id,
+            word.Id,
+            TestContext.Current.CancellationToken);
 
         var progress = await db.UserWordProgress.SingleAsync(
             value => value.UserId == user.Id && value.WordId == word.Id,

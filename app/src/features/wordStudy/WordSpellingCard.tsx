@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   WordSpellingResult,
   WordStudyCurrentItem,
@@ -15,6 +15,10 @@ export default function WordSpellingCard({
 }) {
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
+  useEffect(() => {
+    setAnswer("");
+    setFeedback(null);
+  }, [item.itemId]);
   return (
     <form
       className="space-y-6"
@@ -30,9 +34,9 @@ export default function WordSpellingCard({
       }}
     >
       <div className="space-y-3">
-        {item.spelling.senses.map((sense) => (
+        {item.spelling.senses.map((sense, index) => (
           <div
-            key={`${sense.sortOrder}-${sense.definition}`}
+            key={`${index}-${sense.definition}`}
             className="border-b border-base-300 pb-3"
           >
             <span className="text-sm text-primary">{sense.partOfSpeech}</span>

@@ -15,6 +15,6 @@ public static class WordVisibilityPolicy
     /// <returns>仅包含当前对登录用户可见词条的可组合查询。</returns>
     public static IQueryable<Word> Apply(IQueryable<Word> query)
     {
-        return query.Where(word => word.Senses.Any());
+        return query.Where(word => !word.IsDeleted && word.Senses.Any());
     }
 }

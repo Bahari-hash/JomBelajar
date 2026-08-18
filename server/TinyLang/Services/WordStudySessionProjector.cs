@@ -21,7 +21,10 @@ public sealed class WordStudySessionProjector(IApplicationDbContext db)
             .Select(value => value.WordId)
             .ToHashSetAsync(cancellationToken);
         var current = session.Items
-            .Where(value => value.Status == WordStudySessionItemStatus.Pending)
+            .Where(value =>
+                value.Status == WordStudySessionItemStatus.Pending &&
+                (session.Phase != WordStudyPhase.Memorization ||
+                    value.MemorizationPassedAt == null))
             .OrderBy(value => session.Phase == WordStudyPhase.Memorization
                 ? value.MemorizationQueueOrder
                 : value.SpellingQueueOrder)
@@ -74,9 +77,7 @@ public sealed class WordStudySessionProjector(IApplicationDbContext db)
                 word.Senses.OrderBy(value => value.SortOrder)
                     .Select(value => new WordSpellingSenseResponse(
                         value.PartOfSpeech,
-                        value.Definition,
-                        value.UsageNote,
-                        value.SortOrder))
+                        value.Definition))
                     .ToArray())
             : null;
         return new WordStudyCurrentItemResponse(

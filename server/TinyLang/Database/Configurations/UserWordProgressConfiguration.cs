@@ -31,10 +31,6 @@ public sealed class UserWordProgressConfiguration
         });
         builder.HasKey(value => value.Id);
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
-        builder.Ignore(value => value.LastResult);
-        builder.Ignore(value => value.RememberedCount);
-        builder.Ignore(value => value.ForgottenCount);
-
         builder.HasIndex(value => new { value.UserId, value.WordId }).IsUnique();
         builder.HasIndex(value => new
         {

@@ -29,11 +29,6 @@ public sealed class WordStudySessionConfiguration
         builder.Property(value => value.Status)
             .HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
-        builder.Ignore(value => value.StudyDateUtc);
-        builder.Ignore(value => value.IncludePreviouslyStudied);
-        builder.Ignore(value => value.SelectionMode);
-        builder.Ignore(value => value.AbandonedAt);
-
         builder.HasIndex(
                 value => value.UserId,
                 "IX_word_study_sessions_UserId_ActiveLearning")

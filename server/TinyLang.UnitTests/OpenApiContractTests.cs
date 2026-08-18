@@ -117,17 +117,23 @@ public sealed class OpenApiContractTests
                 "AdminWordPronunciationResponse",
                 "WordPronunciationResponse"
             }.Any(retired => name.EndsWith(retired, StringComparison.Ordinal)));
-        foreach (var responseName in new[]
-                 {
-                     "WordStudyNextItemResponse",
-                     "WordStudySessionItemContentResponse"
-                 })
-        {
-            var responseProperties = GetSchema(schemas, responseName)
-                .GetProperty("properties");
-            AssertNullableUuid(responseProperties.GetProperty("audioResourceId"), schemas);
-            responseProperties.TryGetProperty("pronunciations", out _).Should().BeFalse();
-        }
+        var memorizationProperties = GetSchema(
+                schemas,
+                "WordMemorizationContentResponse")
+            .GetProperty("properties");
+        AssertNullableUuid(
+            memorizationProperties.GetProperty("audioResourceId"),
+            schemas);
+        memorizationProperties.TryGetProperty("pronunciations", out _)
+            .Should().BeFalse();
+        var spellingProperties = GetSchema(schemas, "WordSpellingPromptResponse")
+            .GetProperty("properties");
+        spellingProperties.EnumerateObject().Select(property => property.Name)
+            .Should().BeEquivalentTo(["senses"]);
+        var spellingSenseProperties = GetSchema(schemas, "WordSpellingSenseResponse")
+            .GetProperty("properties");
+        spellingSenseProperties.EnumerateObject().Select(property => property.Name)
+            .Should().BeEquivalentTo(["partOfSpeech", "definition"]);
         GetSchema(schemas, "ExampleSentenceResponse")
             .GetProperty("properties")
             .TryGetProperty("audioClipId", out _)

@@ -8,7 +8,5 @@ public enum WordStudySessionItemStatus
     Pending,
     Completed,
     Excluded,
-    Skipped,
-    Remembered,
-    Forgotten
+    Skipped
 }

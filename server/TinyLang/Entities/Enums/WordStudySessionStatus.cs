@@ -6,6 +6,5 @@ namespace TinyLang.Entities.Enums;
 public enum WordStudySessionStatus
 {
     Active,
-    Completed,
-    Abandoned
+    Completed
 }

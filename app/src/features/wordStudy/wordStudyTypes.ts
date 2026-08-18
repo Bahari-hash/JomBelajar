@@ -1,12 +1,8 @@
-export type WordStudyTodayState = "NotStarted" | "Active" | "Completed";
-export type WordStudyResult = "Remembered" | "Forgotten";
-export type WordMemorizationResult = WordStudyResult;
-export type WordStudySessionItemStatus =
-  "Pending" | "Remembered" | "Forgotten" | "Skipped";
+export type WordMemorizationResult = "Remembered" | "Forgotten";
 
 export interface WordStudySettings {
   dailyWordStudyCount: number;
-  dailyWordReviewCount?: number;
+  dailyWordReviewCount: number;
 }
 
 export type WordStudyPhase = "Memorization" | "Spelling";
@@ -16,8 +12,6 @@ export type WordSpellingResult = "Correct" | "Incorrect";
 export interface WordSpellingSense {
   partOfSpeech: string;
   definition: string;
-  usageNote: string | null;
-  sortOrder: number;
 }
 
 export interface WordMemorizationContent {
@@ -104,22 +98,6 @@ export interface WordReviewExclusion extends Omit<WordFavorite, "createdAt"> {
   excludedAt: string;
 }
 
-export interface WordStudySession {
-  id: string;
-  requestedCount: number;
-  actualCount: number;
-  includePreviouslyStudied: boolean;
-  selectionMode: "Sequential" | "Random";
-  status: "Active" | "Completed" | "Abandoned";
-  completedCount: number;
-  rememberedCount: number;
-  forgottenCount: number;
-  skippedCount: number;
-  startedAt: string;
-  completedAt: string | null;
-  abandonedAt: string | null;
-}
-
 export interface ExampleSentence {
   sentence: string;
   translation: string;
@@ -133,37 +111,4 @@ export interface WordSense {
   usageNote: string | null;
   sortOrder: number;
   examples: ExampleSentence[];
-}
-
-export interface WordStudyNextItem {
-  sessionId: string;
-  itemId: string;
-  position: number;
-  actualCount: number;
-  wordId: string;
-  headword: string;
-  senses: WordSense[];
-  audioResourceId: string | null;
-}
-
-export interface WordStudySessionItemContent {
-  headword: string;
-  senses: WordSense[];
-  audioResourceId: string | null;
-}
-
-export interface WordStudySessionItem {
-  itemId: string;
-  wordId: string;
-  position: number;
-  status: WordStudySessionItemStatus;
-  contentAvailable: boolean;
-  content: WordStudySessionItemContent | null;
-}
-
-export interface WordStudyToday {
-  studyDateUtc: string;
-  dailyWordStudyCount: number;
-  state: WordStudyTodayState;
-  session: WordStudySession | null;
 }

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using TinyLang.Constants;
 using TinyLang.Dtos;
+using TinyLang.Entities.Enums;
 using TinyLang.Services;
 
 namespace TinyLang.Endpoints;
@@ -18,7 +19,7 @@ public static class WordStudyEndpoints
         learning.MapGet("/overview", GetLearningOverviewAsync);
         learning.MapPost("/sessions", StartLearningAsync);
         learning.MapGet("/sessions/{sessionId:guid}", GetLearningSessionAsync);
-        learning.MapGet("/sessions/{sessionId:guid}/results", GetResultsAsync);
+        learning.MapGet("/sessions/{sessionId:guid}/results", GetLearningResultsAsync);
         learning.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/memorization", SubmitLearningMemorizationAsync);
         learning.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/spelling", SubmitLearningSpellingAsync);
 
@@ -27,7 +28,7 @@ public static class WordStudyEndpoints
         review.MapGet("/overview", GetReviewOverviewAsync);
         review.MapPost("/sessions", StartReviewAsync);
         review.MapGet("/sessions/{sessionId:guid}", GetReviewSessionAsync);
-        review.MapGet("/sessions/{sessionId:guid}/results", GetResultsAsync);
+        review.MapGet("/sessions/{sessionId:guid}/results", GetReviewResultsAsync);
         review.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/memorization", SubmitReviewMemorizationAsync);
         review.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/spelling", SubmitReviewSpellingAsync);
         review.MapPost("/sessions/{sessionId:guid}/items/{itemId:guid}/exclude", ExcludeAsync);
@@ -43,8 +44,10 @@ public static class WordStudyEndpoints
     }
     public static async Task<Ok<WordStudySessionStateResponse>> GetLearningSessionAsync(Guid sessionId, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
         => TypedResults.Ok(await service.GetLearningSessionAsync(EndpointIdentity.GetUserId(principal), sessionId, ct));
-    public static async Task<Ok<IReadOnlyList<WordStudyCompletedItemResponse>>> GetResultsAsync(Guid sessionId, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
-        => TypedResults.Ok(await service.GetCompletedSessionItemsAsync(EndpointIdentity.GetUserId(principal), sessionId, ct));
+    public static async Task<Ok<IReadOnlyList<WordStudyCompletedItemResponse>>> GetLearningResultsAsync(Guid sessionId, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.GetCompletedSessionItemsAsync(EndpointIdentity.GetUserId(principal), sessionId, WordStudySessionType.Learning, ct));
+    public static async Task<Ok<IReadOnlyList<WordStudyCompletedItemResponse>>> GetReviewResultsAsync(Guid sessionId, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
+        => TypedResults.Ok(await service.GetCompletedSessionItemsAsync(EndpointIdentity.GetUserId(principal), sessionId, WordStudySessionType.Review, ct));
     public static async Task<Ok<WordStudyCommandResponse>> SubmitLearningMemorizationAsync(Guid sessionId, Guid itemId, SubmitWordMemorizationRequest request, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)
         => TypedResults.Ok(await service.SubmitLearningMemorizationAsync(EndpointIdentity.GetUserId(principal), sessionId, itemId, request, ct));
     public static async Task<Ok<WordStudyCommandResponse>> SubmitLearningSpellingAsync(Guid sessionId, Guid itemId, SubmitWordSpellingRequest request, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct)

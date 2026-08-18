@@ -498,7 +498,7 @@ public sealed class WordServiceTests
     }
 
     [Fact]
-    public async Task DeleteShouldRemoveWordAndPrivateChildren()
+    public async Task DeleteShouldTombstoneWordAndKeepPrivateChildren()
     {
         await using var db = CreateDbContext();
         var service = CreateService(db);
@@ -514,9 +514,11 @@ public sealed class WordServiceTests
             TestContext.Current.CancellationToken);
 
         (await db.Words.AnyAsync(value => value.Id == created.Id,
-            TestContext.Current.CancellationToken)).Should().BeFalse();
+            TestContext.Current.CancellationToken)).Should().BeTrue();
+        (await db.Words.SingleAsync(value => value.Id == created.Id,
+            TestContext.Current.CancellationToken)).IsDeleted.Should().BeTrue();
         (await db.WordSenses.AnyAsync(value => value.WordId == created.Id,
-            TestContext.Current.CancellationToken)).Should().BeFalse();
+            TestContext.Current.CancellationToken)).Should().BeTrue();
     }
 
     private static WordService CreateService(ApplicationDbContext db)

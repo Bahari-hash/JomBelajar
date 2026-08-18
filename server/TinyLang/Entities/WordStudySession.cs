@@ -23,13 +23,9 @@ public sealed class WordStudySession : BaseAuditableEntity
     public WordStudySessionType SessionType { get; set; } =
         WordStudySessionType.Learning;
     public WordStudyPhase Phase { get; set; } = WordStudyPhase.Memorization;
-    public DateTimeOffset StudyDateUtc { get; set; }
-    public bool IncludePreviouslyStudied { get; set; }
-    public WordStudySelectionMode SelectionMode { get; set; }
     public WordStudySessionStatus Status { get; set; } = WordStudySessionStatus.Active;
     public DateTimeOffset StartedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
-    public DateTimeOffset? AbandonedAt { get; set; }
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
     public ICollection<WordStudySessionItem> Items { get; set; } = [];
 }

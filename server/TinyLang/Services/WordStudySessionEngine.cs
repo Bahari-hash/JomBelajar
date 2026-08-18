@@ -29,14 +29,25 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
             throw ConflictException.Create(ErrorCodes.WordStudySessionTypeConflict);
         if (session.Status != WordStudySessionStatus.Active)
             throw ConflictException.Create(ErrorCodes.WordStudySessionNotActive);
-        if (session.Phase != WordStudyPhase.Memorization)
-            throw ConflictException.Create(ErrorCodes.WordStudyPhaseConflict);
-        var current = session.Items.Where(value => value.Status == WordStudySessionItemStatus.Pending)
-            .OrderBy(value => value.MemorizationQueueOrder).FirstOrDefault();
+        var current = session.Items.Where(value =>
+                value.Status == WordStudySessionItemStatus.Pending &&
+                (session.Phase != WordStudyPhase.Memorization ||
+                    value.MemorizationPassedAt == null))
+            .OrderBy(value => session.Phase == WordStudyPhase.Memorization
+                ? value.MemorizationQueueOrder
+                : value.SpellingQueueOrder)
+            .FirstOrDefault();
         if (current is null || current.Id != itemId)
             throw ConflictException.Create(ErrorCodes.WordStudyQueueConflict);
         if (request.ItemConcurrencyStamp == Guid.Empty || current.ConcurrencyStamp != request.ItemConcurrencyStamp)
             throw ConflictException.Create(ErrorCodes.WordStudyConcurrencyConflict);
+        await NormalizeCurrentItemAsync(session, cancellationToken);
+        if (current.Status == WordStudySessionItemStatus.Skipped)
+            return await PersistNormalizedSessionAsync(
+                userId,
+                session,
+                transaction,
+                cancellationToken);
         var progress = await db.UserWordProgress.SingleOrDefaultAsync(value =>
             value.UserId == userId && value.WordId == current.WordId, cancellationToken);
         if (progress is null)
@@ -54,7 +65,8 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
             session.Status = WordStudySessionStatus.Completed;
             session.CompletedAt = now;
         }
-        else if (session.Items.Where(value => value.Status == WordStudySessionItemStatus.Pending)
+        else if (session.Phase == WordStudyPhase.Memorization &&
+            session.Items.Where(value => value.Status == WordStudySessionItemStatus.Pending)
             .All(value => value.MemorizationPassedAt is not null))
         {
             session.Phase = WordStudyPhase.Spelling;
@@ -107,6 +119,13 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
         {
             throw ConflictException.Create(ErrorCodes.WordStudyConcurrencyConflict);
         }
+        await NormalizeCurrentItemAsync(session, cancellationToken);
+        if (current.Status == WordStudySessionItemStatus.Skipped)
+            return await PersistNormalizedSessionAsync(
+                userId,
+                session,
+                transaction,
+                cancellationToken);
         var now = timeProvider.GetUtcNow();
         var correct = WordStudySchedule.IsCorrectSpelling(
             request.Answer,
@@ -204,7 +223,8 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
             throw ConflictException.Create(ErrorCodes.WordStudyPhaseConflict);
         }
         var current = session.Items
-            .Where(value => value.Status == WordStudySessionItemStatus.Pending)
+            .Where(value => value.Status == WordStudySessionItemStatus.Pending &&
+                value.MemorizationPassedAt == null)
             .OrderBy(value => value.MemorizationQueueOrder)
             .FirstOrDefault();
         if (current is null || current.Id != itemId)
@@ -216,9 +236,17 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
         {
             throw ConflictException.Create(ErrorCodes.WordStudyConcurrencyConflict);
         }
+        await NormalizeCurrentItemAsync(session, cancellationToken);
+        if (current.Status == WordStudySessionItemStatus.Skipped)
+            return await PersistNormalizedSessionAsync(
+                userId,
+                session,
+                transaction,
+                cancellationToken);
         if (request.Result is null || !Enum.IsDefined(request.Result.Value))
         {
-            throw new RequestValidationException(ErrorCodes.WordStudyResultInvalid);
+            throw new RequestValidationException(
+                ErrorCodes.WordStudyMemorizationResultInvalid);
         }
         current.MemorizationAttemptCount++;
         if (request.Result == WordMemorizationResult.Forgotten)
@@ -253,7 +281,10 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
             .Select(value => value.Id)
             .ToHashSetAsync(cancellationToken);
         foreach (var item in session.Items
-                     .Where(value => value.Status == WordStudySessionItemStatus.Pending)
+                     .Where(value =>
+                         value.Status == WordStudySessionItemStatus.Pending &&
+                         (session.Phase != WordStudyPhase.Memorization ||
+                             value.MemorizationPassedAt == null))
                      .OrderBy(value => session.Phase == WordStudyPhase.Memorization
                          ? value.MemorizationQueueOrder
                          : value.SpellingQueueOrder)
@@ -281,5 +312,19 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
         {
             session.Phase = WordStudyPhase.Spelling;
         }
+    }
+
+    private async Task<WordStudyCommandResponse> PersistNormalizedSessionAsync(
+        Guid userId,
+        WordStudySession session,
+        IApplicationDbTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new WordStudyCommandResponse(
+            null,
+            await new WordStudySessionProjector(db)
+                .ProjectAsync(userId, session, cancellationToken));
     }
 }

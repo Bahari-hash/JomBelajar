@@ -112,7 +112,8 @@ public sealed class WordService : IWordService
         var word = await FindWordForEditAsync(wordId, cancellationToken);
         EnsureExpectedStamp(word, request.ConcurrencyStamp);
 
-        _db.Words.Remove(word);
+        word.IsDeleted = true;
+        word.ConcurrencyStamp = Guid.NewGuid();
         await SaveWordChangesAsync(cancellationToken);
         _logger.LogInformation(
             "Deleted word {WordId} by administrator {AdminId}",
@@ -125,7 +126,7 @@ public sealed class WordService : IWordService
         Guid wordId,
         CancellationToken cancellationToken = default)
         => await _db.Words.AsNoTracking()
-            .Where(value => value.Id == wordId)
+            .Where(value => value.Id == wordId && !value.IsDeleted)
             .Select(ToAdminResponseProjection())
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.WordNotFound);
@@ -135,7 +136,7 @@ public sealed class WordService : IWordService
         AdminWordListRequest request,
         CancellationToken cancellationToken = default)
     {
-        var query = _db.Words.AsNoTracking();
+        var query = _db.Words.AsNoTracking().Where(value => !value.IsDeleted);
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = WordTextNormalizer.CreateHeadwordComparisonKey(request.Keyword);
@@ -231,7 +232,7 @@ public sealed class WordService : IWordService
         => await _db.Words
             .Include(value => value.Senses)
                 .ThenInclude(value => value.Examples)
-            .SingleOrDefaultAsync(value => value.Id == wordId, cancellationToken)
+            .SingleOrDefaultAsync(value => value.Id == wordId && !value.IsDeleted, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.WordNotFound);
 
     private async Task EnsureAudioExistsAsync(

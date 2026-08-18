@@ -19,6 +19,9 @@ public sealed class WordConfiguration : IEntityTypeConfiguration<Word>
         builder.Property(value => value.StudyOrder)
             .HasDefaultValueSql("nextval('word_study_order_seq')")
             .ValueGeneratedOnAdd();
+        builder.Property(value => value.IsDeleted)
+            .HasDefaultValue(false)
+            .IsRequired();
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
 
         builder.HasIndex(value => value.NormalizedHeadword)

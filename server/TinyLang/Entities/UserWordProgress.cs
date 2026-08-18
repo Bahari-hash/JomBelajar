@@ -31,7 +31,4 @@ public sealed class UserWordProgress : BaseAuditableEntity
     public bool IsReviewExcluded { get; set; }
     public DateTimeOffset? ReviewExcludedAt { get; set; }
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
-    public int RememberedCount { get; set; }
-    public int ForgottenCount { get; set; }
-    public WordStudyResult LastResult { get; set; }
 }

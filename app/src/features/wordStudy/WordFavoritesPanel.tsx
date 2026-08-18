@@ -1,9 +1,17 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import AudioPlaybackButton from "@/features/audio/AudioPlaybackButton";
 import { useGetFavoritesQuery, useSetFavoriteMutation } from "./wordStudyApi";
 
-export default function WordFavoritesPanel() {
+type WordFavoritesPanelProps = {
+  modal?: boolean;
+  onClose?: () => void;
+};
+
+export default function WordFavoritesPanel({
+  modal = false,
+  onClose,
+}: WordFavoritesPanelProps) {
   const [page, setPage] = useState(1);
   const query = useGetFavoritesQuery({ page, pageSize: 20 });
   const [setFavorite] = useSetFavoriteMutation();
@@ -21,9 +29,14 @@ export default function WordFavoritesPanel() {
       setError("收藏状态更新失败，请重试。");
     }
   };
-  return (
-    <section className="border-t border-base-300 py-8">
-      <h2 className="text-xl font-semibold">收藏本</h2>
+  const content = (
+    <section className={modal ? undefined : "border-t border-base-300 py-8"}>
+      <h2
+        id={modal ? "favorites-panel-title" : undefined}
+        className="text-xl font-semibold"
+      >
+        收藏本
+      </h2>
       {query.isError || error ? (
         <p className="alert alert-error mt-4 text-sm" role="alert">
           {error ?? "收藏本暂时无法加载。"}
@@ -41,16 +54,16 @@ export default function WordFavoritesPanel() {
       <div className="mt-5 divide-y divide-base-300">
         {query.data?.items.map((word) => (
           <div
-            className="flex items-center justify-between gap-4 py-4"
+            className="flex flex-col items-stretch gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
             key={word.wordId}
           >
-            <div>
-              <p className="font-semibold">{word.headword}</p>
-              <p className="text-sm text-base-content/60">
+            <div className="min-w-0 flex-1">
+              <p className="wrap-break-word font-semibold">{word.headword}</p>
+              <p className="wrap-break-word text-sm text-base-content/60">
                 {word.senses[0]?.definition}
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 sm:justify-end">
               {word.audioResourceId ? (
                 <AudioPlaybackButton
                   audioResourceId={word.audioResourceId}
@@ -101,5 +114,34 @@ export default function WordFavoritesPanel() {
         </nav>
       ) : null}
     </section>
+  );
+
+  if (!modal) return content;
+
+  return (
+    <div
+      className="modal modal-open"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="favorites-panel-title"
+    >
+      <div className="modal-box relative w-11/12 max-w-3xl">
+        <button
+          className="btn btn-ghost btn-sm btn-circle absolute right-2 top-2"
+          aria-label="关闭收藏本"
+          type="button"
+          onClick={onClose}
+        >
+          <X aria-hidden="true" className="size-4" />
+        </button>
+        {content}
+      </div>
+      <button
+        className="modal-backdrop"
+        aria-label="关闭收藏本弹窗"
+        type="button"
+        onClick={onClose}
+      />
+    </div>
   );
 }

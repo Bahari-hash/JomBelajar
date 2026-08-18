@@ -201,4 +201,55 @@ describe("ProfilePage", () => {
     ).toBeInTheDocument();
     expect(updateProfile).toHaveBeenCalled();
   });
+
+  it("collapses profile modules and opens word lists in dialogs", async () => {
+    const user = userEvent.setup();
+    renderProfile(
+      createAuthContextValue({
+        status: "authenticated",
+        profile,
+        profileStatus: "ready",
+      }),
+    );
+
+    const wordStudySummary = screen
+      .getByText("单词学习", { selector: "span" })
+      .closest("summary");
+    if (!wordStudySummary) throw new Error("缺少单词学习折叠入口");
+    const wordStudySection = wordStudySummary.closest("details");
+    expect(wordStudySection).not.toBeNull();
+    expect(wordStudySection).not.toHaveAttribute("open");
+    expect(
+      screen.getByRole("button", { name: "打开收藏本" }),
+    ).not.toBeVisible();
+
+    const securitySummary = screen
+      .getByText("账户安全", { selector: "span" })
+      .closest("summary");
+    if (!securitySummary) throw new Error("缺少账户安全折叠入口");
+    const securitySection = securitySummary.closest("details");
+    expect(securitySection).not.toBeNull();
+    expect(securitySection).not.toHaveAttribute("open");
+    expect(screen.getByRole("heading", { name: "修改邮箱" })).not.toBeVisible();
+
+    await user.click(wordStudySummary);
+    await user.click(screen.getByRole("button", { name: "打开收藏本" }));
+    expect(screen.getByRole("dialog", { name: "收藏本" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "关闭收藏本" }));
+    expect(
+      screen.queryByRole("dialog", { name: "收藏本" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "打开停止复习" }));
+    expect(
+      screen.getByRole("dialog", { name: "已停止复习" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "关闭已停止复习" }));
+    expect(
+      screen.queryByRole("dialog", { name: "已停止复习" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(securitySummary);
+    expect(screen.getByRole("heading", { name: "修改邮箱" })).toBeVisible();
+  });
 });

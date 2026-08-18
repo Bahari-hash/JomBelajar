@@ -1,11 +1,19 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   useGetReviewExclusionsQuery,
   useRestoreReviewMutation,
 } from "./wordStudyApi";
 
-export default function WordReviewExclusionsPanel() {
+type WordReviewExclusionsPanelProps = {
+  modal?: boolean;
+  onClose?: () => void;
+};
+
+export default function WordReviewExclusionsPanel({
+  modal = false,
+  onClose,
+}: WordReviewExclusionsPanelProps) {
   const [page, setPage] = useState(1);
   const query = useGetReviewExclusionsQuery({ page, pageSize: 20 });
   const [restore, restoreState] = useRestoreReviewMutation();
@@ -26,9 +34,14 @@ export default function WordReviewExclusionsPanel() {
       setError("恢复复习失败，请重试。");
     }
   };
-  return (
-    <section className="border-t border-base-300 py-8">
-      <h2 className="text-xl font-semibold">已停止复习</h2>
+  const content = (
+    <section className={modal ? undefined : "border-t border-base-300 py-8"}>
+      <h2
+        id={modal ? "review-exclusions-panel-title" : undefined}
+        className="text-xl font-semibold"
+      >
+        已停止复习
+      </h2>
       {query.isError || error ? (
         <p className="alert alert-error mt-4 text-sm" role="alert">
           {error ?? "停止复习列表暂时无法加载。"}
@@ -46,12 +59,12 @@ export default function WordReviewExclusionsPanel() {
       <div className="mt-5 divide-y divide-base-300">
         {query.data?.items.map((word) => (
           <div
-            className="flex items-center justify-between gap-4 py-4"
+            className="flex flex-col items-stretch gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
             key={word.wordId}
           >
-            <div>
-              <p className="font-semibold">{word.headword}</p>
-              <p className="text-sm text-base-content/60">
+            <div className="min-w-0 flex-1">
+              <p className="wrap-break-word font-semibold">{word.headword}</p>
+              <p className="wrap-break-word text-sm text-base-content/60">
                 {word.senses[0]?.definition}
               </p>
             </div>
@@ -138,5 +151,34 @@ export default function WordReviewExclusionsPanel() {
         </div>
       ) : null}
     </section>
+  );
+
+  if (!modal) return content;
+
+  return (
+    <div
+      className="modal modal-open"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="review-exclusions-panel-title"
+    >
+      <div className="modal-box relative w-11/12 max-w-3xl">
+        <button
+          className="btn btn-ghost btn-sm btn-circle absolute right-2 top-2"
+          aria-label="关闭已停止复习"
+          type="button"
+          onClick={onClose}
+        >
+          <X aria-hidden="true" className="size-4" />
+        </button>
+        {content}
+      </div>
+      <button
+        className="modal-backdrop"
+        aria-label="关闭已停止复习弹窗"
+        type="button"
+        onClick={onClose}
+      />
+    </div>
   );
 }

@@ -1,8 +1,13 @@
 import {
   ArrowLeft,
+  BookHeart,
+  BookOpenCheck,
   CalendarDays,
+  ChevronDown,
+  ListChecks,
   Mail,
   Save,
+  ShieldCheck,
   Undo2,
   Upload,
 } from "lucide-react";
@@ -67,6 +72,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [exclusionsOpen, setExclusionsOpen] = useState(false);
 
   useEffect(() => {
     if (profile && !dirty) {
@@ -352,27 +359,75 @@ export default function ProfilePage() {
           </form>
         </section>
       </div>
-      <section
-        aria-labelledby="profile-word-study-heading"
-        className="space-y-0"
-      >
-        <h2
-          className="border-b border-base-300 pb-4 text-2xl font-semibold"
-          id="profile-word-study-heading"
-        >
-          单词学习
-        </h2>
-        <WordStudySummaryPanel />
-        <details className="border-t border-base-300 py-6">
-          <summary className="cursor-pointer text-lg font-semibold">
-            单词学习设置
+      <div className="border-y border-base-300">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-6 [&::-webkit-details-marker]:hidden">
+            <span className="flex min-w-0 items-center gap-3 text-xl font-semibold">
+              <BookOpenCheck
+                aria-hidden="true"
+                className="size-5 shrink-0 text-primary"
+              />
+              单词学习
+            </span>
+            <ChevronDown
+              aria-hidden="true"
+              className="size-5 shrink-0 transition-transform group-open:rotate-180"
+            />
           </summary>
-          <WordStudySettingsPanel />
+          <div className="border-t border-base-300">
+            <WordStudySummaryPanel />
+            <WordStudySettingsPanel />
+            <section className="border-t border-base-300 py-8">
+              <h2 className="text-xl font-semibold">单词列表</h2>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <button
+                  className="btn btn-outline justify-start"
+                  type="button"
+                  onClick={() => setFavoritesOpen(true)}
+                >
+                  <BookHeart aria-hidden="true" className="size-4" />
+                  打开收藏本
+                </button>
+                <button
+                  className="btn btn-outline justify-start"
+                  type="button"
+                  onClick={() => setExclusionsOpen(true)}
+                >
+                  <ListChecks aria-hidden="true" className="size-4" />
+                  打开停止复习
+                </button>
+              </div>
+            </section>
+          </div>
         </details>
-        <WordFavoritesPanel />
-        <WordReviewExclusionsPanel />
-      </section>
-      <AccountSecurityPanel currentEmail={profile.email} />
+        <details className="group border-t border-base-300">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-6 [&::-webkit-details-marker]:hidden">
+            <span className="flex min-w-0 items-center gap-3 text-xl font-semibold">
+              <ShieldCheck
+                aria-hidden="true"
+                className="size-5 shrink-0 text-secondary"
+              />
+              账户安全
+            </span>
+            <ChevronDown
+              aria-hidden="true"
+              className="size-5 shrink-0 transition-transform group-open:rotate-180"
+            />
+          </summary>
+          <div className="border-t border-base-300 py-8">
+            <AccountSecurityPanel currentEmail={profile.email} />
+          </div>
+        </details>
+      </div>
+      {favoritesOpen ? (
+        <WordFavoritesPanel modal onClose={() => setFavoritesOpen(false)} />
+      ) : null}
+      {exclusionsOpen ? (
+        <WordReviewExclusionsPanel
+          modal
+          onClose={() => setExclusionsOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -19,38 +19,49 @@ export default function WordMemorizationCard({
       </div>
       <div className="space-y-5">
         {item.memorization.senses.map((sense) => (
-          <section
+          <details
             key={`${sense.sortOrder}-${sense.definition}`}
-            className="border-t border-base-300 pt-4"
+            className="min-w-0 border-t border-base-300 pt-4"
           >
-            <p className="text-sm text-primary">{sense.partOfSpeech}</p>
-            <p className="mt-1 text-lg">{sense.definition}</p>
-            {sense.usageNote ? (
-              <p className="mt-1 text-base-content/60">{sense.usageNote}</p>
-            ) : null}
-            <div className="mt-3 space-y-2">
-              {sense.examples.map((example) => (
-                <div
-                  key={`${example.sortOrder}-${example.sentence}`}
-                  className="flex items-start justify-between gap-3"
-                >
-                  <div>
-                    <p>{example.sentence}</p>
-                    <p className="text-sm text-base-content/60">
-                      {example.translation}
-                    </p>
+            <summary className="cursor-pointer wrap-break-word text-sm text-primary">
+              {sense.partOfSpeech} 释义
+            </summary>
+            <div className="mt-3">
+              <p className="text-lg">{sense.definition}</p>
+              {sense.usageNote ? (
+                <p className="mt-1 text-base-content/60">{sense.usageNote}</p>
+              ) : null}
+              {sense.examples.length > 0 ? (
+                <details className="mt-3">
+                  <summary className="cursor-pointer">
+                    例句（{sense.examples.length}）
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    {sense.examples.map((example) => (
+                      <div
+                        key={`${example.sortOrder}-${example.sentence}`}
+                        className="flex min-w-0 items-start justify-between gap-3"
+                      >
+                        <div className="min-w-0 flex-1 wrap-break-word">
+                          <p>{example.sentence}</p>
+                          <p className="text-sm text-base-content/60">
+                            {example.translation}
+                          </p>
+                        </div>
+                        {example.audioResourceId ? (
+                          <AudioPlaybackButton
+                            audioResourceId={example.audioResourceId}
+                            label="例句音频"
+                            variant="icon"
+                          />
+                        ) : null}
+                      </div>
+                    ))}
                   </div>
-                  {example.audioResourceId ? (
-                    <AudioPlaybackButton
-                      audioResourceId={example.audioResourceId}
-                      label="例句音频"
-                      variant="icon"
-                    />
-                  ) : null}
-                </div>
-              ))}
+                </details>
+              ) : null}
             </div>
-          </section>
+          </details>
         ))}
       </div>
     </div>

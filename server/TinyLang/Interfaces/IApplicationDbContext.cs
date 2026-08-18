@@ -2,6 +2,7 @@ namespace TinyLang.Interfaces;
 
 using Microsoft.EntityFrameworkCore;
 using TinyLang.Entities;
+using TinyLang.Entities.Enums;
 
 /// <summary>
 /// 定义业务服务访问和持久化应用实体所需的数据库上下文契约。
@@ -67,5 +68,12 @@ public interface IApplicationDbContext
     /// </summary>
     Task AcquireAudioResourceLockAsync(
         Guid audioResourceId,
+        CancellationToken cancellationToken = default);
+    /// <summary>
+    /// 在当前事务内串行化同一用户、同一类型的单词学习会话创建。
+    /// </summary>
+    Task AcquireWordStudySessionLockAsync(
+        Guid userId,
+        WordStudySessionType sessionType,
         CancellationToken cancellationToken = default);
 }

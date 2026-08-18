@@ -55,7 +55,7 @@ export default function WordSpellingCard({
         />
       </label>
       {feedback ? (
-        <p className="text-sm" role="status">
+        <p className="text-sm mt-4 text-red-500" role="status">
           {feedback}
         </p>
       ) : null}

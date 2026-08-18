@@ -100,6 +100,23 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task AcquireWordStudySessionLockAsync(
+        Guid userId,
+        Entities.Enums.WordStudySessionType sessionType,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Database.IsRelational())
+        {
+            return;
+        }
+
+        var lockName = $"word-study-session:{sessionType}:{userId:N}";
+        await Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock(CAST(hashtext({lockName}) AS bigint))",
+            cancellationToken);
+    }
+
     /// <summary>
     /// 将 EF Core relational transaction 适配为应用事务契约。
     /// </summary>

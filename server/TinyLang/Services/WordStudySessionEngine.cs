@@ -87,6 +87,7 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
     {
         await using var transaction = await db.BeginTransactionAsync(cancellationToken);
         var session = await db.WordStudySessions
+            .AsSplitQuery()
             .Include(value => value.Items)
                 .ThenInclude(value => value.Word!)
                     .ThenInclude(value => value.Senses)
@@ -214,6 +215,7 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
     {
         await using var transaction = await db.BeginTransactionAsync(cancellationToken);
         var session = await db.WordStudySessions
+            .AsSplitQuery()
             .Include(value => value.Items)
                 .ThenInclude(value => value.Word!)
                     .ThenInclude(value => value.Senses)

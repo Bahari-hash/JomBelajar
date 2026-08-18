@@ -1,5 +1,6 @@
 export type WordStudyTodayState = "NotStarted" | "Active" | "Completed";
 export type WordStudyResult = "Remembered" | "Forgotten";
+export type WordMemorizationResult = WordStudyResult;
 export type WordStudySessionItemStatus =
   "Pending" | "Remembered" | "Forgotten" | "Skipped";
 

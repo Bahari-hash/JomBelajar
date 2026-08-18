@@ -43,12 +43,36 @@ export const wordStudyApi = createApi({
       query: (id) => ({ url: `/word-study/learning/sessions/${id}` }),
       providesTags: (_r, _e, id) => [{ type: "WordStudySession", id }],
     }),
-    submitLearningMemorization: builder.mutation<WordStudyCommandResponse, { sessionId: string; itemId: string; result: WordStudyResult; itemConcurrencyStamp: string }>({
-      query: ({ sessionId, itemId, ...data }) => ({ url: `/word-study/learning/sessions/${sessionId}/items/${itemId}/memorization`, method: "POST", data }),
+    submitLearningMemorization: builder.mutation<
+      WordStudyCommandResponse,
+      {
+        sessionId: string;
+        itemId: string;
+        result: WordStudyResult;
+        itemConcurrencyStamp: string;
+      }
+    >({
+      query: ({ sessionId, itemId, ...data }) => ({
+        url: `/word-study/learning/sessions/${sessionId}/items/${itemId}/memorization`,
+        method: "POST",
+        data,
+      }),
       invalidatesTags: ["LearningOverview", "WordStudySession"],
     }),
-    submitLearningSpelling: builder.mutation<WordStudyCommandResponse, { sessionId: string; itemId: string; answer: string; itemConcurrencyStamp: string }>({
-      query: ({ sessionId, itemId, ...data }) => ({ url: `/word-study/learning/sessions/${sessionId}/items/${itemId}/spelling`, method: "POST", data }),
+    submitLearningSpelling: builder.mutation<
+      WordStudyCommandResponse,
+      {
+        sessionId: string;
+        itemId: string;
+        answer: string;
+        itemConcurrencyStamp: string;
+      }
+    >({
+      query: ({ sessionId, itemId, ...data }) => ({
+        url: `/word-study/learning/sessions/${sessionId}/items/${itemId}/spelling`,
+        method: "POST",
+        data,
+      }),
       invalidatesTags: ["LearningOverview", "WordStudySession"],
     }),
     getReviewOverview: builder.query<WordReviewOverview, void>({
@@ -63,32 +87,79 @@ export const wordStudyApi = createApi({
       query: (id) => ({ url: `/word-study/review/sessions/${id}` }),
       providesTags: (_r, _e, id) => [{ type: "WordStudySession", id }],
     }),
-    submitReviewMemorization: builder.mutation<WordStudyCommandResponse, { sessionId: string; itemId: string; result: WordStudyResult; itemConcurrencyStamp: string }>({
-      query: ({ sessionId, itemId, ...data }) => ({ url: `/word-study/review/sessions/${sessionId}/items/${itemId}/memorization`, method: "POST", data }),
+    submitReviewMemorization: builder.mutation<
+      WordStudyCommandResponse,
+      {
+        sessionId: string;
+        itemId: string;
+        result: WordStudyResult;
+        itemConcurrencyStamp: string;
+      }
+    >({
+      query: ({ sessionId, itemId, ...data }) => ({
+        url: `/word-study/review/sessions/${sessionId}/items/${itemId}/memorization`,
+        method: "POST",
+        data,
+      }),
       invalidatesTags: ["ReviewOverview", "WordStudySession"],
     }),
-    submitReviewSpelling: builder.mutation<WordStudyCommandResponse, { sessionId: string; itemId: string; answer: string; itemConcurrencyStamp: string }>({
-      query: ({ sessionId, itemId, ...data }) => ({ url: `/word-study/review/sessions/${sessionId}/items/${itemId}/spelling`, method: "POST", data }),
+    submitReviewSpelling: builder.mutation<
+      WordStudyCommandResponse,
+      {
+        sessionId: string;
+        itemId: string;
+        answer: string;
+        itemConcurrencyStamp: string;
+      }
+    >({
+      query: ({ sessionId, itemId, ...data }) => ({
+        url: `/word-study/review/sessions/${sessionId}/items/${itemId}/spelling`,
+        method: "POST",
+        data,
+      }),
       invalidatesTags: ["ReviewOverview", "WordStudySession"],
     }),
-    excludeReviewItem: builder.mutation<WordStudyCommandResponse, { sessionId: string; itemId: string; itemConcurrencyStamp: string }>({
-      query: ({ sessionId, itemId, ...data }) => ({ url: `/word-study/review/sessions/${sessionId}/items/${itemId}/exclude`, method: "POST", data }),
-      invalidatesTags: ["ReviewOverview", "WordReviewExclusions", "WordStudySession"],
+    excludeReviewItem: builder.mutation<
+      WordStudyCommandResponse,
+      { sessionId: string; itemId: string; itemConcurrencyStamp: string }
+    >({
+      query: ({ sessionId, itemId, ...data }) => ({
+        url: `/word-study/review/sessions/${sessionId}/items/${itemId}/exclude`,
+        method: "POST",
+        data,
+      }),
+      invalidatesTags: [
+        "ReviewOverview",
+        "WordReviewExclusions",
+        "WordStudySession",
+      ],
     }),
-    getFavorites: builder.query<PagedWordLibrary<WordFavorite>, { page: number; pageSize: number }>({
+    getFavorites: builder.query<
+      PagedWordLibrary<WordFavorite>,
+      { page: number; pageSize: number }
+    >({
       query: (params) => ({ url: "/users/me/word-favorites", params }),
       providesTags: ["WordFavorites"],
     }),
     setFavorite: builder.mutation<void, { wordId: string; favorite: boolean }>({
-      query: ({ wordId, favorite }) => ({ url: `/users/me/word-favorites/${wordId}`, method: favorite ? "PUT" : "DELETE" }),
+      query: ({ wordId, favorite }) => ({
+        url: `/users/me/word-favorites/${wordId}`,
+        method: favorite ? "PUT" : "DELETE",
+      }),
       invalidatesTags: ["WordFavorites", "WordStudySession"],
     }),
-    getReviewExclusions: builder.query<PagedWordLibrary<WordReviewExclusion>, { page: number; pageSize: number }>({
+    getReviewExclusions: builder.query<
+      PagedWordLibrary<WordReviewExclusion>,
+      { page: number; pageSize: number }
+    >({
       query: (params) => ({ url: "/users/me/word-review-exclusions", params }),
       providesTags: ["WordReviewExclusions"],
     }),
     restoreReview: builder.mutation<void, string>({
-      query: (wordId) => ({ url: `/users/me/word-review-exclusions/${wordId}`, method: "DELETE" }),
+      query: (wordId) => ({
+        url: `/users/me/word-review-exclusions/${wordId}`,
+        method: "DELETE",
+      }),
       invalidatesTags: ["WordReviewExclusions", "ReviewOverview"],
     }),
     getSettings: builder.query<WordStudySettings, void>({

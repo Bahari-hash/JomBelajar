@@ -16,6 +16,7 @@ public sealed class User : BaseAuditableEntity
     public string? AvatarUrl { get; set; }
     public string? Bio { get; set; }
     public int DailyWordStudyCount { get; set; } = 20;
+    public int DailyWordReviewCount { get; set; } = 50;
 
     public bool IsBanned { get; set; }
     public DateTimeOffset? BannedAt { get; set; }
@@ -36,6 +37,7 @@ public sealed class User : BaseAuditableEntity
     public ICollection<AudioResource> EditedAudioResources { get; set; } = [];
     public ICollection<UserVideoProgress> VideoProgress { get; set; } = [];
     public ICollection<UserWordProgress> WordProgress { get; set; } = [];
+    public ICollection<UserWordFavorite> WordFavorites { get; set; } = [];
     public ICollection<WordStudySession> WordStudySessions { get; set; } = [];
     public ICollection<Paper> CreatedPapers { get; set; } = [];
     public ICollection<Paper> EditedPapers { get; set; } = [];

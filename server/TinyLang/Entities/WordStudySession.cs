@@ -20,6 +20,9 @@ public sealed class WordStudySession : BaseAuditableEntity
     public User? User { get; set; }
     public int RequestedCount { get; set; }
     public int ActualCount { get; set; }
+    public WordStudySessionType SessionType { get; set; } =
+        WordStudySessionType.Learning;
+    public WordStudyPhase Phase { get; set; } = WordStudyPhase.Memorization;
     public DateTimeOffset StudyDateUtc { get; set; }
     public bool IncludePreviouslyStudied { get; set; }
     public WordStudySelectionMode SelectionMode { get; set; }

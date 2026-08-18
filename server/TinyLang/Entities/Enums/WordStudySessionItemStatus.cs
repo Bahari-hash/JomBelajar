@@ -6,7 +6,9 @@ namespace TinyLang.Entities.Enums;
 public enum WordStudySessionItemStatus
 {
     Pending,
+    Completed,
+    Excluded,
+    Skipped,
     Remembered,
-    Forgotten,
-    Skipped
+    Forgotten
 }

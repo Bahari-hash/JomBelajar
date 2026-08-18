@@ -20,10 +20,18 @@ public sealed class UserWordProgress : BaseAuditableEntity
     public User? User { get; set; }
     public Guid WordId { get; set; }
     public Word? Word { get; set; }
+    public DateTimeOffset FirstStudiedAt { get; set; }
+    public DateTimeOffset LastStudiedAt { get; set; }
+    public DateTimeOffset? LastReviewedAt { get; set; }
+    public int ReviewStage { get; set; }
+    public DateTimeOffset? NextReviewAt { get; set; }
     public int ReviewCount { get; set; }
+    public int SuccessfulReviewCount { get; set; }
+    public int FailedReviewCount { get; set; }
+    public bool IsReviewExcluded { get; set; }
+    public DateTimeOffset? ReviewExcludedAt { get; set; }
+    public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
     public int RememberedCount { get; set; }
     public int ForgottenCount { get; set; }
     public WordStudyResult LastResult { get; set; }
-    public DateTimeOffset FirstStudiedAt { get; set; }
-    public DateTimeOffset LastStudiedAt { get; set; }
 }

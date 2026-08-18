@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using TinyLang.Database;
 using TinyLang.Entities;
+using TinyLang.Entities.Enums;
 
 namespace TinyLang.UnitTests;
 
@@ -11,6 +12,27 @@ namespace TinyLang.UnitTests;
 /// </summary>
 public sealed class WordStudyModelTests
 {
+    [Fact]
+    public void NewStudyEntitiesShouldUseExpectedDefaults()
+    {
+        var user = new User
+        {
+            Email = "learner@example.com",
+            PasswordHash = "hash"
+        };
+        var session = new WordStudySession();
+        var item = new WordStudySessionItem();
+        var favorite = new UserWordFavorite();
+
+        user.DailyWordReviewCount.Should().Be(50);
+        session.SessionType.Should().Be(WordStudySessionType.Learning);
+        session.Phase.Should().Be(WordStudyPhase.Memorization);
+        session.Status.Should().Be(WordStudySessionStatus.Active);
+        item.Status.Should().Be(WordStudySessionItemStatus.Pending);
+        item.ConcurrencyStamp.Should().NotBeEmpty();
+        favorite.Id.Should().NotBeEmpty();
+    }
+
     /// <summary>
     /// 验证 progress、Active session 和固定 item 的关键唯一约束。
     /// </summary>

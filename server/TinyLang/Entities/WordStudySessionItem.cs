@@ -23,6 +23,14 @@ public sealed class WordStudySessionItem : BaseEntity
     public int Position { get; set; }
     public WordStudySessionItemStatus Status { get; set; } =
         WordStudySessionItemStatus.Pending;
+    public long MemorizationQueueOrder { get; set; }
+    public int MemorizationAttemptCount { get; set; }
+    public bool HadMemorizationFailure { get; set; }
+    public DateTimeOffset? MemorizationPassedAt { get; set; }
+    public long SpellingQueueOrder { get; set; }
+    public int SpellingAttemptCount { get; set; }
+    public bool HadSpellingFailure { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset? AnsweredAt { get; set; }
     public WordStudySkipReason? SkipReason { get; set; }
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();

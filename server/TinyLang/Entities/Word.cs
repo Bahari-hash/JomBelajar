@@ -16,10 +16,12 @@ public sealed class Word : BaseAuditableEntity
 
     public required string Headword { get; set; }
     public required string NormalizedHeadword { get; set; }
+    public long StudyOrder { get; set; }
     public Guid? AudioResourceId { get; set; }
     public AudioResource? AudioResource { get; set; }
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
     public ICollection<WordSense> Senses { get; set; } = [];
     public ICollection<UserWordProgress> UserProgress { get; set; } = [];
+    public ICollection<UserWordFavorite> Favorites { get; set; } = [];
     public ICollection<WordStudySessionItem> StudySessionItems { get; set; } = [];
 }

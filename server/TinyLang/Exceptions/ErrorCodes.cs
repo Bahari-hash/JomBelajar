@@ -544,6 +544,24 @@ public enum ErrorCodes
 
     [Description("背诵会话已被其他请求修改，请刷新后重试.")]
     WordStudyConcurrencyConflict,
+    [Description("学习会话类型与请求不匹配.")]
+    WordStudySessionTypeConflict,
+    [Description("学习会话当前阶段与请求不匹配.")]
+    WordStudyPhaseConflict,
+    [Description("学习会话队首已发生变化，请刷新后重试.")]
+    WordStudyQueueConflict,
+    [Description("拼写答案不能为空.")]
+    WordStudySpellingRequired,
+    [Description("拼写答案长度不能超过255个字符.")]
+    WordStudySpellingLengthLimit,
+    [Description("每组复习数量必须介于1到200之间.")]
+    WordReviewCountInvalid,
+    [Description("当前没有到期复习单词.")]
+    WordReviewNoDueWords,
+    [Description("单词复习进度不存在.")]
+    WordReviewProgressNotFound,
+    [Description("收藏的单词不存在或不可见.")]
+    WordFavoriteWordNotFound,
 
     // --** Online Quiz Errors **--
 

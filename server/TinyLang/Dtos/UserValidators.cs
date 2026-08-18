@@ -41,6 +41,9 @@ public sealed class UpdateWordStudySettingsRequestValidator
         RuleFor(x => x.DailyWordStudyCount)
             .InclusiveBetween(WordStudyConstraints.MinWordCount, WordStudyConstraints.MaxWordCount)
             .WithErrKey(ErrorCodes.WordStudyWordCountInvalid);
+        RuleFor(x => x.DailyWordReviewCount)
+            .InclusiveBetween(WordStudyConstraints.MinReviewCount, WordStudyConstraints.MaxReviewCount)
+            .WithErrKey(ErrorCodes.WordReviewCountInvalid);
     }
 }
 

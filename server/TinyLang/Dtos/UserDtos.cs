@@ -18,12 +18,15 @@ public sealed record UpdateProfileRequest
 public sealed record UpdateWordStudySettingsRequest
 {
     public int DailyWordStudyCount { get; init; }
+    public int DailyWordReviewCount { get; init; } = WordStudyConstraints.DefaultReviewCount;
 }
 
 /// <summary>
 /// 返回用户每日自动背诵数量设置。
 /// </summary>
-public sealed record WordStudySettingsResponse(int DailyWordStudyCount);
+public sealed record WordStudySettingsResponse(
+    int DailyWordStudyCount,
+    int DailyWordReviewCount = WordStudyConstraints.DefaultReviewCount);
 
 /// <summary>
 /// 描述管理员修改用户角色的请求。

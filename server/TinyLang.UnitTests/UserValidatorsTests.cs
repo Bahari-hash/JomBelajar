@@ -14,7 +14,11 @@ public sealed class UserValidatorsTests
         var validator = new UpdateWordStudySettingsRequestValidator();
 
         var result = await validator.ValidateAsync(
-            new UpdateWordStudySettingsRequest { DailyWordStudyCount = count },
+            new UpdateWordStudySettingsRequest
+            {
+                DailyWordStudyCount = count,
+                DailyWordReviewCount = 50
+            },
             TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeTrue();
@@ -28,10 +32,35 @@ public sealed class UserValidatorsTests
         var validator = new UpdateWordStudySettingsRequestValidator();
 
         var result = await validator.ValidateAsync(
-            new UpdateWordStudySettingsRequest { DailyWordStudyCount = count },
+            new UpdateWordStudySettingsRequest
+            {
+                DailyWordStudyCount = count,
+                DailyWordReviewCount = 50
+            },
             TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(200, true)]
+    [InlineData(0, false)]
+    [InlineData(201, false)]
+    public async Task WordStudySettingsShouldValidateReviewCount(
+        int reviewCount,
+        bool expectedValid)
+    {
+        var result = await new UpdateWordStudySettingsRequestValidator()
+            .ValidateAsync(
+                new UpdateWordStudySettingsRequest
+                {
+                    DailyWordStudyCount = 20,
+                    DailyWordReviewCount = reviewCount
+                },
+                TestContext.Current.CancellationToken);
+
+        result.IsValid.Should().Be(expectedValid);
     }
 
     [Fact]

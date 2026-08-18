@@ -15,6 +15,18 @@ public interface IWordStudyService
         Guid userId, Guid sessionId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<WordStudyCompletedItemResponse>> GetCompletedSessionItemsAsync(
         Guid userId, Guid sessionId, CancellationToken cancellationToken = default);
+    Task<WordStudyCommandResponse> SubmitLearningMemorizationAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        SubmitWordMemorizationRequest request,
+        CancellationToken cancellationToken = default);
+    Task<WordStudyCommandResponse> SubmitReviewMemorizationAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        SubmitWordMemorizationRequest request,
+        CancellationToken cancellationToken = default);
     /// <summary>
     /// 获取当前 UTC 日期的每日背诵状态。
     /// </summary>

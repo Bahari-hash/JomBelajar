@@ -131,6 +131,36 @@ public sealed class WordStudyService : IWordStudyService
             .ToArray();
     }
 
+    public Task<WordStudyCommandResponse> SubmitLearningMemorizationAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        SubmitWordMemorizationRequest request,
+        CancellationToken cancellationToken = default)
+        => new WordStudySessionEngine(_db, _timeProvider)
+            .SubmitMemorizationAsync(
+                userId,
+                sessionId,
+                itemId,
+                WordStudySessionType.Learning,
+                request,
+                cancellationToken);
+
+    public Task<WordStudyCommandResponse> SubmitReviewMemorizationAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid itemId,
+        SubmitWordMemorizationRequest request,
+        CancellationToken cancellationToken = default)
+        => new WordStudySessionEngine(_db, _timeProvider)
+            .SubmitMemorizationAsync(
+                userId,
+                sessionId,
+                itemId,
+                WordStudySessionType.Review,
+                request,
+                cancellationToken);
+
     private async Task<WordStudySession?> LoadLearningSessionAsync(
         Guid userId,
         Guid? sessionId,

@@ -7,6 +7,14 @@ namespace TinyLang.Services;
 /// </summary>
 public interface IWordStudyService
 {
+    Task<WordLearningOverviewResponse> GetLearningOverviewAsync(
+        Guid userId, CancellationToken cancellationToken = default);
+    Task<WordStudySessionStateResponse> StartLearningSessionAsync(
+        Guid userId, CancellationToken cancellationToken = default);
+    Task<WordStudySessionStateResponse> GetLearningSessionAsync(
+        Guid userId, Guid sessionId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<WordStudyCompletedItemResponse>> GetCompletedSessionItemsAsync(
+        Guid userId, Guid sessionId, CancellationToken cancellationToken = default);
     /// <summary>
     /// 获取当前 UTC 日期的每日背诵状态。
     /// </summary>

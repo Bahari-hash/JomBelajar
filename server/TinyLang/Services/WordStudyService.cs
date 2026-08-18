@@ -26,6 +26,141 @@ public sealed class WordStudyService : IWordStudyService
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<WordStudyService> _logger;
 
+    public async Task<WordLearningOverviewResponse> GetLearningOverviewAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var now = _timeProvider.GetUtcNow();
+        var total = await _db.UserWordProgress.AsNoTracking()
+            .CountAsync(value => value.UserId == userId, cancellationToken);
+        var todayStart = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero);
+        var today = await _db.UserWordProgress.AsNoTracking()
+            .CountAsync(value => value.UserId == userId &&
+                value.FirstStudiedAt >= todayStart && value.FirstStudiedAt < todayStart.AddDays(1),
+                cancellationToken);
+        var hasMore = await WordVisibilityPolicy.Apply(_db.Words.AsNoTracking())
+            .AnyAsync(word => !_db.UserWordProgress.Any(progress =>
+                progress.UserId == userId && progress.WordId == word.Id),
+                cancellationToken);
+        var active = await LoadLearningSessionAsync(userId, null, cancellationToken);
+        return new WordLearningOverviewResponse(
+            total,
+            today,
+            hasMore,
+            active is null ? null : await ProjectStateAsync(userId, active, cancellationToken));
+    }
+
+    public async Task<WordStudySessionStateResponse> StartLearningSessionAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var existing = await LoadLearningSessionAsync(userId, null, cancellationToken);
+        if (existing is not null)
+        {
+            return await ProjectStateAsync(userId, existing, cancellationToken);
+        }
+        var count = await _db.Users.AsNoTracking()
+            .Where(value => value.Id == userId)
+            .Select(value => (int?)value.DailyWordStudyCount)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
+        var wordIds = await WordVisibilityPolicy.Apply(_db.Words.AsNoTracking())
+            .Where(word => !_db.UserWordProgress.AsNoTracking().Any(progress =>
+                progress.UserId == userId && progress.WordId == word.Id))
+            .OrderBy(word => word.StudyOrder)
+            .Take(count)
+            .Select(word => word.Id)
+            .ToListAsync(cancellationToken);
+        if (wordIds.Count == 0)
+        {
+            throw ConflictException.Create(ErrorCodes.WordStudyNoEligibleWords);
+        }
+        var now = _timeProvider.GetUtcNow();
+        var session = new WordStudySession
+        {
+            UserId = userId,
+            RequestedCount = count,
+            ActualCount = wordIds.Count,
+            SessionType = WordStudySessionType.Learning,
+            Phase = WordStudyPhase.Memorization,
+            StartedAt = now,
+            Items = wordIds.Select((wordId, position) => new WordStudySessionItem
+            {
+                WordId = wordId,
+                Position = position,
+                MemorizationQueueOrder = position,
+                SpellingQueueOrder = position
+            }).ToArray()
+        };
+        _db.WordStudySessions.Add(session);
+        await _db.SaveChangesAsync(cancellationToken);
+        return await GetLearningSessionAsync(userId, session.Id, cancellationToken);
+    }
+
+    public async Task<WordStudySessionStateResponse> GetLearningSessionAsync(
+        Guid userId,
+        Guid sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        var session = await LoadLearningSessionAsync(userId, sessionId, cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);
+        var engine = new WordStudySessionEngine(_db, _timeProvider);
+        await engine.NormalizeCurrentItemAsync(session, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+        return await ProjectStateAsync(userId, session, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<WordStudyCompletedItemResponse>> GetCompletedSessionItemsAsync(
+        Guid userId,
+        Guid sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        var session = await LoadLearningSessionAsync(userId, sessionId, cancellationToken)
+            ?? throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);
+        return session.Items
+            .Where(value => value.Status != WordStudySessionItemStatus.Pending)
+            .OrderBy(value => value.Position)
+            .Select(value => new WordStudyCompletedItemResponse(
+                value.Id,
+                value.WordId,
+                value.Position,
+                value.Status,
+                value.Word?.Headword,
+                value.HadMemorizationFailure,
+                value.HadSpellingFailure))
+            .ToArray();
+    }
+
+    private async Task<WordStudySession?> LoadLearningSessionAsync(
+        Guid userId,
+        Guid? sessionId,
+        CancellationToken cancellationToken)
+    {
+        var query = _db.WordStudySessions
+            .Include(value => value.Items)
+                .ThenInclude(value => value.Word!)
+                    .ThenInclude(value => value.Senses)
+                        .ThenInclude(value => value.Examples)
+            .Where(value => value.UserId == userId &&
+                value.SessionType == WordStudySessionType.Learning);
+        if (sessionId.HasValue)
+        {
+            query = query.Where(value => value.Id == sessionId.Value);
+        }
+        else
+        {
+            query = query.Where(value => value.Status == WordStudySessionStatus.Active);
+        }
+        return await query.SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private async Task<WordStudySessionStateResponse> ProjectStateAsync(
+        Guid userId,
+        WordStudySession session,
+        CancellationToken cancellationToken)
+        => await new WordStudySessionProjector(_db)
+            .ProjectAsync(userId, session, cancellationToken);
+
     /// <summary>
     /// 使用数据库、约束分类器、时间源和结构化日志创建背诵服务。
     /// </summary>

@@ -49,7 +49,7 @@ export default function WordSpellingCard({
         <input
           aria-label="拼写单词"
           autoComplete="off"
-          className="input input-bordered w-full"
+          className="input input-bordered w-full mt-4"
           value={answer}
           onChange={(event) => setAnswer(event.target.value)}
         />
@@ -60,7 +60,7 @@ export default function WordSpellingCard({
         </p>
       ) : null}
       <button
-        className="btn btn-primary"
+        className="btn btn-primary mt-4"
         disabled={submitting || !answer.trim()}
         type="submit"
       >

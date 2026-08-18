@@ -66,7 +66,7 @@ export default function WordStudySettingsPanel() {
           <span className="label-text mb-2">每组新词数量</span>
           <input
             aria-invalid={Boolean(errors.study)}
-            className="input input-bordered"
+            className="input input-bordered mt-4 md:mt-0 md:ml-4"
             max={100}
             min={1}
             type="number"
@@ -84,7 +84,7 @@ export default function WordStudySettingsPanel() {
           <span className="label-text mb-2">每组复习数量</span>
           <input
             aria-invalid={Boolean(errors.review)}
-            className="input input-bordered"
+            className="input input-bordered mt-4 md:mt-0 md:ml-4"
             max={200}
             min={1}
             type="number"

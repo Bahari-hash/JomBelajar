@@ -50,7 +50,7 @@ export default function WordStudyCompletion({
             {continueLabel}
           </button>
         ) : null}
-        <Link className="btn btn-ghost" to="/words">
+        <Link className="btn btn-outline" to="/words">
           返回单词首页
         </Link>
       </div>

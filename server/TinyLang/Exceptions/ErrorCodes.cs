@@ -696,6 +696,12 @@ public enum ErrorCodes
     [Description("每页数量必须在1到100之间.")]
     PageSizeInvalid,
 
+    [Description("年份无效.")]
+    WordStudyYearInvalid,
+
+    [Description("月份必须在1到12之间.")]
+    WordStudyMonthInvalid,
+
     [Description("查询关键词长度最大不能超过200个字符.")]
     KeywordLengthLimit,
 

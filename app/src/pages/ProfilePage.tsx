@@ -352,10 +352,26 @@ export default function ProfilePage() {
           </form>
         </section>
       </div>
-      <WordStudySummaryPanel />
-      <WordStudySettingsPanel />
-      <WordFavoritesPanel />
-      <WordReviewExclusionsPanel />
+      <section
+        aria-labelledby="profile-word-study-heading"
+        className="space-y-0"
+      >
+        <h2
+          className="border-b border-base-300 pb-4 text-2xl font-semibold"
+          id="profile-word-study-heading"
+        >
+          单词学习
+        </h2>
+        <WordStudySummaryPanel />
+        <details className="border-t border-base-300 py-6">
+          <summary className="cursor-pointer text-lg font-semibold">
+            单词学习设置
+          </summary>
+          <WordStudySettingsPanel />
+        </details>
+        <WordFavoritesPanel />
+        <WordReviewExclusionsPanel />
+      </section>
       <AccountSecurityPanel currentEmail={profile.email} />
     </div>
   );

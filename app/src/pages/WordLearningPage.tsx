@@ -163,6 +163,7 @@ export default function WordLearningPage() {
       }}
       onToggleFavorite={updateFavorite}
       canContinue={overview.data?.hasMoreWords ?? false}
+      showTodayReview
       onContinue={async () => {
         const latest = await overview.refetch().unwrap();
         if (!latest.hasMoreWords) return;

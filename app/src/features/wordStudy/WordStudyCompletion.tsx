@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
+import WordStudyTodayReview from "./WordStudyTodayReview";
 import type { WordStudySessionState } from "@/features/wordStudy/wordStudyTypes";
 
 export default function WordStudyCompletion({
@@ -7,11 +8,13 @@ export default function WordStudyCompletion({
   continueLabel,
   canContinue,
   onContinue,
+  showTodayReview = false,
 }: {
   session: WordStudySessionState;
   continueLabel: string;
   canContinue: boolean;
   onContinue?: () => Promise<void>;
+  showTodayReview?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +57,11 @@ export default function WordStudyCompletion({
           返回单词首页
         </Link>
       </div>
+      {showTodayReview ? (
+        <div className="mt-12 text-left">
+          <WordStudyTodayReview />
+        </div>
+      ) : null}
     </section>
   );
 }

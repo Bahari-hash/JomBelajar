@@ -10,6 +10,8 @@ import type {
   PagedWordLibrary,
   WordFavorite,
   WordReviewExclusion,
+  WordStudyTodayReview,
+  WordStudyCheckInCalendar,
 } from "@/features/wordStudy/wordStudyTypes";
 
 /** Provides authenticated daily word-study queries and mutations through Axios. */
@@ -23,6 +25,8 @@ export const wordStudyApi = createApi({
     "ReviewOverview",
     "WordFavorites",
     "WordReviewExclusions",
+    "TodayReview",
+    "CheckInCalendar",
   ],
   endpoints: (builder) => ({
     getLearningOverview: builder.query<WordLearningOverview, void>({
@@ -51,7 +55,12 @@ export const wordStudyApi = createApi({
         method: "POST",
         data,
       }),
-      invalidatesTags: ["LearningOverview", "WordStudySession"],
+      invalidatesTags: [
+        "LearningOverview",
+        "WordStudySession",
+        "TodayReview",
+        "CheckInCalendar",
+      ],
     }),
     submitLearningSpelling: builder.mutation<
       WordStudyCommandResponse,
@@ -67,11 +76,33 @@ export const wordStudyApi = createApi({
         method: "POST",
         data,
       }),
-      invalidatesTags: ["LearningOverview", "WordStudySession"],
+      invalidatesTags: [
+        "LearningOverview",
+        "WordStudySession",
+        "TodayReview",
+        "CheckInCalendar",
+      ],
     }),
     getReviewOverview: builder.query<WordReviewOverview, void>({
       query: () => ({ url: "/word-study/review/overview" }),
       providesTags: ["ReviewOverview"],
+    }),
+    getTodayReview: builder.query<
+      WordStudyTodayReview,
+      { page?: number; pageSize?: number } | void
+    >({
+      query: (params) => ({
+        url: "/word-study/review/today",
+        params: { page: 1, pageSize: 20, ...params },
+      }),
+      providesTags: ["TodayReview"],
+    }),
+    getCheckInCalendar: builder.query<
+      WordStudyCheckInCalendar,
+      { year?: number; month?: number } | void
+    >({
+      query: (params) => ({ url: "/word-study/check-ins", params }),
+      providesTags: ["CheckInCalendar"],
     }),
     startReview: builder.mutation<WordStudySessionState, void>({
       query: () => ({ url: "/word-study/review/sessions", method: "POST" }),
@@ -95,7 +126,7 @@ export const wordStudyApi = createApi({
         method: "POST",
         data,
       }),
-      invalidatesTags: ["ReviewOverview", "WordStudySession"],
+      invalidatesTags: ["ReviewOverview", "WordStudySession", "TodayReview"],
     }),
     submitReviewSpelling: builder.mutation<
       WordStudyCommandResponse,
@@ -111,7 +142,7 @@ export const wordStudyApi = createApi({
         method: "POST",
         data,
       }),
-      invalidatesTags: ["ReviewOverview", "WordStudySession"],
+      invalidatesTags: ["ReviewOverview", "WordStudySession", "TodayReview"],
     }),
     excludeReviewItem: builder.mutation<
       WordStudyCommandResponse,
@@ -124,6 +155,7 @@ export const wordStudyApi = createApi({
       }),
       invalidatesTags: [
         "ReviewOverview",
+        "TodayReview",
         "WordReviewExclusions",
         "WordStudySession",
       ],
@@ -140,7 +172,7 @@ export const wordStudyApi = createApi({
         url: `/users/me/word-favorites/${wordId}`,
         method: favorite ? "PUT" : "DELETE",
       }),
-      invalidatesTags: ["WordFavorites", "WordStudySession"],
+      invalidatesTags: ["WordFavorites", "WordStudySession", "TodayReview"],
     }),
     getReviewExclusions: builder.query<
       PagedWordLibrary<WordReviewExclusion>,
@@ -186,6 +218,8 @@ export const {
   useSubmitLearningMemorizationMutation,
   useSubmitLearningSpellingMutation,
   useGetReviewOverviewQuery,
+  useGetTodayReviewQuery,
+  useGetCheckInCalendarQuery,
   useStartReviewMutation,
   useGetReviewSessionQuery,
   useLazyGetReviewSessionQuery,

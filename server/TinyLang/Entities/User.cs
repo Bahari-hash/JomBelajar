@@ -39,6 +39,8 @@ public sealed class User : BaseAuditableEntity
     public ICollection<UserWordProgress> WordProgress { get; set; } = [];
     public ICollection<UserWordFavorite> WordFavorites { get; set; } = [];
     public ICollection<WordStudySession> WordStudySessions { get; set; } = [];
+    public ICollection<WordStudyActivity> WordStudyActivities { get; set; } = [];
+    public ICollection<WordStudyCheckIn> WordStudyCheckIns { get; set; } = [];
     public ICollection<Paper> CreatedPapers { get; set; } = [];
     public ICollection<Paper> EditedPapers { get; set; } = [];
     public ICollection<PaperAttempt> PaperAttempts { get; set; } = [];

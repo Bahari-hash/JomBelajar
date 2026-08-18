@@ -78,6 +78,41 @@ export interface WordReviewOverview {
   activeSession: WordStudySessionState | null;
 }
 
+export type WordStudyActivityType = "Learning" | "Review";
+
+export interface WordStudyTodayReviewItem {
+  wordId: string;
+  headword: string;
+  activityType: WordStudyActivityType;
+  completedAtUtc: string;
+  senses: WordSense[];
+  audioResourceId: string | null;
+  isFavorite: boolean;
+}
+
+export interface WordStudyTodayReview {
+  studyDateUtc: string;
+  items: WordStudyTodayReviewItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+export interface WordStudyCheckInDate {
+  studyDateUtc: string;
+  checkedInAtUtc: string;
+}
+
+export interface WordStudyCheckInCalendar {
+  year: number;
+  month: number;
+  checkedInDates: WordStudyCheckInDate[];
+  currentStreak: number;
+  longestStreak: number;
+  totalCheckInDays: number;
+}
+
 export interface PagedWordLibrary<T> {
   items: T[];
   page: number;

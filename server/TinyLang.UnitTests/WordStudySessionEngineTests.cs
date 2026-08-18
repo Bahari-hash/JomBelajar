@@ -59,6 +59,11 @@ public sealed class WordStudySessionEngineTests
         progress.ReviewStage.Should().Be(1);
         progress.SuccessfulReviewCount.Should().Be(1);
         progress.NextReviewAt.Should().Be(DateTimeOffset.Parse("2026-08-20T03:00:00Z"));
+        (await db.WordStudyActivities.CountAsync(value =>
+            value.UserId == user.Id && value.ActivityType == WordStudyActivityType.Review,
+            TestContext.Current.CancellationToken)).Should().Be(1);
+        (await db.WordStudyCheckIns.CountAsync(value => value.UserId == user.Id,
+            TestContext.Current.CancellationToken)).Should().Be(0);
     }
 
     [Fact]
@@ -168,6 +173,11 @@ public sealed class WordStudySessionEngineTests
             TestContext.Current.CancellationToken);
         progress.ReviewStage.Should().Be(0);
         progress.NextReviewAt.Should().Be(DateTimeOffset.Parse("2026-08-19T03:00:00Z"));
+        (await db.WordStudyActivities.CountAsync(value =>
+            value.UserId == user.Id && value.ActivityType == WordStudyActivityType.Learning,
+            TestContext.Current.CancellationToken)).Should().Be(1);
+        (await db.WordStudyCheckIns.CountAsync(value => value.UserId == user.Id,
+            TestContext.Current.CancellationToken)).Should().Be(1);
     }
 
     [Fact]

@@ -33,4 +33,5 @@ public sealed class WordStudySessionItem : BaseEntity
     public DateTimeOffset? CompletedAt { get; set; }
     public WordStudySkipReason? SkipReason { get; set; }
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
+    public ICollection<WordStudyActivity> Activities { get; set; } = [];
 }

@@ -55,4 +55,12 @@ public interface IWordStudyService
         Guid itemId,
         ExcludeWordFromReviewRequest request,
         CancellationToken cancellationToken = default);
+    Task<WordStudyTodayReviewResponse> GetTodayReviewAsync(
+        Guid userId,
+        WordStudyTodayReviewRequest request,
+        CancellationToken cancellationToken = default);
+    Task<WordStudyCheckInCalendarResponse> GetCheckInCalendarAsync(
+        Guid userId,
+        WordStudyCheckInCalendarRequest request,
+        CancellationToken cancellationToken = default);
 }

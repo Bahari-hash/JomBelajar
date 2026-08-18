@@ -5,6 +5,8 @@ import {
   useGetLearningOverviewQuery,
   useGetReviewOverviewQuery,
 } from "@/features/wordStudy/wordStudyApi";
+import WordStudyCheckInCalendar from "@/features/wordStudy/WordStudyCheckInCalendar";
+import WordStudyTodayReview from "@/features/wordStudy/WordStudyTodayReview";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export default function WordsPage() {
@@ -62,6 +64,10 @@ export default function WordsPage() {
           action={review.data?.activeSession ? "继续旧词复习" : "开始旧词复习"}
           retry={() => void review.refetch()}
         />
+      </div>
+      <div className="grid gap-10 border-b border-base-300 pb-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+        <WordStudyCheckInCalendar />
+        <WordStudyTodayReview />
       </div>
     </main>
   );

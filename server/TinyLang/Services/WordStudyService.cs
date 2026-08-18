@@ -347,6 +347,139 @@ public sealed class WordStudyService : IWordStudyService
                     cancellationToken),
             cancellationToken);
 
+    public async Task<WordStudyTodayReviewResponse> GetTodayReviewAsync(
+        Guid userId,
+        WordStudyTodayReviewRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var today = DateOnly.FromDateTime(_timeProvider.GetUtcNow().UtcDateTime.Date);
+        var dayStart = new DateTimeOffset(today.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var dayEnd = dayStart.AddDays(1);
+        var query = _db.WordStudyActivities.AsNoTracking()
+            .Include(value => value.Word!)
+                .ThenInclude(value => value.Senses)
+                    .ThenInclude(value => value.Examples)
+            .Where(value => value.UserId == userId &&
+                value.CompletedAtUtc >= dayStart && value.CompletedAtUtc < dayEnd &&
+                value.Word != null && !value.Word.IsDeleted && value.Word.Senses.Any())
+            .OrderByDescending(value => value.CompletedAtUtc)
+            .ThenBy(value => value.WordId)
+            .ThenBy(value => value.Id);
+        var total = await query.CountAsync(cancellationToken);
+        var activities = await query
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken);
+        var favoriteIds = await _db.UserWordFavorites.AsNoTracking()
+            .Where(value => value.UserId == userId && activities.Select(item => item.WordId).Contains(value.WordId))
+            .Select(value => value.WordId)
+            .ToHashSetAsync(cancellationToken);
+        var items = activities.Select(value =>
+        {
+            var word = value.Word!;
+            return new WordStudyTodayReviewItemResponse(
+                word.Id,
+                word.Headword,
+                value.ActivityType,
+                value.CompletedAtUtc,
+                word.Senses.OrderBy(sense => sense.SortOrder).ThenBy(sense => sense.Id)
+                    .Select(sense => new WordSenseResponse(
+                        sense.PartOfSpeech,
+                        sense.Definition,
+                        sense.UsageNote,
+                        sense.SortOrder,
+                        sense.Examples.OrderBy(example => example.SortOrder).ThenBy(example => example.Id)
+                            .Select(example => new ExampleSentenceResponse(
+                                example.Sentence,
+                                example.Translation,
+                                example.AudioResourceId,
+                                example.SortOrder))
+                            .ToArray()))
+                    .ToArray(),
+                word.AudioResourceId,
+                favoriteIds.Contains(word.Id));
+        }).ToArray();
+        return new WordStudyTodayReviewResponse(
+            today,
+            items,
+            request.Page,
+            request.PageSize,
+            total,
+            total == 0 ? 0 : (total + request.PageSize - 1) / request.PageSize);
+    }
+
+    public async Task<WordStudyCheckInCalendarResponse> GetCheckInCalendarAsync(
+        Guid userId,
+        WordStudyCheckInCalendarRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var now = _timeProvider.GetUtcNow();
+        var year = request.Year ?? now.UtcDateTime.Year;
+        var month = request.Month ?? now.UtcDateTime.Month;
+        var monthStart = new DateOnly(year, month, 1);
+        var monthEnd = monthStart.AddMonths(1);
+        var rowValues = await _db.WordStudyCheckIns.AsNoTracking()
+            .Where(value => value.UserId == userId &&
+                value.StudyDateUtc >= monthStart.ToDateTime(TimeOnly.MinValue) &&
+                value.StudyDateUtc < monthEnd.ToDateTime(TimeOnly.MinValue))
+            .OrderBy(value => value.StudyDateUtc)
+            .Select(value => new { value.StudyDateUtc, value.CheckedInAtUtc })
+            .ToListAsync(cancellationToken);
+        var rows = rowValues
+            .Select(value => new WordStudyCheckInResponse(
+                DateOnly.FromDateTime(value.StudyDateUtc.UtcDateTime),
+                value.CheckedInAtUtc))
+            .ToArray();
+        var allDates = await _db.WordStudyCheckIns.AsNoTracking()
+            .Where(value => value.UserId == userId)
+            .Select(value => value.StudyDateUtc)
+            .ToListAsync(cancellationToken);
+        var dates = allDates
+            .Select(value => DateOnly.FromDateTime(value.UtcDateTime))
+            .Distinct()
+            .OrderBy(value => value)
+            .ToArray();
+        var today = DateOnly.FromDateTime(now.UtcDateTime.Date);
+        var current = GetCurrentStreak(dates, today);
+        var longest = GetLongestStreak(dates);
+        return new WordStudyCheckInCalendarResponse(
+            year,
+            month,
+            rows,
+            current,
+            longest,
+            dates.Length);
+    }
+
+    private static int GetCurrentStreak(IReadOnlyList<DateOnly> dates, DateOnly today)
+    {
+        if (dates.Count == 0) return 0;
+        var target = dates.Contains(today) ? today : today.AddDays(-1);
+        var set = dates.ToHashSet();
+        if (!set.Contains(target)) return 0;
+        var count = 0;
+        while (set.Contains(target))
+        {
+            count++;
+            target = target.AddDays(-1);
+        }
+        return count;
+    }
+
+    private static int GetLongestStreak(IReadOnlyList<DateOnly> dates)
+    {
+        var longest = 0;
+        var current = 0;
+        DateOnly? previous = null;
+        foreach (var date in dates)
+        {
+            current = previous.HasValue && date == previous.Value.AddDays(1) ? current + 1 : 1;
+            longest = Math.Max(longest, current);
+            previous = date;
+        }
+        return longest;
+    }
+
     private async Task<WordStudyCommandResponse> ExecuteCommandAsync(
         Func<Task<WordStudyCommandResponse>> command,
         CancellationToken cancellationToken)

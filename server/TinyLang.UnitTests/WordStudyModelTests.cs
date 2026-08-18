@@ -35,6 +35,75 @@ public sealed class WordStudyModelTests
         favorite.Id.Should().NotBeEmpty();
     }
 
+    [Fact]
+    public void ActivityAndCheckInEntitiesShouldUseExpectedDefaults()
+    {
+        Enum.GetValues<WordStudyActivityType>()
+            .Should().BeEquivalentTo(
+                [WordStudyActivityType.Learning, WordStudyActivityType.Review]);
+
+        var activity = new WordStudyActivity();
+        var checkIn = new WordStudyCheckIn();
+
+        activity.Id.Should().NotBeEmpty();
+        checkIn.Id.Should().NotBeEmpty();
+        activity.CreatedAt.Should().Be(default);
+        checkIn.CreatedAt.Should().Be(default);
+    }
+
+    [Fact]
+    public void ModelShouldContainActivityAndCheckInConstraints()
+    {
+        using var db = CreateDbContext();
+        var activity = db.Model.FindEntityType(typeof(WordStudyActivity))
+            ?? throw new InvalidOperationException("Activity model is missing.");
+        var checkIn = db.Model.FindEntityType(typeof(WordStudyCheckIn))
+            ?? throw new InvalidOperationException("Check-in model is missing.");
+
+        activity.GetIndexes().Should().Contain(index =>
+            index.IsUnique && PropertiesEqual(
+                index.Properties.Select(value => value.Name),
+                nameof(WordStudyActivity.SessionItemId),
+                nameof(WordStudyActivity.ActivityType)));
+        activity.GetIndexes().Should().Contain(index =>
+            PropertiesEqual(
+                index.Properties.Select(value => value.Name),
+                nameof(WordStudyActivity.UserId),
+                nameof(WordStudyActivity.CompletedAtUtc),
+                nameof(WordStudyActivity.WordId)));
+        checkIn.GetIndexes().Should().Contain(index =>
+            index.IsUnique && PropertiesEqual(
+                index.Properties.Select(value => value.Name),
+                nameof(WordStudyCheckIn.UserId),
+                nameof(WordStudyCheckIn.StudyDateUtc)));
+
+        var activityType = activity.FindProperty(nameof(WordStudyActivity.ActivityType))!;
+        activityType.GetValueConverter()?.ProviderClrType.Should().Be(typeof(string));
+    }
+
+    [Fact]
+    public void ActivityAndCheckInShouldUseExpectedDeleteBehaviors()
+    {
+        using var db = CreateDbContext();
+        var activity = db.Model.FindEntityType(typeof(WordStudyActivity))
+            ?? throw new InvalidOperationException("Activity model is missing.");
+        var checkIn = db.Model.FindEntityType(typeof(WordStudyCheckIn))
+            ?? throw new InvalidOperationException("Check-in model is missing.");
+
+        activity.GetForeignKeys().Single(value =>
+                value.PrincipalEntityType.ClrType == typeof(User))
+            .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
+        activity.GetForeignKeys().Single(value =>
+                value.PrincipalEntityType.ClrType == typeof(WordStudySession))
+            .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
+        activity.GetForeignKeys().Single(value =>
+                value.PrincipalEntityType.ClrType == typeof(WordStudySessionItem))
+            .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
+        checkIn.GetForeignKeys().Single(value =>
+                value.PrincipalEntityType.ClrType == typeof(User))
+            .DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
+    }
+
     /// <summary>
     /// 验证 progress、Active session 和固定 item 的关键唯一约束。
     /// </summary>

@@ -25,6 +25,10 @@ public sealed class PaperService : IPaperService
         "IX_fill_blank_accepted_answers_QuestionId_NormalizedText";
     private const string AttemptPaperForeignKey =
         "FK_paper_attempts_papers_PaperId";
+    private const string DictationAudioForeignKey =
+        "FK_paper_questions_audio_resources_AudioResourceId";
+    private const string PaperCategoryForeignKey =
+        "FK_paper_category_assignments_paper_categories_PaperCategoryId";
 
     private readonly IApplicationDbContext _db;
     private readonly IDatabaseExceptionClassifier _databaseExceptionClassifier;
@@ -1376,6 +1380,20 @@ public sealed class PaperService : IPaperService
                 AttemptPaperForeignKey))
         {
             throw ConflictException.Create(ErrorCodes.PaperContentLocked);
+        }
+        catch (DbUpdateException exception) when (
+            _databaseExceptionClassifier.IsForeignKeyConstraintViolation(
+                exception,
+                DictationAudioForeignKey))
+        {
+            throw NotFoundException.Create(ErrorCodes.AudioNotFound);
+        }
+        catch (DbUpdateException exception) when (
+            _databaseExceptionClassifier.IsForeignKeyConstraintViolation(
+                exception,
+                PaperCategoryForeignKey))
+        {
+            throw NotFoundException.Create(ErrorCodes.PaperCategoryNotFound);
         }
     }
 

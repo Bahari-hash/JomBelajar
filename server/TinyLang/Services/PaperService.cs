@@ -1024,8 +1024,16 @@ public sealed class PaperService : IPaperService
             {
                 add($"{blankField}.answer", ErrorCodes.PaperAcceptedAnswerRequired, question.Id, blank.Id);
             }
-            if (blank.SortOrder is < 0 or > OnlineQuizConstraints.MaxSortOrder ||
-                duplicateSortOrders.Contains(blank.SortOrder))
+            else if (blank.Answer.Length > OnlineQuizConstraints.MaxAnswerTextLength ||
+                blank.NormalizedAnswer.Length > OnlineQuizConstraints.MaxAnswerTextLength)
+            {
+                add($"{blankField}.answer", ErrorCodes.PaperAnswerTextLengthLimit, question.Id, blank.Id);
+            }
+            if (blank.SortOrder is < 0 or > OnlineQuizConstraints.MaxSortOrder)
+            {
+                add($"{blankField}.sortOrder", ErrorCodes.PaperSortOrderInvalid, question.Id, blank.Id);
+            }
+            else if (duplicateSortOrders.Contains(blank.SortOrder))
             {
                 add($"{blankField}.sortOrder", ErrorCodes.PaperSortOrderConflict, question.Id, blank.Id);
             }

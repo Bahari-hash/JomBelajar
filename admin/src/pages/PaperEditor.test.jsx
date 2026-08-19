@@ -6,6 +6,8 @@ import { axiosResponse, mockHttpClient } from "@/test/http.js";
 import { renderAppAt } from "@/test/renderApp.jsx";
 
 const PAPER_ID = "11111111-1111-4111-8111-111111111111";
+const CATEGORY_ID = "77777777-7777-4777-8777-777777777777";
+const AUDIO_ID = "88888888-8888-4888-8888-888888888888";
 
 function paperDetail(overrides = {}) {
   const user = {
@@ -18,7 +20,7 @@ function paperDetail(overrides = {}) {
     title: "English basics",
     description: null,
     instructions: null,
-    tags: [],
+    categories: [],
     status: "Draft",
     passingScore: 0,
     passingScorePercentage: 60,
@@ -41,6 +43,8 @@ function paperDetail(overrides = {}) {
         fillBlankCaseSensitive: false,
         options: [],
         acceptedAnswers: [],
+        audioResourceId: null,
+        dictationBlanks: [],
       },
     ],
     createdAt: "2026-08-02T10:00:00Z",
@@ -52,26 +56,43 @@ function paperDetail(overrides = {}) {
 describe("PaperEditor", () => {
   it("creates a server-valid incomplete draft with the exact aggregate body", async () => {
     tokenVault.install("access", "refresh");
-    const requestMock = mockHttpClient((config) =>
-      Promise.resolve(
+    const requestMock = mockHttpClient((config) => {
+      if (config.url.startsWith("/admin/paper-categories"))
+        return Promise.resolve(
+          axiosResponse({
+            items: [
+              {
+                id: CATEGORY_ID,
+                name: "基础语法",
+                slug: "grammar",
+                description: null,
+                isActive: true,
+                paperCount: 0,
+                createdAt: "2026-08-02T10:00:00Z",
+              },
+            ],
+            page: 1,
+            pageSize: 100,
+            totalCount: 1,
+            totalPages: 1,
+          }),
+        );
+      return Promise.resolve(
         axiosResponse(
-          paperDetail(),
+          paperDetail({
+            categories: [
+              { id: CATEGORY_ID, name: "基础语法", slug: "grammar" },
+            ],
+          }),
           config.url === "/admin/papers" ? 201 : 200,
         ),
-      ),
-    );
+      );
+    });
     const user = userEvent.setup();
     const { router } = renderAppAt("/papers/new");
 
     await user.type(await screen.findByLabelText("标题 *"), "English basics");
-    const tagInput = screen.getByRole("textbox", { name: "试卷标签" });
-    await user.type(tagInput, "Grammar");
-    await user.keyboard("{Enter}");
-    await user.type(tagInput, "grammar");
-    await user.keyboard("{Enter}");
-    await user.type(tagInput, "A2");
-    await user.click(screen.getByRole("button", { name: "添加标签" }));
-    await user.click(screen.getByRole("button", { name: "删除标签 grammar" }));
+    await user.click(await screen.findByRole("checkbox", { name: "基础语法" }));
     await user.click(screen.getByRole("button", { name: "添加题目" }));
     await user.type(screen.getByLabelText("题干 *"), "Hello means?");
     expect(screen.getByLabelText("及格分百分比 *")).toHaveValue(60);
@@ -87,7 +108,7 @@ describe("PaperEditor", () => {
       title: "English basics",
       description: null,
       instructions: null,
-      tags: ["a2"],
+      categoryIds: [CATEGORY_ID],
       passingScorePercentage: 60,
       questions: [
         {
@@ -101,8 +122,90 @@ describe("PaperEditor", () => {
           fillBlankCaseSensitive: false,
           options: [],
           acceptedAnswers: [],
+          audioResourceId: null,
+          dictationBlanks: [],
         },
       ],
+    });
+  });
+
+  it("creates an ordered multi-blank dictation question with a ready audio resource", async () => {
+    tokenVault.install("access", "refresh");
+    const requestMock = mockHttpClient((config) => {
+      if (config.url.startsWith("/admin/paper-categories"))
+        return Promise.resolve(
+          axiosResponse({
+            items: [],
+            page: 1,
+            pageSize: 100,
+            totalCount: 0,
+            totalPages: 0,
+          }),
+        );
+      if (config.url.startsWith("/admin/audio?"))
+        return Promise.resolve(
+          axiosResponse({
+            items: [
+              {
+                id: AUDIO_ID,
+                name: "dictation.mp3",
+                status: "Ready",
+                durationSeconds: 12,
+                lastFailureCode: null,
+                createdAt: "2026-08-02T10:00:00Z",
+                updatedAt: "2026-08-02T10:00:00Z",
+              },
+            ],
+            page: 1,
+            pageSize: 20,
+            totalCount: 1,
+            totalPages: 1,
+          }),
+        );
+      return Promise.resolve(
+        axiosResponse(
+          paperDetail({ questions: [] }),
+          config.url === "/admin/papers" ? 201 : 200,
+        ),
+      );
+    });
+    const user = userEvent.setup();
+    renderAppAt("/papers/new");
+
+    await user.type(await screen.findByLabelText("标题 *"), "Daily dictation");
+    await user.click(screen.getByRole("button", { name: "添加题目" }));
+    await user.click(screen.getByRole("combobox", { name: "题型" }));
+    await user.click(screen.getByRole("option", { name: "听写题" }));
+    await user.click(screen.getByRole("button", { name: "确认切换" }));
+    await user.type(screen.getByLabelText("题干 *"), "Listen and write");
+    await user.click(screen.getByRole("button", { name: "从资源库选择" }));
+    await user.click(
+      await screen.findByRole("radio", { name: /dictation\.mp3/ }),
+    );
+    expect(
+      requestMock.mock.calls
+        .map(([config]) => config.url)
+        .some((url) => url.includes("/admin/audio?") && url.includes("status=Ready")),
+    ).toBe(true);
+    await user.click(screen.getByRole("button", { name: "确认选择" }));
+    await user.click(screen.getByRole("button", { name: "添加听写空" }));
+    await user.type(screen.getByLabelText("听写空 1 *"), "Hello");
+    await user.click(screen.getByRole("button", { name: "添加听写空" }));
+    await user.type(screen.getByLabelText("听写空 2 *"), "world");
+    await user.click(screen.getAllByRole("button", { name: "保存" })[0]);
+
+    const create = requestMock.mock.calls
+      .map(([config]) => config)
+      .find((config) => config.url === "/admin/papers");
+    expect(create.data.questions[0]).toMatchObject({
+      type: "Dictation",
+      audioResourceId: AUDIO_ID,
+      dictationBlanks: [
+        { id: null, answer: "Hello", sortOrder: 0 },
+        { id: null, answer: "world", sortOrder: 1 },
+      ],
+      options: [],
+      acceptedAnswers: [],
     });
   });
 

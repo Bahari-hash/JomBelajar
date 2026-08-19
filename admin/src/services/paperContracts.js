@@ -75,28 +75,13 @@ function array(value, normalize, name) {
   return value.map(normalize);
 }
 
-function paperTags(value) {
-  const tags = array(
-    value,
-    (tag) => nonEmptyString(tag, "paper tag"),
-    "paper tags",
-  );
-  if (tags.length > 10) invalid("paper tags");
-  if (
-    tags.some(
-      (tag) =>
-        tag.length > 30 ||
-        tag !== tag.trim() ||
-        tag !== tag.toLowerCase() ||
-        [...tag].some((character) => {
-          const codePoint = character.codePointAt(0);
-          return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
-        }),
-    )
-  )
-    invalid("paper tags");
-  if (new Set(tags).size !== tags.length) invalid("paper tags");
-  return tags;
+function categorySummary(value) {
+  const source = object(value, "paper category summary");
+  return {
+    id: uuid(source.id, "paper category id"),
+    name: nonEmptyString(source.name, "paper category name"),
+    slug: nonEmptyString(source.slug, "paper category slug"),
+  };
 }
 
 function httpUrl(value, name, nullable = false) {
@@ -142,6 +127,17 @@ function acceptedAnswer(value) {
   };
 }
 
+function dictationBlank(value) {
+  const source = object(value, "paper dictation blank");
+  return {
+    id: uuid(source.id, "paper dictation blank id"),
+    answer: string(source.answer, "paper dictation answer"),
+    sortOrder: number(source.sortOrder, "paper dictation blank sort order", {
+      integer: true,
+    }),
+  };
+}
+
 function question(value) {
   const source = object(value, "paper question");
   const normalized = {
@@ -169,12 +165,23 @@ function question(value) {
       acceptedAnswer,
       "paper accepted answers",
     ),
+    audioResourceId: uuid(
+      source.audioResourceId,
+      "paper question audio resource id",
+      true,
+    ),
+    dictationBlanks: array(
+      source.dictationBlanks,
+      dictationBlank,
+      "paper dictation blanks",
+    ),
   };
   if (
     normalized.points < 1 ||
     normalized.points > 100 ||
     normalized.options.length > 10 ||
     normalized.acceptedAnswers.length > 20 ||
+    normalized.dictationBlanks.length > 20 ||
     (normalized.type === "SingleChoice" &&
       normalized.options.filter((item) => item.isCorrect).length > 1)
   )
@@ -182,14 +189,26 @@ function question(value) {
   if (
     (normalized.type === "SingleChoice" &&
       (normalized.correctBoolean !== null ||
+        normalized.audioResourceId !== null ||
+        normalized.dictationBlanks.length > 0 ||
         normalized.fillBlankCaseSensitive ||
         normalized.acceptedAnswers.length > 0)) ||
     (normalized.type === "TrueFalse" &&
       (normalized.options.length > 0 ||
         normalized.acceptedAnswers.length > 0 ||
+        normalized.audioResourceId !== null ||
+        normalized.dictationBlanks.length > 0 ||
         normalized.fillBlankCaseSensitive)) ||
     (normalized.type === "FillBlank" &&
-      (normalized.options.length > 0 || normalized.correctBoolean !== null))
+      (normalized.options.length > 0 ||
+        normalized.correctBoolean !== null ||
+        normalized.audioResourceId !== null ||
+        normalized.dictationBlanks.length > 0)) ||
+    (normalized.type === "Dictation" &&
+      (normalized.options.length > 0 ||
+        normalized.correctBoolean !== null ||
+        normalized.fillBlankCaseSensitive ||
+        normalized.acceptedAnswers.length > 0))
   )
     invalid("paper question shape");
   return normalized;
@@ -199,7 +218,7 @@ function commonPaper(source) {
   const normalized = {
     id: uuid(source.id, "paper id"),
     title: string(source.title, "paper title"),
-    tags: paperTags(source.tags),
+    categories: array(source.categories, categorySummary, "paper categories"),
     status: enumeration(source.status, PAPER_STATUSES, "paper status"),
     totalScore: number(source.totalScore, "paper total score", {
       integer: true,
@@ -279,16 +298,6 @@ export function normalizePaperValidation(value) {
   };
 }
 
-export function normalizePaperTag(value) {
-  const source = object(value, "Paper tag");
-  return {
-    name: nonEmptyString(source.name, "Paper tag name"),
-    paperCount: number(source.paperCount, "Paper tag count", {
-      integer: true,
-    }),
-  };
-}
-
 function normalizePage(value, normalizeItem, name) {
   const source = object(value, name);
   return {
@@ -307,9 +316,6 @@ function normalizePage(value, normalizeItem, name) {
     }),
   };
 }
-
-export const normalizePaperTagPage = (value) =>
-  normalizePage(value, normalizePaperTag, "Paper tag page");
 
 export function normalizePaperPage(value) {
   return normalizePage(value, normalizePaperListItem, "paper pagination");

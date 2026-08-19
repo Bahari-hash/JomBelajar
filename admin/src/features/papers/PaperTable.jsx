@@ -40,6 +40,7 @@ export function PaperTable({ papers, onAction }) {
         <TableHeader>
           <TableRow>
             <TableHead className="w-56 pl-4">标题</TableHead>
+            <TableHead className="w-40">分类</TableHead>
             <TableHead className="w-24">状态</TableHead>
             <TableHead className="w-28">题目</TableHead>
             <TableHead className="w-28">分值</TableHead>
@@ -70,6 +71,19 @@ export function PaperTable({ papers, onAction }) {
                         ? "可编辑"
                         : "只读"}
                   </span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {paper.categories.length ? (
+                      paper.categories.map((category) => (
+                        <Badge key={category.id} variant="secondary">
+                          {category.name}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground">未分类</span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge

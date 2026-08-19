@@ -16,12 +16,14 @@ export const PAPER_QUESTION_TYPES = Object.freeze([
   "SingleChoice",
   "TrueFalse",
   "FillBlank",
+  "Dictation",
 ]);
 
 export const PAPER_QUESTION_TYPE_OPTIONS = Object.freeze([
   { value: "SingleChoice", label: "单选题" },
   { value: "TrueFalse", label: "判断题" },
   { value: "FillBlank", label: "填空题" },
+  { value: "Dictation", label: "听写题" },
 ]);
 
 export function getPaperStatusLabel(value) {

@@ -7,22 +7,25 @@ describe("paper filters", () => {
       page: 3,
       pageSize: 50,
       keyword: "beginner",
-      language: "en",
       status: "Published",
-      tag: "cet-4",
+      categoryId: "11111111-1111-4111-8111-111111111111",
     };
     expect(readPaperFilters(writePaperFilters(filters))).toEqual(filters);
   });
 
-  it("normalizes Paper tag URL state", () => {
+  it("accepts only UUID category URL state", () => {
     const filters = readPaperFilters(
-      new URLSearchParams("tag=%20CET-4%20&page=2"),
+      new URLSearchParams(
+        "categoryId=11111111-1111-4111-8111-111111111111&page=2",
+      ),
     );
 
-    expect(filters.tag).toBe("cet-4");
-    expect(writePaperFilters(filters).toString()).toBe("page=2&tag=cet-4");
+    expect(filters.categoryId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(writePaperFilters(filters).toString()).toBe(
+      "page=2&categoryId=11111111-1111-4111-8111-111111111111",
+    );
     expect(
-      readPaperFilters(new URLSearchParams(`tag=${"a".repeat(31)}`)).tag,
+      readPaperFilters(new URLSearchParams("categoryId=bad")).categoryId,
     ).toBe("");
   });
 
@@ -30,16 +33,15 @@ describe("paper filters", () => {
     expect(
       readPaperFilters(
         new URLSearchParams(
-          "page=0&pageSize=500&keyword=bad%0Avalue&language=toolong-language-tag-that-exceeds-thirty-five-characters&status=Deleted",
+          "page=0&pageSize=500&keyword=bad%0Avalue&categoryId=bad&status=Deleted",
         ),
       ),
     ).toEqual({
       page: 1,
       pageSize: 20,
       keyword: "",
-      language: "",
       status: "",
-      tag: "",
+      categoryId: "",
     });
   });
 });

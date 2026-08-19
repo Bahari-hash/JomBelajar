@@ -2,9 +2,12 @@ import { baseApi } from "@/services/baseApi.js";
 import {
   normalizeAdminPaper,
   normalizePaperPage,
-  normalizePaperTagPage,
   normalizePaperValidation,
 } from "@/services/paperContracts.js";
+import {
+  normalizePaperBatchImport,
+  normalizePaperBatchValidation,
+} from "@/services/paperBatchContracts.js";
 
 const CONTRACT_ERROR = Object.freeze({
   status: "CUSTOM_ERROR",
@@ -36,7 +39,7 @@ function buildListUrl(filters) {
   });
   if (filters.keyword) params.set("keyword", filters.keyword);
   if (filters.status) params.set("status", filters.status);
-  if (filters.tag) params.set("tag", filters.tag);
+  if (filters.categoryId) params.set("categoryId", filters.categoryId);
   return `/admin/papers?${params.toString()}`;
 }
 
@@ -46,7 +49,6 @@ function invalidatePaper(_result, error, { paperId }) {
     : [
         { type: "Paper", id: paperId },
         { type: "Paper", id: "LIST" },
-        { type: "Paper", id: "TAG_LIST" },
       ];
 }
 
@@ -69,16 +71,44 @@ export const papersApi = baseApi.injectEndpoints({
             ]
           : [{ type: "Paper", id: "LIST" }],
     }),
-    getAdminPaperTags: builder.query({
-      queryFn: normalizedQuery(({ page, pageSize, keyword }) => {
-        const params = new URLSearchParams({
-          page: String(page),
-          pageSize: String(pageSize),
+    validatePaperBatch: builder.mutation({
+      queryFn: normalizedQuery(
+        (body) => ({
+          url: "/admin/papers/batch/validate",
+          method: "POST",
+          body,
+        }),
+        normalizePaperBatchValidation,
+      ),
+    }),
+    importPaperBatch: builder.mutation({
+      async queryFn(body, _api, _extraOptions, baseQuery) {
+        const result = await baseQuery({
+          url: "/admin/papers/batch",
+          method: "POST",
+          body,
         });
-        if (keyword) params.set("keyword", keyword);
-        return { url: `/admin/paper-tags?${params.toString()}` };
-      }, normalizePaperTagPage),
-      providesTags: [{ type: "Paper", id: "TAG_LIST" }],
+        if (result.error?.status === 422) {
+          try {
+            return {
+              error: {
+                ...result.error,
+                data: normalizePaperBatchValidation(result.error.data),
+              },
+            };
+          } catch {
+            return { error: CONTRACT_ERROR };
+          }
+        }
+        if (result.error) return result;
+        try {
+          return { data: normalizePaperBatchImport(result.data) };
+        } catch {
+          return { error: CONTRACT_ERROR };
+        }
+      },
+      invalidatesTags: (_result, error) =>
+        error ? [] : [{ type: "Paper", id: "LIST" }],
     }),
     getAdminPaper: builder.query({
       queryFn: normalizedQuery(
@@ -95,12 +125,7 @@ export const papersApi = baseApi.injectEndpoints({
         normalizeAdminPaper,
       ),
       invalidatesTags: (_result, error) =>
-        error
-          ? []
-          : [
-              { type: "Paper", id: "LIST" },
-              { type: "Paper", id: "TAG_LIST" },
-            ],
+        error ? [] : [{ type: "Paper", id: "LIST" }],
     }),
     updatePaper: builder.mutation({
       queryFn: normalizedQuery(
@@ -173,9 +198,10 @@ export const {
   useDeletePaperMutation,
   useGetAdminPaperQuery,
   useGetAdminPapersQuery,
-  useGetAdminPaperTagsQuery,
+  useImportPaperBatchMutation,
   usePublishPaperMutation,
   useUnpublishPaperMutation,
   useUpdatePaperMutation,
+  useValidatePaperBatchMutation,
   useValidatePaperMutation,
 } = papersApi;

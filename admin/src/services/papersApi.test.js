@@ -11,6 +11,7 @@ const IDS = Object.freeze({
   question: "44444444-4444-4444-8444-444444444444",
   optionA: "55555555-5555-4555-8555-555555555555",
   optionB: "66666666-6666-4666-8666-666666666666",
+  category: "77777777-7777-4777-8777-777777777777",
 });
 
 function auditUser() {
@@ -23,7 +24,7 @@ function detail(overrides = {}) {
     title: "English basics",
     description: null,
     instructions: "Choose the answer.",
-    tags: ["grammar", "a2"],
+    categories: [{ id: IDS.category, name: "语法", slug: "grammar" }],
     status: "Draft",
     passingScorePercentage: 60,
     passingScore: 1,
@@ -59,6 +60,8 @@ function detail(overrides = {}) {
           },
         ],
         acceptedAnswers: [],
+        audioResourceId: null,
+        dictationBlanks: [],
       },
     ],
     createdAt: "2026-08-02T10:00:00Z",
@@ -99,78 +102,16 @@ describe("papersApi", () => {
         pageSize: 20,
         keyword: "English",
         status: "Draft",
-        tag: "cet-4",
+        categoryId: IDS.category,
       }),
     );
     await expect(request.unwrap()).resolves.toMatchObject({
-      items: [{ title: "English basics", tags: ["grammar", "a2"] }],
+      items: [{ title: "English basics", categories: [{ id: IDS.category }] }],
     });
     expect(requestMock.mock.calls[0][0].url).toBe(
-      "/admin/papers?page=2&pageSize=20&keyword=English&status=Draft&tag=cet-4",
+      `/admin/papers?page=2&pageSize=20&keyword=English&status=Draft&categoryId=${IDS.category}`,
     );
     request.unsubscribe();
-  });
-
-  it("loads and validates the administrator Paper tag directory", async () => {
-    tokenVault.install("access", "refresh");
-    const requestMock = mockHttpClient(() =>
-      Promise.resolve(
-        axiosResponse({
-          items: [{ name: "grammar", paperCount: 8 }],
-          page: 1,
-          pageSize: 20,
-          totalCount: 1,
-          totalPages: 1,
-        }),
-      ),
-    );
-    const store = createAppStore();
-    await expect(
-      store
-        .dispatch(
-          papersApi.endpoints.getAdminPaperTags.initiate({
-            page: 1,
-            pageSize: 20,
-            keyword: "gram",
-          }),
-        )
-        .unwrap(),
-    ).resolves.toEqual({
-      items: [{ name: "grammar", paperCount: 8 }],
-      page: 1,
-      pageSize: 20,
-      totalCount: 1,
-      totalPages: 1,
-    });
-    expect(requestMock.mock.calls[0][0].url).toBe(
-      "/admin/paper-tags?page=1&pageSize=20&keyword=gram",
-    );
-  });
-
-  it("rejects malformed Paper tag directory responses", async () => {
-    tokenVault.install("access", "refresh");
-    mockHttpClient(() =>
-      Promise.resolve(
-        axiosResponse({
-          items: [{ name: "", paperCount: 1 }],
-          page: 1,
-          pageSize: 20,
-          totalCount: 1,
-          totalPages: 1,
-        }),
-      ),
-    );
-    const store = createAppStore();
-    await expect(
-      store
-        .dispatch(
-          papersApi.endpoints.getAdminPaperTags.initiate({
-            page: 1,
-            pageSize: 20,
-          }),
-        )
-        .unwrap(),
-    ).rejects.toMatchObject({ status: "CUSTOM_ERROR", kind: "contract" });
   });
 
   it("uses exact aggregate, validation and lifecycle contracts", async () => {
@@ -202,7 +143,7 @@ describe("papersApi", () => {
       title: "English basics",
       description: null,
       instructions: null,
-      tags: ["grammar", "a2"],
+      categoryIds: [IDS.category],
       passingScorePercentage: 60,
       questions: [],
     };
@@ -316,11 +257,17 @@ describe("papersApi", () => {
     ).rejects.toMatchObject({ status: "CUSTOM_ERROR", kind: "contract" });
   });
 
-  it("rejects non-canonical paper tag contracts", async () => {
+  it("rejects malformed paper category contracts", async () => {
     tokenVault.install("access", "refresh");
     const store = createAppStore();
     mockHttpClient(() =>
-      Promise.resolve(axiosResponse(detail({ tags: ["Grammar", "grammar"] }))),
+      Promise.resolve(
+        axiosResponse(
+          detail({
+            categories: [{ id: "bad", name: "语法", slug: "grammar" }],
+          }),
+        ),
+      ),
     );
 
     await expect(

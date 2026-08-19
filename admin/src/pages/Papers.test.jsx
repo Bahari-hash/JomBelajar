@@ -6,6 +6,7 @@ import { axiosResponse, mockHttpClient } from "@/test/http.js";
 import { renderAppAt } from "@/test/renderApp.jsx";
 
 const PAPER_ID = "11111111-1111-4111-8111-111111111111";
+const CATEGORY_ID = "77777777-7777-4777-8777-777777777777";
 
 function paperListItem(overrides = {}) {
   const user = {
@@ -16,7 +17,7 @@ function paperListItem(overrides = {}) {
   return {
     id: PAPER_ID,
     title: "English basics",
-    tags: [],
+    categories: [{ id: CATEGORY_ID, name: "听力", slug: "listening" }],
     status: "Draft",
     questionCount: 2,
     totalScore: 4,
@@ -49,7 +50,7 @@ describe("Papers", () => {
     );
     const user = userEvent.setup();
     const { router } = renderAppAt("/papers", {
-      initialEntry: "/papers?status=Draft&tag=cet-4",
+      initialEntry: `/papers?status=Draft&categoryId=${CATEGORY_ID}`,
     });
 
     expect(
@@ -62,13 +63,23 @@ describe("Papers", () => {
     await waitFor(() => expect(router.state.location.search).toBe(""));
   });
 
-  it("applies a selected tag only after submitting filter drafts", async () => {
+  it("applies a selected category only after submitting filter drafts", async () => {
     tokenVault.install("access", "refresh");
     const requestMock = mockHttpClient((config) => {
-      if (config.url.startsWith("/admin/paper-tags"))
+      if (config.url.startsWith("/admin/paper-categories"))
         return Promise.resolve(
           axiosResponse({
-            items: [{ name: "grammar", paperCount: 8 }],
+            items: [
+              {
+                id: CATEGORY_ID,
+                name: "听力",
+                slug: "listening",
+                description: null,
+                isActive: true,
+                paperCount: 8,
+                createdAt: "2026-08-02T10:00:00Z",
+              },
+            ],
             page: 1,
             pageSize: 20,
             totalCount: 1,
@@ -91,25 +102,27 @@ describe("Papers", () => {
     expect(
       await screen.findByRole("link", { name: "English basics" }),
     ).toBeVisible();
-    await user.click(screen.getByRole("combobox", { name: "标签" }));
-    await user.click(await screen.findByRole("option", { name: "grammar 8" }));
+    await user.click(screen.getByRole("combobox", { name: "分类" }));
+    await user.click(await screen.findByRole("option", { name: "听力" }));
 
     expect(
       requestMock.mock.calls
         .map(([config]) => config.url)
         .filter((url) => url.startsWith("/admin/papers?"))
-        .some((url) => url.includes("tag=grammar")),
+        .some((url) => url.includes(`categoryId=${CATEGORY_ID}`)),
     ).toBe(false);
 
     await user.click(screen.getByRole("button", { name: "应用" }));
     await waitFor(() => {
-      expect(router.state.location.search).toContain("tag=grammar");
+      expect(router.state.location.search).toContain(
+        `categoryId=${CATEGORY_ID}`,
+      );
       expect(
         requestMock.mock.calls
           .map(([config]) => config.url)
           .filter((url) => url.startsWith("/admin/papers?"))
           .at(-1),
-      ).toContain("tag=grammar");
+      ).toContain(`categoryId=${CATEGORY_ID}`);
     });
   });
 

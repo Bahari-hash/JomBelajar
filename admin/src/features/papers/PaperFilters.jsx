@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.jsx";
 import { PAPER_STATUS_OPTIONS } from "@/constants/paperStatus.js";
-import { PaperTagCombobox } from "@/features/papers/PaperTagCombobox.jsx";
+import { useGetAllPaperCategoryOptionsQuery } from "@/services/paperCategoriesApi.js";
 
 const ALL = "all";
 const PAGE_SIZES = [20, 50, 100];
@@ -19,10 +19,11 @@ const PAGE_SIZES = [20, 50, 100];
 /** Edits paper list filters before applying them to shareable URL state. */
 export function PaperFilters({ filters, onApply, onReset }) {
   const [draft, setDraft] = useState(filters);
-  const { keyword, language, page, pageSize, status, tag } = filters;
+  const { categoryId, keyword, page, pageSize, status } = filters;
+  const categoriesQuery = useGetAllPaperCategoryOptionsQuery();
   useEffect(
-    () => setDraft({ keyword, language, page, pageSize, status, tag }),
-    [keyword, language, page, pageSize, status, tag],
+    () => setDraft({ categoryId, keyword, page, pageSize, status }),
+    [categoryId, keyword, page, pageSize, status],
   );
   const update = (key, value) =>
     setDraft((current) => ({ ...current, [key]: value }));
@@ -32,9 +33,8 @@ export function PaperFilters({ filters, onApply, onReset }) {
     onApply({
       ...draft,
       keyword: draft.keyword.trim(),
-      language: draft.language.trim(),
       status: draft.status === ALL ? "" : draft.status,
-      tag: draft.tag,
+      categoryId: draft.categoryId === ALL ? "" : draft.categoryId,
       pageSize: Number(draft.pageSize),
     });
   };
@@ -44,9 +44,8 @@ export function PaperFilters({ filters, onApply, onReset }) {
       page: 1,
       pageSize: 20,
       keyword: "",
-      language: "",
       status: "",
-      tag: "",
+      categoryId: "",
     });
     onReset();
   };
@@ -63,20 +62,25 @@ export function PaperFilters({ filters, onApply, onReset }) {
           onChange={(value) => update("keyword", value)}
         />
         <div className="min-w-0 space-y-1.5">
-          <Label>标签</Label>
-          <PaperTagCombobox
-            value={draft.tag}
-            onChange={(value) => update("tag", value)}
-          />
+          <Label id="paper-category-label">分类</Label>
+          <Select
+            value={draft.categoryId || ALL}
+            onValueChange={(value) => update("categoryId", value)}
+          >
+            <SelectTrigger aria-labelledby="paper-category-label">
+              <SelectValue placeholder="全部分类" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>全部分类</SelectItem>
+              {(categoriesQuery.data ?? []).map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
+                  {category.isActive ? "" : "（已停用）"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        {/* <TextFilter
-          id="paper-language"
-          label="语言"
-          value={draft.language}
-          maxLength={35}
-          placeholder="例如 en"
-          onChange={(value) => update("language", value)}
-        /> */}
         <FilterSelect
           label="状态"
           value={draft.status || ALL}

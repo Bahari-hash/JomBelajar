@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  AudioLines,
   ChevronDown,
   ChevronUp,
   Eye,
@@ -50,12 +51,14 @@ import {
   isPaperEditable,
 } from "@/constants/paperStatus.js";
 import { PaperActionDialog } from "@/features/papers/PaperActionDialog.jsx";
-import { PaperTagInput } from "@/features/papers/PaperTagInput.jsx";
+import { DictationAudioControl } from "@/features/papers/DictationAudioControl.jsx";
+import { PaperCategorySelector } from "@/features/papers/PaperCategorySelector.jsx";
 import { PaperUnsavedChangesDialog } from "@/features/papers/PaperUnsavedChangesDialog.jsx";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges.js";
 import { formatDateTime } from "@/lib/dateTime.js";
 import { getErrorMessage } from "@/services/problemDetails.js";
+import { useGetAllPaperCategoryOptionsQuery } from "@/services/paperCategoriesApi.js";
 import {
   useCreatePaperMutation,
   useGetAdminPaperQuery,
@@ -70,13 +73,14 @@ const TYPE_RESET_COPY = {
   SingleChoice: "将只保留单选题选项，清除判断答案和填空答案。",
   TrueFalse: "将只保留判断题答案，清除单选选项和填空答案。",
   FillBlank: "将只保留填空可接受答案，清除单选选项和判断答案。",
+  Dictation: "将只保留听写音频和听写空，清除其他题型的答案。",
 };
 
 const emptyForm = () => ({
   title: "",
   description: "",
   instructions: "",
-  tags: [],
+  categoryIds: [],
   passingScorePercentage: 60,
   concurrencyStamp: null,
   status: "Draft",
@@ -96,6 +100,8 @@ function createQuestion(type = "SingleChoice") {
     fillBlankCaseSensitive: false,
     options: [],
     acceptedAnswers: [],
+    audioResource: null,
+    dictationBlanks: [],
   };
 }
 
@@ -116,12 +122,20 @@ function createAnswer() {
   };
 }
 
+function createDictationBlank() {
+  return {
+    _key: draftKey("dictation-blank"),
+    id: null,
+    answer: "",
+  };
+}
+
 function formFromPaper(paper) {
   return {
     title: paper.title,
     description: paper.description ?? "",
     instructions: paper.instructions ?? "",
-    tags: paper.tags,
+    categoryIds: paper.categories.map((category) => category.id),
     passingScorePercentage: paper.passingScorePercentage,
     concurrencyStamp: paper.concurrencyStamp,
     status: paper.status,
@@ -146,6 +160,18 @@ function formFromPaper(paper) {
         id: answer.id,
         text: answer.text,
       })),
+      audioResource: question.audioResourceId
+        ? {
+            id: question.audioResourceId,
+            name: question.audioResourceId,
+            status: "Ready",
+          }
+        : null,
+      dictationBlanks: question.dictationBlanks.map((blank) => ({
+        _key: blank.id,
+        id: blank.id,
+        answer: blank.answer,
+      })),
     })),
   };
 }
@@ -160,7 +186,7 @@ function payloadFromForm(form, includeStamp) {
     title: form.title,
     description: compactText(form.description),
     instructions: compactText(form.instructions),
-    tags: form.tags,
+    categoryIds: form.categoryIds,
     passingScorePercentage: Number(form.passingScorePercentage),
     questions: form.questions.map((question, questionIndex) => ({
       id: question.id,
@@ -190,6 +216,18 @@ function payloadFromForm(form, includeStamp) {
               id: answer.id,
               text: answer.text,
               sortOrder: answerIndex,
+            }))
+          : [],
+      audioResourceId:
+        question.type === "Dictation"
+          ? (question.audioResource?.id ?? null)
+          : null,
+      dictationBlanks:
+        question.type === "Dictation"
+          ? question.dictationBlanks.map((blank, blankIndex) => ({
+              id: blank.id,
+              answer: blank.answer,
+              sortOrder: blankIndex,
             }))
           : [],
     })),
@@ -276,6 +314,20 @@ function basicValidate(form) {
       if (answer.text.length > 1000)
         errors[field] = ["答案不能超过 1,000 个字符。"];
     });
+    question.dictationBlanks.forEach((blank, blankIndex) => {
+      const field = `${prefix}.dictationBlanks[${blankIndex}].answer`;
+      if (!blank.answer.trim()) errors[field] = ["请输入听写空的标准答案。"];
+      if (blank.answer.length > 1000)
+        errors[field] = ["答案不能超过 1,000 个字符。"];
+    });
+    if (
+      question.type === "Dictation" &&
+      question.audioResource &&
+      question.audioResource.status !== "Ready"
+    )
+      errors[`${prefix}.audioResourceId`] = [
+        "听写音频必须处理成功后才能保存。",
+      ];
   });
   return errors;
 }
@@ -306,6 +358,7 @@ function PaperEditor() {
     isLoading,
     refetch,
   } = useGetAdminPaperQuery(paperId, { skip: isNew });
+  const categoryOptionsQuery = useGetAllPaperCategoryOptionsQuery();
   const [createPaper, createState] = useCreatePaperMutation();
   const [updatePaper, updateState] = useUpdatePaperMutation();
   const [validatePaper, validateState] = useValidatePaperMutation();
@@ -474,6 +527,8 @@ function PaperEditor() {
         nextType === "FillBlank" ? question.fillBlankCaseSensitive : false,
       options: [],
       acceptedAnswers: [],
+      audioResource: nextType === "Dictation" ? question.audioResource : null,
+      dictationBlanks: nextType === "Dictation" ? question.dictationBlanks : [],
     }));
   };
 
@@ -621,6 +676,8 @@ function PaperEditor() {
             form={form}
             readOnly={readOnly}
             fieldError={fieldError}
+            categoryOptions={categoryOptionsQuery.data ?? []}
+            categoriesLoading={categoryOptionsQuery.isLoading}
             onChange={(patchValue) => {
               setForm({ ...form, ...patchValue });
               setFormError(null);
@@ -791,7 +848,14 @@ function PaperEditor() {
   );
 }
 
-function PaperBasics({ form, readOnly, fieldError, onChange }) {
+function PaperBasics({
+  form,
+  readOnly,
+  fieldError,
+  categoryOptions,
+  categoriesLoading,
+  onChange,
+}) {
   return (
     <section className="flex flex-col gap-4">
       <div className="w-full sm:w-1/2">
@@ -805,14 +869,14 @@ function PaperBasics({ form, readOnly, fieldError, onChange }) {
         </Field>
       </div>
 
-      <div className="w-full sm:w-1/2">
-        <Field label="标签" error={fieldError("tags")} path="tags">
-          <PaperTagInput
-            value={form.tags}
-            disabled={readOnly}
-            onChange={(tags) => onChange({ tags })}
-          />
-        </Field>
+      <div className="w-full sm:w-1/2" data-field-path="categoryIds">
+        <PaperCategorySelector
+          categories={categoryOptions}
+          selectedIds={form.categoryIds}
+          disabled={readOnly || categoriesLoading}
+          error={fieldError("categoryIds")}
+          onChange={(categoryIds) => onChange({ categoryIds })}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -1148,6 +1212,15 @@ function QuestionBlock({
               updateQuestion={updateQuestion}
             />
           ) : null}
+          {question.type === "Dictation" ? (
+            <DictationEditor
+              question={question}
+              questionIndex={questionIndex}
+              readOnly={readOnly}
+              fieldError={fieldError}
+              updateQuestion={updateQuestion}
+            />
+          ) : null}
           {!readOnly ? (
             <div className="flex justify-end border-t pt-4">
               <Button
@@ -1460,6 +1533,124 @@ function FillBlankEditor({
   );
 }
 
+function DictationEditor({
+  question,
+  questionIndex,
+  readOnly,
+  fieldError,
+  updateQuestion,
+}) {
+  const prefix = `questions[${questionIndex}]`;
+  return (
+    <section
+      className="space-y-4"
+      data-field-path={`${prefix}.dictationBlanks`}
+      tabIndex={-1}
+    >
+      <DictationAudioControl
+        value={question.audioResource}
+        disabled={readOnly}
+        error={fieldError(`${prefix}.audioResourceId`)}
+        onChange={(audioResource) =>
+          updateQuestion(question._key, (value) => ({
+            ...value,
+            audioResource,
+          }))
+        }
+      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-medium">听写空</h4>
+          <p className="text-xs text-muted-foreground">
+            按播放后输入的顺序维护标准答案，所有空正确才获得整题分数。
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={readOnly || question.dictationBlanks.length >= 20}
+          onClick={() =>
+            updateQuestion(question._key, (value) => ({
+              ...value,
+              dictationBlanks: [
+                ...value.dictationBlanks,
+                createDictationBlank(),
+              ],
+            }))
+          }
+        >
+          <Plus aria-hidden="true" />
+          添加听写空
+        </Button>
+      </div>
+      {fieldError(`${prefix}.dictationBlanks`) ? (
+        <p className="text-xs text-destructive" role="alert">
+          {fieldError(`${prefix}.dictationBlanks`)}
+        </p>
+      ) : null}
+      <div className="space-y-3">
+        {question.dictationBlanks.map((blank, blankIndex) => {
+          const field = `${prefix}.dictationBlanks[${blankIndex}].answer`;
+          return (
+            <div
+              key={blank._key}
+              className="grid gap-2 border-t pt-3 first:border-t-0 first:pt-0 md:grid-cols-[1fr_auto]"
+            >
+              <Field
+                label={`听写空 ${blankIndex + 1}`}
+                required
+                error={fieldError(field)}
+                path={field}
+              >
+                <Input
+                  value={blank.answer}
+                  maxLength={1000}
+                  disabled={readOnly}
+                  onChange={(event) =>
+                    updateQuestion(question._key, (value) => ({
+                      ...value,
+                      dictationBlanks: value.dictationBlanks.map((item) =>
+                        item._key === blank._key
+                          ? { ...item, answer: event.target.value }
+                          : item,
+                      ),
+                    }))
+                  }
+                />
+              </Field>
+              <OrderButtons
+                label={`听写空 ${blankIndex + 1}`}
+                index={blankIndex}
+                count={question.dictationBlanks.length}
+                disabled={readOnly}
+                onMove={(offset) =>
+                  updateQuestion(question._key, (value) => ({
+                    ...value,
+                    dictationBlanks: move(
+                      value.dictationBlanks,
+                      blankIndex,
+                      offset,
+                    ),
+                  }))
+                }
+                onDelete={() =>
+                  updateQuestion(question._key, (value) => ({
+                    ...value,
+                    dictationBlanks: value.dictationBlanks.filter(
+                      (item) => item._key !== blank._key,
+                    ),
+                  }))
+                }
+              />
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function PaperPreview({ form }) {
   return (
     <section className="space-y-5">
@@ -1535,6 +1726,21 @@ function PaperPreview({ form }) {
             ) : null}
             {question.type === "FillBlank" ? (
               <Input disabled aria-label={`第 ${index + 1} 题填空预览`} />
+            ) : null}
+            {question.type === "Dictation" ? (
+              <div className="space-y-2">
+                <div className="flex min-h-12 items-center gap-2 border-y px-2 text-sm text-muted-foreground">
+                  <AudioLines aria-hidden="true" className="size-4" />
+                  听写音频将在用户端提供播放
+                </div>
+                {question.dictationBlanks.map((blank, blankIndex) => (
+                  <Input
+                    key={blank._key}
+                    disabled
+                    aria-label={`第 ${index + 1} 题听写空 ${blankIndex + 1} 预览`}
+                  />
+                ))}
+              </div>
             ) : null}
             {question.explanation ? (
               <p className="whitespace-pre-wrap text-xs text-muted-foreground">

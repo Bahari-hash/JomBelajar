@@ -37,14 +37,16 @@ export function AudioResourcePickerDialog({
   value,
   onSelect,
   onOpenChange,
+  requiredStatus = null,
 }) {
   const [draftKeyword, setDraftKeyword] = useState("");
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(value);
+  const effectiveStatus = requiredStatus ?? status;
   const query = useGetAdminAudioResourcesQuery(
-    { page, pageSize: PAGE_SIZE, keyword, status },
+    { page, pageSize: PAGE_SIZE, keyword, status: effectiveStatus },
     { skip: !open },
   );
 
@@ -69,7 +71,9 @@ export function AudioResourcePickerDialog({
         <DialogHeader>
           <DialogTitle>选择音频资源</DialogTitle>
           <DialogDescription>
-            可以关联处于任意处理状态的音频资源。
+            {requiredStatus === "Ready"
+              ? "仅显示已经处理成功、可以立即使用的音频资源。"
+              : "可以关联处于任意处理状态的音频资源。"}
           </DialogDescription>
         </DialogHeader>
 
@@ -92,7 +96,8 @@ export function AudioResourcePickerDialog({
           <div className="space-y-1.5">
             <Label htmlFor="audio-picker-status">状态</Label>
             <Select
-              value={status || "all"}
+              value={effectiveStatus || "all"}
+              disabled={Boolean(requiredStatus)}
               onValueChange={(nextStatus) => {
                 setStatus(nextStatus === "all" ? "" : nextStatus);
                 setPage(1);
@@ -130,7 +135,7 @@ export function AudioResourcePickerDialog({
                 onClick={() => {
                   setDraftKeyword("");
                   setKeyword("");
-                  setStatus("");
+                  if (!requiredStatus) setStatus("");
                   setPage(1);
                 }}
               >

@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileQuestion,
+  Import,
   Plus,
   RotateCcw,
 } from "lucide-react";
@@ -42,7 +43,7 @@ function Papers() {
   }, [data, filters, setSearchParams]);
 
   const hasFilters = Boolean(
-    filters.keyword || filters.language || filters.status || filters.tag,
+    filters.keyword || filters.status || filters.categoryId,
   );
 
   return (
@@ -59,6 +60,12 @@ function Papers() {
               className={isFetching ? "animate-spin" : undefined}
             />
             {isFetching ? "正在刷新" : "刷新"}
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/papers/batch">
+              <Import aria-hidden="true" />
+              批量导入
+            </Link>
           </Button>
           <Button asChild>
             <Link to="/papers/new">

@@ -30,6 +30,7 @@ export const NAVIGATION_GROUPS = Object.freeze([
       { label: "单词管理", href: "/words", icon: Languages },
       { label: "音频资源", href: "/audio", icon: FileAudio },
       { label: "试卷管理", href: "/papers", icon: ListChecks },
+      { label: "试卷分类", href: "/paper-categories", icon: FolderTree },
     ],
   },
   {

@@ -110,6 +110,12 @@ export const routes = [
                 lazy: lazyComponent(() => import("@/pages/Papers.jsx")),
               },
               {
+                path: "paper-categories",
+                lazy: lazyComponent(
+                  () => import("@/pages/PaperCategories.jsx"),
+                ),
+              },
+              {
                 path: "papers/new",
                 lazy: lazyComponent(() => import("@/pages/PaperEditor.jsx")),
               },

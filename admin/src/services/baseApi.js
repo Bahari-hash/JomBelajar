@@ -62,6 +62,7 @@ export const baseApi = createApi({
     "Word",
     "AudioResource",
     "Paper",
+    "PaperCategory",
   ],
   endpoints: () => ({}),
 });

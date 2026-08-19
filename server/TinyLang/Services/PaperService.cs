@@ -57,11 +57,11 @@ public sealed class PaperService : IPaperService
             Title = NormalizeRequired(request.Title),
             Description = NormalizeOptional(request.Description),
             Instructions = NormalizeOptional(request.Instructions),
-            Tags = PaperTagNormalizer.Normalize(request.Tags),
             PassingScorePercentage = request.PassingScorePercentage,
             CreatedById = adminId,
             LastEditorId = adminId
         };
+        await ApplyCategoryTargetAsync(paper, request.CategoryIds, cancellationToken);
         ApplyNewTarget(paper, request);
         paper.TotalScore = CalculateTotalScore(request.Questions);
         paper.PassingScore = CalculatePassingScore(
@@ -101,7 +101,6 @@ public sealed class PaperService : IPaperService
         paper.Title = NormalizeRequired(request.Title);
         paper.Description = NormalizeOptional(request.Description);
         paper.Instructions = NormalizeOptional(request.Instructions);
-        paper.Tags = PaperTagNormalizer.Normalize(request.Tags);
         paper.PassingScorePercentage = request.PassingScorePercentage;
         paper.TotalScore = CalculateTotalScore(request.Questions);
         paper.PassingScore = CalculatePassingScore(
@@ -112,6 +111,7 @@ public sealed class PaperService : IPaperService
 
         StageExistingChildren(paper, request);
         await SavePaperChangesAsync(cancellationToken);
+        await ApplyCategoryTargetAsync(paper, request.CategoryIds, cancellationToken);
         ApplyFinalTarget(paper, request);
         await SavePaperChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -305,10 +305,10 @@ public sealed class PaperService : IPaperService
         {
             query = query.Where(value => value.Status != PaperPublicationStatus.Archived);
         }
-        if (!string.IsNullOrWhiteSpace(request.Tag))
+        if (request.CategoryId is { } categoryId)
         {
-            var tag = request.Tag.Trim().ToLowerInvariant();
-            query = query.Where(value => value.Tags.Contains(tag));
+            query = query.Where(value => value.CategoryAssignments.Any(
+                assignment => assignment.PaperCategoryId == categoryId));
         }
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
@@ -325,7 +325,10 @@ public sealed class PaperService : IPaperService
             .Select(value => new AdminPaperListItemResponse(
                 value.Id,
                 value.Title,
-                value.Tags,
+                value.CategoryAssignments.OrderBy(x => x.PaperCategory.Name)
+                    .Select(x => new PaperCategorySummaryResponse(
+                        x.PaperCategoryId, x.PaperCategory.Name, x.PaperCategory.Slug))
+                    .ToList(),
                 value.Status,
                 value.Questions.Count,
                 value.TotalScore,
@@ -360,10 +363,10 @@ public sealed class PaperService : IPaperService
     {
         ServiceRequestValidator.Validate(request, new PaperCatalogRequestValidator());
         var query = PublishedPapersQuery();
-        if (!string.IsNullOrWhiteSpace(request.Tag))
+        if (request.CategoryId is { } categoryId)
         {
-            var tag = request.Tag.Trim().ToLowerInvariant();
-            query = query.Where(value => value.Tags.Contains(tag));
+            query = query.Where(value => value.CategoryAssignments.Any(
+                assignment => assignment.PaperCategoryId == categoryId));
         }
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
@@ -381,157 +384,14 @@ public sealed class PaperService : IPaperService
                 value.Id,
                 value.Title,
                 value.Description,
-                value.Tags,
+                value.CategoryAssignments.OrderBy(x => x.PaperCategory.Name)
+                    .Select(x => new PaperCategorySummaryResponse(
+                        x.PaperCategoryId, x.PaperCategory.Name, x.PaperCategory.Slug))
+                    .ToList(),
                 value.Questions.Count,
                 value.TotalScore,
                 value.PassingScore,
                 value.PublishedAt!.Value))
-            .ToListAsync(cancellationToken);
-        return CreatePage(items, request.Page, request.PageSize, totalCount);
-    }
-
-    /// <inheritdoc />
-    public Task<PagedResponse<PaperTagSummaryResponse>> GetPublicTagListAsync(
-        PaperTagListRequest request,
-        CancellationToken cancellationToken = default)
-        => GetTagListAsync(
-            PublishedPapersQuery(),
-            request,
-            publishedOnly: true,
-            cancellationToken);
-
-    /// <inheritdoc />
-    public Task<PagedResponse<PaperTagSummaryResponse>> GetAdminTagListAsync(
-        PaperTagListRequest request,
-        CancellationToken cancellationToken = default)
-        => GetTagListAsync(
-            _db.Papers.AsNoTracking(),
-            request,
-            publishedOnly: false,
-            cancellationToken);
-
-    /// <summary>
-    /// 在数据库端展开、搜索、聚合和分页指定可见范围内的规范标签。
-    /// </summary>
-    private async Task<PagedResponse<PaperTagSummaryResponse>> GetTagListAsync(
-        IQueryable<Paper> papers,
-        PaperTagListRequest request,
-        bool publishedOnly,
-        CancellationToken cancellationToken)
-    {
-        ServiceRequestValidator.Validate(request, new PaperTagListRequestValidator());
-        if (_db is DbContext dbContext)
-        {
-            if (dbContext.Database.ProviderName ==
-                "Npgsql.EntityFrameworkCore.PostgreSQL")
-            {
-                return await GetPostgreSqlTagListAsync(
-                    dbContext,
-                    request,
-                    publishedOnly,
-                    cancellationToken);
-            }
-            if (dbContext.Database.ProviderName !=
-                "Microsoft.EntityFrameworkCore.InMemory")
-            {
-                return await GetTranslatedTagListAsync(
-                    papers,
-                    request,
-                    cancellationToken);
-            }
-
-            var arrays = await papers.Select(value => value.Tags)
-                .ToListAsync(cancellationToken);
-            var tags = arrays.SelectMany(value => value);
-            if (!string.IsNullOrWhiteSpace(request.Keyword))
-            {
-                var keyword = request.Keyword.Trim();
-                tags = tags.Where(value => value.Contains(
-                    keyword,
-                    StringComparison.OrdinalIgnoreCase));
-            }
-
-            var inMemoryItems = tags.GroupBy(value => value)
-                .Select(group => new PaperTagSummaryResponse(group.Key, group.Count()))
-                .OrderByDescending(value => value.PaperCount)
-                .ThenBy(value => value.Name)
-                .ToArray();
-            return CreatePage(
-                inMemoryItems.Skip((request.Page - 1) * request.PageSize)
-                    .Take(request.PageSize).ToArray(),
-                request.Page,
-                request.PageSize,
-                inMemoryItems.Length);
-        }
-
-        return await GetTranslatedTagListAsync(papers, request, cancellationToken);
-    }
-
-    /// <summary>
-    /// 使用 PostgreSQL unnest 在数据库端完成标签聚合和分页。
-    /// </summary>
-    private static async Task<PagedResponse<PaperTagSummaryResponse>>
-        GetPostgreSqlTagListAsync(
-            DbContext dbContext,
-            PaperTagListRequest request,
-            bool publishedOnly,
-            CancellationToken cancellationToken)
-    {
-        var keyword = string.IsNullOrWhiteSpace(request.Keyword)
-            ? null
-            : request.Keyword.Trim();
-        var publishedStatus = PaperPublicationStatus.Published.ToString();
-        var totalCount = await dbContext.Database.SqlQuery<int>($"""
-            SELECT COUNT(DISTINCT tag)::integer AS "Value"
-            FROM "papers" AS p
-            CROSS JOIN LATERAL unnest(p."Tags") AS tag
-            WHERE ({publishedOnly} = FALSE OR
-                (p."Status" = {publishedStatus} AND p."PublishedAt" IS NOT NULL))
-              AND (CAST({keyword} AS text) IS NULL OR
-                strpos(lower(tag), lower(CAST({keyword} AS text))) > 0)
-            """).SingleAsync(cancellationToken);
-        var offset = (request.Page - 1) * request.PageSize;
-        var items = await dbContext.Database
-            .SqlQuery<PaperTagSummaryResponse>($"""
-                SELECT tag AS "Name", COUNT(*)::integer AS "PaperCount"
-                FROM "papers" AS p
-                CROSS JOIN LATERAL unnest(p."Tags") AS tag
-                WHERE ({publishedOnly} = FALSE OR
-                    (p."Status" = {publishedStatus} AND p."PublishedAt" IS NOT NULL))
-                  AND (CAST({keyword} AS text) IS NULL OR
-                    strpos(lower(tag), lower(CAST({keyword} AS text))) > 0)
-                GROUP BY tag
-                ORDER BY COUNT(*) DESC, tag
-                LIMIT {request.PageSize} OFFSET {offset}
-                """)
-            .ToListAsync(cancellationToken);
-        return CreatePage(items, request.Page, request.PageSize, totalCount);
-    }
-
-    /// <summary>
-    /// 为支持数组展开聚合的其他 provider 保留标准 LINQ 查询。
-    /// </summary>
-    private static async Task<PagedResponse<PaperTagSummaryResponse>>
-        GetTranslatedTagListAsync(
-            IQueryable<Paper> papers,
-            PaperTagListRequest request,
-            CancellationToken cancellationToken)
-    {
-        var tagsQuery = papers.SelectMany(value => value.Tags);
-        if (!string.IsNullOrWhiteSpace(request.Keyword))
-        {
-            var keyword = request.Keyword.Trim().ToUpperInvariant();
-            tagsQuery = tagsQuery.Where(value => value.ToUpper().Contains(keyword));
-        }
-
-        var grouped = tagsQuery.GroupBy(value => value)
-            .Select(group => new PaperTagSummaryResponse(group.Key, group.Count()));
-        var totalCount = await grouped.CountAsync(cancellationToken);
-        var items = await grouped
-            .OrderByDescending(value => value.PaperCount)
-            .ThenBy(value => value.Name)
-            .Skip((request.Page - 1) * request.PageSize)
-            .Take(request.PageSize)
             .ToListAsync(cancellationToken);
         return CreatePage(items, request.Page, request.PageSize, totalCount);
     }
@@ -547,7 +407,10 @@ public sealed class PaperService : IPaperService
                 value.Title,
                 value.Description,
                 value.Instructions,
-                value.Tags,
+                value.CategoryAssignments.OrderBy(x => x.PaperCategory.Name)
+                    .Select(x => new PaperCategorySummaryResponse(
+                        x.PaperCategoryId, x.PaperCategory.Name, x.PaperCategory.Slug))
+                    .ToList(),
                 value.Questions.Count,
                 value.TotalScore,
                 value.PassingScore,
@@ -562,12 +425,48 @@ public sealed class PaperService : IPaperService
         Guid paperId,
         CancellationToken cancellationToken)
         => await _db.Papers
+            .Include(value => value.CategoryAssignments)
+                .ThenInclude(value => value.PaperCategory)
             .Include(value => value.Questions)
                 .ThenInclude(value => value.Options)
             .Include(value => value.Questions)
                 .ThenInclude(value => value.AcceptedAnswers)
             .SingleOrDefaultAsync(value => value.Id == paperId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.PaperNotFound);
+
+    private async Task ApplyCategoryTargetAsync(
+        Paper paper,
+        IReadOnlyCollection<Guid> categoryIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = categoryIds.Distinct().ToArray();
+        var categories = await _db.PaperCategories
+            .Where(x => ids.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        if (categories.Count != ids.Length)
+        {
+            throw NotFoundException.Create(ErrorCodes.PaperCategoryNotFound);
+        }
+        if (categories.Any(x => !x.IsActive))
+        {
+            throw ConflictException.Create(ErrorCodes.PaperCategoryInactive);
+        }
+        foreach (var assignment in paper.CategoryAssignments.ToArray())
+        {
+            _db.PaperCategoryAssignments.Remove(assignment);
+            paper.CategoryAssignments.Remove(assignment);
+        }
+        foreach (var category in categories)
+        {
+            paper.CategoryAssignments.Add(new PaperCategoryAssignment
+            {
+                PaperId = paper.Id,
+                Paper = paper,
+                PaperCategoryId = category.Id,
+                PaperCategory = category
+            });
+        }
+    }
 
     /// <summary>
     /// 判断试卷是否已经产生任意用户测验记录。
@@ -1165,7 +1064,10 @@ public sealed class PaperService : IPaperService
             paper.Title,
             paper.Description,
             paper.Instructions,
-            paper.Tags,
+            paper.CategoryAssignments.OrderBy(x => x.PaperCategory.Name)
+                .Select(x => new PaperCategorySummaryResponse(
+                    x.PaperCategoryId, x.PaperCategory.Name, x.PaperCategory.Slug))
+                .ToList(),
             paper.Status,
             paper.PassingScorePercentage,
             paper.PassingScore,

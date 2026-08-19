@@ -25,7 +25,7 @@ public static class OnlineQuizEndpoints
         var userGroup = endpoints.MapGroup("/")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        userGroup.MapGet("/paper-tags", GetPaperTagsAsync);
+        userGroup.MapGet("/paper-categories", GetPaperCategoriesAsync);
 
         userGroup.MapGet("/papers", GetPapersAsync);
         userGroup.MapGet("/papers/{paperId:guid}", GetPaperAsync);
@@ -41,7 +41,10 @@ public static class OnlineQuizEndpoints
         var adminGroup = endpoints.MapGroup("/admin")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
-        adminGroup.MapGet("/paper-tags", GetAdminPaperTagsAsync);
+        adminGroup.MapGet("/paper-categories", GetAdminPaperCategoriesAsync);
+        adminGroup.MapPost("/paper-categories", CreatePaperCategoryAsync);
+        adminGroup.MapPut("/paper-categories/{id:guid}", UpdatePaperCategoryAsync);
+        adminGroup.MapDelete("/paper-categories/{id:guid}", DeletePaperCategoryAsync);
 
         adminGroup.MapPost("/papers", CreatePaperAsync);
         adminGroup.MapGet("/papers", GetAdminPapersAsync);
@@ -189,26 +192,51 @@ public static class OnlineQuizEndpoints
     }
 
     /// <summary>
-    /// 获取当前用户可见的已发布试卷标签目录。
+    /// 获取当前用户可见的已发布试卷分类目录。
     /// </summary>
-    public static async Task<Ok<PagedResponse<PaperTagSummaryResponse>>> GetPaperTagsAsync(
-        [AsParameters] PaperTagListRequest request,
-        IPaperService paperService,
+    public static async Task<Ok<PagedResponse<PaperCategoryResponse>>> GetPaperCategoriesAsync(
+        [AsParameters] PaperCategoryListRequest request,
+        IPaperCategoryService categoryService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await paperService.GetPublicTagListAsync(
+        => TypedResults.Ok(await categoryService.GetPublicListAsync(
             request,
             cancellationToken));
 
     /// <summary>
-    /// 获取管理员可见的全部试卷标签目录。
+    /// 获取管理员可见的全部试卷分类目录。
     /// </summary>
-    public static async Task<Ok<PagedResponse<PaperTagSummaryResponse>>> GetAdminPaperTagsAsync(
-        [AsParameters] PaperTagListRequest request,
-        IPaperService paperService,
+    public static async Task<Ok<PagedResponse<PaperCategoryResponse>>> GetAdminPaperCategoriesAsync(
+        [AsParameters] AdminPaperCategoryListRequest request,
+        IPaperCategoryService categoryService,
         CancellationToken cancellationToken)
-        => TypedResults.Ok(await paperService.GetAdminTagListAsync(
+        => TypedResults.Ok(await categoryService.GetAdminListAsync(
             request,
             cancellationToken));
+
+    public static async Task<Created<PaperCategoryResponse>> CreatePaperCategoryAsync(
+        CreatePaperCategoryRequest request,
+        IPaperCategoryService categoryService,
+        CancellationToken cancellationToken)
+    {
+        var response = await categoryService.CreateAsync(request, cancellationToken);
+        return TypedResults.Created($"/api/admin/paper-categories/{response.Id}", response);
+    }
+
+    public static async Task<Ok<PaperCategoryResponse>> UpdatePaperCategoryAsync(
+        Guid id,
+        UpdatePaperCategoryRequest request,
+        IPaperCategoryService categoryService,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await categoryService.UpdateAsync(id, request, cancellationToken));
+
+    public static async Task<NoContent> DeletePaperCategoryAsync(
+        Guid id,
+        IPaperCategoryService categoryService,
+        CancellationToken cancellationToken)
+    {
+        await categoryService.DeleteAsync(id, cancellationToken);
+        return TypedResults.NoContent();
+    }
     /// <summary>
     /// 获取当前用户可见的已发布试卷分页目录。
     /// </summary>

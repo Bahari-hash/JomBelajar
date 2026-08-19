@@ -12,7 +12,6 @@ public abstract record PaperUpsertRequest
     public required string Title { get; init; }
     public string? Description { get; init; }
     public string? Instructions { get; init; }
-    public IReadOnlyCollection<string> Tags { get; init; } = [];
     public IReadOnlyCollection<Guid> CategoryIds { get; init; } = [];
     public int PassingScorePercentage { get; init; } = 60;
     public IReadOnlyCollection<PaperQuestionInput> Questions { get; init; } = [];
@@ -95,7 +94,7 @@ public sealed record AdminPaperListRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
-    public string? Tag { get; init; }
+    public Guid? CategoryId { get; init; }
     public PaperPublicationStatus? Status { get; init; }
 }
 
@@ -107,23 +106,46 @@ public sealed record PaperCatalogRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
-    public string? Tag { get; init; }
+    public Guid? CategoryId { get; init; }
 }
 
-/// <summary>
-/// 描述试卷标签目录的分页和名称搜索条件。
-/// </summary>
-public sealed record PaperTagListRequest
+public record PaperCategoryListRequest
 {
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Keyword { get; init; }
 }
 
-/// <summary>
-/// 返回规范标签及其可见试卷数量。
-/// </summary>
-public sealed record PaperTagSummaryResponse(string Name, int PaperCount);
+public sealed record AdminPaperCategoryListRequest : PaperCategoryListRequest
+{
+    public bool IncludeInactive { get; init; }
+}
+
+public sealed record CreatePaperCategoryRequest
+{
+    public required string Name { get; init; }
+    public required string Slug { get; init; }
+    public string? Description { get; init; }
+}
+
+public sealed record UpdatePaperCategoryRequest
+{
+    public required string Name { get; init; }
+    public required string Slug { get; init; }
+    public string? Description { get; init; }
+    public bool IsActive { get; init; }
+}
+
+public sealed record PaperCategoryResponse(
+    Guid Id,
+    string Name,
+    string Slug,
+    string? Description,
+    bool IsActive,
+    int PaperCount,
+    DateTimeOffset CreatedAt);
+
+public sealed record PaperCategorySummaryResponse(Guid Id, string Name, string Slug);
 /// <summary>
 /// 描述当前用户指定试卷测验历史的分页条件。
 /// </summary>
@@ -201,7 +223,7 @@ public sealed record AdminPaperResponse(
     string Title,
     string? Description,
     string? Instructions,
-    IReadOnlyList<string> Tags,
+    IReadOnlyList<PaperCategorySummaryResponse> Categories,
     PaperPublicationStatus Status,
     int PassingScorePercentage,
     int PassingScore,
@@ -222,7 +244,7 @@ public sealed record AdminPaperResponse(
 public sealed record AdminPaperListItemResponse(
     Guid Id,
     string Title,
-    IReadOnlyList<string> Tags,
+    IReadOnlyList<PaperCategorySummaryResponse> Categories,
     PaperPublicationStatus Status,
     int QuestionCount,
     int TotalScore,
@@ -243,7 +265,7 @@ public sealed record PaperCatalogItemResponse(
     Guid Id,
     string Title,
     string? Description,
-    IReadOnlyList<string> Tags,
+    IReadOnlyList<PaperCategorySummaryResponse> Categories,
     int QuestionCount,
     int TotalScore,
     int PassingScore,
@@ -257,7 +279,7 @@ public sealed record PaperDetailsResponse(
     string Title,
     string? Description,
     string? Instructions,
-    IReadOnlyList<string> Tags,
+    IReadOnlyList<PaperCategorySummaryResponse> Categories,
     int QuestionCount,
     int TotalScore,
     int PassingScore,
@@ -388,8 +410,6 @@ public static class OnlineQuizConstraints
     public const int MaxExplanationLength = 5000;
     public const int MaxOptionTextLength = 2000;
     public const int MaxAnswerTextLength = 1000;
-    public const int MaxPaperTagCount = 10;
-    public const int MaxPaperTagLength = 30;
     public const int MaxPaperCategoryCount = 10;
     public const int MaxQuestionCount = 200;
     public const int MaxOptionCount = 10;

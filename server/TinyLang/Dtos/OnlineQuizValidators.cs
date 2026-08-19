@@ -29,17 +29,6 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
         RuleFor(value => value.Instructions)
             .MaximumLength(OnlineQuizConstraints.MaxInstructionsLength)
             .WithErrKey(ErrorCodes.PaperInstructionsLengthLimit);
-        RuleFor(value => value.Tags)
-            .Cascade(CascadeMode.Stop)
-            .NotNull().WithErrKey(ErrorCodes.PaperTagInvalid)
-            .Must(value => value.Count <= OnlineQuizConstraints.MaxPaperTagCount)
-            .WithErrKey(ErrorCodes.PaperTagCountLimit)
-            .Must(HaveValidTags)
-            .WithErrKey(ErrorCodes.PaperTagInvalid)
-            .Must(HaveTagsWithinLengthLimit)
-            .WithErrKey(ErrorCodes.PaperTagLengthLimit)
-            .Must(HaveUniqueTags)
-            .WithErrKey(ErrorCodes.PaperTagDuplicate);
         RuleFor(value => value.CategoryIds)
             .Cascade(CascadeMode.Stop)
             .NotNull().WithErrKey(ErrorCodes.PaperCategoryIdsInvalid)
@@ -71,28 +60,6 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
             .NotNull().WithErrKey(ErrorCodes.PaperQuestionCollectionInvalid)
             .SetValidator(new PaperQuestionInputValidator());
     }
-
-    /// <summary>
-    /// 判断标签均包含可见的非控制字符内容。
-    /// </summary>
-    private static bool HaveValidTags(IReadOnlyCollection<string> tags)
-        => tags.All(tag => !string.IsNullOrWhiteSpace(tag) &&
-            !tag.Any(char.IsControl));
-
-    /// <summary>
-    /// 判断标签裁剪后的长度均不超过写入边界。
-    /// </summary>
-    private static bool HaveTagsWithinLengthLimit(
-        IReadOnlyCollection<string> tags)
-        => tags.All(tag => tag.Trim().Length <=
-            OnlineQuizConstraints.MaxPaperTagLength);
-
-    /// <summary>
-    /// 判断标签裁剪并小写化后互不重复。
-    /// </summary>
-    private static bool HaveUniqueTags(IReadOnlyCollection<string> tags)
-        => tags.Select(tag => tag.Trim().ToLowerInvariant()).Distinct(
-            StringComparer.Ordinal).Count() == tags.Count;
 
     /// <summary>
     /// 判断已有题目标识合法且互不重复。
@@ -502,7 +469,7 @@ public sealed class AdminPaperListRequestValidator
             value => value.Page,
             value => value.PageSize,
             value => value.Keyword,
-            value => value.Tag);
+            value => value.CategoryId);
         RuleFor(value => value.Status)
             .Must(value => value is null || Enum.IsDefined(value.Value))
             .WithErrKey(ErrorCodes.PaperStatusInvalid);
@@ -524,20 +491,17 @@ public sealed class PaperCatalogRequestValidator : AbstractValidator<PaperCatalo
             value => value.Page,
             value => value.PageSize,
             value => value.Keyword,
-            value => value.Tag);
+            value => value.CategoryId);
     }
 }
 
-/// <summary>
-/// 校验标签目录的分页和名称搜索条件。
-/// </summary>
-public sealed class PaperTagListRequestValidator
-    : AbstractValidator<PaperTagListRequest>
+public sealed class PaperCategoryListRequestValidator
+    : AbstractValidator<PaperCategoryListRequest>
 {
     /// <summary>
     /// 初始化标签目录的有界列表规则。
     /// </summary>
-    public PaperTagListRequestValidator()
+    public PaperCategoryListRequestValidator()
     {
         RuleFor(value => value.Page)
             .GreaterThanOrEqualTo(1).WithErrKey(ErrorCodes.PageInvalid);
@@ -547,6 +511,43 @@ public sealed class PaperTagListRequestValidator
             .MaximumLength(200).WithErrKey(ErrorCodes.KeywordLengthLimit)
             .Must(value => string.IsNullOrEmpty(value) || !value.Any(char.IsControl))
             .WithErrKey(ErrorCodes.KeywordInvalid);
+    }
+}
+
+public sealed class CreatePaperCategoryRequestValidator
+    : AbstractValidator<CreatePaperCategoryRequest>
+{
+    public CreatePaperCategoryRequestValidator()
+    {
+        AddRules();
+    }
+
+    private void AddRules()
+    {
+        RuleFor(x => x.Name).NotEmpty().WithErrKey(ErrorCodes.PaperCategoryNameRequired)
+            .MaximumLength(100).WithErrKey(ErrorCodes.PaperCategoryNameLengthLimit);
+        RuleFor(x => x.Slug).NotEmpty().WithErrKey(ErrorCodes.PaperCategorySlugRequired)
+            .MaximumLength(120).WithErrKey(ErrorCodes.PaperCategorySlugLengthLimit)
+            .Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$")
+            .WithErrKey(ErrorCodes.PaperCategorySlugFormatInvalid);
+        RuleFor(x => x.Description).MaximumLength(500)
+            .WithErrKey(ErrorCodes.PaperCategoryDescriptionLengthLimit);
+    }
+}
+
+public sealed class UpdatePaperCategoryRequestValidator
+    : AbstractValidator<UpdatePaperCategoryRequest>
+{
+    public UpdatePaperCategoryRequestValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().WithErrKey(ErrorCodes.PaperCategoryNameRequired)
+            .MaximumLength(100).WithErrKey(ErrorCodes.PaperCategoryNameLengthLimit);
+        RuleFor(x => x.Slug).NotEmpty().WithErrKey(ErrorCodes.PaperCategorySlugRequired)
+            .MaximumLength(120).WithErrKey(ErrorCodes.PaperCategorySlugLengthLimit)
+            .Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$")
+            .WithErrKey(ErrorCodes.PaperCategorySlugFormatInvalid);
+        RuleFor(x => x.Description).MaximumLength(500)
+            .WithErrKey(ErrorCodes.PaperCategoryDescriptionLengthLimit);
     }
 }
 /// <summary>
@@ -611,14 +612,14 @@ public sealed class SavePaperAttemptAnswerRequestValidator
 internal static class OnlineQuizListValidationRules
 {
     /// <summary>
-    /// 为具有分页、关键词和标签字段的请求添加共享规则。
+    /// 为具有分页、关键词和分类字段的请求添加共享规则。
     /// </summary>
     public static void Add<T>(
         AbstractValidator<T> validator,
         Expression<Func<T, int>> pageExpression,
         Expression<Func<T, int>> pageSizeExpression,
         Expression<Func<T, string?>> keywordExpression,
-        Expression<Func<T, string?>> tagExpression)
+        Expression<Func<T, Guid?>> categoryExpression)
         where T : class
     {
         validator.RuleFor(pageExpression)
@@ -629,10 +630,8 @@ internal static class OnlineQuizListValidationRules
             .MaximumLength(200).WithErrKey(ErrorCodes.KeywordLengthLimit)
             .Must(value => string.IsNullOrEmpty(value) || !value.Any(char.IsControl))
             .WithErrKey(ErrorCodes.KeywordInvalid);
-        validator.RuleFor(tagExpression)
-            .MaximumLength(OnlineQuizConstraints.MaxPaperTagLength)
-            .WithErrKey(ErrorCodes.PaperTagLengthLimit)
-            .Must(value => value is null || !value.Any(char.IsControl))
-            .WithErrKey(ErrorCodes.PaperTagInvalid);
+        validator.RuleFor(categoryExpression)
+            .Must(value => value is null || value != Guid.Empty)
+            .WithErrKey(ErrorCodes.PaperCategoryIdsInvalid);
     }
 }

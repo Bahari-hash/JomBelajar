@@ -595,6 +595,39 @@ public enum ErrorCodes
     [Description("试卷分类不能重复.")]
     PaperCategoryDuplicate,
 
+    [Description("试卷分类不存在.")]
+    PaperCategoryNotFound,
+
+    [Description("试卷分类正在被试卷使用，不能删除.")]
+    PaperCategoryInUse,
+
+    [Description("试卷分类必须处于启用状态.")]
+    PaperCategoryInactive,
+
+    [Description("试卷分类名称已存在.")]
+    PaperCategoryNameConflict,
+
+    [Description("试卷分类 slug 已存在.")]
+    PaperCategorySlugConflict,
+
+    [Description("试卷分类名称不能为空.")]
+    PaperCategoryNameRequired,
+
+    [Description("试卷分类名称长度超出限制.")]
+    PaperCategoryNameLengthLimit,
+
+    [Description("试卷分类 slug 不能为空.")]
+    PaperCategorySlugRequired,
+
+    [Description("试卷分类 slug 长度超出限制.")]
+    PaperCategorySlugLengthLimit,
+
+    [Description("试卷分类 slug 格式无效.")]
+    PaperCategorySlugFormatInvalid,
+
+    [Description("试卷分类描述长度超出限制.")]
+    PaperCategoryDescriptionLengthLimit,
+
     [Description("试卷发布状态无效.")]
     PaperStatusInvalid,
 

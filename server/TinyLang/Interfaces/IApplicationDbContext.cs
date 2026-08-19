@@ -35,6 +35,8 @@ public interface IApplicationDbContext
     DbSet<WordStudyActivity> WordStudyActivities { get; }
     DbSet<WordStudyCheckIn> WordStudyCheckIns { get; }
     DbSet<Paper> Papers { get; }
+    DbSet<PaperCategory> PaperCategories { get; }
+    DbSet<PaperCategoryAssignment> PaperCategoryAssignments { get; }
     DbSet<PaperQuestion> PaperQuestions { get; }
     DbSet<PaperQuestionOption> PaperQuestionOptions { get; }
     DbSet<FillBlankAcceptedAnswer> FillBlankAcceptedAnswers { get; }

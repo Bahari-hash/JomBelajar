@@ -57,7 +57,7 @@ function VideoCategories() {
           <p className="text-sm font-medium text-muted-foreground">内容管理</p>
           <h1 className="mt-1 text-2xl font-semibold">视频分类</h1>
         </div>
-        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+        <div className="flex gap-2">
           <Button variant="outline" onClick={refetch} disabled={isFetching}>
             <RotateCcw
               aria-hidden="true"

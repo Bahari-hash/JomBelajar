@@ -122,7 +122,7 @@ export function ArticleFilters({ filters, categories = [], onApply, onReset }) {
             操作
           </Label>
           <div className="flex gap-2">
-            <Button type="submit" className="flex-1 md:flex-none">
+            <Button type="submit" >
               <Search aria-hidden="true" />
               应用
             </Button>

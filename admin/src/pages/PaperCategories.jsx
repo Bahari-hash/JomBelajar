@@ -77,7 +77,7 @@ function PaperCategories() {
         </Alert>
       ) : null}
       <form
-        className="border-y py-4"
+        className="flex flex-wrap items-end gap-3 border-y py-4"
         onSubmit={(event) => {
           event.preventDefault();
           setParams(

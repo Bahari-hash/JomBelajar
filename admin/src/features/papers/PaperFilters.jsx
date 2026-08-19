@@ -61,13 +61,13 @@ export function PaperFilters({ filters, onApply, onReset }) {
           placeholder="试卷标题"
           onChange={(value) => update("keyword", value)}
         />
-        <div className="min-w-0 space-y-1.5">
+        <div className="space-y-1.5">
           <Label id="paper-category-label">分类</Label>
           <Select
             value={draft.categoryId || ALL}
             onValueChange={(value) => update("categoryId", value)}
           >
-            <SelectTrigger aria-labelledby="paper-category-label">
+            <SelectTrigger aria-labelledby="paper-category-label" className="w-full">
               <SelectValue placeholder="全部分类" />
             </SelectTrigger>
             <SelectContent>

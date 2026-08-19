@@ -581,7 +581,7 @@ function AudioLibrary() {
           ) : playbackDialog?.playback ? (
             <div className="rounded-lg border bg-muted/40 p-3">
               <audio
-                className="block h-12 w-full max-w-full scheme-light dark:scheme-dark"
+                className="block h-12 w-full max-w-full [color-scheme:light] dark:[color-scheme:dark]"
                 style={{ accentColor: "var(--primary)" }}
                 controls
                 autoPlay

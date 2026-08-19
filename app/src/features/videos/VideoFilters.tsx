@@ -70,23 +70,26 @@ export default function VideoFilters(props: VideoFiltersProps) {
           <span className="label-text font-medium">搜索视频</span>
         </label>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            aria-describedby={keywordError ? "video-keyword-error" : undefined}
-            aria-invalid={Boolean(keywordError)}
-            className="input input-bordered min-w-0 flex-1"
-            id="video-keyword"
-            maxLength={200}
-            placeholder="搜索标题或描述"
-            type="search"
-            value={keywordDraft}
-            onChange={(event) => onKeywordChange(event.target.value)}
-          />
-          <div className="flex gap-2">
-            <button className="btn btn-primary" type="submit">
-              <Search aria-hidden="true" className="size-4" />
-              搜索
-            </button>
-            {/* <button
+          <div className="relative min-w-0 flex-1">
+            <input
+              aria-describedby={
+                keywordError ? "video-keyword-error" : undefined
+              }
+              aria-invalid={Boolean(keywordError)}
+              className="input input-bordered w-full"
+              id="video-keyword"
+              maxLength={200}
+              placeholder="搜索标题或描述"
+              type="search"
+              value={keywordDraft}
+              onChange={(event) => onKeywordChange(event.target.value)}
+            />
+          </div>
+          <button className="btn btn-primary" type="submit">
+            <Search aria-hidden="true" className="size-4" />
+            搜索
+          </button>
+          {/* <button
               className="btn btn-ghost"
               disabled={!keywordDraft}
               type="button"
@@ -95,8 +98,8 @@ export default function VideoFilters(props: VideoFiltersProps) {
               <X aria-hidden="true" className="size-4" />
               清除
             </button> */}
-          </div>
         </div>
+
         {keywordError ? (
           <p
             id="video-keyword-error"

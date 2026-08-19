@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<WordStudySessionEngine>();
         services.AddScoped<WordStudySessionProjector>();
         services.AddScoped<IPaperService, PaperService>();
+        services.AddScoped<IPaperBatchService, PaperBatchService>();
         services.AddScoped<IPaperCategoryService, PaperCategoryService>();
         services.AddScoped<IPaperAttemptService, PaperAttemptService>();
         services.AddSingleton<VideoRenditionPlanner>();

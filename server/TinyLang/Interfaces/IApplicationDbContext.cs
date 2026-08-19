@@ -38,10 +38,12 @@ public interface IApplicationDbContext
     DbSet<PaperCategory> PaperCategories { get; }
     DbSet<PaperCategoryAssignment> PaperCategoryAssignments { get; }
     DbSet<PaperQuestion> PaperQuestions { get; }
+    DbSet<PaperDictationBlank> PaperDictationBlanks { get; }
     DbSet<PaperQuestionOption> PaperQuestionOptions { get; }
     DbSet<FillBlankAcceptedAnswer> FillBlankAcceptedAnswers { get; }
     DbSet<PaperAttempt> PaperAttempts { get; }
     DbSet<PaperAttemptAnswer> PaperAttemptAnswers { get; }
+    DbSet<PaperWrongQuestion> PaperWrongQuestions { get; }
     /// <summary>
     /// 开始一个用于多次保存同一业务变更的数据库事务。
     /// </summary>

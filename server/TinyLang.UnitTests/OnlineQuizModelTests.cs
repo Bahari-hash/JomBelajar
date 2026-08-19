@@ -93,8 +93,8 @@ public sealed class OnlineQuizModelTests
             .Should().Equal(nameof(PaperCategoryAssignment.PaperId), nameof(PaperCategoryAssignment.PaperCategoryId));
         blankType.GetIndexes().Single(index => index.Properties.Select(x => x.Name)
             .SequenceEqual([nameof(PaperDictationBlank.QuestionId), nameof(PaperDictationBlank.SortOrder)])).IsUnique.Should().BeTrue();
-        blankType.GetIndexes().Single(index => index.Properties.Select(x => x.Name)
-            .SequenceEqual([nameof(PaperDictationBlank.QuestionId), nameof(PaperDictationBlank.NormalizedAnswer)])).IsUnique.Should().BeTrue();
+        blankType.GetIndexes().Should().NotContain(index => index.Properties.Select(x => x.Name)
+            .SequenceEqual([nameof(PaperDictationBlank.QuestionId), nameof(PaperDictationBlank.NormalizedAnswer)]));
         questionType.FindProperty(nameof(PaperQuestion.AudioResourceId))!.IsNullable.Should().BeTrue();
         questionType.GetForeignKeys().Single(x => x.PrincipalEntityType.ClrType == typeof(AudioResource))
             .DeleteBehavior.Should().Be(DeleteBehavior.Restrict);

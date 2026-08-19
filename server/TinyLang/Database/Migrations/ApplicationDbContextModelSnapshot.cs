@@ -829,8 +829,6 @@ namespace TinyLang.Database.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("QuestionId", "NormalizedAnswer")
-                        .IsUnique();
 
                     b.HasIndex("QuestionId", "SortOrder")
                         .IsUnique();

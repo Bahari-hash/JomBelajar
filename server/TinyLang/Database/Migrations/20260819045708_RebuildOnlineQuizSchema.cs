@@ -191,7 +191,6 @@ public partial class RebuildOnlineQuizSchema : Migration
             CREATE UNIQUE INDEX "IX_fill_blank_accepted_answers_QuestionId_NormalizedText" ON "fill_blank_accepted_answers" ("QuestionId", "NormalizedText");
             CREATE UNIQUE INDEX "IX_fill_blank_accepted_answers_QuestionId_SortOrder" ON "fill_blank_accepted_answers" ("QuestionId", "SortOrder");
             CREATE UNIQUE INDEX "IX_paper_question_options_QuestionId_SortOrder" ON "paper_question_options" ("QuestionId", "SortOrder");
-            CREATE UNIQUE INDEX "IX_paper_dictation_blanks_QuestionId_NormalizedAnswer" ON "paper_dictation_blanks" ("QuestionId", "NormalizedAnswer");
             CREATE UNIQUE INDEX "IX_paper_dictation_blanks_QuestionId_SortOrder" ON "paper_dictation_blanks" ("QuestionId", "SortOrder");
             CREATE INDEX "IX_paper_attempts_PaperId" ON "paper_attempts" ("PaperId");
             CREATE UNIQUE INDEX "IX_paper_attempts_UserId_PaperId_AttemptNumber" ON "paper_attempts" ("UserId", "PaperId", "AttemptNumber");

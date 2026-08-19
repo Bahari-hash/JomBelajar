@@ -320,6 +320,29 @@ public enum ErrorCodes
     [Description("音频输出校验失败.")]
     AudioOutputValidationFailed,
 
+    // --** Paper batch errors **--
+
+    [Description("试卷批量导入内容不能为空.")]
+    PaperBatchRequired,
+
+    [Description("试卷批量导入数量超过限制.")]
+    PaperBatchCountLimit,
+
+    [Description("批量导入引用的试卷分类不存在.")]
+    PaperBatchCategoryNotFound,
+
+    [Description("批量导入引用的试卷分类已停用.")]
+    PaperBatchCategoryInactive,
+
+    [Description("批量导入引用的音频不存在.")]
+    PaperBatchAudioNotFound,
+
+    [Description("批量导入引用的音频尚未处理完成.")]
+    PaperBatchAudioNotReady,
+
+    [Description("试卷批量导入发生并发冲突，请重新校验.")]
+    PaperBatchConflict,
+
     // --** Article Errors **--
 
     [Description("文章不存在.")]

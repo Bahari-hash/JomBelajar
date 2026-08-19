@@ -331,10 +331,12 @@ public sealed class PaperQuestionInputValidator
             Entities.Enums.PaperQuestionType.SingleChoice =>
                 value.CorrectBoolean is null && !value.FillBlankCaseSensitive &&
                 value.AcceptedAnswers.Count == 0 &&
+                value.AudioResourceId is null && value.DictationBlanks.Count == 0 &&
                 value.Options.Count(option => option.IsCorrect) <= 1,
             Entities.Enums.PaperQuestionType.TrueFalse =>
                 value.Options.Count == 0 && value.AcceptedAnswers.Count == 0 &&
-                !value.FillBlankCaseSensitive,
+                !value.FillBlankCaseSensitive && value.AudioResourceId is null &&
+                value.DictationBlanks.Count == 0,
             Entities.Enums.PaperQuestionType.FillBlank =>
                 value.Options.Count == 0 && value.CorrectBoolean is null &&
                 value.AudioResourceId is null && value.DictationBlanks.Count == 0,

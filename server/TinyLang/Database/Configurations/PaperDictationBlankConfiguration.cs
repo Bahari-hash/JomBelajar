@@ -16,7 +16,6 @@ public sealed class PaperDictationBlankConfiguration
         builder.Property(x => x.Answer).HasMaxLength(1000).IsRequired();
         builder.Property(x => x.NormalizedAnswer).HasMaxLength(1000).IsRequired();
         builder.HasIndex(x => new { x.QuestionId, x.SortOrder }).IsUnique();
-        builder.HasIndex(x => new { x.QuestionId, x.NormalizedAnswer }).IsUnique();
         builder.HasOne(x => x.Question)
             .WithMany(x => x.DictationBlanks)
             .HasForeignKey(x => x.QuestionId)

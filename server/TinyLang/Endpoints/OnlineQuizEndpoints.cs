@@ -47,6 +47,8 @@ public static class OnlineQuizEndpoints
         adminGroup.MapDelete("/paper-categories/{id:guid}", DeletePaperCategoryAsync);
 
         adminGroup.MapPost("/papers", CreatePaperAsync);
+        adminGroup.MapPost("/papers/batch/validate", ValidatePaperBatchAsync);
+        adminGroup.MapPost("/papers/batch", ImportPaperBatchAsync);
         adminGroup.MapGet("/papers", GetAdminPapersAsync);
         adminGroup.MapGet("/papers/{paperId:guid}", GetAdminPaperAsync);
         adminGroup.MapPut("/papers/{paperId:guid}", UpdatePaperAsync);
@@ -57,6 +59,28 @@ public static class OnlineQuizEndpoints
         adminGroup.MapDelete("/papers/{paperId:guid}", DeletePaperAsync);
 
         return endpoints;
+    }
+
+    [RequestSizeLimit(OnlineQuizConstraints.MaxBatchRequestBodyBytes)]
+    public static async Task<Ok<PaperBatchValidationResponse>> ValidatePaperBatchAsync(
+        PaperBatchRequest request,
+        IPaperBatchService service,
+        CancellationToken cancellationToken)
+        => TypedResults.Ok(await service.ValidateAsync(request, cancellationToken));
+
+    [RequestSizeLimit(OnlineQuizConstraints.MaxBatchRequestBodyBytes)]
+    public static async Task<Results<Ok<PaperBatchImportResponse>,
+        UnprocessableEntity<PaperBatchValidationResponse>>> ImportPaperBatchAsync(
+        PaperBatchRequest request,
+        ClaimsPrincipal principal,
+        IPaperBatchService service,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.ImportAsync(
+            EndpointIdentity.GetUserId(principal), request, cancellationToken);
+        return result.Imported is { } imported
+            ? TypedResults.Ok(imported)
+            : TypedResults.UnprocessableEntity(result.Validation!);
     }
 
     /// <summary>

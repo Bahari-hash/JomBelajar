@@ -183,6 +183,11 @@ public sealed record AdminFillBlankAcceptedAnswerResponse(
     string Text,
     int SortOrder);
 
+public sealed record AdminPaperDictationBlankResponse(
+    Guid Id,
+    string Answer,
+    int SortOrder);
+
 /// <summary>
 /// 返回管理员管理一道题目所需的完整标准答案和解析。
 /// </summary>
@@ -196,7 +201,9 @@ public sealed record AdminPaperQuestionResponse(
     bool? CorrectBoolean,
     bool FillBlankCaseSensitive,
     IReadOnlyList<AdminPaperQuestionOptionResponse> Options,
-    IReadOnlyList<AdminFillBlankAcceptedAnswerResponse> AcceptedAnswers);
+    IReadOnlyList<AdminFillBlankAcceptedAnswerResponse> AcceptedAnswers,
+    Guid? AudioResourceId = null,
+    IReadOnlyList<AdminPaperDictationBlankResponse> DictationBlanks = null!);
 
 /// <summary>
 /// 返回一个可映射到管理表单的稳定发布检查问题。
@@ -415,6 +422,8 @@ public static class OnlineQuizConstraints
     public const int MaxOptionCount = 10;
     public const int MaxAcceptedAnswerCount = 20;
     public const int MaxDictationBlankCount = 20;
+    public const int MaxBatchPaperCount = 100;
+    public const long MaxBatchRequestBodyBytes = 20L * 1024 * 1024;
     public const int MinPoints = 1;
     public const int MaxPoints = 100;
     public const int MaxSortOrder = 10_000;

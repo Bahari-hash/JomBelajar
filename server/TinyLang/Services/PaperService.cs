@@ -18,7 +18,8 @@ public sealed class PaperService : IPaperService
     [
         "IX_paper_questions_PaperId_SortOrder",
         "IX_paper_question_options_QuestionId_SortOrder",
-        "IX_fill_blank_accepted_answers_QuestionId_SortOrder"
+        "IX_fill_blank_accepted_answers_QuestionId_SortOrder",
+        "IX_paper_dictation_blanks_QuestionId_SortOrder"
     ];
     private const string AcceptedAnswerUniqueIndex =
         "IX_fill_blank_accepted_answers_QuestionId_NormalizedText";
@@ -61,6 +62,7 @@ public sealed class PaperService : IPaperService
             CreatedById = adminId,
             LastEditorId = adminId
         };
+        await ValidateAudioTargetsAsync(request.Questions, cancellationToken);
         await ApplyCategoryTargetAsync(paper, request.CategoryIds, cancellationToken);
         ApplyNewTarget(paper, request);
         paper.TotalScore = CalculateTotalScore(request.Questions);
@@ -97,6 +99,7 @@ public sealed class PaperService : IPaperService
             throw ConflictException.Create(ErrorCodes.PaperContentLocked);
         }
         ValidateChildOwnership(paper, request);
+        await ValidateAudioTargetsAsync(request.Questions, cancellationToken);
         await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
         paper.Title = NormalizeRequired(request.Title);
         paper.Description = NormalizeOptional(request.Description);
@@ -431,6 +434,10 @@ public sealed class PaperService : IPaperService
                 .ThenInclude(value => value.Options)
             .Include(value => value.Questions)
                 .ThenInclude(value => value.AcceptedAnswers)
+            .Include(value => value.Questions)
+                .ThenInclude(value => value.DictationBlanks)
+            .Include(value => value.Questions)
+                .ThenInclude(value => value.AudioResource)
             .SingleOrDefaultAsync(value => value.Id == paperId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.PaperNotFound);
 
@@ -502,6 +509,12 @@ public sealed class PaperService : IPaperService
             var answerIds = question.AcceptedAnswers.Select(value => value.Id).ToHashSet();
             if (input.AcceptedAnswers.Any(value =>
                 value.Id is { } answerId && !answerIds.Contains(answerId)))
+            {
+                throw new RequestValidationException(ErrorCodes.PaperChildIdConflict);
+            }
+            var blankIds = question.DictationBlanks.Select(value => value.Id).ToHashSet();
+            if (input.DictationBlanks.Any(value =>
+                value.Id is { } blankId && !blankIds.Contains(blankId)))
             {
                 throw new RequestValidationException(ErrorCodes.PaperChildIdConflict);
             }
@@ -586,6 +599,24 @@ public sealed class PaperService : IPaperService
                 answer.NormalizedText = CreateStagingNormalizedText(
                     answer.Id,
                     unavailableNormalizedTexts);
+            }
+
+            var desiredBlankIds = input.DictationBlanks.Where(value => value.Id.HasValue)
+                .Select(value => value.Id.GetValueOrDefault()).ToHashSet();
+            var existingBlanks = question.DictationBlanks.ToArray();
+            var blankStagingSortOrders = CreateStagingSortOrders(
+                existingBlanks.Select(value => value.SortOrder),
+                input.DictationBlanks.Select(value => value.SortOrder),
+                existingBlanks.Count(value => desiredBlankIds.Contains(value.Id)));
+            foreach (var blank in existingBlanks)
+            {
+                if (!desiredBlankIds.Contains(blank.Id))
+                {
+                    _db.PaperDictationBlanks.Remove(blank);
+                    question.DictationBlanks.Remove(blank);
+                    continue;
+                }
+                blank.SortOrder = blankStagingSortOrders.Dequeue();
             }
         }
     }
@@ -677,6 +708,21 @@ public sealed class PaperService : IPaperService
                     _db.FillBlankAcceptedAnswers.Add(answer);
                 }
             }
+            foreach (var blankInput in input.DictationBlanks)
+            {
+                if (blankInput.Id is { } blankId)
+                {
+                    ApplyDictationBlankValues(
+                        question.DictationBlanks.Single(value => value.Id == blankId),
+                        blankInput);
+                }
+                else
+                {
+                    var blank = CreateDictationBlank(question, blankInput);
+                    question.DictationBlanks.Add(blank);
+                    _db.PaperDictationBlanks.Add(blank);
+                }
+            }
         }
     }
 
@@ -700,6 +746,10 @@ public sealed class PaperService : IPaperService
         {
             question.AcceptedAnswers.Add(CreateAcceptedAnswer(question, answerInput));
         }
+        foreach (var blankInput in input.DictationBlanks)
+        {
+            question.DictationBlanks.Add(CreateDictationBlank(question, blankInput));
+        }
         return question;
     }
 
@@ -717,6 +767,7 @@ public sealed class PaperService : IPaperService
         question.SortOrder = input.SortOrder;
         question.CorrectBoolean = input.CorrectBoolean;
         question.FillBlankCaseSensitive = input.FillBlankCaseSensitive;
+        question.AudioResourceId = input.AudioResourceId;
     }
 
     /// <summary>
@@ -779,6 +830,31 @@ public sealed class PaperService : IPaperService
             input.Text,
             caseSensitive);
         answer.SortOrder = input.SortOrder;
+    }
+
+    private static PaperDictationBlank CreateDictationBlank(
+        PaperQuestion question,
+        PaperDictationBlankInput input)
+    {
+        var blank = new PaperDictationBlank
+        {
+            QuestionId = question.Id,
+            Question = question,
+            Answer = string.Empty,
+            NormalizedAnswer = string.Empty
+        };
+        ApplyDictationBlankValues(blank, input);
+        return blank;
+    }
+
+    private static void ApplyDictationBlankValues(
+        PaperDictationBlank blank,
+        PaperDictationBlankInput input)
+    {
+        var answer = input.Answer.Trim();
+        blank.Answer = answer;
+        blank.NormalizedAnswer = answer.ToUpperInvariant();
+        blank.SortOrder = input.SortOrder;
     }
 
     /// <summary>
@@ -872,6 +948,9 @@ public sealed class PaperService : IPaperService
                 case PaperQuestionType.FillBlank:
                     AddFillBlankIssues(question, questionIndex, Add);
                     break;
+                case PaperQuestionType.Dictation:
+                    AddDictationIssues(question, questionIndex, Add);
+                    break;
                 default:
                     Add($"{field}.type", ErrorCodes.PaperQuestionTypeInvalid, question.Id);
                     break;
@@ -879,6 +958,78 @@ public sealed class PaperService : IPaperService
         }
 
         return issues;
+    }
+
+    private async Task ValidateAudioTargetsAsync(
+        IReadOnlyCollection<PaperQuestionInput> questions,
+        CancellationToken cancellationToken)
+    {
+        var ids = questions.Where(value => value.Type == PaperQuestionType.Dictation)
+            .Select(value => value.AudioResourceId)
+            .Where(value => value.HasValue)
+            .Select(value => value.GetValueOrDefault())
+            .Distinct()
+            .ToArray();
+        if (ids.Length == 0)
+        {
+            return;
+        }
+        var audio = await _db.AudioResources.AsNoTracking()
+            .Where(value => ids.Contains(value.Id))
+            .Select(value => new { value.Id, value.Status })
+            .ToListAsync(cancellationToken);
+        if (audio.Count != ids.Length)
+        {
+            throw NotFoundException.Create(ErrorCodes.AudioNotFound);
+        }
+        if (audio.Any(value => value.Status != AudioResourceStatus.Ready))
+        {
+            throw ConflictException.Create(ErrorCodes.AudioNotReady);
+        }
+    }
+
+    private static void AddDictationIssues(
+        PaperQuestion question,
+        int questionIndex,
+        Action<string, ErrorCodes, Guid?, Guid?> add)
+    {
+        var field = $"questions[{questionIndex}]";
+        if (question.AudioResourceId is null)
+        {
+            add($"{field}.audioResourceId", ErrorCodes.AudioNotFound, question.Id, null);
+        }
+        else if (question.AudioResource?.Status != AudioResourceStatus.Ready)
+        {
+            add($"{field}.audioResourceId", ErrorCodes.AudioNotReady, question.Id, null);
+        }
+        if (question.Options.Count > 0 || question.AcceptedAnswers.Count > 0 ||
+            question.CorrectBoolean.HasValue || question.FillBlankCaseSensitive)
+        {
+            add(field, ErrorCodes.PaperQuestionShapeInvalid, question.Id, null);
+        }
+        var blanks = question.DictationBlanks.OrderBy(value => value.SortOrder)
+            .ThenBy(value => value.Id).ToArray();
+        if (blanks.Length is < 1 or > OnlineQuizConstraints.MaxDictationBlankCount)
+        {
+            add($"{field}.dictationBlanks", ErrorCodes.PaperQuestionShapeInvalid, question.Id, null);
+        }
+        var duplicateSortOrders = blanks.GroupBy(value => value.SortOrder)
+            .Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet();
+        for (var index = 0; index < blanks.Length; index++)
+        {
+            var blank = blanks[index];
+            var blankField = $"{field}.dictationBlanks[{index}]";
+            if (string.IsNullOrWhiteSpace(blank.Answer) ||
+                string.IsNullOrWhiteSpace(blank.NormalizedAnswer))
+            {
+                add($"{blankField}.answer", ErrorCodes.PaperAcceptedAnswerRequired, question.Id, blank.Id);
+            }
+            if (blank.SortOrder is < 0 or > OnlineQuizConstraints.MaxSortOrder ||
+                duplicateSortOrders.Contains(blank.SortOrder))
+            {
+                add($"{blankField}.sortOrder", ErrorCodes.PaperSortOrderConflict, question.Id, blank.Id);
+            }
+        }
     }
 
     /// <summary>
@@ -914,6 +1065,10 @@ public sealed class PaperService : IPaperService
             add($"{field}.acceptedAnswers", ErrorCodes.PaperQuestionShapeInvalid,
                 question.Id, null);
         }
+        if (question.AudioResourceId.HasValue || question.DictationBlanks.Count > 0)
+        {
+            add(field, ErrorCodes.PaperQuestionShapeInvalid, question.Id, null);
+        }
     }
 
     /// <summary>
@@ -945,6 +1100,10 @@ public sealed class PaperService : IPaperService
             add($"{field}.fillBlankCaseSensitive",
                 ErrorCodes.PaperQuestionShapeInvalid, question.Id, null);
         }
+        if (question.AudioResourceId.HasValue || question.DictationBlanks.Count > 0)
+        {
+            add(field, ErrorCodes.PaperQuestionShapeInvalid, question.Id, null);
+        }
     }
 
     /// <summary>
@@ -965,6 +1124,10 @@ public sealed class PaperService : IPaperService
         {
             add($"{field}.correctBoolean", ErrorCodes.PaperQuestionShapeInvalid,
                 question.Id, null);
+        }
+        if (question.AudioResourceId.HasValue || question.DictationBlanks.Count > 0)
+        {
+            add(field, ErrorCodes.PaperQuestionShapeInvalid, question.Id, null);
         }
 
         var answers = question.AcceptedAnswers.OrderBy(value => value.SortOrder)
@@ -1103,6 +1266,14 @@ public sealed class PaperService : IPaperService
                             answer.Id,
                             answer.Text,
                             answer.SortOrder))
+                        .ToList(),
+                    question.AudioResourceId,
+                    question.DictationBlanks.OrderBy(blank => blank.SortOrder)
+                        .ThenBy(blank => blank.Id)
+                        .Select(blank => new AdminPaperDictationBlankResponse(
+                            blank.Id,
+                            blank.Answer,
+                            blank.SortOrder))
                         .ToList()))
                 .ToList(),
             paper.CreatedAt,

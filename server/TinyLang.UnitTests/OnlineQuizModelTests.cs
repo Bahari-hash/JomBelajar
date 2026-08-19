@@ -79,17 +79,27 @@ public sealed class OnlineQuizModelTests
     public void ModelShouldConfigureQuizCategoriesAndDictationRelationships()
     {
         using var db = CreateDbContext();
+        var categoryType = db.Model.FindEntityType(typeof(PaperCategory))!;
         var assignmentType = db.Model.FindEntityType(typeof(PaperCategoryAssignment))!;
         var blankType = db.Model.FindEntityType(typeof(PaperDictationBlank))!;
         var questionType = db.Model.FindEntityType(typeof(PaperQuestion))!;
+        var answerType = db.Model.FindEntityType(typeof(PaperAttemptAnswer))!;
 
+        categoryType.GetIndexes().Single(index => index.Properties.Select(x => x.Name)
+            .SequenceEqual([nameof(PaperCategory.Name)])).IsUnique.Should().BeTrue();
+        categoryType.GetIndexes().Single(index => index.Properties.Select(x => x.Name)
+            .SequenceEqual([nameof(PaperCategory.Slug)])).IsUnique.Should().BeTrue();
         assignmentType.FindPrimaryKey()!.Properties.Select(x => x.Name)
             .Should().Equal(nameof(PaperCategoryAssignment.PaperId), nameof(PaperCategoryAssignment.PaperCategoryId));
         blankType.GetIndexes().Single(index => index.Properties.Select(x => x.Name)
             .SequenceEqual([nameof(PaperDictationBlank.QuestionId), nameof(PaperDictationBlank.SortOrder)])).IsUnique.Should().BeTrue();
+        blankType.GetIndexes().Single(index => index.Properties.Select(x => x.Name)
+            .SequenceEqual([nameof(PaperDictationBlank.QuestionId), nameof(PaperDictationBlank.NormalizedAnswer)])).IsUnique.Should().BeTrue();
         questionType.FindProperty(nameof(PaperQuestion.AudioResourceId))!.IsNullable.Should().BeTrue();
         questionType.GetForeignKeys().Single(x => x.PrincipalEntityType.ClrType == typeof(AudioResource))
             .DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
+        answerType.FindProperty(nameof(PaperAttemptAnswer.TextAnswers))!
+            .FindAnnotation(RelationalAnnotationNames.ColumnType)!.Value.Should().Be("text[]");
     }
 
     [Fact]

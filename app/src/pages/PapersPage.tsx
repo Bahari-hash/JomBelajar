@@ -1,11 +1,11 @@
 import { ListCheck, RotateCcw, SearchX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import PaperCard from "@/features/papers/PaperCard";
 import PaperFilters from "@/features/papers/PaperFilters";
 import PaperPagination from "@/features/papers/PaperPagination";
 import {
-  useGetPaperTagsQuery,
+  useGetPaperCategoriesQuery,
   useGetPapersQuery,
 } from "@/features/papers/paperApi";
 import {
@@ -19,13 +19,11 @@ import {
 import { getPaperErrorMessage } from "@/features/papers/paperUtils";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
-const INITIAL_PAPER_TAG_PAGE_SIZE = 6;
-
 export default function PapersPage() {
   useDocumentTitle("在线测试");
   const [searchParams, setSearchParams] = useSearchParams();
   const parsed = parsePaperSearchParams(searchParams);
-  const { keyword, tag, page } = parsed.state;
+  const { keyword, categoryId, page } = parsed.state;
   const [keywordDraft, setKeywordDraft] = useState(keyword);
   const [keywordError, setKeywordError] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -33,11 +31,11 @@ export default function PapersPage() {
     page,
     pageSize: PAPER_PAGE_SIZE,
     keyword: keyword || undefined,
-    tag: tag || undefined,
+    categoryId: categoryId || undefined,
   });
-  const tagsQuery = useGetPaperTagsQuery({
+  const categoriesQuery = useGetPaperCategoriesQuery({
     page: 1,
-    pageSize: INITIAL_PAPER_TAG_PAGE_SIZE,
+    pageSize: 100,
   });
 
   useEffect(() => {
@@ -52,14 +50,23 @@ export default function PapersPage() {
     const totalPages = papersQuery.data?.totalPages;
     if (totalPages && page > totalPages)
       setSearchParams(
-        createPaperSearchParams({ keyword, tag, page: totalPages }),
+        createPaperSearchParams({ keyword, categoryId, page: totalPages }),
         { replace: true },
       );
     else if (totalPages === 0 && page !== 1)
-      setSearchParams(createPaperSearchParams({ keyword, tag, page: 1 }), {
-        replace: true,
-      });
-  }, [keyword, page, papersQuery.data?.totalPages, setSearchParams, tag]);
+      setSearchParams(
+        createPaperSearchParams({ keyword, categoryId, page: 1 }),
+        {
+          replace: true,
+        },
+      );
+  }, [
+    categoryId,
+    keyword,
+    page,
+    papersQuery.data?.totalPages,
+    setSearchParams,
+  ]);
 
   const updateSearch = (state: PaperSearchState, replace = false) =>
     setSearchParams(createPaperSearchParams(state), { replace });
@@ -70,9 +77,9 @@ export default function PapersPage() {
     if (hasPaperControlCharacters(next))
       return setKeywordError("搜索关键词包含无效字符。");
     setKeywordError(null);
-    updateSearch({ keyword: next, tag, page: 1 });
+    updateSearch({ keyword: next, categoryId, page: 1 });
   };
-  const hasFilters = Boolean(keyword || tag);
+  const hasFilters = Boolean(keyword || categoryId);
   const listPath = `/papers${searchParams.size ? `?${searchParams}` : ""}`;
 
   return (
@@ -87,28 +94,30 @@ export default function PapersPage() {
         <p className="mt-3 leading-7 text-base-content/70">
           通过选择、判断和填空练习检验外语学习成果。
         </p>
+        <Link className="btn btn-outline btn-sm mt-4" to="/wrong-questions">
+          打开错题本
+        </Link>
       </header>
       <PaperFilters
-        hasMoreTags={(tagsQuery.data?.totalPages ?? 0) > 1}
         keywordDraft={keywordDraft}
         keywordError={keywordError}
-        selectedTag={tag}
-        tags={tagsQuery.data?.items ?? []}
-        tagsError={tagsQuery.error}
-        tagsLoading={tagsQuery.isLoading}
+        selectedCategoryId={categoryId}
+        categories={categoriesQuery.data?.items ?? []}
+        categoriesError={categoriesQuery.error}
+        categoriesLoading={categoriesQuery.isLoading}
         onClearKeyword={() => {
           setKeywordDraft("");
           setKeywordError(null);
-          updateSearch({ keyword: "", tag, page: 1 });
+          updateSearch({ keyword: "", categoryId, page: 1 });
         }}
         onKeywordChange={(value) => {
           setKeywordDraft(value);
           if (keywordError) setKeywordError(null);
         }}
-        onRetryTags={() => tagsQuery.refetch()}
+        onRetryCategories={() => categoriesQuery.refetch()}
         onSearch={submitSearch}
-        onSelectTag={(nextTag) =>
-          updateSearch({ keyword, tag: nextTag, page: 1 })
+        onSelectCategory={(nextCategoryId) =>
+          updateSearch({ keyword, categoryId: nextCategoryId, page: 1 })
         }
       />
       <section aria-labelledby="paper-results-heading" className="space-y-5">
@@ -124,7 +133,7 @@ export default function PapersPage() {
             </h2>
             <p className="mt-1 text-sm text-base-content/65" aria-live="polite">
               {papersQuery.data
-                ? `${hasFilters ? "当前筛选找到" : "共"} ${papersQuery.data.totalCount} 份试卷${tag ? ` · #${tag}` : ""}${keyword ? ` · “${keyword}”` : ""}`
+                ? `${hasFilters ? "当前筛选找到" : "共"} ${papersQuery.data.totalCount} 份试卷${keyword ? ` · “${keyword}”` : ""}`
                 : "正在获取试卷数量..."}
             </p>
           </div>
@@ -184,7 +193,7 @@ export default function PapersPage() {
               page={page}
               totalPages={papersQuery.data.totalPages}
               onPageChange={(next) => {
-                updateSearch({ keyword, tag, page: next });
+                updateSearch({ keyword, categoryId, page: next });
                 requestAnimationFrame(() => {
                   headingRef.current?.focus({ preventScroll: true });
                   headingRef.current?.scrollIntoView({ block: "start" });
@@ -213,7 +222,7 @@ export default function PapersPage() {
                 onClick={() => {
                   setKeywordDraft("");
                   setKeywordError(null);
-                  updateSearch({ keyword: "", tag: null, page: 1 });
+                  updateSearch({ keyword: "", categoryId: null, page: 1 });
                 }}
               >
                 <RotateCcw aria-hidden="true" className="size-4" />

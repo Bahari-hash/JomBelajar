@@ -112,14 +112,14 @@ export default function PaperDetailPage() {
               {paper.description}
             </p>
           ) : null}
-          {paper.tags.length > 0 ? (
-            <div className="flex flex-wrap gap-2" aria-label="试卷标签">
-              {paper.tags.map((tag) => (
+          {(paper.categories ?? []).length > 0 ? (
+            <div className="flex flex-wrap gap-2" aria-label="试卷分类">
+              {(paper.categories ?? []).map((category) => (
                 <span
-                  key={tag}
+                  key={category.id}
                   className="badge badge-outline hover:bg-base-200"
                 >
-                  {tag}
+                  {category.name}
                 </span>
               ))}
             </div>

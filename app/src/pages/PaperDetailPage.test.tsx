@@ -17,13 +17,17 @@ afterEach(() => {
   httpClient.defaults.adapter = originalAdapter;
 });
 
-function detail(tags = ["grammar", "a2"]) {
+function detail(categories = ["grammar", "a2"]) {
   return {
     id: PAPER_ID,
     title: "Grammar Check",
     description: "Practice grammar.",
     instructions: "Answer every question.",
-    tags,
+    categories: categories.map((name, index) => ({
+      id: `77777777-7777-4777-8777-77777777777${index}`,
+      name,
+      slug: name,
+    })),
     questionCount: 2,
     totalScore: 4,
     passingScore: 2,
@@ -105,7 +109,7 @@ describe("PaperDetailPage", () => {
       await screen.findByRole("heading", { name: "Grammar Check" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Answer every question.")).toBeInTheDocument();
-    const tags = screen.getByLabelText("试卷标签");
+    const tags = screen.getByLabelText("试卷分类");
     expect(within(tags).getByText("grammar")).toBeInTheDocument();
     expect(within(tags).getByText("a2")).toBeInTheDocument();
     const button = screen.getByRole("button", { name: "开始测试" });
@@ -132,6 +136,6 @@ describe("PaperDetailPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Grammar Check" });
-    expect(screen.queryByLabelText("试卷标签")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("试卷分类")).not.toBeInTheDocument();
   });
 });

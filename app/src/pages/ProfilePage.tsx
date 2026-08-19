@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ChevronDown,
   ListChecks,
+  ClipboardCheck,
   Mail,
   Save,
   ShieldCheck,
@@ -21,6 +22,7 @@ import {
   type FieldErrors,
 } from "@/features/auth/authErrors";
 import { uploadAvatar } from "@/features/profile/profileApi";
+import WrongQuestionsPanel from "@/features/papers/WrongQuestionsPanel";
 import AccountSecurityPanel from "@/features/profile/AccountSecurityPanel";
 import WordStudySettingsPanel from "@/features/wordStudy/WordStudySettingsPanel";
 import WordStudySummaryPanel from "@/features/wordStudy/WordStudySummaryPanel";
@@ -74,6 +76,7 @@ export default function ProfilePage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [exclusionsOpen, setExclusionsOpen] = useState(false);
+  const [wrongQuestionsOpen, setWrongQuestionsOpen] = useState(false);
 
   useEffect(() => {
     if (profile && !dirty) {
@@ -403,6 +406,33 @@ export default function ProfilePage() {
         <details className="group border-t border-base-300">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-6 [&::-webkit-details-marker]:hidden">
             <span className="flex min-w-0 items-center gap-3 text-xl font-semibold">
+              <ClipboardCheck
+                aria-hidden="true"
+                className="size-5 shrink-0 text-accent"
+              />
+              在线测试
+            </span>
+            <ChevronDown
+              aria-hidden="true"
+              className="size-5 shrink-0 transition-transform group-open:rotate-180"
+            />
+          </summary>
+          <div className="border-t border-base-300 py-8">
+            <p className="text-sm text-base-content/65">
+              查看自动收录的错题并逐题重做。
+            </p>
+            <button
+              className="btn btn-outline mt-4"
+              type="button"
+              onClick={() => setWrongQuestionsOpen(true)}
+            >
+              打开错题本
+            </button>
+          </div>
+        </details>
+        <details className="group border-t border-base-300">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-6 [&::-webkit-details-marker]:hidden">
+            <span className="flex min-w-0 items-center gap-3 text-xl font-semibold">
               <ShieldCheck
                 aria-hidden="true"
                 className="size-5 shrink-0 text-secondary"
@@ -426,6 +456,12 @@ export default function ProfilePage() {
         <WordReviewExclusionsPanel
           modal
           onClose={() => setExclusionsOpen(false)}
+        />
+      ) : null}
+      {wrongQuestionsOpen ? (
+        <WrongQuestionsPanel
+          modal
+          onClose={() => setWrongQuestionsOpen(false)}
         />
       ) : null}
     </div>

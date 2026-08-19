@@ -6,6 +6,7 @@ import type { PaperAttemptQuestion } from "@/features/papers/paperTypes";
 
 const SINGLE_ID = "11111111-2222-3333-4444-555555555555";
 const FILL_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+const DICTATION_ID = "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee";
 
 const questions: PaperAttemptQuestion[] = [
   {
@@ -16,6 +17,23 @@ const questions: PaperAttemptQuestion[] = [
     sortOrder: 1,
     options: [],
     savedAnswer: null,
+  },
+  {
+    id: DICTATION_ID,
+    type: "Dictation",
+    prompt: "Listen",
+    points: 2,
+    sortOrder: 3,
+    options: [],
+    audioResourceId: "audio",
+    dictationBlanks: [{ sortOrder: 0 }, { sortOrder: 1 }],
+    savedAnswer: {
+      selectedOptionId: null,
+      booleanAnswer: null,
+      textAnswer: null,
+      textAnswers: ["old", "value"],
+      savedAt: null,
+    },
   },
   {
     id: FILL_ID,
@@ -108,6 +126,30 @@ describe("usePaperAttemptAnswers", () => {
     });
     expect(result.current.answers[SINGLE_ID]?.status).toBe("saved");
     expect(result.current.answers[SINGLE_ID]?.savedValue).toBe("second");
+  });
+
+  it("restores and debounces multi-blank dictation answers", async () => {
+    vi.useFakeTimers();
+    const save = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() =>
+      usePaperAttemptAnswers({
+        attemptId: "attempt",
+        questions,
+        saveAnswer: save,
+        clearAnswer: vi.fn().mockResolvedValue(undefined),
+        debounceMs: 400,
+      }),
+    );
+
+    expect(result.current.answers[DICTATION_ID]?.value).toEqual([
+      "old",
+      "value",
+    ]);
+    act(() => result.current.changeAnswer(DICTATION_ID, ["hello", "world"]));
+    await act(async () => vi.advanceTimersByTimeAsync(400));
+    expect(save).toHaveBeenCalledWith(DICTATION_ID, {
+      textAnswers: ["hello", "world"],
+    });
   });
 
   it("retries failures, clears empty values, and flushes all dirty answers", async () => {

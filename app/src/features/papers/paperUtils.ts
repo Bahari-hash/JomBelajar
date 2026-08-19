@@ -27,6 +27,8 @@ export function getQuestionTypeLabel(type: PaperQuestionType) {
       return "判断题";
     case "FillBlank":
       return "填空题";
+    case "Dictation":
+      return "听写题";
   }
   const exhaustiveCheck: never = type;
   return exhaustiveCheck;

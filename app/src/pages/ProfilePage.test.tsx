@@ -251,5 +251,20 @@ describe("ProfilePage", () => {
 
     await user.click(securitySummary);
     expect(screen.getByRole("heading", { name: "修改邮箱" })).toBeVisible();
+
+    const quizSummary = screen
+      .getByText("在线测试", { selector: "span" })
+      .closest("summary");
+    if (!quizSummary) throw new Error("缺少在线测试折叠入口");
+    expect(quizSummary.closest("details")).not.toHaveAttribute("open");
+    await user.click(quizSummary);
+    await user.click(screen.getByRole("button", { name: "打开错题本" }));
+    expect(screen.getByRole("dialog", { name: "错题本" })).toBeInTheDocument();
+    await user.click(
+      screen.getAllByRole("button", { name: "关闭错题本" }).at(-1)!,
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "错题本" }),
+    ).not.toBeInTheDocument();
   });
 });

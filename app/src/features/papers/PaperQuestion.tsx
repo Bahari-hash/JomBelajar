@@ -1,5 +1,6 @@
 import type { ChangeEvent } from "react";
 import { RotateCcw } from "lucide-react";
+import AudioPlaybackButton from "@/features/audio/AudioPlaybackButton";
 import type {
   LocalPaperAnswer,
   PaperAnswerValue,
@@ -137,7 +138,7 @@ export default function PaperQuestion({
             </label>
           ))}
         </fieldset>
-      ) : (
+      ) : question.type === "FillBlank" ? (
         <div>
           <label className="label" htmlFor={`fill-${question.id}`}>
             <span className="label-text font-medium">填空答案</span>
@@ -152,6 +153,45 @@ export default function PaperQuestion({
             onChange={handleFill}
             onBlur={onBlur}
           />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {question.audioResourceId ? (
+            <AudioPlaybackButton
+              audioResourceId={question.audioResourceId}
+              label="听写音频"
+            />
+          ) : null}
+          <div className="grid gap-3">
+            {[...(question.dictationBlanks ?? [])]
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((blank, blankIndex) => (
+                <label
+                  key={`${question.id}-${blank.sortOrder}`}
+                  className="space-y-1.5"
+                >
+                  <span className="text-sm font-medium">
+                    第 {blankIndex + 1} 空
+                  </span>
+                  <input
+                    aria-label={`第 ${blankIndex + 1} 空`}
+                    className="input input-bordered w-full"
+                    disabled={disabled}
+                    value={
+                      Array.isArray(value) ? (value[blankIndex] ?? "") : ""
+                    }
+                    onChange={(event) => {
+                      const next = Array.isArray(value)
+                        ? [...value]
+                        : (question.dictationBlanks ?? []).map(() => "");
+                      next[blankIndex] = event.target.value;
+                      onChange(next);
+                    }}
+                    onBlur={onBlur}
+                  />
+                </label>
+              ))}
+          </div>
         </div>
       )}
     </section>

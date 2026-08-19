@@ -56,6 +56,12 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: "wrong-questions",
+            lazy: async () => ({
+              Component: (await import("@/pages/WrongQuestionsPage")).default,
+            }),
+          },
+          {
             path: "paper-attempts/:attemptId",
             lazy: async () => ({
               Component: (await import("@/pages/PaperAttemptPage")).default,

@@ -2,6 +2,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import { articleApi } from "@/features/articles/articleApi";
 import { paperApi } from "@/features/papers/paperApi";
 import { wordStudyApi } from "@/features/wordStudy/wordStudyApi";
+import { wrongQuestionApi } from "@/features/papers/wrongQuestionApi";
 import { videoApi } from "@/features/videos/videoApi";
 import authReducer from "@/store/authSlice";
 
@@ -14,6 +15,7 @@ export function createAppStore() {
       [paperApi.reducerPath]: paperApi.reducer,
       [videoApi.reducerPath]: videoApi.reducer,
       [wordStudyApi.reducerPath]: wordStudyApi.reducer,
+      [wrongQuestionApi.reducerPath]: wrongQuestionApi.reducer,
     },
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware().concat(
@@ -21,6 +23,7 @@ export function createAppStore() {
         paperApi.middleware,
         videoApi.middleware,
         wordStudyApi.middleware,
+        wrongQuestionApi.middleware,
       ),
     enhancers: (getDefaultEnhancers) =>
       import.meta.env.MODE === "test"

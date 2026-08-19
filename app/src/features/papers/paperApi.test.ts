@@ -67,6 +67,7 @@ describe("paperApi", () => {
           totalScore: 2,
           passingScore: 1,
           publishedAt: "2026-08-10T00:00:00Z",
+          categories: [],
         };
       } else if (config.url === `/papers/${PAPER_ID}/attempts`) {
         data = attemptResponse();
@@ -112,13 +113,16 @@ describe("paperApi", () => {
           page: 2,
           pageSize: 12,
           keyword: "grammar",
-          tag: "cet-4",
+          categoryId: PAPER_ID,
         }),
       )
       .unwrap();
     await store
       .dispatch(
-        paperApi.endpoints.getPaperTags.initiate({ page: 1, pageSize: 6 }),
+        paperApi.endpoints.getPaperCategories.initiate({
+          page: 1,
+          pageSize: 6,
+        }),
       )
       .unwrap();
     await store
@@ -159,7 +163,7 @@ describe("paperApi", () => {
 
     expect(requests.map((request) => [request.method, request.url])).toEqual([
       ["get", "/papers"],
-      ["get", "/paper-tags"],
+      ["get", "/paper-categories"],
       ["get", `/papers/${PAPER_ID}`],
       ["post", `/papers/${PAPER_ID}/attempts`],
       ["get", `/paper-attempts/${ATTEMPT_ID}`],
@@ -174,7 +178,7 @@ describe("paperApi", () => {
         page: 2,
         pageSize: 12,
         keyword: "grammar",
-        tag: "cet-4",
+        categoryId: PAPER_ID,
       },
     });
     expect(requests[1]).toMatchObject({

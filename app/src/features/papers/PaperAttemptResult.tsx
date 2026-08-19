@@ -1,5 +1,6 @@
 import { ArrowLeft, CheckCircle2, RotateCcw, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
+import AudioPlaybackButton from "@/features/audio/AudioPlaybackButton";
 import type { PaperAttemptResult as Result } from "@/features/papers/paperTypes";
 import {
   formatPaperDate,
@@ -24,6 +25,12 @@ function answerText(question: Result["questions"][number], correct: boolean) {
   if (question.type === "TrueFalse") {
     const value = correct ? question.correctBoolean : question.booleanAnswer;
     return value === null ? "未作答" : value ? "正确" : "错误";
+  }
+  if (question.type === "Dictation") {
+    const values = correct ? question.dictationAnswers : question.textAnswers;
+    return (
+      values?.map((value) => value.trim() || "未作答").join(" / ") || "未作答"
+    );
   }
   if (correct)
     return question.acceptedAnswers.length
@@ -108,6 +115,14 @@ export default function PaperAttemptResult({
                 <h3 className="mt-3 break-words text-lg font-bold leading-7">
                   {question.prompt}
                 </h3>
+                {question.audioResourceId ? (
+                  <div className="mt-3">
+                    <AudioPlaybackButton
+                      audioResourceId={question.audioResourceId}
+                      label="题目音频"
+                    />
+                  </div>
+                ) : null}
                 <div className="mt-4 grid min-w-0 gap-3 text-sm sm:grid-cols-2">
                   <p className="min-w-0 break-words">
                     <span className="font-semibold">用户答案：</span>

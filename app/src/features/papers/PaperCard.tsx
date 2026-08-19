@@ -22,16 +22,16 @@ export default function PaperCard({ paper, listPath }: PaperCardProps) {
       </Link>
       <div className="flex flex-1 flex-col p-4 sm:p-5">
         <div className="flex min-h-7 flex-wrap gap-1.5">
-          {paper.tags.length > 0 ? (
-            <div className="contents" aria-label="试卷标签">
-              {paper.tags.map((tag) => (
+          {(paper.categories ?? []).length > 0 ? (
+            <div className="contents" aria-label="试卷分类">
+              {(paper.categories ?? []).map((category) => (
                 <Link
-                  key={tag}
+                  key={category.id}
                   className="badge badge-outline max-w-full truncate hover:bg-base-200"
-                  title={tag}
-                  to={`/papers?${new URLSearchParams({ tag }).toString()}`}
+                  title={category.name}
+                  to={`/papers?${new URLSearchParams({ categoryId: category.id }).toString()}`}
                 >
-                  {tag}
+                  {category.name}
                 </Link>
               ))}
             </div>

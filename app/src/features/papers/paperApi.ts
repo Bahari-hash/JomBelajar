@@ -4,10 +4,9 @@ import type {
   PaperAttempt,
   PaperAttemptResult,
   PaperCatalogItem,
+  PaperCategorySummary,
   PaperDetails,
   PaperListQuery,
-  PaperTagListQuery,
-  PaperTagSummary,
   PagedResponse,
   SavePaperAnswerRequest,
 } from "@/features/papers/paperTypes";
@@ -28,7 +27,7 @@ export const paperApi = createApi({
   baseQuery: axiosBaseQuery(),
   tagTypes: [
     "PaperCatalog",
-    "PaperTagCatalog",
+    "PaperCategoryCatalog",
     "Paper",
     "PaperAttempt",
     "PaperAttemptResult",
@@ -38,12 +37,12 @@ export const paperApi = createApi({
       query: (params) => ({ url: "/papers", params }),
       providesTags: ["PaperCatalog"],
     }),
-    getPaperTags: builder.query<
-      PagedResponse<PaperTagSummary>,
-      PaperTagListQuery
+    getPaperCategories: builder.query<
+      PagedResponse<PaperCategorySummary>,
+      { page: number; pageSize: number; keyword?: string }
     >({
-      query: (params) => ({ url: "/paper-tags", params }),
-      providesTags: ["PaperTagCatalog"],
+      query: (params) => ({ url: "/paper-categories", params }),
+      providesTags: ["PaperCategoryCatalog"],
     }),
     getPaper: builder.query<PaperDetails, string>({
       query: (paperId) => ({ url: `/papers/${paperId}` }),
@@ -84,6 +83,7 @@ export const paperApi = createApi({
                 selectedOptionId: answer.selectedOptionId ?? null,
                 booleanAnswer: answer.booleanAnswer ?? null,
                 textAnswer: answer.textAnswer ?? null,
+                textAnswers: answer.textAnswers ?? null,
                 savedAt: new Date().toISOString(),
               };
             }
@@ -141,7 +141,7 @@ export const paperApi = createApi({
 
 export const {
   useGetPapersQuery,
-  useGetPaperTagsQuery,
+  useGetPaperCategoriesQuery,
   useGetPaperQuery,
   useStartAttemptMutation,
   useGetAttemptQuery,

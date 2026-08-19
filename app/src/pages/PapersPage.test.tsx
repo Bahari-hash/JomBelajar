@@ -18,25 +18,39 @@ afterEach(() => {
 
 function installAdapter(
   requests: InternalAxiosRequestConfig[],
-  paperTags = ["grammar", "a2"],
+  paperCategories = ["grammar", "a2"],
   emptyPapers = false,
 ) {
   httpClient.defaults.adapter = (async (config) => {
     requests.push(config);
-    const isTagRequest = config.url === "/paper-tags";
-    const isTagSearch = config.params?.keyword === "listen";
-    const data = isTagRequest
+    const isCategoryRequest = config.url === "/paper-categories";
+    const isCategorySearch = config.params?.keyword === "listen";
+    const data = isCategoryRequest
       ? {
-          items: isTagSearch
-            ? [{ name: "listening", paperCount: 4 }]
+          items: isCategorySearch
+            ? [
+                {
+                  id: "77777777-7777-4777-8777-777777777777",
+                  name: "listening",
+                  slug: "listening",
+                },
+              ]
             : [
-                { name: "cet-4", paperCount: 12 },
-                { name: "grammar", paperCount: 8 },
+                {
+                  id: "77777777-7777-4777-8777-777777777771",
+                  name: "cet-4",
+                  slug: "cet-4",
+                },
+                {
+                  id: "77777777-7777-4777-8777-777777777772",
+                  name: "grammar",
+                  slug: "grammar",
+                },
               ],
           page: Number(config.params?.page ?? 1),
           pageSize: Number(config.params?.pageSize ?? 6),
-          totalCount: isTagSearch ? 1 : 7,
-          totalPages: isTagSearch ? 1 : 2,
+          totalCount: isCategorySearch ? 1 : 2,
+          totalPages: 1,
         }
       : {
           items: emptyPapers
@@ -46,7 +60,11 @@ function installAdapter(
                   id: PAPER_ID,
                   title: "A2 Grammar Check",
                   description: "Check practical grammar knowledge.",
-                  tags: paperTags,
+                  categories: paperCategories.map((name, index) => ({
+                    id: `77777777-7777-4777-8777-77777777777${index}`,
+                    name,
+                    slug: name,
+                  })),
                   questionCount: 12,
                   totalScore: 24,
                   passingScore: 15,
@@ -134,23 +152,26 @@ describe("PapersPage", () => {
     expect(await screen.findByText("12 题")).toBeInTheDocument();
     expect(screen.getByText("总分 24")).toBeInTheDocument();
     expect(screen.getByText("及格 15")).toBeInTheDocument();
-    const tags = screen.getByLabelText("试卷标签");
+    const tags = screen.getByLabelText("试卷分类");
     const grammarTag = within(tags).getByRole("link", { name: "grammar" });
-    expect(grammarTag).toHaveAttribute("href", "/papers?tag=grammar");
+    expect(grammarTag).toHaveAttribute(
+      "href",
+      expect.stringContaining("categoryId="),
+    );
     expect(within(tags).getByRole("link", { name: "a2" })).toHaveAttribute(
       "href",
-      "/papers?tag=a2",
+      expect.stringContaining("categoryId="),
     );
     const link = screen.getByRole("link", { name: "查看《A2 Grammar Check》" });
     expect(link).toHaveAttribute("href", `/papers/${PAPER_ID}`);
   });
-  it("filters by a shortcut tag and preserves keyword state", async () => {
+  it("filters by a shortcut category and preserves keyword state", async () => {
     const user = userEvent.setup();
     const requests: InternalAxiosRequestConfig[] = [];
     installAdapter(requests);
     renderPage("/papers?keyword=grammar");
 
-    const shortcut = await screen.findByRole("button", { name: /cet-4 12/ });
+    const shortcut = await screen.findByRole("button", { name: "cet-4" });
     await user.click(shortcut);
 
     await waitFor(() => {
@@ -159,42 +180,30 @@ describe("PapersPage", () => {
       );
       expect(paperRequests.at(-1)?.params).toMatchObject({
         keyword: "grammar",
-        tag: "cet-4",
+        categoryId: expect.any(String),
         page: 1,
       });
       expect(shortcut).toHaveAttribute("aria-pressed", "true");
-      expect(screen.getByTestId("location")).toHaveTextContent(
-        "/papers?keyword=grammar&tag=cet-4",
+      expect(screen.getByTestId("location").textContent).toContain(
+        "/papers?keyword=grammar&categoryId=",
       );
     });
   });
 
-  it("searches and selects a tag from the expanded directory", async () => {
+  it("selects a category from the directory", async () => {
     const user = userEvent.setup();
     const requests: InternalAxiosRequestConfig[] = [];
     installAdapter(requests);
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "更多标签" }));
-    await user.type(
-      screen.getByRole("searchbox", { name: "搜索试卷标签" }),
-      "listen",
-    );
-    await user.click(screen.getByRole("button", { name: "搜索标签" }));
-    await user.click(
-      await screen.findByRole("button", { name: /listening 4/ }),
-    );
+    await user.click(await screen.findByRole("button", { name: "grammar" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent(
-        "/papers?tag=listening",
+      expect(screen.getByTestId("location").textContent).toContain(
+        "/papers?categoryId=",
       );
       expect(
-        requests.some(
-          (request) =>
-            request.url === "/paper-tags" &&
-            request.params?.keyword === "listen",
-        ),
+        requests.some((request) => request.url === "/paper-categories"),
       ).toBe(true);
     });
   });
@@ -203,7 +212,7 @@ describe("PapersPage", () => {
     const user = userEvent.setup();
     const requests: InternalAxiosRequestConfig[] = [];
     installAdapter(requests, ["grammar"], true);
-    renderPage("/papers?keyword=grammar&tag=cet-4");
+    renderPage("/papers?keyword=grammar");
 
     await user.click(await screen.findByRole("button", { name: "清除筛选" }));
 
@@ -213,7 +222,7 @@ describe("PapersPage", () => {
         (request) => request.url === "/papers",
       );
       expect(paperRequests.at(-1)?.params.keyword).toBeUndefined();
-      expect(paperRequests.at(-1)?.params.tag).toBeUndefined();
+      expect(paperRequests.at(-1)?.params.categoryId).toBeUndefined();
     });
   });
 
@@ -223,6 +232,6 @@ describe("PapersPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "A2 Grammar Check" });
-    expect(screen.queryByLabelText("试卷标签")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("试卷分类")).not.toBeInTheDocument();
   });
 });

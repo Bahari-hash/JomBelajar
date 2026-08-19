@@ -1,4 +1,5 @@
-export type PaperQuestionType = "SingleChoice" | "TrueFalse" | "FillBlank";
+export type PaperQuestionType =
+  "SingleChoice" | "TrueFalse" | "FillBlank" | "Dictation";
 export type PaperAttemptStatus = "InProgress" | "Submitted";
 export type AnswerSaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -14,29 +15,24 @@ export interface PaperCatalogItem {
   id: string;
   title: string;
   description: string | null;
-  tags: string[];
+  categories: PaperCategorySummary[];
   questionCount: number;
   totalScore: number;
   passingScore: number;
   publishedAt: string;
 }
 
-export interface PaperTagSummary {
+export interface PaperCategorySummary {
+  id: string;
   name: string;
-  paperCount: number;
-}
-
-export interface PaperTagListQuery {
-  page: number;
-  pageSize: number;
-  keyword?: string;
+  slug: string;
 }
 
 export interface PaperListQuery {
   page: number;
   pageSize: number;
   keyword?: string;
-  tag?: string;
+  categoryId?: string;
 }
 
 export interface PaperDetails extends PaperCatalogItem {
@@ -53,6 +49,7 @@ export interface PaperAttemptSavedAnswer {
   selectedOptionId: string | null;
   booleanAnswer: boolean | null;
   textAnswer: string | null;
+  textAnswers?: string[] | null;
   savedAt: string | null;
 }
 
@@ -64,6 +61,8 @@ export interface PaperAttemptQuestion {
   sortOrder: number;
   options: PaperAttemptOption[];
   savedAnswer: PaperAttemptSavedAnswer | null;
+  audioResourceId?: string | null;
+  dictationBlanks?: { sortOrder: number }[];
 }
 
 export interface PaperAttempt {
@@ -86,6 +85,7 @@ export interface SavePaperAnswerRequest {
   selectedOptionId?: string | null;
   booleanAnswer?: boolean | null;
   textAnswer?: string | null;
+  textAnswers?: string[] | null;
 }
 
 export interface PaperQuestionResult {
@@ -99,12 +99,15 @@ export interface PaperQuestionResult {
   selectedOptionId: string | null;
   booleanAnswer: boolean | null;
   textAnswer: string | null;
+  textAnswers?: string[] | null;
   isAnswered: boolean;
   correctOptionId: string | null;
   correctBoolean: boolean | null;
   acceptedAnswers: string[];
   isCorrect: boolean;
   awardedPoints: number;
+  audioResourceId?: string | null;
+  dictationAnswers?: string[] | null;
 }
 
 export interface PaperAttemptResult {
@@ -121,7 +124,7 @@ export interface PaperAttemptResult {
   questions: PaperQuestionResult[];
 }
 
-export type PaperAnswerValue = string | boolean | null;
+export type PaperAnswerValue = string | boolean | string[] | null;
 
 export interface LocalPaperAnswer {
   value: PaperAnswerValue;

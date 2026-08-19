@@ -27,6 +27,11 @@ function savedValue(question: PaperAttemptQuestion): PaperAnswerValue {
   if (question.type === "SingleChoice")
     return question.savedAnswer.selectedOptionId;
   if (question.type === "TrueFalse") return question.savedAnswer.booleanAnswer;
+  if (question.type === "Dictation")
+    return (
+      question.savedAnswer.textAnswers ??
+      (question.dictationBlanks ?? []).map(() => "")
+    );
   return question.savedAnswer.textAnswer;
 }
 
@@ -36,12 +41,17 @@ function requestFor(
 ): SavePaperAnswerRequest | null {
   if (
     value === null ||
-    (question.type === "FillBlank" && String(value).trim().length === 0)
+    (question.type === "FillBlank" && String(value).trim().length === 0) ||
+    (question.type === "Dictation" &&
+      Array.isArray(value) &&
+      value.every((item) => item.trim().length === 0))
   )
     return null;
   if (question.type === "SingleChoice")
     return { selectedOptionId: String(value) };
   if (question.type === "TrueFalse") return { booleanAnswer: Boolean(value) };
+  if (question.type === "Dictation")
+    return { textAnswers: Array.isArray(value) ? value : [] };
   return { textAnswer: String(value) };
 }
 
@@ -186,7 +196,7 @@ export function usePaperAttemptAnswers({
       const existingTimer = timersRef.current.get(questionId);
       if (existingTimer) clearTimeout(existingTimer);
       timersRef.current.delete(questionId);
-      if (question.type === "FillBlank") {
+      if (question.type === "FillBlank" || question.type === "Dictation") {
         timersRef.current.set(
           questionId,
           setTimeout(() => {

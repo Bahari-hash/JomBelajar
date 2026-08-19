@@ -38,6 +38,10 @@ public static class OnlineQuizEndpoints
         userGroup.MapPost("/paper-attempts/{attemptId:guid}/submit", SubmitAttemptAsync);
         userGroup.MapGet("/paper-attempts/{attemptId:guid}/result", GetAttemptResultAsync);
 
+        userGroup.MapGet("/paper-wrong-questions", GetWrongQuestionsAsync);
+        userGroup.MapGet("/paper-wrong-questions/{id:guid}", GetWrongQuestionAsync);
+        userGroup.MapPost("/paper-wrong-questions/{id:guid}/redo", RedoWrongQuestionAsync);
+
         var adminGroup = endpoints.MapGroup("/admin")
             .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
@@ -395,5 +399,49 @@ public static class OnlineQuizEndpoints
         => TypedResults.Ok(await attemptService.GetResultAsync(
             EndpointIdentity.GetUserId(principal),
             attemptId,
+            cancellationToken));
+
+    /// <summary>
+    /// 获取当前用户按掌握状态筛选的错题分页列表。
+    /// </summary>
+    public static async Task<Ok<PagedResponse<PaperWrongQuestionListItemResponse>>>
+        GetWrongQuestionsAsync(
+            [AsParameters] PaperWrongQuestionListRequest request,
+            ClaimsPrincipal principal,
+            IWrongQuestionService wrongQuestionService,
+            CancellationToken cancellationToken)
+        => TypedResults.Ok(await wrongQuestionService.GetListAsync(
+            EndpointIdentity.GetUserId(principal),
+            request,
+            cancellationToken));
+
+    /// <summary>
+    /// 获取当前用户单道错题的安全重做内容。
+    /// </summary>
+    public static async Task<Ok<PaperWrongQuestionDetailResponse>>
+        GetWrongQuestionAsync(
+            Guid id,
+            ClaimsPrincipal principal,
+            IWrongQuestionService wrongQuestionService,
+            CancellationToken cancellationToken)
+        => TypedResults.Ok(await wrongQuestionService.GetByIdAsync(
+            EndpointIdentity.GetUserId(principal),
+            id,
+            cancellationToken));
+
+    /// <summary>
+    /// 提交单道错题重做答案并立即返回判分和最新掌握状态。
+    /// </summary>
+    public static async Task<Ok<PaperWrongQuestionRedoResponse>>
+        RedoWrongQuestionAsync(
+            Guid id,
+            SavePaperAttemptAnswerRequest request,
+            ClaimsPrincipal principal,
+            IWrongQuestionService wrongQuestionService,
+            CancellationToken cancellationToken)
+        => TypedResults.Ok(await wrongQuestionService.RedoAsync(
+            EndpointIdentity.GetUserId(principal),
+            id,
+            request,
             cancellationToken));
 }

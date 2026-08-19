@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IPaperBatchService, PaperBatchService>();
         services.AddScoped<IPaperCategoryService, PaperCategoryService>();
         services.AddScoped<IPaperAttemptService, PaperAttemptService>();
+        services.AddScoped<IWrongQuestionService, WrongQuestionService>();
         services.AddSingleton<VideoRenditionPlanner>();
         services.AddScoped<IVideoProcessingService, VideoProcessingService>();
         services.AddScoped<IVideoProcessingDispatcher, VideoProcessingDispatcher>();

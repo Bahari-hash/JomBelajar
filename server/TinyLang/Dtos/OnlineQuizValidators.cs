@@ -571,6 +571,27 @@ public sealed class PaperAttemptListRequestValidator
 }
 
 /// <summary>
+/// 校验错题本的分页、状态和可选关键词。
+/// </summary>
+public sealed class PaperWrongQuestionListRequestValidator
+    : AbstractValidator<PaperWrongQuestionListRequest>
+{
+    public PaperWrongQuestionListRequestValidator()
+    {
+        RuleFor(value => value.Page)
+            .GreaterThanOrEqualTo(1).WithErrKey(ErrorCodes.PageInvalid);
+        RuleFor(value => value.PageSize)
+            .InclusiveBetween(1, 100).WithErrKey(ErrorCodes.PageSizeInvalid);
+        RuleFor(value => value.Status)
+            .IsInEnum().WithErrKey(ErrorCodes.PaperWrongQuestionStatusInvalid);
+        RuleFor(value => value.Keyword)
+            .MaximumLength(200).WithErrKey(ErrorCodes.KeywordLengthLimit)
+            .Must(value => string.IsNullOrEmpty(value) || !value.Any(char.IsControl))
+            .WithErrKey(ErrorCodes.KeywordInvalid);
+    }
+}
+
+/// <summary>
 /// 校验逐题保存请求恰好包含一个有界答案字段。
 /// </summary>
 public sealed class SavePaperAttemptAnswerRequestValidator

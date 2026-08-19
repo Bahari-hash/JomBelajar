@@ -20,6 +20,8 @@ public sealed class PaperAttemptService : IPaperAttemptService
         "IX_paper_attempts_UserId_PaperId_AttemptNumber";
     private const string AttemptAnswerUniqueIndex =
         "IX_paper_attempt_answers_AttemptId_QuestionId";
+    private const string WrongQuestionUniqueIndex =
+        "IX_paper_wrong_questions_UserId_QuestionId";
     private const int StartRetryCount = 2;
 
     private readonly IApplicationDbContext _db;
@@ -228,7 +230,8 @@ public sealed class PaperAttemptService : IPaperAttemptService
         catch (DbUpdateException exception) when (
             _databaseExceptionClassifier.IsUniqueConstraintViolation(
                 exception,
-                AttemptAnswerUniqueIndex))
+                AttemptAnswerUniqueIndex,
+                WrongQuestionUniqueIndex))
         {
             return await ResolveSubmitConflictAsync(
                 userId,
@@ -524,6 +527,9 @@ public sealed class PaperAttemptService : IPaperAttemptService
             .Include(value => value.Paper)
                 .ThenInclude(value => value!.Questions)
                     .ThenInclude(value => value.AcceptedAnswers)
+            .Include(value => value.Paper)
+                .ThenInclude(value => value!.Questions)
+                    .ThenInclude(value => value.DictationBlanks)
             .Include(value => value.Answers)
             .SingleOrDefaultAsync(
                 value => value.Id == attemptId && value.UserId == userId,
@@ -536,9 +542,15 @@ public sealed class PaperAttemptService : IPaperAttemptService
         }
         EnsureInProgress(attempt);
 
+        var now = _timeProvider.GetUtcNow();
         var answers = attempt.Answers.ToDictionary(value => value.QuestionId);
+        var questionIds = attempt.Paper!.Questions.Select(value => value.Id).ToArray();
+        var wrongQuestions = await _db.PaperWrongQuestions
+            .Where(value => value.UserId == userId &&
+                questionIds.Contains(value.QuestionId))
+            .ToDictionaryAsync(value => value.QuestionId, cancellationToken);
         var score = 0;
-        foreach (var question in attempt.Paper!.Questions)
+        foreach (var question in attempt.Paper.Questions)
         {
             if (!answers.TryGetValue(question.Id, out var answer))
             {
@@ -554,14 +566,21 @@ public sealed class PaperAttemptService : IPaperAttemptService
                 _db.PaperAttemptAnswers.Add(answer);
             }
 
-            var isCorrect = ScoreAnswer(question, answer);
+            var isCorrect = PaperAnswerEvaluator.Score(question, answer);
             answer.IsCorrect = isCorrect;
             answer.AwardedPoints = isCorrect ? question.Points : 0;
             answer.ConcurrencyStamp = Guid.NewGuid();
             score += answer.AwardedPoints.Value;
+            if (!isCorrect)
+            {
+                UpsertWrongQuestion(
+                    wrongQuestions,
+                    userId,
+                    question,
+                    now);
+            }
         }
 
-        var now = _timeProvider.GetUtcNow();
         attempt.Score = score;
         attempt.IsPassed = score >= attempt.PaperPassingScore;
         attempt.Status = PaperAttemptStatus.Submitted;
@@ -603,7 +622,7 @@ public sealed class PaperAttemptService : IPaperAttemptService
     /// <summary>
     /// 根据数据库题型验证答案字段并生成可持久化的规范化值。
     /// </summary>
-    private async Task<PreparedAnswer> PrepareAnswerAsync(
+    private async Task<PreparedPaperAnswer> PrepareAnswerAsync(
         Guid paperId,
         Guid questionId,
         SavePaperAttemptAnswerRequest request,
@@ -611,19 +630,13 @@ public sealed class PaperAttemptService : IPaperAttemptService
     {
         var question = await _db.PaperQuestions.AsNoTracking()
             .Include(value => value.Options)
+            .Include(value => value.DictationBlanks)
             .SingleOrDefaultAsync(
                 value => value.Id == questionId && value.PaperId == paperId,
                 cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.PaperAttemptQuestionNotFound);
 
-        return question.Type switch
-        {
-            PaperQuestionType.SingleChoice => PrepareSingleChoice(question, request),
-            PaperQuestionType.TrueFalse => PrepareTrueFalse(request),
-            PaperQuestionType.FillBlank => PrepareFillBlank(question, request),
-            _ => throw new RequestValidationException(
-                ErrorCodes.PaperAttemptAnswerShapeInvalid)
-        };
+        return PaperAnswerEvaluator.Prepare(question, request);
     }
 
     /// <summary>
@@ -643,134 +656,21 @@ public sealed class PaperAttemptService : IPaperAttemptService
     }
 
     /// <summary>
-    /// 验证单选题请求只提交属于当前题目的 OptionId。
-    /// </summary>
-    private static PreparedAnswer PrepareSingleChoice(
-        PaperQuestion question,
-        SavePaperAttemptAnswerRequest request)
-    {
-        if (request.SelectedOptionId is not { } selectedOptionId ||
-            request.BooleanAnswer.HasValue || request.TextAnswer is not null)
-        {
-            throw new RequestValidationException(
-                ErrorCodes.PaperAttemptAnswerShapeInvalid);
-        }
-        if (!question.Options.Any(value => value.Id == selectedOptionId))
-        {
-            throw new RequestValidationException(
-                ErrorCodes.PaperAttemptSelectedOptionInvalid);
-        }
-        return new PreparedAnswer(selectedOptionId, null, null, null);
-    }
-
-    /// <summary>
-    /// 验证判断题请求只提交 BooleanAnswer。
-    /// </summary>
-    private static PreparedAnswer PrepareTrueFalse(
-        SavePaperAttemptAnswerRequest request)
-    {
-        if (!request.BooleanAnswer.HasValue || request.SelectedOptionId.HasValue ||
-            request.TextAnswer is not null)
-        {
-            throw new RequestValidationException(
-                ErrorCodes.PaperAttemptAnswerShapeInvalid);
-        }
-        return new PreparedAnswer(null, request.BooleanAnswer, null, null);
-    }
-
-    /// <summary>
-    /// 验证填空题请求并生成与标准答案一致的比较键。
-    /// </summary>
-    private static PreparedAnswer PrepareFillBlank(
-        PaperQuestion question,
-        SavePaperAttemptAnswerRequest request)
-    {
-        if (request.TextAnswer is not { } textAnswer ||
-            request.SelectedOptionId.HasValue || request.BooleanAnswer.HasValue)
-        {
-            throw new RequestValidationException(
-                ErrorCodes.PaperAttemptAnswerShapeInvalid);
-        }
-
-        string normalized;
-        try
-        {
-            normalized = FillBlankAnswerNormalizer.Normalize(
-                textAnswer,
-                question.FillBlankCaseSensitive);
-        }
-        catch (ArgumentException)
-        {
-            throw new RequestValidationException(
-                ErrorCodes.PaperAttemptAnswerShapeInvalid);
-        }
-        if (normalized.Length is < 1 or > OnlineQuizConstraints.MaxAnswerTextLength)
-        {
-            throw new RequestValidationException(
-                ErrorCodes.PaperAttemptAnswerShapeInvalid);
-        }
-        return new PreparedAnswer(null, null, textAnswer, normalized);
-    }
-
-    /// <summary>
     /// 将已验证答案写入 tracked answer 并清除任何旧题型字段。
     /// </summary>
     private static void ApplyPreparedAnswer(
         PaperAttemptAnswer answer,
-        PreparedAnswer prepared,
+        PreparedPaperAnswer prepared,
         DateTimeOffset savedAt)
-    {
-        answer.SelectedOptionId = prepared.SelectedOptionId;
-        answer.BooleanAnswer = prepared.BooleanAnswer;
-        answer.TextAnswer = prepared.TextAnswer;
-        answer.NormalizedTextAnswer = prepared.NormalizedTextAnswer;
-        answer.IsAnswered = true;
-        answer.IsCorrect = null;
-        answer.AwardedPoints = null;
-        answer.SavedAt = savedAt;
-        answer.ConcurrencyStamp = Guid.NewGuid();
-    }
+        => PaperAnswerEvaluator.Apply(answer, prepared, savedAt);
 
     /// <summary>
     /// 判断持久化答案是否与客户端重试的已验证答案完全相同。
     /// </summary>
     private static bool AnswerMatches(
         PaperAttemptAnswer answer,
-        PreparedAnswer prepared)
-        => answer.IsAnswered &&
-            answer.SelectedOptionId == prepared.SelectedOptionId &&
-            answer.BooleanAnswer == prepared.BooleanAnswer &&
-            string.Equals(answer.TextAnswer, prepared.TextAnswer, StringComparison.Ordinal) &&
-            string.Equals(
-                answer.NormalizedTextAnswer,
-                prepared.NormalizedTextAnswer,
-                StringComparison.Ordinal);
-
-    /// <summary>
-    /// 根据题型和数据库标准答案确定一道题是否正确。
-    /// </summary>
-    private static bool ScoreAnswer(
-        PaperQuestion question,
-        PaperAttemptAnswer answer)
-    {
-        if (!answer.IsAnswered)
-        {
-            return false;
-        }
-
-        return question.Type switch
-        {
-            PaperQuestionType.SingleChoice => question.Options.Any(value =>
-                value.IsCorrect && answer.SelectedOptionId == value.Id),
-            PaperQuestionType.TrueFalse =>
-                answer.BooleanAnswer == question.CorrectBoolean,
-            PaperQuestionType.FillBlank =>
-                answer.NormalizedTextAnswer is { } normalized &&
-                question.AcceptedAnswers.Any(value =>
-                    value.NormalizedText == normalized),
-            _ => false
-        };
-    }
+        PreparedPaperAnswer prepared)
+        => PaperAnswerEvaluator.Matches(answer, prepared);
 
     /// <summary>
     /// 确保只有 InProgress 测验可以继续保存或首次提交。
@@ -822,8 +722,15 @@ public sealed class PaperAttemptService : IPaperAttemptService
                             answer.SelectedOptionId,
                             answer.BooleanAnswer,
                             answer.TextAnswer,
-                            answer.SavedAt))
-                        .SingleOrDefault()))
+                            answer.SavedAt,
+                            answer.TextAnswers))
+                        .SingleOrDefault(),
+                    question.AudioResourceId,
+                    question.DictationBlanks.OrderBy(blank => blank.SortOrder)
+                        .ThenBy(blank => blank.Id)
+                        .Select(blank => new UserPaperDictationBlankResponse(
+                            blank.SortOrder))
+                        .ToList()))
                 .ToList());
 
     /// <summary>
@@ -877,16 +784,47 @@ public sealed class PaperAttemptService : IPaperAttemptService
                             .Select(accepted => accepted.Text)
                             .ToList(),
                         answer.IsCorrect!.Value,
-                        answer.AwardedPoints!.Value))
+                        answer.AwardedPoints!.Value,
+                        answer.TextAnswers,
+                        answer.Question.AudioResourceId,
+                        answer.Question.DictationBlanks
+                            .OrderBy(blank => blank.SortOrder)
+                            .ThenBy(blank => blank.Id)
+                            .Select(blank => blank.Answer)
+                            .ToList()))
                     .ToList()))
             .SingleAsync(cancellationToken);
 
-    /// <summary>
-    /// 保存题型校验后的互斥答案字段和规范化比较键。
-    /// </summary>
-    private readonly record struct PreparedAnswer(
-        Guid? SelectedOptionId,
-        bool? BooleanAnswer,
-        string? TextAnswer,
-        string? NormalizedTextAnswer);
+    private void UpsertWrongQuestion(
+        IDictionary<Guid, PaperWrongQuestion> wrongQuestions,
+        Guid userId,
+        PaperQuestion question,
+        DateTimeOffset now)
+    {
+        if (wrongQuestions.TryGetValue(question.Id, out var wrongQuestion))
+        {
+            wrongQuestion.Status = PaperWrongQuestionStatus.Pending;
+            wrongQuestion.WrongCount++;
+            wrongQuestion.LastWrongAt = now;
+            wrongQuestion.MasteredAt = null;
+            wrongQuestion.UpdatedAt = now;
+            wrongQuestion.ConcurrencyStamp = Guid.NewGuid();
+            return;
+        }
+
+        wrongQuestion = new PaperWrongQuestion
+        {
+            UserId = userId,
+            QuestionId = question.Id,
+            Question = question,
+            Status = PaperWrongQuestionStatus.Pending,
+            WrongCount = 1,
+            FirstWrongAt = now,
+            LastWrongAt = now,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        wrongQuestions.Add(question.Id, wrongQuestion);
+        _db.PaperWrongQuestions.Add(wrongQuestion);
+    }
 }

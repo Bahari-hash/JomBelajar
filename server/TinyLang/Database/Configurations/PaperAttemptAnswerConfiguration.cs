@@ -22,9 +22,11 @@ public sealed class PaperAttemptAnswerConfiguration
                 "\"NormalizedTextAnswer\" IS NULL AND \"TextAnswers\" IS NULL) OR " +
                 "(\"IsAnswered\" = TRUE AND ((\"SelectedOptionId\" IS NOT NULL AND " +
                 "\"BooleanAnswer\" IS NULL AND \"TextAnswer\" IS NULL AND " +
-                "\"NormalizedTextAnswer\" IS NULL) OR (\"SelectedOptionId\" IS NULL AND " +
+                "\"NormalizedTextAnswer\" IS NULL AND \"TextAnswers\" IS NULL) OR " +
+                "(\"SelectedOptionId\" IS NULL AND " +
                 "\"BooleanAnswer\" IS NOT NULL AND \"TextAnswer\" IS NULL AND " +
-                "\"NormalizedTextAnswer\" IS NULL) OR (\"SelectedOptionId\" IS NULL AND " +
+                "\"NormalizedTextAnswer\" IS NULL AND \"TextAnswers\" IS NULL) OR " +
+                "(\"SelectedOptionId\" IS NULL AND " +
                 "\"BooleanAnswer\" IS NULL AND \"TextAnswer\" IS NOT NULL AND " +
                 "\"NormalizedTextAnswer\" IS NOT NULL AND \"TextAnswers\" IS NULL) OR " +
                 "(\"SelectedOptionId\" IS NULL AND \"BooleanAnswer\" IS NULL AND " +

@@ -307,7 +307,13 @@ public sealed record UserPaperAttemptSavedAnswerResponse(
     Guid? SelectedOptionId,
     bool? BooleanAnswer,
     string? TextAnswer,
-    DateTimeOffset? SavedAt);
+    DateTimeOffset? SavedAt,
+    IReadOnlyList<string>? TextAnswers = null);
+
+/// <summary>
+/// 描述听写题中一个不含标准答案的有序输入位置。
+/// </summary>
+public sealed record UserPaperDictationBlankResponse(int SortOrder);
 
 /// <summary>
 /// 返回用户作答所需的题干、选项和已保存答案。
@@ -319,7 +325,9 @@ public sealed record UserPaperAttemptQuestionResponse(
     int Points,
     int SortOrder,
     IReadOnlyList<UserPaperAttemptOptionResponse> Options,
-    UserPaperAttemptSavedAnswerResponse? SavedAnswer);
+    UserPaperAttemptSavedAnswerResponse? SavedAnswer,
+    Guid? AudioResourceId = null,
+    IReadOnlyList<UserPaperDictationBlankResponse> DictationBlanks = null!);
 
 /// <summary>
 /// 返回可恢复的测验和安全试卷内容，不包含答案、解析或成绩。
@@ -380,7 +388,90 @@ public sealed record PaperAttemptQuestionResultResponse(
     bool? CorrectBoolean,
     IReadOnlyList<string> AcceptedAnswers,
     bool IsCorrect,
-    int AwardedPoints);
+    int AwardedPoints,
+    IReadOnlyList<string>? TextAnswers = null,
+    Guid? AudioResourceId = null,
+    IReadOnlyList<string>? DictationAnswers = null);
+
+/// <summary>
+/// 描述当前用户错题本的分页、状态和关键词筛选。
+/// </summary>
+public sealed record PaperWrongQuestionListRequest
+{
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+    public PaperWrongQuestionStatus Status { get; init; } =
+        PaperWrongQuestionStatus.Pending;
+    public string? Keyword { get; init; }
+}
+
+/// <summary>
+/// 返回错题本列表所需的安全摘要，不包含任何标准答案。
+/// </summary>
+public sealed record PaperWrongQuestionListItemResponse(
+    Guid Id,
+    Guid QuestionId,
+    Guid PaperId,
+    string PaperTitle,
+    PaperWrongQuestionStatus Status,
+    PaperQuestionType Type,
+    string Prompt,
+    Guid? AudioResourceId,
+    int WrongCount,
+    int RedoCount,
+    DateTimeOffset FirstWrongAt,
+    DateTimeOffset LastWrongAt,
+    DateTimeOffset? LastRedoAt,
+    DateTimeOffset? MasteredAt,
+    Guid ConcurrencyStamp);
+
+/// <summary>
+/// 返回单道错题重做前的安全内容，不包含标准答案和解析。
+/// </summary>
+public sealed record PaperWrongQuestionDetailResponse(
+    Guid Id,
+    Guid QuestionId,
+    Guid PaperId,
+    string PaperTitle,
+    PaperWrongQuestionStatus Status,
+    PaperQuestionType Type,
+    string Prompt,
+    int Points,
+    IReadOnlyList<UserPaperAttemptOptionResponse> Options,
+    Guid? AudioResourceId,
+    IReadOnlyList<UserPaperDictationBlankResponse> DictationBlanks,
+    int WrongCount,
+    int RedoCount,
+    DateTimeOffset FirstWrongAt,
+    DateTimeOffset LastWrongAt,
+    DateTimeOffset? LastRedoAt,
+    DateTimeOffset? MasteredAt,
+    Guid ConcurrencyStamp);
+
+/// <summary>
+/// 返回一次错题重做的即时判分、标准答案和最新掌握状态。
+/// </summary>
+public sealed record PaperWrongQuestionRedoResponse(
+    Guid Id,
+    Guid QuestionId,
+    PaperWrongQuestionStatus Status,
+    PaperQuestionType Type,
+    bool IsCorrect,
+    string? Explanation,
+    Guid? SelectedOptionId,
+    bool? BooleanAnswer,
+    string? TextAnswer,
+    IReadOnlyList<string>? TextAnswers,
+    Guid? CorrectOptionId,
+    bool? CorrectBoolean,
+    IReadOnlyList<string> AcceptedAnswers,
+    IReadOnlyList<string> DictationAnswers,
+    int WrongCount,
+    int RedoCount,
+    DateTimeOffset LastWrongAt,
+    DateTimeOffset LastRedoAt,
+    DateTimeOffset? MasteredAt,
+    Guid ConcurrencyStamp);
 
 /// <summary>
 /// 返回已提交测验的稳定总成绩、通过状态和完整逐题结果。

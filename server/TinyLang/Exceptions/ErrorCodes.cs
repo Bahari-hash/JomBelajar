@@ -753,6 +753,15 @@ public enum ErrorCodes
     [Description("测验已被其他请求修改，请刷新后重试.")]
     PaperAttemptConcurrencyConflict,
 
+    [Description("错题记录不存在.")]
+    PaperWrongQuestionNotFound,
+
+    [Description("错题状态无效.")]
+    PaperWrongQuestionStatusInvalid,
+
+    [Description("错题记录已被其他请求修改，请刷新后重试.")]
+    PaperWrongQuestionConcurrencyConflict,
+
     // --** Pagination Errors **--
 
     [Description("页码必须大于或等于1.")]

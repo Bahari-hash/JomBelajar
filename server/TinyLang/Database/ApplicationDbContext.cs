@@ -38,11 +38,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Entities.WordStudyActivity> WordStudyActivities => Set<Entities.WordStudyActivity>();
     public DbSet<Entities.WordStudyCheckIn> WordStudyCheckIns => Set<Entities.WordStudyCheckIn>();
     public DbSet<Entities.Paper> Papers => Set<Entities.Paper>();
+    public DbSet<Entities.PaperCategory> PaperCategories => Set<Entities.PaperCategory>();
+    public DbSet<Entities.PaperCategoryAssignment> PaperCategoryAssignments => Set<Entities.PaperCategoryAssignment>();
     public DbSet<Entities.PaperQuestion> PaperQuestions => Set<Entities.PaperQuestion>();
+    public DbSet<Entities.PaperDictationBlank> PaperDictationBlanks => Set<Entities.PaperDictationBlank>();
     public DbSet<Entities.PaperQuestionOption> PaperQuestionOptions => Set<Entities.PaperQuestionOption>();
     public DbSet<Entities.FillBlankAcceptedAnswer> FillBlankAcceptedAnswers => Set<Entities.FillBlankAcceptedAnswer>();
     public DbSet<Entities.PaperAttempt> PaperAttempts => Set<Entities.PaperAttempt>();
     public DbSet<Entities.PaperAttemptAnswer> PaperAttemptAnswers => Set<Entities.PaperAttemptAnswer>();
+    public DbSet<Entities.PaperWrongQuestion> PaperWrongQuestions => Set<Entities.PaperWrongQuestion>();
 
     /// <inheritdoc />
     public async Task<IApplicationDbTransaction> BeginTransactionAsync(

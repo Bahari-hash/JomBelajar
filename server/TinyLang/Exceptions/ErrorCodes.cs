@@ -586,6 +586,15 @@ public enum ErrorCodes
     [Description("试卷标签不能重复.")]
     PaperTagDuplicate,
 
+    [Description("试卷分类标识集合无效.")]
+    PaperCategoryIdsInvalid,
+
+    [Description("单份试卷最多只能关联10个分类.")]
+    PaperCategoryCountLimit,
+
+    [Description("试卷分类不能重复.")]
+    PaperCategoryDuplicate,
+
     [Description("试卷发布状态无效.")]
     PaperStatusInvalid,
 

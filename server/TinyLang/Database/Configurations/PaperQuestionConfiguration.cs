@@ -24,7 +24,8 @@ public sealed class PaperQuestionConfiguration
             table.HasCheckConstraint(
                 "CK_paper_questions_type_fields",
                 "(\"Type\" = 'TrueFalse' OR \"CorrectBoolean\" IS NULL) AND " +
-                "(\"Type\" = 'FillBlank' OR \"FillBlankCaseSensitive\" = FALSE)");
+                "(\"Type\" = 'FillBlank' OR \"FillBlankCaseSensitive\" = FALSE) AND " +
+                "(\"Type\" = 'Dictation' OR \"AudioResourceId\" IS NULL)");
         });
         builder.HasKey(value => value.Id);
         builder.Property(value => value.Type)
@@ -36,5 +37,9 @@ public sealed class PaperQuestionConfiguration
             .WithMany(value => value.Questions)
             .HasForeignKey(value => value.PaperId)
             .OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(value => value.AudioResource)
+            .WithMany()
+            .HasForeignKey(value => value.AudioResourceId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

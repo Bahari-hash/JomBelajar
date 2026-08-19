@@ -7,5 +7,6 @@ public enum PaperQuestionType
 {
     SingleChoice,
     TrueFalse,
-    FillBlank
+    FillBlank,
+    Dictation
 }

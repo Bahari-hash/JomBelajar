@@ -13,6 +13,7 @@ public abstract record PaperUpsertRequest
     public string? Description { get; init; }
     public string? Instructions { get; init; }
     public IReadOnlyCollection<string> Tags { get; init; } = [];
+    public IReadOnlyCollection<Guid> CategoryIds { get; init; } = [];
     public int PassingScorePercentage { get; init; } = 60;
     public IReadOnlyCollection<PaperQuestionInput> Questions { get; init; } = [];
 }
@@ -54,6 +55,15 @@ public sealed record PaperQuestionInput
     public bool FillBlankCaseSensitive { get; init; }
     public IReadOnlyCollection<PaperQuestionOptionInput> Options { get; init; } = [];
     public IReadOnlyCollection<FillBlankAcceptedAnswerInput> AcceptedAnswers { get; init; } = [];
+    public Guid? AudioResourceId { get; init; }
+    public IReadOnlyCollection<PaperDictationBlankInput> DictationBlanks { get; init; } = [];
+}
+
+public sealed record PaperDictationBlankInput
+{
+    public Guid? Id { get; init; }
+    public required string Answer { get; init; }
+    public int SortOrder { get; init; }
 }
 
 /// <summary>
@@ -131,6 +141,7 @@ public sealed record SavePaperAttemptAnswerRequest
     public Guid? SelectedOptionId { get; init; }
     public bool? BooleanAnswer { get; init; }
     public string? TextAnswer { get; init; }
+    public IReadOnlyCollection<string>? TextAnswers { get; init; }
 }
 
 /// <summary>
@@ -379,9 +390,11 @@ public static class OnlineQuizConstraints
     public const int MaxAnswerTextLength = 1000;
     public const int MaxPaperTagCount = 10;
     public const int MaxPaperTagLength = 30;
+    public const int MaxPaperCategoryCount = 10;
     public const int MaxQuestionCount = 200;
     public const int MaxOptionCount = 10;
     public const int MaxAcceptedAnswerCount = 20;
+    public const int MaxDictationBlankCount = 20;
     public const int MinPoints = 1;
     public const int MaxPoints = 100;
     public const int MaxSortOrder = 10_000;

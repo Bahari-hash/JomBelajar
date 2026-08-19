@@ -19,14 +19,17 @@ public sealed class PaperAttemptAnswerConfiguration
                 "CK_paper_attempt_answers_shape",
                 "(\"IsAnswered\" = FALSE AND \"SelectedOptionId\" IS NULL AND " +
                 "\"BooleanAnswer\" IS NULL AND \"TextAnswer\" IS NULL AND " +
-                "\"NormalizedTextAnswer\" IS NULL) OR " +
+                "\"NormalizedTextAnswer\" IS NULL AND \"TextAnswers\" IS NULL) OR " +
                 "(\"IsAnswered\" = TRUE AND ((\"SelectedOptionId\" IS NOT NULL AND " +
                 "\"BooleanAnswer\" IS NULL AND \"TextAnswer\" IS NULL AND " +
                 "\"NormalizedTextAnswer\" IS NULL) OR (\"SelectedOptionId\" IS NULL AND " +
                 "\"BooleanAnswer\" IS NOT NULL AND \"TextAnswer\" IS NULL AND " +
                 "\"NormalizedTextAnswer\" IS NULL) OR (\"SelectedOptionId\" IS NULL AND " +
                 "\"BooleanAnswer\" IS NULL AND \"TextAnswer\" IS NOT NULL AND " +
-                "\"NormalizedTextAnswer\" IS NOT NULL)))");
+                "\"NormalizedTextAnswer\" IS NOT NULL AND \"TextAnswers\" IS NULL) OR " +
+                "(\"SelectedOptionId\" IS NULL AND \"BooleanAnswer\" IS NULL AND " +
+                "\"TextAnswer\" IS NULL AND \"NormalizedTextAnswer\" IS NULL AND " +
+                "\"TextAnswers\" IS NOT NULL)))");
             table.HasCheckConstraint(
                 "CK_paper_attempt_answers_awarded_points",
                 "(\"IsCorrect\" IS NULL AND \"AwardedPoints\" IS NULL) OR " +
@@ -35,6 +38,8 @@ public sealed class PaperAttemptAnswerConfiguration
         builder.HasKey(value => value.Id);
         builder.Property(value => value.TextAnswer).HasMaxLength(1000);
         builder.Property(value => value.NormalizedTextAnswer).HasMaxLength(1000);
+        builder.Property(value => value.TextAnswers)
+            .HasColumnType("text[]");
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
 
         builder.HasIndex(value => new { value.AttemptId, value.QuestionId }).IsUnique();

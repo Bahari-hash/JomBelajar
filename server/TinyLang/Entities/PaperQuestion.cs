@@ -25,7 +25,11 @@ public sealed class PaperQuestion : BaseEntity
     public int SortOrder { get; set; }
     public bool? CorrectBoolean { get; set; }
     public bool FillBlankCaseSensitive { get; set; }
+    public Guid? AudioResourceId { get; set; }
+    public AudioResource? AudioResource { get; set; }
     public ICollection<PaperQuestionOption> Options { get; set; } = [];
     public ICollection<FillBlankAcceptedAnswer> AcceptedAnswers { get; set; } = [];
+    public ICollection<PaperDictationBlank> DictationBlanks { get; set; } = [];
     public ICollection<PaperAttemptAnswer> AttemptAnswers { get; set; } = [];
+    public ICollection<PaperWrongQuestion> WrongQuestions { get; set; } = [];
 }

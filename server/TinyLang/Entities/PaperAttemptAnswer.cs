@@ -24,6 +24,7 @@ public sealed class PaperAttemptAnswer : BaseEntity
     public bool? BooleanAnswer { get; set; }
     public string? TextAnswer { get; set; }
     public string? NormalizedTextAnswer { get; set; }
+    public string[]? TextAnswers { get; set; }
     public bool IsAnswered { get; set; }
     public bool? IsCorrect { get; set; }
     public int? AwardedPoints { get; set; }

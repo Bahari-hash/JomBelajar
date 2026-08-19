@@ -40,6 +40,15 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
             .WithErrKey(ErrorCodes.PaperTagLengthLimit)
             .Must(HaveUniqueTags)
             .WithErrKey(ErrorCodes.PaperTagDuplicate);
+        RuleFor(value => value.CategoryIds)
+            .Cascade(CascadeMode.Stop)
+            .NotNull().WithErrKey(ErrorCodes.PaperCategoryIdsInvalid)
+            .Must(value => value.Count <= OnlineQuizConstraints.MaxPaperCategoryCount)
+            .WithErrKey(ErrorCodes.PaperCategoryCountLimit)
+            .Must(value => value.All(id => id != Guid.Empty))
+            .WithErrKey(ErrorCodes.PaperCategoryIdsInvalid)
+            .Must(value => value.Distinct().Count() == value.Count)
+            .WithErrKey(ErrorCodes.PaperCategoryDuplicate);
         RuleFor(value => value.PassingScorePercentage)
             .InclusiveBetween(1, 100)
             .WithErrKey(ErrorCodes.PaperPassingScoreInvalid);
@@ -49,7 +58,8 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
             .Must(value => value.Count <= OnlineQuizConstraints.MaxQuestionCount)
             .WithErrKey(ErrorCodes.PaperChildCountLimit)
             .Must(value => value.All(question => question is not null &&
-                question.Options is not null && question.AcceptedAnswers is not null))
+                question.Options is not null && question.AcceptedAnswers is not null &&
+                question.DictationBlanks is not null))
             .WithErrKey(ErrorCodes.PaperQuestionCollectionInvalid)
             .Must(HaveUniqueQuestionIds)
             .WithErrKey(ErrorCodes.PaperChildIdConflict)
@@ -99,6 +109,8 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
         => HaveUniqueOptionalIds(questions.SelectMany(value => value.Options)
                .Select(value => value.Id)) &&
             HaveUniqueOptionalIds(questions.SelectMany(value => value.AcceptedAnswers)
+               .Select(value => value.Id)) &&
+            HaveUniqueOptionalIds(questions.SelectMany(value => value.DictationBlanks)
                .Select(value => value.Id));
 
     /// <summary>
@@ -147,7 +159,9 @@ public sealed class CreatePaperRequestValidator : AbstractValidator<CreatePaperR
             question.Options is not null &&
             question.Options.All(option => option is not null && option.Id is null) &&
             question.AcceptedAnswers is not null &&
-            question.AcceptedAnswers.All(answer => answer is not null && answer.Id is null));
+            question.AcceptedAnswers.All(answer => answer is not null && answer.Id is null) &&
+            question.DictationBlanks is not null &&
+            question.DictationBlanks.All(blank => blank is not null && blank.Id is null));
 }
 
 /// <summary>
@@ -178,7 +192,9 @@ public sealed class UpdatePaperRequestValidator : AbstractValidator<UpdatePaperR
                  question.Options.All(option => option is not null && option.Id is null) &&
                  question.AcceptedAnswers is not null &&
                  question.AcceptedAnswers.All(answer =>
-                     answer is not null && answer.Id is null))));
+                     answer is not null && answer.Id is null) &&
+                 question.DictationBlanks is not null &&
+                 question.DictationBlanks.All(blank => blank is not null && blank.Id is null))));
 }
 
 /// <summary>
@@ -260,6 +276,21 @@ public sealed class PaperQuestionInputValidator
             .NotNull().WithErrKey(ErrorCodes.PaperQuestionCollectionInvalid)
             .SetValidator(new FillBlankAcceptedAnswerInputValidator());
 
+        RuleFor(value => value.DictationBlanks)
+            .Cascade(CascadeMode.Stop)
+            .NotNull().WithErrKey(ErrorCodes.PaperQuestionCollectionInvalid)
+            .Must(value => value.Count <= OnlineQuizConstraints.MaxDictationBlankCount)
+            .WithErrKey(ErrorCodes.PaperChildCountLimit)
+            .Must(value => value.All(blank => blank is not null))
+            .WithErrKey(ErrorCodes.PaperQuestionCollectionInvalid)
+            .Must(HaveUniqueDictationBlankIds)
+            .WithErrKey(ErrorCodes.PaperChildIdConflict)
+            .Must(HaveUniqueDictationBlankSortOrders)
+            .WithErrKey(ErrorCodes.PaperSortOrderConflict);
+        RuleForEach(value => value.DictationBlanks)
+            .NotNull().WithErrKey(ErrorCodes.PaperQuestionCollectionInvalid)
+            .SetValidator(new PaperDictationBlankInputValidator());
+
         RuleFor(value => value)
             .Must(HaveValidTypeShape)
             .WithErrKey(ErrorCodes.PaperQuestionShapeInvalid);
@@ -296,6 +327,14 @@ public sealed class PaperQuestionInputValidator
         IReadOnlyCollection<FillBlankAcceptedAnswerInput> values)
         => values.Select(value => value.SortOrder).Distinct().Count() == values.Count;
 
+    private static bool HaveUniqueDictationBlankIds(
+        IReadOnlyCollection<PaperDictationBlankInput> values)
+        => HaveUniqueOptionalIds(values.Select(value => value.Id));
+
+    private static bool HaveUniqueDictationBlankSortOrders(
+        IReadOnlyCollection<PaperDictationBlankInput> values)
+        => values.Select(value => value.SortOrder).Distinct().Count() == values.Count;
+
     /// <summary>
     /// 判断可空标识中的已有值合法且互不重复。
     /// </summary>
@@ -312,7 +351,7 @@ public sealed class PaperQuestionInputValidator
     /// </summary>
     private static bool HaveValidTypeShape(PaperQuestionInput value)
     {
-        if (value.Options is null || value.AcceptedAnswers is null ||
+        if (value.Options is null || value.AcceptedAnswers is null || value.DictationBlanks is null ||
             value.Options.Any(option => option is null) ||
             value.AcceptedAnswers.Any(answer => answer is null) ||
             !Enum.IsDefined(value.Type))
@@ -330,7 +369,13 @@ public sealed class PaperQuestionInputValidator
                 value.Options.Count == 0 && value.AcceptedAnswers.Count == 0 &&
                 !value.FillBlankCaseSensitive,
             Entities.Enums.PaperQuestionType.FillBlank =>
-                value.Options.Count == 0 && value.CorrectBoolean is null,
+                value.Options.Count == 0 && value.CorrectBoolean is null &&
+                value.AudioResourceId is null && value.DictationBlanks.Count == 0,
+            Entities.Enums.PaperQuestionType.Dictation =>
+                value.Options.Count == 0 && value.CorrectBoolean is null &&
+                !value.FillBlankCaseSensitive && value.AudioResourceId.HasValue &&
+                value.AudioResourceId != Guid.Empty && value.DictationBlanks.Count > 0 &&
+                value.AcceptedAnswers.Count == 0,
             _ => false
         };
     }
@@ -410,6 +455,26 @@ public sealed class FillBlankAcceptedAnswerInputValidator
             .Must(value => value is null || value != Guid.Empty)
             .WithErrKey(ErrorCodes.PaperChildIdInvalid);
         RuleFor(value => value.Text)
+            .Cascade(CascadeMode.Stop)
+            .Must(value => !string.IsNullOrWhiteSpace(value))
+            .WithErrKey(ErrorCodes.PaperAcceptedAnswerRequired)
+            .MaximumLength(OnlineQuizConstraints.MaxAnswerTextLength)
+            .WithErrKey(ErrorCodes.PaperAnswerTextLengthLimit);
+        RuleFor(value => value.SortOrder)
+            .InclusiveBetween(0, OnlineQuizConstraints.MaxSortOrder)
+            .WithErrKey(ErrorCodes.PaperSortOrderInvalid);
+    }
+}
+
+public sealed class PaperDictationBlankInputValidator
+    : AbstractValidator<PaperDictationBlankInput>
+{
+    public PaperDictationBlankInputValidator()
+    {
+        RuleFor(value => value.Id)
+            .Must(value => value is null || value != Guid.Empty)
+            .WithErrKey(ErrorCodes.PaperChildIdInvalid);
+        RuleFor(value => value.Answer)
             .Cascade(CascadeMode.Stop)
             .Must(value => !string.IsNullOrWhiteSpace(value))
             .WithErrKey(ErrorCodes.PaperAcceptedAnswerRequired)
@@ -519,6 +584,12 @@ public sealed class SavePaperAttemptAnswerRequestValidator
         RuleFor(value => value.TextAnswer)
             .MaximumLength(OnlineQuizConstraints.MaxAnswerTextLength)
             .WithErrKey(ErrorCodes.PaperAnswerTextLengthLimit);
+        RuleFor(value => value.TextAnswers)
+            .Must(value => value is null || value.Count > 0)
+            .WithErrKey(ErrorCodes.PaperAttemptAnswerShapeInvalid)
+            .Must(value => value is null || value.All(answer => answer is not null &&
+                answer.Length <= OnlineQuizConstraints.MaxAnswerTextLength))
+            .WithErrKey(ErrorCodes.PaperAnswerTextLengthLimit);
         RuleFor(value => value)
             .Must(value => CountAnswers(value) == 1)
             .WithErrKey(ErrorCodes.PaperAttemptAnswerShapeInvalid);
@@ -530,7 +601,8 @@ public sealed class SavePaperAttemptAnswerRequestValidator
     private static int CountAnswers(SavePaperAttemptAnswerRequest value)
         => (value.SelectedOptionId.HasValue ? 1 : 0) +
             (value.BooleanAnswer.HasValue ? 1 : 0) +
-            (value.TextAnswer is not null ? 1 : 0);
+            (value.TextAnswer is not null ? 1 : 0) +
+            (value.TextAnswers is not null ? 1 : 0);
 }
 
 /// <summary>

@@ -37,6 +37,51 @@ public sealed class OnlineQuizValidatorsTests
         new CreatePaperRequestValidator().Validate(request).IsValid.Should().BeTrue();
     }
 
+    [Fact]
+    public void QuestionValidatorShouldAcceptDictationWithOrderedBlanksAndAudio()
+    {
+        var question = new PaperQuestionInput
+        {
+            Type = PaperQuestionType.Dictation,
+            Prompt = "Listen and fill",
+            Points = 5,
+            SortOrder = 0,
+            AudioResourceId = Guid.NewGuid(),
+            DictationBlanks =
+            [
+                new PaperDictationBlankInput { Answer = "hello", SortOrder = 0 },
+                new PaperDictationBlankInput { Answer = "world", SortOrder = 1 }
+            ]
+        };
+
+        new PaperQuestionInputValidator().Validate(question).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void QuestionValidatorShouldRejectDictationWithoutAudioOrBlanks()
+    {
+        var question = new PaperQuestionInput
+        {
+            Type = PaperQuestionType.Dictation,
+            Prompt = "Listen and fill",
+            Points = 5,
+            SortOrder = 0
+        };
+
+        new PaperQuestionInputValidator().Validate(question).IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void SaveAnswerValidatorShouldAcceptDictationTextAnswers()
+    {
+        var request = new SavePaperAttemptAnswerRequest
+        {
+            TextAnswers = [" Hello ", "world"]
+        };
+
+        new SavePaperAttemptAnswerRequestValidator().Validate(request).IsValid.Should().BeTrue();
+    }
+
     /// <summary>
     /// 验证试卷标签数量不能超过写入边界。
     /// </summary>

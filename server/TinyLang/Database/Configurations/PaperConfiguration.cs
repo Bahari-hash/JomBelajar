@@ -21,11 +21,6 @@ public sealed class PaperConfiguration : IEntityTypeConfiguration<Paper>
         builder.Property(value => value.Title).HasMaxLength(200).IsRequired();
         builder.Property(value => value.Description).HasMaxLength(2000);
         builder.Property(value => value.Instructions).HasMaxLength(5000);
-        builder.Property(value => value.Tags)
-            .HasColumnType("text[]")
-            .HasDefaultValueSql("'{}'::text[]")
-            .IsRequired();
-        builder.HasIndex(value => value.Tags).HasMethod("gin");
         builder.Property(value => value.PassingScorePercentage)
             .HasDefaultValue(60);
         builder.Property(value => value.Status)

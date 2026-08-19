@@ -75,37 +75,32 @@ public sealed class OnlineQuizModelTests
         paperType.FindProperty(nameof(Paper.Status))!.GetProviderClrType()
             .Should().Be<string>();
     }
-    /// <summary>
-    /// 验证试卷标签映射为必填 PostgreSQL text[]，并以空数组作为默认值。
-    /// </summary>
     [Fact]
-    public void ModelShouldConfigurePaperTagsAsRequiredTextArray()
+    public void ModelShouldConfigureQuizCategoriesAndDictationRelationships()
     {
         using var db = CreateDbContext();
-        var tags = db.Model.FindEntityType(typeof(Paper))!
-            .FindProperty(nameof(Paper.Tags))!;
+        var assignmentType = db.Model.FindEntityType(typeof(PaperCategoryAssignment))!;
+        var blankType = db.Model.FindEntityType(typeof(PaperDictationBlank))!;
+        var questionType = db.Model.FindEntityType(typeof(PaperQuestion))!;
 
-        tags.IsNullable.Should().BeFalse();
-        tags.FindAnnotation(RelationalAnnotationNames.ColumnType)!.Value
-            .Should().Be("text[]");
-        tags.FindAnnotation(RelationalAnnotationNames.DefaultValueSql)!.Value
-            .Should().Be("'{}'::text[]");
+        assignmentType.FindPrimaryKey()!.Properties.Select(x => x.Name)
+            .Should().Equal(nameof(PaperCategoryAssignment.PaperId), nameof(PaperCategoryAssignment.PaperCategoryId));
+        blankType.GetIndexes().Single(index => index.Properties.Select(x => x.Name)
+            .SequenceEqual([nameof(PaperDictationBlank.QuestionId), nameof(PaperDictationBlank.SortOrder)])).IsUnique.Should().BeTrue();
+        questionType.FindProperty(nameof(PaperQuestion.AudioResourceId))!.IsNullable.Should().BeTrue();
+        questionType.GetForeignKeys().Single(x => x.PrincipalEntityType.ClrType == typeof(AudioResource))
+            .DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
     }
 
-    /// <summary>
-    /// 验证试卷标签数组使用 PostgreSQL GIN 索引支持精确包含查询。
-    /// </summary>
     [Fact]
-    public void ModelShouldConfigureGinIndexForPaperTags()
+    public void ModelShouldConfigureWrongQuestionUniquenessAndStatusConversion()
     {
         using var db = CreateDbContext();
-        var paperType = db.Model.FindEntityType(typeof(Paper))!;
-        var tagsIndex = paperType.GetIndexes().Single(index =>
-            index.Properties.Select(property => property.Name)
-                .SequenceEqual([nameof(Paper.Tags)]));
-
-        tagsIndex.FindAnnotation("Npgsql:IndexMethod")!.Value
-            .Should().Be("gin");
+        var wrongType = db.Model.FindEntityType(typeof(PaperWrongQuestion))!;
+        wrongType.GetIndexes().Single(index => index.Properties.Select(x => x.Name)
+            .SequenceEqual([nameof(PaperWrongQuestion.UserId), nameof(PaperWrongQuestion.QuestionId)])).IsUnique.Should().BeTrue();
+        wrongType.FindProperty(nameof(PaperWrongQuestion.Status))!.GetProviderClrType()
+            .Should().Be<string>();
     }
 
     /// <summary>

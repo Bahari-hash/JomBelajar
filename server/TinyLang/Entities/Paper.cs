@@ -19,7 +19,6 @@ public sealed class Paper : BaseAuditableEntity
     public required string Title { get; set; }
     public string? Description { get; set; }
     public string? Instructions { get; set; }
-    public string[] Tags { get; set; } = [];
     public PaperPublicationStatus Status { get; set; } =
         PaperPublicationStatus.Draft;
     public int PassingScorePercentage { get; set; } = 60;
@@ -34,4 +33,5 @@ public sealed class Paper : BaseAuditableEntity
     public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
     public ICollection<PaperQuestion> Questions { get; set; } = [];
     public ICollection<PaperAttempt> Attempts { get; set; } = [];
+    public ICollection<PaperCategoryAssignment> CategoryAssignments { get; set; } = [];
 }

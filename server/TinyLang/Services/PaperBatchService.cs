@@ -77,6 +77,13 @@ public sealed class PaperBatchService(
         }
 
         var paperArray = papers.ToArray();
+        if (paperArray.Any(value => value is null))
+        {
+            var invalid = new PaperBatchSummaryResponse(paperArray.Length, 0, 0, 0, 0, 0);
+            return new BuildResult(
+                new PaperBatchValidationResponse(false, invalid, [],
+                [Issue(null, null, "papers", ErrorCodes.PaperQuestionCollectionInvalid)]), []);
+        }
         var summary = Summarize(paperArray);
         if (paperArray.Length > OnlineQuizConstraints.MaxBatchPaperCount)
         {
@@ -87,14 +94,14 @@ public sealed class PaperBatchService(
 
         var categoryNames = paperArray.SelectMany(x => x.CategoryNames ?? [])
             .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(NormalizeName).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            .Select(NormalizeName).Distinct(StringComparer.Ordinal).ToArray();
         var categories = await db.PaperCategories.AsNoTracking()
             .Where(x => categoryNames.Contains(x.Name))
             .ToListAsync(cancellationToken);
-        var categoryLookup = categories.ToDictionary(x => NormalizeName(x.Name), StringComparer.OrdinalIgnoreCase);
+        var categoryLookup = categories.ToDictionary(x => NormalizeName(x.Name), StringComparer.Ordinal);
 
         var audioNames = paperArray.SelectMany(x => x.Questions ?? [])
-            .Where(x => x.Type == PaperQuestionType.Dictation && !string.IsNullOrWhiteSpace(x.AudioFileName))
+            .Where(x => x is not null && x.Type == PaperQuestionType.Dictation && !string.IsNullOrWhiteSpace(x.AudioFileName))
             .Select(x => NormalizeAudioName(x.AudioFileName!)).Distinct(StringComparer.Ordinal).ToArray();
         var audioResources = await db.AudioResources.AsNoTracking()
             .Where(x => audioNames.Contains(x.NormalizedName))
@@ -109,6 +116,7 @@ public sealed class PaperBatchService(
             var source = paperArray[paperIndex];
             var paperErrorCount = errors.Count;
             var categoryIds = new List<Guid>();
+            var seenCategoryNames = new HashSet<string>(StringComparer.Ordinal);
             foreach (var categoryName in source.CategoryNames ?? [])
             {
                 if (string.IsNullOrWhiteSpace(categoryName))
@@ -116,7 +124,12 @@ public sealed class PaperBatchService(
                     errors.Add(Issue(paperIndex, null, $"papers[{paperIndex}].categoryNames", ErrorCodes.PaperBatchCategoryNotFound));
                     continue;
                 }
-                if (!categoryLookup.TryGetValue(NormalizeName(categoryName), out var category))
+                var normalizedCategoryName = NormalizeName(categoryName);
+                if (!seenCategoryNames.Add(normalizedCategoryName))
+                {
+                    errors.Add(Issue(paperIndex, null, $"papers[{paperIndex}].categoryNames", ErrorCodes.PaperCategoryDuplicate));
+                }
+                else if (!categoryLookup.TryGetValue(normalizedCategoryName, out var category))
                 {
                     errors.Add(Issue(paperIndex, null, $"papers[{paperIndex}].categoryNames", ErrorCodes.PaperBatchCategoryNotFound));
                 }
@@ -131,9 +144,17 @@ public sealed class PaperBatchService(
             }
 
             var questions = new List<PaperQuestionInput>();
-            foreach (var sourceQuestion in source.Questions ?? [])
+            var sourceQuestions = source.Questions?.ToArray() ?? [];
+            for (var questionIndex = 0; questionIndex < sourceQuestions.Length; questionIndex++)
             {
-                var questionIndex = questions.Count;
+                var sourceQuestion = sourceQuestions[questionIndex];
+                if (sourceQuestion is null)
+                {
+                    errors.Add(Issue(paperIndex, questionIndex,
+                        $"papers[{paperIndex}].questions[{questionIndex}]",
+                        ErrorCodes.PaperQuestionCollectionInvalid));
+                    continue;
+                }
                 Guid? audioId = null;
                 if (sourceQuestion.Type == PaperQuestionType.Dictation)
                 {
@@ -198,7 +219,9 @@ public sealed class PaperBatchService(
                 errors.Count == paperErrorCount,
                 questions.Count,
                 source.CategoryNames?.ToArray() ?? [],
-                source.Questions?.Where(x => !string.IsNullOrWhiteSpace(x.AudioFileName)).Select(x => x.AudioFileName!).ToArray() ?? []));
+                source.Questions?.Where(x => x is not null &&
+                    !string.IsNullOrWhiteSpace(x.AudioFileName))
+                    .Select(x => x.AudioFileName!).ToArray() ?? []));
             items.Add(new PreparedItem(paperIndex, createRequest));
         }
 
@@ -208,7 +231,8 @@ public sealed class PaperBatchService(
 
     private static PaperBatchSummaryResponse Summarize(IReadOnlyCollection<PaperBatchItemRequest> papers)
     {
-        var questions = papers.SelectMany(x => x.Questions ?? []).ToArray();
+        var questions = papers.SelectMany(x => x.Questions ?? [])
+            .Where(x => x is not null).ToArray();
         return new PaperBatchSummaryResponse(
             papers.Count,
             questions.Length,

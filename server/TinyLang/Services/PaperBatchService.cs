@@ -50,16 +50,11 @@ public sealed class PaperBatchService(
         }
         catch (DbUpdateException)
         {
-            db.ClearTrackedChanges();
-            var refreshed = await BuildAsync(request, cancellationToken);
-            var error = new PaperBatchValidationErrorResponse(
-                null, null, "papers", ErrorCodes.PaperBatchConflict,
-                ErrorCodes.PaperBatchConflict.GetMessage());
-            return new PaperBatchImportResult(null, refreshed.Response with
-            {
-                IsValid = false,
-                Errors = refreshed.Response.Errors.Append(error).ToArray()
-            });
+            return await CreateConflictResultAsync(request, cancellationToken);
+        }
+        catch (BaseAppException exception) when (IsReferenceConflict(exception.ErrorCode))
+        {
+            return await CreateConflictResultAsync(request, cancellationToken);
         }
     }
 
@@ -70,7 +65,7 @@ public sealed class PaperBatchService(
         var papers = request?.Papers;
         if (papers is null || papers.Count == 0)
         {
-            var empty = new PaperBatchSummaryResponse(0, 0, 0, 0, 0, 0);
+            var empty = new PaperBatchSummaryResponse(0, 0, 0, 0, 0, 0, 0, 0);
             return new BuildResult(
                 new PaperBatchValidationResponse(false, empty, [],
                 [Issue(null, null, "papers", ErrorCodes.PaperBatchRequired)]), []);
@@ -79,7 +74,8 @@ public sealed class PaperBatchService(
         var paperArray = papers.ToArray();
         if (paperArray.Any(value => value is null))
         {
-            var invalid = new PaperBatchSummaryResponse(paperArray.Length, 0, 0, 0, 0, 0);
+            var invalid = new PaperBatchSummaryResponse(
+                paperArray.Length, 0, 0, 0, 0, 0, 0, 0);
             return new BuildResult(
                 new PaperBatchValidationResponse(false, invalid, [],
                 [Issue(null, null, "papers", ErrorCodes.PaperQuestionCollectionInvalid)]), []);
@@ -111,6 +107,8 @@ public sealed class PaperBatchService(
         var errors = new List<PaperBatchValidationErrorResponse>();
         var previews = new List<PaperBatchPaperValidationResponse>(paperArray.Length);
         var items = new List<PreparedItem>(paperArray.Length);
+        var matchedCategoryReferenceCount = 0;
+        var matchedAudioReferenceCount = 0;
         for (var paperIndex = 0; paperIndex < paperArray.Length; paperIndex++)
         {
             var source = paperArray[paperIndex];
@@ -140,6 +138,7 @@ public sealed class PaperBatchService(
                 else if (!categoryIds.Contains(category.Id))
                 {
                     categoryIds.Add(category.Id);
+                    matchedCategoryReferenceCount++;
                 }
             }
 
@@ -173,6 +172,7 @@ public sealed class PaperBatchService(
                     else
                     {
                         audioId = audio.Id;
+                        matchedAudioReferenceCount++;
                     }
                 }
                 else if (!string.IsNullOrWhiteSpace(sourceQuestion.AudioFileName) || (sourceQuestion.Blanks?.Count ?? 0) > 0)
@@ -211,7 +211,7 @@ public sealed class PaperBatchService(
                 var code = Enum.TryParse<ErrorCodes>(failure.ErrorCode, out var parsed)
                     ? parsed : ErrorCodes.RequestValidationFailed;
                 errors.Add(Issue(paperIndex, QuestionIndex(failure.PropertyName),
-                    $"papers[{paperIndex}].{failure.PropertyName}", code));
+                    $"papers[{paperIndex}].{ToJsonFieldPath(failure.PropertyName)}", code));
             }
             previews.Add(new PaperBatchPaperValidationResponse(
                 paperIndex,
@@ -219,13 +219,21 @@ public sealed class PaperBatchService(
                 errors.Count == paperErrorCount,
                 questions.Count,
                 source.CategoryNames?.ToArray() ?? [],
+                categoryIds.Count,
                 source.Questions?.Where(x => x is not null &&
                     !string.IsNullOrWhiteSpace(x.AudioFileName))
-                    .Select(x => x.AudioFileName!).ToArray() ?? []));
+                    .Select(x => x.AudioFileName!).ToArray() ?? [],
+                questions.Count(question => question.AudioResourceId.HasValue)));
             items.Add(new PreparedItem(paperIndex, createRequest));
         }
 
-        var response = new PaperBatchValidationResponse(errors.Count == 0, summary, previews, errors);
+        summary = summary with
+        {
+            MatchedCategoryReferenceCount = matchedCategoryReferenceCount,
+            MatchedAudioReferenceCount = matchedAudioReferenceCount
+        };
+        var response = new PaperBatchValidationResponse(
+            errors.Count == 0, summary, previews, errors);
         return new BuildResult(response, errors.Count == 0 ? items : []);
     }
 
@@ -239,8 +247,53 @@ public sealed class PaperBatchService(
             questions.Count(x => x.Type == PaperQuestionType.Dictation),
             questions.Where(x => x.Type == PaperQuestionType.Dictation).Sum(x => x.Blanks?.Count ?? 0),
             papers.Sum(x => x.CategoryNames?.Count ?? 0),
-            questions.Count(x => x.Type == PaperQuestionType.Dictation && !string.IsNullOrWhiteSpace(x.AudioFileName)));
+            0,
+            questions.Count(x => x.Type == PaperQuestionType.Dictation && !string.IsNullOrWhiteSpace(x.AudioFileName)),
+            0);
     }
+
+    private async Task<PaperBatchImportResult> CreateConflictResultAsync(
+        PaperBatchRequest request,
+        CancellationToken cancellationToken)
+    {
+        db.ClearTrackedChanges();
+        var refreshed = await BuildAsync(request, cancellationToken);
+        var error = new PaperBatchValidationErrorResponse(
+            null, null, "papers", ErrorCodes.PaperBatchConflict,
+            ErrorCodes.PaperBatchConflict.GetMessage());
+        return new PaperBatchImportResult(null, refreshed.Response with
+        {
+            IsValid = false,
+            Errors = refreshed.Response.Errors.Append(error).ToArray()
+        });
+    }
+
+    private static bool IsReferenceConflict(ErrorCodes errorCode)
+        => errorCode is ErrorCodes.PaperCategoryNotFound or
+            ErrorCodes.PaperCategoryInactive or
+            ErrorCodes.AudioNotFound or
+            ErrorCodes.AudioNotReady;
+
+    private static string ToJsonFieldPath(string propertyName)
+        => propertyName
+            .Replace(".Answer", ".answer", StringComparison.Ordinal)
+            .Replace(".Text", ".text", StringComparison.Ordinal)
+            .Replace("DictationBlanks", "blanks", StringComparison.Ordinal)
+            .Replace("AcceptedAnswers", "acceptedAnswers", StringComparison.Ordinal)
+            .Replace("CategoryIds", "categoryNames", StringComparison.Ordinal)
+            .Replace("Questions", "questions", StringComparison.Ordinal)
+            .Replace("Options", "options", StringComparison.Ordinal)
+            .Replace("Prompt", "prompt", StringComparison.Ordinal)
+            .Replace("Explanation", "explanation", StringComparison.Ordinal)
+            .Replace("Points", "points", StringComparison.Ordinal)
+            .Replace("SortOrder", "sortOrder", StringComparison.Ordinal)
+            .Replace("CorrectBoolean", "correctBoolean", StringComparison.Ordinal)
+            .Replace("FillBlankCaseSensitive", "fillBlankCaseSensitive", StringComparison.Ordinal)
+            .Replace("AudioResourceId", "audioFileName", StringComparison.Ordinal)
+            .Replace("Title", "title", StringComparison.Ordinal)
+            .Replace("Description", "description", StringComparison.Ordinal)
+            .Replace("Instructions", "instructions", StringComparison.Ordinal)
+            .Replace("PassingScorePercentage", "passingScorePercentage", StringComparison.Ordinal);
 
     private static PaperBatchValidationErrorResponse Issue(int? paperIndex, int? questionIndex, string field, ErrorCodes code)
         => new(paperIndex, questionIndex, field, code, code.GetMessage());

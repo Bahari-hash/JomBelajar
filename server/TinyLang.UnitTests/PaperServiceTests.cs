@@ -35,14 +35,13 @@ public sealed class PaperServiceTests
             adminId,
             CreateCompleteRequest() with
             {
-                Title = "  Quiz  ",
-                Tags = [" Grammar ", "A2"]
+                Title = "  Quiz  "
             },
             TestContext.Current.CancellationToken);
 
         response.Title.Should().Be("Quiz");
-        response.Tags.Should().Equal("grammar", "a2");
-        (await db.Papers.SingleAsync(TestContext.Current.CancellationToken)).Tags.Should().Equal("grammar", "a2");
+        (await db.Papers.SingleAsync(TestContext.Current.CancellationToken))
+            .CategoryAssignments.Should().BeEmpty();
         response.TotalScore.Should().Be(9);
         response.PassingScorePercentage.Should().Be(60);
         response.PassingScore.Should().Be(6);
@@ -103,7 +102,6 @@ public sealed class PaperServiceTests
         {
             Title = "Updated",
             Description = "Description",
-            Tags = ["B1", " Reading "],
             PassingScorePercentage = 50,
             ConcurrencyStamp = created.ConcurrencyStamp,
             Questions =
@@ -150,7 +148,6 @@ public sealed class PaperServiceTests
             TestContext.Current.CancellationToken);
 
         updated.Title.Should().Be("Updated");
-        updated.Tags.Should().Equal("b1", "reading");
         updated.TotalScore.Should().Be(6);
         updated.PassingScorePercentage.Should().Be(50);
         updated.PassingScore.Should().Be(3);
@@ -254,157 +251,6 @@ public sealed class PaperServiceTests
         (await service.GetCatalogAsync(
             new PaperCatalogRequest(),
             TestContext.Current.CancellationToken)).Items.Should().BeEmpty();
-    }
-
-    /// <summary>
-    /// 验证用户目录按规范化标签精确筛选，并与关键词筛选组合。
-    /// </summary>
-    [Fact]
-    public async Task CatalogShouldFilterByExactCaseInsensitiveTagAndKeyword()
-    {
-        await using var db = CreateDbContext();
-        var service = CreateService(db);
-        var adminId = Guid.NewGuid();
-        var matching = await service.CreateDraftAsync(
-            adminId,
-            CreateCompleteRequest() with { Title = "Target CET", Tags = ["cet"] },
-            TestContext.Current.CancellationToken);
-        var prefixOnly = await service.CreateDraftAsync(
-            adminId,
-            CreateCompleteRequest() with { Title = "Target CET-4", Tags = ["cet-4"] },
-            TestContext.Current.CancellationToken);
-        var keywordMismatch = await service.CreateDraftAsync(
-            adminId,
-            CreateCompleteRequest() with { Title = "CET Overview", Tags = ["cet"] },
-            TestContext.Current.CancellationToken);
-        await service.PublishAsync(
-            matching.Id,
-            adminId,
-            Mutation(matching),
-            TestContext.Current.CancellationToken);
-        await service.PublishAsync(
-            prefixOnly.Id,
-            adminId,
-            Mutation(prefixOnly),
-            TestContext.Current.CancellationToken);
-        await service.PublishAsync(
-            keywordMismatch.Id,
-            adminId,
-            Mutation(keywordMismatch),
-            TestContext.Current.CancellationToken);
-
-        var result = await service.GetCatalogAsync(
-            new PaperCatalogRequest { Tag = "  CeT  ", Keyword = "target" },
-            TestContext.Current.CancellationToken);
-
-        result.TotalCount.Should().Be(1);
-        result.Items.Should().ContainSingle(value => value.Id == matching.Id);
-    }
-
-    /// <summary>
-    /// 验证管理员列表按规范化标签精确筛选，并与关键词筛选组合。
-    /// </summary>
-    [Fact]
-    public async Task AdminListShouldFilterByExactCaseInsensitiveTagAndKeyword()
-    {
-        await using var db = CreateDbContext();
-        var service = CreateService(db);
-        var adminId = Guid.NewGuid();
-        var matching = await service.CreateDraftAsync(
-            adminId,
-            CreateCompleteRequest() with { Title = "Target CET", Tags = ["cet"] },
-            TestContext.Current.CancellationToken);
-        await service.CreateDraftAsync(
-            adminId,
-            CreateCompleteRequest() with { Title = "Target CET-4", Tags = ["cet-4"] },
-            TestContext.Current.CancellationToken);
-        await service.CreateDraftAsync(
-            adminId,
-            CreateCompleteRequest() with { Title = "CET Overview", Tags = ["cet"] },
-            TestContext.Current.CancellationToken);
-
-        var result = await service.GetAdminListAsync(
-            new AdminPaperListRequest { Tag = "  CeT  ", Keyword = "target" },
-            TestContext.Current.CancellationToken);
-
-        result.TotalCount.Should().Be(1);
-        result.Items.Should().ContainSingle(value => value.Id == matching.Id);
-    }
-
-    /// <summary>
-    /// 验证公开标签目录只统计已发布试卷，管理员目录包含草稿并稳定排序。
-    /// </summary>
-    [Fact]
-    public async Task TagDirectoriesShouldAggregateVisibilitySearchAndOrdering()
-    {
-        await using var db = CreateDbContext();
-        var service = CreateService(db);
-        var adminId = Guid.NewGuid();
-        var first = await service.CreateDraftAsync(
-            adminId,
-            CreateCompleteRequest() with { Title = "First", Tags = ["grammar", "cet-4"] },
-            TestContext.Current.CancellationToken);
-        var second = await service.CreateDraftAsync(
-            adminId,
-            CreateCompleteRequest() with { Title = "Second", Tags = ["grammar"] },
-            TestContext.Current.CancellationToken);
-        await service.CreateDraftAsync(
-            adminId,
-            CreateCompleteRequest() with { Title = "Draft", Tags = ["draft-only"] },
-            TestContext.Current.CancellationToken);
-        await service.PublishAsync(
-            first.Id,
-            adminId,
-            Mutation(first),
-            TestContext.Current.CancellationToken);
-        await service.PublishAsync(
-            second.Id,
-            adminId,
-            Mutation(second),
-            TestContext.Current.CancellationToken);
-
-        var publicTags = await service.GetPublicTagListAsync(
-            new PaperTagListRequest(),
-            TestContext.Current.CancellationToken);
-        var searched = await service.GetPublicTagListAsync(
-            new PaperTagListRequest { Keyword = "GRAM" },
-            TestContext.Current.CancellationToken);
-        var adminTags = await service.GetAdminTagListAsync(
-            new PaperTagListRequest(),
-            TestContext.Current.CancellationToken);
-
-        publicTags.Items.Should().Equal(
-            new PaperTagSummaryResponse("grammar", 2),
-            new PaperTagSummaryResponse("cet-4", 1));
-        searched.Items.Should().ContainSingle().Which
-            .Should().Be(new PaperTagSummaryResponse("grammar", 2));
-        adminTags.Items.Should().Contain(value =>
-            value.Name == "draft-only" && value.PaperCount == 1);
-    }
-
-    /// <summary>
-    /// 验证 PostgreSQL 标签目录查询能够通过 provider 翻译并到达连接阶段。
-    /// </summary>
-    [Fact]
-    public async Task PostgreSqlTagDirectoryShouldNotFailDuringLinqTranslation()
-    {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseNpgsql(
-                "Host=127.0.0.1;Port=1;Database=tiny_lang_translation;" +
-                "Username=test;Password=test;Timeout=1;Command Timeout=1")
-            .Options;
-        await using var db = new ApplicationDbContext(options);
-        var service = CreateService(db);
-        using var cancellation = new CancellationTokenSource(
-            TimeSpan.FromMilliseconds(200));
-
-        var exception = await Record.ExceptionAsync(() =>
-            service.GetAdminTagListAsync(
-                new PaperTagListRequest(),
-                cancellation.Token));
-
-        exception.Should().NotBeNull();
-        exception!.ToString().Should().NotContain("could not be translated");
     }
 
     /// <summary>

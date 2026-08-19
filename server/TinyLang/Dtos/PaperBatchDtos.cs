@@ -48,7 +48,9 @@ public sealed record PaperBatchSummaryResponse(
     int DictationQuestionCount,
     int DictationBlankCount,
     int CategoryReferenceCount,
-    int AudioReferenceCount);
+    int MatchedCategoryReferenceCount,
+    int AudioReferenceCount,
+    int MatchedAudioReferenceCount);
 
 public sealed record PaperBatchValidationErrorResponse(
     int? PaperIndex,
@@ -63,7 +65,9 @@ public sealed record PaperBatchPaperValidationResponse(
     bool IsValid,
     int QuestionCount,
     IReadOnlyList<string> CategoryNames,
-    IReadOnlyList<string> AudioFileNames);
+    int MatchedCategoryCount,
+    IReadOnlyList<string> AudioFileNames,
+    int MatchedAudioCount);
 
 public sealed record PaperBatchValidationResponse(
     bool IsValid,
@@ -80,4 +84,3 @@ public sealed record PaperBatchImportResponse(
 public sealed record PaperBatchImportResult(
     PaperBatchImportResponse? Imported,
     PaperBatchValidationResponse? Validation);
-

@@ -24,7 +24,7 @@ namespace TinyLang.UnitTests;
 public sealed class OnlineQuizEndpointTests
 {
     /// <summary>
-    /// 验证十条管理路由使用 RequireAdmin，十条用户路由使用 RequireUser。
+    /// 验证管理和用户路由均使用对应的授权策略。
     /// </summary>
     [Fact]
     public void RoutesShouldApplyAdminAndUserPolicies()
@@ -36,11 +36,11 @@ public sealed class OnlineQuizEndpointTests
         var userRoutes = routes.Where(value =>
             !value.RoutePattern.RawText!.StartsWith("/api/admin/"));
 
-        routes.Should().HaveCount(20);
-        adminRoutes.Should().HaveCount(10).And.OnlyContain(endpoint => endpoint.Metadata
+        routes.Should().HaveCount(28);
+        adminRoutes.Should().HaveCount(15).And.OnlyContain(endpoint => endpoint.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
             .Any(value => value.Policy == AuthorizationPolicies.RequireAdmin));
-        userRoutes.Should().HaveCount(10).And.OnlyContain(endpoint => endpoint.Metadata
+        userRoutes.Should().HaveCount(13).And.OnlyContain(endpoint => endpoint.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
             .Any(value => value.Policy == AuthorizationPolicies.RequireUser));
     }
@@ -283,46 +283,6 @@ public sealed class OnlineQuizEndpointTests
     }
 
     /// <summary>
-    /// 验证公开和管理员标签目录使用独立路由并转发查询参数。
-    /// </summary>
-    [Fact]
-    public async Task PaperTagEndpointsShouldForwardBoundedListRequests()
-    {
-        var paperService = new Mock<IPaperService>();
-        paperService.Setup(value => value.GetPublicTagListAsync(
-                It.IsAny<PaperTagListRequest>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PagedResponse<PaperTagSummaryResponse>(
-                [new PaperTagSummaryResponse("grammar", 2)], 2, 5, 1, 1));
-        paperService.Setup(value => value.GetAdminTagListAsync(
-                It.IsAny<PaperTagListRequest>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PagedResponse<PaperTagSummaryResponse>(
-                [new PaperTagSummaryResponse("draft-only", 1)], 1, 20, 1, 1));
-        await using var app = await CreateHttpAppAsync(
-            paperService.Object,
-            Mock.Of<IPaperAttemptService>(),
-            Guid.NewGuid());
-        var client = app.GetTestClient();
-
-        var publicResponse = await client.GetAsync(
-            "/api/paper-tags?page=2&pageSize=5&keyword=gram",
-            TestContext.Current.CancellationToken);
-        var adminResponse = await client.GetAsync(
-            "/api/admin/paper-tags?page=1&pageSize=20",
-            TestContext.Current.CancellationToken);
-
-        publicResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        adminResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        paperService.Verify(value => value.GetPublicTagListAsync(
-            It.Is<PaperTagListRequest>(request =>
-                request.Page == 2 && request.PageSize == 5 && request.Keyword == "gram"),
-            It.IsAny<CancellationToken>()), Times.Once);
-        paperService.Verify(value => value.GetAdminTagListAsync(
-            It.Is<PaperTagListRequest>(request => request.Page == 1),
-            It.IsAny<CancellationToken>()), Times.Once);
-    }
-    /// <summary>
     /// 创建仅用于检查路由 metadata 的应用。
     /// </summary>
     private static WebApplication CreateMetadataApp()
@@ -330,6 +290,9 @@ public sealed class OnlineQuizEndpointTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(Mock.Of<IPaperService>());
         builder.Services.AddSingleton(Mock.Of<IPaperAttemptService>());
+        builder.Services.AddSingleton(Mock.Of<IPaperCategoryService>());
+        builder.Services.AddSingleton(Mock.Of<IPaperBatchService>());
+        builder.Services.AddSingleton(Mock.Of<IWrongQuestionService>());
         var app = builder.Build();
         app.MapGroup("/api").MapOnlineQuizApi();
         return app;
@@ -354,6 +317,9 @@ public sealed class OnlineQuizEndpointTests
         });
         builder.Services.AddSingleton(paperService);
         builder.Services.AddSingleton(attemptService);
+        builder.Services.AddSingleton(Mock.Of<IPaperCategoryService>());
+        builder.Services.AddSingleton(Mock.Of<IPaperBatchService>());
+        builder.Services.AddSingleton(Mock.Of<IWrongQuestionService>());
         var app = builder.Build();
         app.Use(async (context, next) =>
         {

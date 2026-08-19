@@ -498,6 +498,9 @@ public sealed class OpenApiContractTests
         builder.Services.AddSingleton(Mock.Of<IWordStudyService>());
         builder.Services.AddSingleton(Mock.Of<IPaperService>());
         builder.Services.AddSingleton(Mock.Of<IPaperAttemptService>());
+        builder.Services.AddSingleton(Mock.Of<IPaperCategoryService>());
+        builder.Services.AddSingleton(Mock.Of<IPaperBatchService>());
+        builder.Services.AddSingleton(Mock.Of<IWrongQuestionService>());
         builder.Services.AddSingleton(Mock.Of<IMediaResourceService>());
         var app = builder.Build();
         app.MapOpenApi();

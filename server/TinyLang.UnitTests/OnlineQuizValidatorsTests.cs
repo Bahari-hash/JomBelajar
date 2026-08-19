@@ -82,76 +82,27 @@ public sealed class OnlineQuizValidatorsTests
         new SavePaperAttemptAnswerRequestValidator().Validate(request).IsValid.Should().BeTrue();
     }
 
-    /// <summary>
-    /// 验证试卷标签数量不能超过写入边界。
-    /// </summary>
     [Fact]
-    public void CreateValidatorShouldRejectTooManyTags()
+    public void CreateValidatorShouldRejectNullNestedItemsWithoutThrowing()
     {
         var request = CreateCompleteRequest() with
         {
-            Tags = Enumerable.Range(0, OnlineQuizConstraints.MaxPaperTagCount + 1)
-                .Select(value => $"tag-{value}").ToArray()
+            Questions =
+            [
+                new PaperQuestionInput
+                {
+                    Type = PaperQuestionType.SingleChoice,
+                    Prompt = "Choose one",
+                    Points = 1,
+                    SortOrder = 0,
+                    Options = [null!]
+                }
+            ]
         };
 
-        new CreatePaperRequestValidator().Validate(request)
-            .ShouldContain(ErrorCodes.PaperTagCountLimit);
-    }
+        var result = new CreatePaperRequestValidator().Validate(request);
 
-    /// <summary>
-    /// 验证标签长度限制应用于裁剪后的值。
-    /// </summary>
-    [Fact]
-    public void CreateValidatorShouldRejectTrimmedTagAboveLengthLimit()
-    {
-        var request = CreateCompleteRequest() with
-        {
-            Tags = [$"  {new string('a', OnlineQuizConstraints.MaxPaperTagLength + 1)}  "]
-        };
-
-        new CreatePaperRequestValidator().Validate(request)
-            .ShouldContain(ErrorCodes.PaperTagLengthLimit);
-    }
-
-    /// <summary>
-    /// 验证空白或包含控制字符的标签被拒绝。
-    /// </summary>
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    [InlineData("gram\nmar")]
-    public void CreateValidatorShouldRejectInvalidTag(string tag)
-    {
-        var request = CreateCompleteRequest() with { Tags = [tag] };
-
-        new CreatePaperRequestValidator().Validate(request)
-            .ShouldContain(ErrorCodes.PaperTagInvalid);
-    }
-
-    /// <summary>
-    /// 验证标签在裁剪且忽略大小写后不能重复。
-    /// </summary>
-    [Fact]
-    public void CreateValidatorShouldRejectCaseInsensitiveTagDuplicates()
-    {
-        var request = CreateCompleteRequest() with
-        {
-            Tags = ["Grammar", " grammar "]
-        };
-
-        new CreatePaperRequestValidator().Validate(request)
-            .ShouldContain(ErrorCodes.PaperTagDuplicate);
-    }
-
-    /// <summary>
-    /// 验证有效的规范标签集合通过校验。
-    /// </summary>
-    [Fact]
-    public void CreateValidatorShouldAcceptValidTags()
-    {
-        var request = CreateCompleteRequest() with { Tags = ["grammar", "a2"] };
-
-        new CreatePaperRequestValidator().Validate(request).IsValid.Should().BeTrue();
+        result.ShouldContain(ErrorCodes.PaperQuestionCollectionInvalid);
     }
 
     /// <summary>
@@ -272,78 +223,17 @@ public sealed class OnlineQuizValidatorsTests
         }).IsValid.Should().BeTrue();
     }
 
-    /// <summary>
-    /// 验证两个试卷列表均接受未提供、空白和混合大小写的标签筛选。
-    /// </summary>
-    [Theory]
-    [InlineData(null)]
-    [InlineData("   ")]
-    [InlineData("  GrAmMaR  ")]
-    public void ListValidatorsShouldAcceptOptionalTagFilter(string? tag)
+    [Fact]
+    public void ListValidatorsShouldAcceptOptionalCategoryFilter()
     {
         new AdminPaperListRequestValidator().Validate(new AdminPaperListRequest
         {
-            Tag = tag
+            CategoryId = Guid.NewGuid()
         }).IsValid.Should().BeTrue();
         new PaperCatalogRequestValidator().Validate(new PaperCatalogRequest
         {
-            Tag = tag
+            CategoryId = Guid.NewGuid()
         }).IsValid.Should().BeTrue();
-    }
-
-    /// <summary>
-    /// 验证两个试卷列表均拒绝超过原始长度边界的标签筛选。
-    /// </summary>
-    [Fact]
-    public void ListValidatorsShouldRejectTagFilterAboveLengthLimit()
-    {
-        var tag = new string('a', OnlineQuizConstraints.MaxPaperTagLength + 1);
-
-        new AdminPaperListRequestValidator().Validate(new AdminPaperListRequest
-        {
-            Tag = tag
-        }).ShouldContain(ErrorCodes.PaperTagLengthLimit);
-        new PaperCatalogRequestValidator().Validate(new PaperCatalogRequest
-        {
-            Tag = tag
-        }).ShouldContain(ErrorCodes.PaperTagLengthLimit);
-    }
-
-    /// <summary>
-    /// 验证两个试卷列表均拒绝包含控制字符的标签筛选。
-    /// </summary>
-    [Fact]
-    public void ListValidatorsShouldRejectTagFilterWithControlCharacters()
-    {
-        const string tag = "gram\nmar";
-
-        new AdminPaperListRequestValidator().Validate(new AdminPaperListRequest
-        {
-            Tag = tag
-        }).ShouldContain(ErrorCodes.PaperTagInvalid);
-        new PaperCatalogRequestValidator().Validate(new PaperCatalogRequest
-        {
-            Tag = tag
-        }).ShouldContain(ErrorCodes.PaperTagInvalid);
-    }
-
-    /// <summary>
-    /// 验证标签目录分页和关键词使用与其他目录一致的有界规则。
-    /// </summary>
-    [Fact]
-    public void PaperTagListValidatorShouldBoundPagingAndKeyword()
-    {
-        var validator = new PaperTagListRequestValidator();
-
-        validator.Validate(new PaperTagListRequest()).IsValid.Should().BeTrue();
-        validator.Validate(new PaperTagListRequest { Page = 0 })
-            .ShouldContain(ErrorCodes.PageInvalid);
-        validator.Validate(new PaperTagListRequest { PageSize = 101 })
-            .ShouldContain(ErrorCodes.PageSizeInvalid);
-        validator.Validate(new PaperTagListRequest { Keyword = new string('a', 201) })
-            .ShouldContain(ErrorCodes.KeywordLengthLimit);
-        validator.Validate(new PaperTagListRequest { Keyword = "bad\nkeyword" })
-            .ShouldContain(ErrorCodes.KeywordInvalid);
     }
     /// <summary>
     /// 创建包含单选、判断和填空题的有效请求。

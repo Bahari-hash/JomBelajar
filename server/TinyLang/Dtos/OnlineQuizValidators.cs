@@ -48,7 +48,10 @@ internal sealed class PaperUpsertRequestValidator<T> : AbstractValidator<T>
             .WithErrKey(ErrorCodes.PaperChildCountLimit)
             .Must(value => value.All(question => question is not null &&
                 question.Options is not null && question.AcceptedAnswers is not null &&
-                question.DictationBlanks is not null))
+                question.DictationBlanks is not null &&
+                question.Options.All(option => option is not null) &&
+                question.AcceptedAnswers.All(answer => answer is not null) &&
+                question.DictationBlanks.All(blank => blank is not null)))
             .WithErrKey(ErrorCodes.PaperQuestionCollectionInvalid)
             .Must(HaveUniqueQuestionIds)
             .WithErrKey(ErrorCodes.PaperChildIdConflict)

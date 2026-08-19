@@ -69,8 +69,91 @@ public sealed class PaperBatchServiceTests
             TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeTrue();
-        result.Summary.Should().Be(new PaperBatchSummaryResponse(1, 1, 1, 2, 1, 1));
+        result.Summary.CategoryReferenceCount.Should().Be(1);
+        result.Summary.MatchedCategoryReferenceCount.Should().Be(1);
+        result.Summary.AudioReferenceCount.Should().Be(1);
+        result.Summary.MatchedAudioReferenceCount.Should().Be(1);
+        result.Papers.Single().MatchedCategoryCount.Should().Be(1);
+        result.Papers.Single().MatchedAudioCount.Should().Be(1);
         result.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ValidateShouldReturnJsonFieldPathForInvalidDictationBlank()
+    {
+        await using var db = CreateDbContext();
+        db.PaperCategories.Add(new PaperCategory
+        {
+            Name = "日常会话",
+            Slug = "daily-conversation",
+            IsActive = true
+        });
+        db.AudioResources.Add(CreateAudio("lesson-01.mp3", AudioResourceStatus.Ready));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var request = CreateRequest();
+        var paper = request.Papers.Single();
+        var question = paper.Questions.Single();
+        request = request with
+        {
+            Papers =
+            [
+                paper with
+                {
+                    Questions =
+                    [
+                        question with
+                        {
+                            Blanks = [new PaperDictationBlankInput
+                            {
+                                Answer = " ",
+                                SortOrder = 0
+                            }]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var result = await CreateService(db).ValidateAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        result.Errors.Should().Contain(error =>
+            error.Field == "papers[0].questions[0].blanks[0].answer");
+    }
+
+    [Fact]
+    public async Task ImportShouldReturnAtomicValidationWhenReferenceChangesDuringSave()
+    {
+        await using var db = CreateDbContext();
+        db.PaperCategories.Add(new PaperCategory
+        {
+            Name = "日常会话",
+            Slug = "daily-conversation",
+            IsActive = true
+        });
+        db.AudioResources.Add(CreateAudio("lesson-01.mp3", AudioResourceStatus.Ready));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var paperService = new Mock<IPaperService>();
+        paperService.Setup(value => value.CreateDraftAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<CreatePaperRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(ConflictException.Create(ErrorCodes.AudioNotReady));
+
+        var result = await new PaperBatchService(
+            db,
+            paperService.Object,
+            new CreatePaperRequestValidator()).ImportAsync(
+                Guid.NewGuid(),
+                CreateRequest(),
+                TestContext.Current.CancellationToken);
+
+        result.Imported.Should().BeNull();
+        result.Validation!.IsValid.Should().BeFalse();
+        result.Validation.Errors.Should().Contain(error =>
+            error.ErrorCode == ErrorCodes.PaperBatchConflict);
+        (await db.Papers.CountAsync(TestContext.Current.CancellationToken)).Should().Be(0);
     }
 
     [Fact]

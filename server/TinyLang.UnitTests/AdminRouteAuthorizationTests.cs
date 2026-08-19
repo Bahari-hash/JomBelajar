@@ -116,6 +116,9 @@ public sealed class AdminRouteAuthorizationTests
         builder.Services.AddSingleton(Mock.Of<IWordBatchService>());
         builder.Services.AddSingleton(Mock.Of<IPaperService>());
         builder.Services.AddSingleton(Mock.Of<IPaperAttemptService>());
+        builder.Services.AddSingleton(Mock.Of<IPaperCategoryService>());
+        builder.Services.AddSingleton(Mock.Of<IPaperBatchService>());
+        builder.Services.AddSingleton(Mock.Of<IWrongQuestionService>());
         builder.Services.AddSingleton(Mock.Of<IVideoService>());
         builder.Services.AddSingleton(Mock.Of<IAudioResourceService>());
         builder.Services.AddSingleton(Mock.Of<IMediaResourceService>());

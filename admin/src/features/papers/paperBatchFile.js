@@ -3,18 +3,50 @@ export const PAPER_BATCH_MAX_FILE_SIZE = 20 * 1024 * 1024;
 export const PAPER_BATCH_EXAMPLE = Object.freeze({
   papers: [
     {
-      title: "基础听力测试",
+      title: "基础题型与听力测试",
       description: "批量导入的草稿试卷",
       instructions: "请按题目要求作答。",
-      categoryNames: ["听力"],
+      categoryNames: ["基础练习", "听力"],
       passingScorePercentage: 60,
       questions: [
+        {
+          type: "SingleChoice",
+          prompt: "Which word means ‘你好’ in English?",
+          explanation: "Hello 表示‘你好’。",
+          points: 2,
+          sortOrder: 0,
+          options: [
+            { text: "Hello", isCorrect: true, sortOrder: 0 },
+            { text: "Thanks", isCorrect: false, sortOrder: 1 },
+            { text: "Goodbye", isCorrect: false, sortOrder: 2 },
+          ],
+        },
+        {
+          type: "TrueFalse",
+          prompt: "‘World’ 的意思是‘世界’。",
+          explanation: "World 可以表示‘世界’。",
+          points: 1,
+          sortOrder: 1,
+          correctBoolean: true,
+        },
+        {
+          type: "FillBlank",
+          prompt: "Complete the sentence: Hello, ___!",
+          explanation: "此处可以填写 world。",
+          points: 2,
+          sortOrder: 2,
+          fillBlankCaseSensitive: false,
+          acceptedAnswers: [
+            { text: "world", sortOrder: 0 },
+            { text: "the world", sortOrder: 1 },
+          ],
+        },
         {
           type: "Dictation",
           prompt: "听音频，填写缺失内容。",
           explanation: "答案需要完整填写。",
           points: 2,
-          sortOrder: 0,
+          sortOrder: 3,
           audioFileName: "hello.mp3",
           blanks: [
             { answer: "hello", sortOrder: 0 },

@@ -112,7 +112,7 @@ function Login() {
         <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
-              src="/logo.png"
+              src={`${import.meta.env.BASE_URL}logo.png`}
               alt=""
               className="size-9 rounded-lg object-contain"
             />

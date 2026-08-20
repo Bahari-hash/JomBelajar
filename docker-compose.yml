@@ -1,0 +1,181 @@
+services:
+  postgres:
+    image: postgres:18.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - internal
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.10.0
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - internal
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4.3.4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - internal
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_API_CORS_ALLOW_ORIGIN: https://www.bahasa.cn
+    volumes:
+      - minio-data:/data
+    networks:
+      - internal
+      - npm-network
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_started
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+    entrypoint: >-
+      /bin/sh -c 'until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do sleep 2; done;
+      mc mb --ignore-existing local/"$$MINIO_BUCKET";
+      mc anonymous set download local/"$$MINIO_BUCKET"'
+    networks:
+      - internal
+    restart: "no"
+
+  migrate:
+    build:
+      context: ./server
+      target: migrations
+    environment:
+      ConnectionStrings__DatabaseConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    restart: "no"
+
+  api:
+    build:
+      context: ./server
+      target: final
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DatabaseConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__RedisConnection: redis:6379
+      JwtSettings__JwtSecret: ${JWT_SECRET}
+      JwtSettings__Issuer: ${JWT_ISSUER}
+      JwtSettings__Audience: ${JWT_AUDIENCE}
+      JwtSettings__AccessTokenExpMinutes: ${JWT_ACCESS_TOKEN_EXP_MINUTES}
+      JwtSettings__RefreshTokenExpMinutes: ${JWT_REFRESH_TOKEN_EXP_MINUTES}
+      JwtSettings__RefreshTokenRotationGraceSeconds: ${JWT_REFRESH_TOKEN_ROTATION_GRACE_SECONDS}
+      EmailSettings__SmtpServer: ${SMTP_HOST}
+      EmailSettings__SmtpPort: ${SMTP_PORT}
+      EmailSettings__SecureMode: ${SMTP_SECURE_MODE}
+      EmailSettings__SenderName: ${SMTP_SENDER_NAME}
+      EmailSettings__SenderEmail: ${SMTP_SENDER_EMAIL}
+      EmailSettings__Username: ${SMTP_USERNAME}
+      EmailSettings__Password: ${SMTP_PASSWORD}
+      RabbitMqSettings__Host: rabbitmq
+      RabbitMqSettings__Port: "5672"
+      RabbitMqSettings__VirtualHost: ${RABBITMQ_VHOST}
+      RabbitMqSettings__Username: ${RABBITMQ_USER}
+      RabbitMqSettings__Password: ${RABBITMQ_PASSWORD}
+      ObjectStorageSettings__ServiceUrl: https://${MINIO_DOMAIN}
+      ObjectStorageSettings__Region: ${MINIO_REGION}
+      ObjectStorageSettings__AccessKey: ${MINIO_ROOT_USER}
+      ObjectStorageSettings__SecretKey: ${MINIO_ROOT_PASSWORD}
+      ObjectStorageSettings__Bucket: ${MINIO_BUCKET}
+      ObjectStorageSettings__ForcePathStyle: "true"
+      ObjectStorageSettings__PublicBaseUrl: https://${MINIO_DOMAIN}/${MINIO_BUCKET}
+      ObjectStorageSettings__PresignedUrlExpirySeconds: ${S3_PRESIGNED_URL_EXPIRY_SECONDS}
+      ForwardedHeadersSettings__Enabled: "true"
+      ForwardedHeadersSettings__KnownNetworks__0: 10.0.0.0/8
+      ForwardedHeadersSettings__KnownNetworks__1: 172.16.0.0/12
+      ForwardedHeadersSettings__KnownNetworks__2: 192.168.0.0/16
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - internal
+    restart: unless-stopped
+
+  app:
+    build:
+      context: ./app
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - internal
+      - npm-network
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: ./admin
+      args:
+        VITE_BASE_PATH: /admin/
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - internal
+      - npm-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  minio-data:
+
+networks:
+  internal:
+    driver: bridge
+  npm-network:
+    external: true
+    name: npm-network

@@ -32,7 +32,7 @@ function Brand() {
   return (
     <div className="flex min-w-0 items-center gap-3">
       <img
-        src="/logo.png"
+        src={`${import.meta.env.BASE_URL}logo.png`}
         alt=""
         className="size-8 shrink-0 rounded-lg object-contain"
       />

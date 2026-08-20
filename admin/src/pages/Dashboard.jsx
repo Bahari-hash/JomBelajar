@@ -4,7 +4,7 @@ function Dashboard() {
   return (
     <div className="space-y-8">
       <header>
-        <p className="text-sm font-medium text-primary">TinyLang 管理后台</p>
+        <p className="text-sm font-medium text-primary">JomBelajar 管理后台</p>
         <h1 className="mt-1 text-2xl font-semibold">工作台</h1>
       </header>
 

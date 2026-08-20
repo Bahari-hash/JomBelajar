@@ -37,7 +37,7 @@ function Brand() {
         className="size-8 shrink-0 rounded-lg object-contain"
       />
       <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold">TinyLang</span>
+        <span className="block truncate text-sm font-semibold">JomBelajar</span>
         <span className="block truncate text-xs text-muted-foreground">
           管理后台
         </span>

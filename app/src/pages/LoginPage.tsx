@@ -82,7 +82,7 @@ export default function LoginPage() {
 
   return (
     <AuthPageShell
-      title="登录 TinyLang"
+      title="登录 JomBelajar"
       description="登录后继续你的外语学习。"
       footer={
         <span>

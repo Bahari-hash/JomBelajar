@@ -19,7 +19,7 @@ export default function VideoCard({ video, listPath }: VideoCardProps) {
   const [coverFailed, setCoverFailed] = useState(false);
   const coverUrl =
     !coverFailed && isSafeVideoUrl(video.coverUrl) ? video.coverUrl : null;
-  const authorName = video.author.nickname?.trim() || "TinyLang 编辑";
+  const authorName = video.author.nickname?.trim() || "JomBelajar 编辑";
   const visibleCategories = video.categories.slice(0, 3);
   const remaining = Math.max(
     0,

@@ -4,7 +4,7 @@ import { moduleItems } from "@/constants/navigation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export default function HomePage() {
-  useDocumentTitle("TinyLang");
+  useDocumentTitle("JomBelajar");
   const location = useLocation();
 
   return (

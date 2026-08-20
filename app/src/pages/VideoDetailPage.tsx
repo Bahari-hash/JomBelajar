@@ -84,7 +84,7 @@ export default function VideoDetailPage() {
       </section>
     );
   const video = query.data;
-  const authorName = video.author.nickname?.trim() || "TinyLang 编辑";
+  const authorName = video.author.nickname?.trim() || "JomBelajar 编辑";
   return (
     <div className="mx-auto max-w-5xl">
       <Link className="btn btn-ghost btn-sm -ml-3" to={returnPath}>

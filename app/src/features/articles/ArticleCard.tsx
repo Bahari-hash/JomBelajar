@@ -12,7 +12,7 @@ interface ArticleCardProps {
 
 /** Presents one public article without inventing engagement metadata. */
 export default function ArticleCard({ article, listPath }: ArticleCardProps) {
-  const authorName = article.author.nickname?.trim() || "TinyLang 编辑";
+  const authorName = article.author.nickname?.trim() || "JomBelajar 编辑";
   const visibleCategories = article.categories.slice(0, 3);
   const remainingCategoryCount = article.categories.length - 3;
 

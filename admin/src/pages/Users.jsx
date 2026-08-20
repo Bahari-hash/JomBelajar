@@ -27,9 +27,9 @@ function Users() {
     useGetAdminUsersQuery(filters);
 
   useEffect(() => {
-    document.title = "用户管理 | TinyLang 管理后台";
+    document.title = "用户管理 | JomBelajar 管理后台";
     return () => {
-      document.title = "TinyLang 管理后台";
+      document.title = "JomBelajar 管理后台";
     };
   }, []);
 

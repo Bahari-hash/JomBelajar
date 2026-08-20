@@ -117,7 +117,7 @@ function Login() {
               className="size-9 rounded-lg object-contain"
             />
             <div>
-              <p className="text-sm font-semibold">TinyLang</p>
+              <p className="text-sm font-semibold">JomBelajar</p>
               <p className="text-xs text-muted-foreground">管理后台</p>
             </div>
           </div>

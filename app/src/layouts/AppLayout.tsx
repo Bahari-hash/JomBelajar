@@ -31,7 +31,7 @@ function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
   });
 }
 
-/** Shared responsive shell for every public TinyLang route. */
+/** Shared responsive shell for every public JomBelajar route. */
 export default function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -94,7 +94,7 @@ export default function AppLayout() {
       <header className="sticky top-0 z-30 border-b border-base-300 bg-base-100/95 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
           <NavLink
-            aria-label="TinyLang 首页"
+            aria-label="JomBelajar 首页"
             className="flex shrink-0 items-center gap-2 text-lg font-bold"
             to="/"
           >
@@ -103,7 +103,7 @@ export default function AppLayout() {
               alt=""
               className="size-9 shrink-0 rounded-md object-contain"
             />
-            <span>TinyLang</span>
+            <span>JomBelajar</span>
           </NavLink>
 
           <nav
@@ -181,7 +181,7 @@ export default function AppLayout() {
 
       <footer className="border-t border-base-300">
         <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center px-4 text-sm text-base-content/65 sm:px-6 lg:px-8">
-          <p>TinyLang 外语学习平台</p>
+          <p>JomBelajar 外语学习平台</p>
         </div>
       </footer>
     </div>

@@ -5,10 +5,10 @@ import { AdminPageContext } from "@/lib/adminPageContext.js";
 export function useAdminPage(title, breadcrumb = title) {
   const setPageLabel = useContext(AdminPageContext);
   useEffect(() => {
-    document.title = `${title} | TinyLang 管理后台`;
+    document.title = `${title} | JomBelajar 管理后台`;
     setPageLabel?.(breadcrumb);
     return () => {
-      document.title = "TinyLang 管理后台";
+      document.title = "JomBelajar 管理后台";
       setPageLabel?.(null);
     };
   }, [breadcrumb, setPageLabel, title]);

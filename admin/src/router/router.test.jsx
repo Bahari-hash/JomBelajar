@@ -12,7 +12,7 @@ describe("admin routes", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "工作台" }),
     ).toBeVisible();
-    expect(screen.getByText("TinyLang 管理后台")).toBeVisible();
+    expect(screen.getByText("JomBelajar 管理后台")).toBeVisible();
   });
 
   it("renders a 404 for an unknown path and returns to the dashboard", async () => {

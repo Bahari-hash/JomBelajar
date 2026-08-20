@@ -103,7 +103,7 @@ export default function ArticleDetailPage() {
   }
 
   const article = articleQuery.data;
-  const authorName = article.author.nickname?.trim() || "TinyLang 编辑";
+  const authorName = article.author.nickname?.trim() || "JomBelajar 编辑";
 
   return (
     <div className="mx-auto max-w-4xl">

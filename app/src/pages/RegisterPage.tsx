@@ -124,7 +124,7 @@ export default function RegisterPage() {
 
   return (
     <AuthPageShell
-      title="创建 TinyLang 账户"
+      title="创建 JomBelajar 账户"
       description="注册后即可保存你的学习记录。"
       footer={
         <span>

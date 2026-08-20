@@ -76,7 +76,7 @@ describe("ArticleDetailPage", () => {
       await screen.findByRole("heading", { name: "Learning in context" }),
     ).toBeInTheDocument();
     const articleCard = screen.getByRole("article");
-    expect(screen.getByText("TinyLang 编辑")).toBeInTheDocument();
+    expect(screen.getByText("JomBelajar 编辑")).toBeInTheDocument();
     expect(
       within(articleCard).getByRole("heading", { name: "Learning in context" }),
     ).toBeInTheDocument();
@@ -93,7 +93,7 @@ describe("ArticleDetailPage", () => {
       screen.getByRole("button", { name: "播放文章朗读" }),
     ).toBeInTheDocument();
     expect(requests).toHaveLength(1);
-    expect(document.title).toBe("Learning in context | TinyLang");
+    expect(document.title).toBe("Learning in context | JomBelajar");
   });
 
   it("does not render an empty audio placeholder without an association", async () => {

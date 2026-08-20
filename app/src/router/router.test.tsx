@@ -31,9 +31,9 @@ describe("consumer routes", () => {
         await screen.findByRole("heading", { name: heading, level: 1 }),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("link", { name: "TinyLang 首页" }),
+        screen.getByRole("link", { name: "JomBelajar 首页" }),
       ).toBeInTheDocument();
-      expect(screen.getByText("TinyLang 外语学习平台")).toBeInTheDocument();
+      expect(screen.getByText("JomBelajar 外语学习平台")).toBeInTheDocument();
     },
   );
 
@@ -64,7 +64,7 @@ describe("consumer routes", () => {
     expect(
       await screen.findByRole(
         "heading",
-        { name: "登录 TinyLang", level: 1 },
+        { name: "登录 JomBelajar", level: 1 },
         { timeout: 5_000 },
       ),
     ).toBeInTheDocument();

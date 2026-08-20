@@ -32,7 +32,7 @@ describe("auth route boundaries", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "登录 TinyLang" }),
+      await screen.findByRole("heading", { name: "登录 JomBelajar" }),
     ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/login");
     expect(router.state.location.search).toBe("?returnTo=%2Fprofile");

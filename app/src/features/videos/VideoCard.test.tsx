@@ -80,7 +80,7 @@ describe("VideoCard", () => {
       author: { ...video.author, nickname: null, avatarUrl: null },
     });
 
-    expect(screen.getByText("TinyLang 编辑")).toBeInTheDocument();
+    expect(screen.getByText("JomBelajar 编辑")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "默认头像" })).toBeInTheDocument();
   });
 });

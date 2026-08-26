@@ -12,7 +12,6 @@ import { isSafeVideoUrl } from "@/features/videos/videoUtils";
 const mediaClient: AxiosInstance = axios.create({
   baseURL: "",
   withCredentials: false,
-  responseType: "arraybuffer",
 });
 
 function createStats(start: number, loaded = 0, total = 0): LoaderStats {
@@ -62,16 +61,22 @@ export default class HlsAxiosLoader implements Loader<LoaderContext> {
       config.loadPolicy.maxLoadTimeMs || config.timeout || 30000,
     );
     mediaClient
-      .get<ArrayBuffer>(context.url, {
+      .get<string | ArrayBuffer>(context.url, {
         cancelToken: this.source.token,
         timeout,
         headers,
+        responseType:
+          context.responseType === "arraybuffer" ? "arraybuffer" : "text",
       })
       .then((response) => {
+        const length =
+          typeof response.data === "string"
+            ? response.data.length
+            : response.data.byteLength;
         this.stats = createStats(
           startedAt,
-          response.data.byteLength,
-          response.data.byteLength,
+          length,
+          length,
         );
         const result: LoaderResponse = {
           url: context.url,

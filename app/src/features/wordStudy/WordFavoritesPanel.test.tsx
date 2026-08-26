@@ -2,7 +2,7 @@ import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
 import { AxiosHeaders } from "axios";
 import { useState } from "react";
 import { Provider } from "react-redux";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { httpClient } from "@/services/httpClient";
@@ -141,6 +141,17 @@ describe("WordFavoritesPanel", () => {
     expect(dialog.contains(document.activeElement)).toBe(true);
     await user.keyboard("{Tab}");
     expect(close).toHaveFocus();
+
+    const visibleControls = screen
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-label") !== "关闭收藏本弹窗");
+    for (let index = 0; index < visibleControls.length; index += 1) {
+      await user.keyboard("{Tab}");
+      expect(document.activeElement).not.toHaveAttribute(
+        "aria-label",
+        "关闭收藏本弹窗",
+      );
+    }
 
     close.focus();
     await user.keyboard("{Escape}");
@@ -327,6 +338,35 @@ describe("WordFavoritesPanel", () => {
     expect(requests.some((request) => request.method === "delete")).toBe(true);
   });
 
+  it("moves focus to the modal close control after removing the selected word", async () => {
+    let isFavorite = true;
+    httpClient.defaults.adapter = (async (config) => {
+      if (config.method === "delete") {
+        isFavorite = false;
+        return {
+          data: null,
+          status: 204,
+          statusText: "No Content",
+          headers: new AxiosHeaders(),
+          config,
+        };
+      }
+      return { ...favoriteResponse(isFavorite ? [favoriteWord] : []), config };
+    }) as AxiosAdapter;
+    const user = userEvent.setup();
+    render(
+      <Provider store={createAppStore()}>
+        <WordFavoritesPanel modal onClose={vi.fn()} />
+      </Provider>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "查看 study" }));
+    await user.click(screen.getByRole("button", { name: "取消收藏" }));
+
+    await waitFor(() => expect(screen.getByText("暂无收藏单词")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "关闭收藏本" })).toHaveFocus();
+  });
+
   it("keeps details open and shows an error when detail removal fails", async () => {
     httpClient.defaults.adapter = (async (config) => {
       if (config.method === "delete") throw new Error("failed");
@@ -414,6 +454,49 @@ describe("WordFavoritesPanel", () => {
     removal.reject(new Error("failed"));
 
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByRole("region", { name: "learn" })).toBeInTheDocument();
+  });
+
+  it("preserves the current detail removal error when an older row removal fails", async () => {
+    const firstRemoval = deferred<never>();
+    const secondRemoval = deferred<never>();
+    let deleteCount = 0;
+    const secondWord = { ...favoriteWord, wordId: "word-2", headword: "learn" };
+    httpClient.defaults.adapter = ((config) => {
+      if (config.method === "delete") {
+        deleteCount += 1;
+        return deleteCount === 1 ? firstRemoval.promise : secondRemoval.promise;
+      }
+      return Promise.resolve({
+        ...favoriteResponse([favoriteWord, secondWord]),
+        config,
+      });
+    }) as AxiosAdapter;
+    const user = userEvent.setup();
+    render(
+      <Provider store={createAppStore()}>
+        <WordFavoritesPanel />
+      </Provider>,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "取消收藏 study" }),
+    );
+    await user.click(screen.getByRole("button", { name: "查看 learn" }));
+    await user.click(screen.getByRole("button", { name: "取消收藏" }));
+    secondRemoval.reject(new Error("newer detail failure"));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "收藏状态更新失败，请重试。",
+    );
+
+    await act(async () => {
+      firstRemoval.reject(new Error("older row failure"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole("alert")).toHaveTextContent(
+      "收藏状态更新失败，请重试。",
+    );
     expect(screen.getByRole("region", { name: "learn" })).toBeInTheDocument();
   });
 

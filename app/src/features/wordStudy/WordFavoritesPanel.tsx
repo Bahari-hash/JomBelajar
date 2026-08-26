@@ -17,6 +17,8 @@ type RemovalError = {
   wordId: string;
 };
 
+type RemovalErrors = Record<string, RemovalError>;
+
 const removalErrorMessage = "收藏状态更新失败，请重试。";
 
 export default function WordFavoritesPanel({
@@ -27,12 +29,14 @@ export default function WordFavoritesPanel({
   const [selectedWord, setSelectedWord] = useState<WordFavorite | null>(null);
   const query = useGetFavoritesQuery({ page, pageSize: 20 });
   const [setFavorite] = useSetFavoriteMutation();
-  const [removalError, setRemovalError] = useState<RemovalError | null>(null);
+  const [removalErrors, setRemovalErrors] = useState<RemovalErrors>({});
   const [removingWordIds, setRemovingWordIds] = useState<string[]>([]);
   const openersRef = useRef(new Map<string, HTMLButtonElement>());
   const openerWordIdRef = useRef<string | null>(null);
+  const focusModalCloseAfterRemovalRef = useRef(false);
   const pendingRemovalsRef = useRef(new Set<string>());
   const modalRef = useRef<HTMLDivElement | null>(null);
+  const modalBoxRef = useRef<HTMLDivElement | null>(null);
   const modalCloseRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -42,9 +46,16 @@ export default function WordFavoritesPanel({
   }, [page, query.data]);
 
   useEffect(() => {
-    if (selectedWord || !openerWordIdRef.current) return;
-    openersRef.current.get(openerWordIdRef.current)?.focus();
-    openerWordIdRef.current = null;
+    if (selectedWord) return;
+    if (openerWordIdRef.current) {
+      openersRef.current.get(openerWordIdRef.current)?.focus();
+      openerWordIdRef.current = null;
+      return;
+    }
+    if (focusModalCloseAfterRemovalRef.current) {
+      modalCloseRef.current?.focus();
+      focusModalCloseAfterRemovalRef.current = false;
+    }
   }, [selectedWord]);
 
   useEffect(() => {
@@ -57,17 +68,20 @@ export default function WordFavoritesPanel({
   }, [modal]);
 
   const closeDetails = () => {
-    setRemovalError((current) =>
-      current?.source === "detail" && current.wordId === selectedWord?.wordId
-        ? null
-        : current,
-    );
+    if (selectedWord) {
+      setRemovalErrors((current) => {
+        if (!current[selectedWord.wordId]) return current;
+        const next = { ...current };
+        delete next[selectedWord.wordId];
+        return next;
+      });
+    }
     setSelectedWord(null);
   };
 
   const openDetails = (word: WordFavorite) => {
     openerWordIdRef.current = word.wordId;
-    setRemovalError(null);
+    setRemovalErrors({});
     setSelectedWord(word);
   };
 
@@ -75,18 +89,22 @@ export default function WordFavoritesPanel({
     if (pendingRemovalsRef.current.has(wordId)) return;
     pendingRemovalsRef.current.add(wordId);
     setRemovingWordIds((current) => [...current, wordId]);
-    setRemovalError((current) =>
-      current?.wordId === wordId ? null : current,
-    );
+    setRemovalErrors((current) => {
+      if (!current[wordId]) return current;
+      const next = { ...current };
+      delete next[wordId];
+      return next;
+    });
     try {
       await setFavorite({ wordId, favorite: false }).unwrap();
       setSelectedWord((current) => {
         if (current?.wordId !== wordId) return current;
         openerWordIdRef.current = null;
+        focusModalCloseAfterRemovalRef.current = modal;
         return null;
       });
     } catch {
-      setRemovalError({ source, wordId });
+      setRemovalErrors((current) => ({ ...current, [wordId]: { source, wordId } }));
     } finally {
       pendingRemovalsRef.current.delete(wordId);
       setRemovingWordIds((current) => current.filter((id) => id !== wordId));
@@ -94,6 +112,9 @@ export default function WordFavoritesPanel({
   };
 
   const isRemoving = (wordId: string) => removingWordIds.includes(wordId);
+  const removalError = selectedWord
+    ? removalErrors[selectedWord.wordId]
+    : Object.values(removalErrors).find((error) => error.source === "row");
   const visibleRemovalError = selectedWord
     ? removalError?.source === "detail" && removalError.wordId === selectedWord.wordId
       ? removalErrorMessage
@@ -112,7 +133,7 @@ export default function WordFavoritesPanel({
     }
     if (event.key !== "Tab") return;
     const focusableElements = Array.from(
-      modalRef.current?.querySelectorAll<HTMLElement>(
+      modalBoxRef.current?.querySelectorAll<HTMLElement>(
         'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       ) ?? [],
     );
@@ -255,7 +276,10 @@ export default function WordFavoritesPanel({
       }
       onKeyDown={handleModalKeyDown}
     >
-      <div className="modal-box relative w-11/12 max-w-3xl">
+      <div
+        ref={modalBoxRef}
+        className="modal-box relative w-11/12 max-w-3xl"
+      >
         <button
           ref={modalCloseRef}
           className="btn btn-ghost btn-sm btn-circle absolute right-2 top-2"

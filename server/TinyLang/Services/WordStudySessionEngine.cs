@@ -21,7 +21,12 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
         CancellationToken cancellationToken = default)
     {
         await using var transaction = await db.BeginTransactionAsync(cancellationToken);
-        var session = await db.WordStudySessions.Include(value => value.Items)
+        var session = await db.WordStudySessions
+            .AsSplitQuery()
+            .Include(value => value.Items)
+                .ThenInclude(value => value.Word!)
+                    .ThenInclude(value => value.Senses)
+                        .ThenInclude(value => value.Examples)
             .SingleOrDefaultAsync(value => value.Id == sessionId && value.UserId == userId,
                 cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);

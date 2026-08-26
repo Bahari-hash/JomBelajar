@@ -565,6 +565,40 @@ public sealed class WordStudySessionEngineTests
         progress.NextReviewAt.Should().BeNull();
     }
 
+    [Fact]
+    public async Task ExcludingCurrentItemInFreshRequestShouldProjectNextWord()
+    {
+        await using var db = CreateDbContext();
+        var user = new User { Email = "exclude-next@example.test", PasswordHash = "hash" };
+        var first = CreateWord("first", 1);
+        var second = CreateWord("second", 2);
+        var session = CreateSession(
+            user,
+            WordStudyPhase.Memorization,
+            first,
+            second,
+            WordStudySessionType.Review);
+        db.AddRange(user, first, second, session);
+        db.UserWordProgress.AddRange(
+            CreateProgress(user.Id, first.Id),
+            CreateProgress(user.Id, second.Id));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var firstItem = session.Items.Single(value => value.WordId == first.Id);
+        var firstItemId = firstItem.Id;
+        var firstItemConcurrencyStamp = firstItem.ConcurrencyStamp;
+        db.ChangeTracker.Clear();
+
+        var result = await CreateService(db).ExcludeFromReviewAsync(
+            user.Id,
+            session.Id,
+            firstItemId,
+            new ExcludeWordFromReviewRequest(firstItemConcurrencyStamp),
+            TestContext.Current.CancellationToken);
+
+        result.Session.CurrentItem!.WordId.Should().Be(second.Id);
+        result.Session.ExcludedCount.Should().Be(1);
+    }
+
     private static WordStudyService CreateService(ApplicationDbContext db)
         => new(
             db,

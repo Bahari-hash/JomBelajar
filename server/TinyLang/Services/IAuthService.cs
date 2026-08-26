@@ -37,7 +37,7 @@ public interface IAuthService
     /// <summary>
     /// 验证并轮换 refresh token，签发新的令牌对。
     /// </summary>
-    /// <param name="request">当前 refresh token。</param>
+    /// <param name="refreshToken">当前 refresh token。</param>
     /// <param name="clientIp">本次续期的客户端 IP 地址。</param>
     /// <param name="deviceInfo">本次续期的设备描述。</param>
     /// <param name="cancellationToken">用于取消操作的令牌。</param>

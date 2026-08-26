@@ -10,6 +10,7 @@ import {
   Save,
   ShieldCheck,
   Undo2,
+  FileX,
   Upload,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -382,9 +383,9 @@ export default function ProfilePage() {
             <WordStudySettingsPanel />
             <section className="border-t border-base-300 py-8">
               <h2 className="text-xl font-semibold">单词列表</h2>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="mt-4 flex flex-wrap gap-3">
                 <button
-                  className="btn btn-outline justify-start"
+                  className="btn btn-outline"
                   type="button"
                   onClick={() => setFavoritesOpen(true)}
                 >
@@ -392,17 +393,18 @@ export default function ProfilePage() {
                   打开收藏本
                 </button>
                 <button
-                  className="btn btn-outline justify-start"
+                  className="btn btn-outline"
                   type="button"
                   onClick={() => setExclusionsOpen(true)}
                 >
                   <ListChecks aria-hidden="true" className="size-4" />
-                  打开停止复习
+                  查看忽略词
                 </button>
               </div>
             </section>
           </div>
         </details>
+
         <details className="group border-t border-base-300">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-6 [&::-webkit-details-marker]:hidden">
             <span className="flex min-w-0 items-center gap-3 text-xl font-semibold">
@@ -426,6 +428,7 @@ export default function ProfilePage() {
               type="button"
               onClick={() => setWrongQuestionsOpen(true)}
             >
+              <FileX aria-hidden="true" className="size-4" />{" "}
               打开错题本
             </button>
           </div>

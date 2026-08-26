@@ -122,7 +122,7 @@ export default function AudioPlaybackButton({
         className={
           iconOnly
             ? "btn btn-ghost btn-sm btn-square"
-            : "btn btn-outline btn-sm"
+            : "btn btn-outline btn-sm mt-4"
         }
         aria-label={actionLabel}
         title={iconOnly ? actionLabel : undefined}

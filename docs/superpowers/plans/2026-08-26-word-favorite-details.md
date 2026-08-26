@@ -122,4 +122,3 @@ Expected: no whitespace errors; only the feature files and the already-existing 
 git add app/src/features/wordStudy/WordFavoriteDetails.test.tsx app/src/features/wordStudy/WordFavoritesPanel.test.tsx
 git commit -m "test: cover favorite word details"
 ```
-

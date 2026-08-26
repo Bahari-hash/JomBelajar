@@ -240,7 +240,7 @@ describe("ProfilePage", () => {
       screen.queryByRole("dialog", { name: "收藏本" }),
     ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "打开停止复习" }));
+    await user.click(screen.getByRole("button", { name: "查看忽略词" }));
     expect(
       screen.getByRole("dialog", { name: "已停止复习" }),
     ).toBeInTheDocument();

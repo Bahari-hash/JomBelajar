@@ -71,7 +71,8 @@ describe("WordFavoriteDetails", () => {
       <WordFavoriteDetails word={word} onClose={onClose} onRemove={onRemove} />,
     );
 
-    expect(screen.getByRole("dialog", { name: "study" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "study" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "朗读 study" })).toHaveAttribute(
       "data-audio-id",
       "word-audio",

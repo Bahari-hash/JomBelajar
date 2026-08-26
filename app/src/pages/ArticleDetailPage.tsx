@@ -136,6 +136,7 @@ export default function ArticleDetailPage() {
             <AudioPlaybackButton
               audioResourceId={article.readingAudioResourceId}
               label="文章朗读"
+              variant="player"
             />
           ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-base-300 py-4 text-sm">

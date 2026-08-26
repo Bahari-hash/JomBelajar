@@ -92,6 +92,9 @@ describe("ArticleDetailPage", () => {
     expect(
       screen.getByRole("button", { name: "播放文章朗读" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("slider", { name: "文章朗读进度" }),
+    ).toBeInTheDocument();
     expect(requests).toHaveLength(1);
     expect(document.title).toBe("Learning in context | JomBelajar");
   });

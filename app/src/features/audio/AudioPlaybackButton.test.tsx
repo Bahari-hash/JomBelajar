@@ -3,7 +3,7 @@ import axios, {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from "axios";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AudioPlaybackButton from "@/features/audio/AudioPlaybackButton";
@@ -19,6 +19,11 @@ const requestMock = vi.mocked(requestAudioPlayback);
 
 interface FakeAudio {
   src: string;
+  currentTime: number;
+  duration: number;
+  onloadedmetadata: (() => void) | null;
+  ondurationchange: (() => void) | null;
+  ontimeupdate: (() => void) | null;
   onended: (() => void) | null;
   onerror: (() => void) | null;
   play: ReturnType<typeof vi.fn>;
@@ -30,6 +35,11 @@ function installAudio() {
   const constructor = vi.fn(function createAudio(url: string) {
     const audio: FakeAudio = {
       src: url,
+      currentTime: 0,
+      duration: Number.NaN,
+      onloadedmetadata: null,
+      ondurationchange: null,
+      ontimeupdate: null,
       onended: null,
       onerror: null,
       play: vi.fn().mockResolvedValue(undefined),
@@ -93,6 +103,7 @@ describe("AudioPlaybackButton", () => {
 
     const playButton = screen.getByRole("button", { name: "播放单词发音" });
     expect(playButton).toHaveAttribute("title", "播放单词发音");
+    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
     expect(screen.queryByText("播放朗读")).not.toBeInTheDocument();
     await user.click(playButton);
 
@@ -163,6 +174,44 @@ describe("AudioPlaybackButton", () => {
     expect(requestMock).toHaveBeenCalledWith(AUDIO_ID, expect.any(AbortSignal));
     expect(constructor).toHaveBeenCalledWith(playback().url);
     expect(screen.getByRole("button", { name: "暂停文章朗读" })).toBeEnabled();
+  });
+
+  it("renders and synchronizes a seekable article player timeline", async () => {
+    requestMock.mockResolvedValue(playback());
+    const { instances } = installAudio();
+    const user = userEvent.setup();
+    render(
+      <AudioPlaybackButton
+        audioResourceId={AUDIO_ID}
+        label="文章朗读"
+        variant="player"
+      />,
+    );
+
+    const progress = screen.getByRole("slider", { name: "文章朗读进度" });
+    expect(progress).toBeDisabled();
+    expect(screen.getByText("0:00 / 0:00")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "播放文章朗读" }));
+    expect(screen.getByText("0:00 / 0:12")).toBeInTheDocument();
+    act(() => {
+      instances[0]!.duration = 125;
+      instances[0]!.onloadedmetadata?.();
+      instances[0]!.currentTime = 12;
+      instances[0]!.ontimeupdate?.();
+    });
+
+    expect(progress).toBeEnabled();
+    expect(progress).toHaveValue("12");
+    expect(screen.getByText("0:12 / 2:05")).toBeInTheDocument();
+
+    fireEvent.change(progress, { target: { value: "75" } });
+    expect(instances[0]?.currentTime).toBe(75);
+    expect(screen.getByText("1:15 / 2:05")).toBeInTheDocument();
+
+    act(() => instances[0]?.onended?.());
+    expect(progress).toHaveValue("0");
+    expect(screen.getByText("0:00 / 2:05")).toBeInTheDocument();
   });
 
   it("pauses while playing and returns to idle after ended", async () => {

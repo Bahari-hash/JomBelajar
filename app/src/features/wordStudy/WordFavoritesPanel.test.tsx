@@ -400,8 +400,10 @@ describe("WordFavoritesPanel", () => {
       config: InternalAxiosRequestConfig;
     }>();
     const secondWord = { ...favoriteWord, wordId: "word-2", headword: "learn" };
+    let favoriteReadCount = 0;
     httpClient.defaults.adapter = ((config) => {
       if (config.method === "delete") return removal.promise;
+      favoriteReadCount += 1;
       return Promise.resolve({
         ...favoriteResponse([favoriteWord, secondWord]),
         config,
@@ -419,14 +421,19 @@ describe("WordFavoritesPanel", () => {
     await user.click(screen.getByRole("button", { name: "返回收藏本" }));
     await user.click(screen.getByRole("button", { name: "查看 learn" }));
 
-    removal.resolve({
-      data: null,
-      status: 204,
-      statusText: "No Content",
-      headers: new AxiosHeaders(),
-      config: {} as InternalAxiosRequestConfig,
+    await act(async () => {
+      removal.resolve({
+        data: null,
+        status: 204,
+        statusText: "No Content",
+        headers: new AxiosHeaders(),
+        config: {} as InternalAxiosRequestConfig,
+      });
+      await removal.promise;
+      await Promise.resolve();
     });
 
+    await waitFor(() => expect(favoriteReadCount).toBeGreaterThan(1));
     expect(await screen.findByRole("region", { name: "learn" })).toBeInTheDocument();
   });
 
@@ -451,9 +458,13 @@ describe("WordFavoritesPanel", () => {
       await screen.findByRole("button", { name: "取消收藏 study" }),
     );
     await user.click(screen.getByRole("button", { name: "查看 learn" }));
-    removal.reject(new Error("failed"));
+    await act(async () => {
+      removal.reject(new Error("failed"));
+      await removal.promise.catch(() => undefined);
+      await Promise.resolve();
+    });
 
-    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "learn" })).toBeInTheDocument();
   });
 

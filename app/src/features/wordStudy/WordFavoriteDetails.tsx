@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import AudioPlaybackButton from "@/features/audio/AudioPlaybackButton";
 import type { WordFavorite } from "./wordStudyTypes";
 
@@ -14,19 +14,22 @@ export default function WordFavoriteDetails({
   onRemove,
 }: WordFavoriteDetailsProps) {
   return (
-    <section className="relative" aria-labelledby="favorite-word-details-title">
-      <button
-        className="btn btn-ghost btn-sm btn-circle absolute right-2 top-2"
-        aria-label="关闭收藏详情"
-        type="button"
-        onClick={onClose}
-      >
-        <X aria-hidden="true" className="size-4" />
-      </button>
-
-      <h2 id="favorite-word-details-title" className="text-xl font-semibold">
-        {word.headword}
-      </h2>
+    <section aria-labelledby="favorite-word-details-title">
+      <div className="flex items-center gap-2 pr-10">
+        <button
+          className="btn btn-ghost btn-sm btn-square"
+          aria-label="返回收藏本"
+          title="返回收藏本"
+          autoFocus
+          type="button"
+          onClick={onClose}
+        >
+          <ChevronLeft aria-hidden="true" className="size-4" />
+        </button>
+        <h2 id="favorite-word-details-title" className="text-xl font-semibold">
+          {word.headword}
+        </h2>
+      </div>
       {word.audioResourceId ? (
         <div className="mt-3">
           <AudioPlaybackButton

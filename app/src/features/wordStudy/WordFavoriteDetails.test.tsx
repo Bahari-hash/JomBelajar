@@ -113,7 +113,7 @@ describe("WordFavoriteDetails", () => {
     expect(examples[2]).toHaveTextContent("She studies every day.");
     expect(examples[2]).toHaveTextContent("她每天学习。");
 
-    await user.click(screen.getByRole("button", { name: "关闭收藏详情" }));
+    await user.click(screen.getByRole("button", { name: "返回收藏本" }));
     await user.click(screen.getByRole("button", { name: "取消收藏" }));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onRemove).toHaveBeenCalledTimes(1);

@@ -68,11 +68,7 @@ describe("WordFavoriteDetails", () => {
     const user = userEvent.setup();
 
     render(
-      <WordFavoriteDetails
-        word={word}
-        onClose={onClose}
-        onRemove={onRemove}
-      />,
+      <WordFavoriteDetails word={word} onClose={onClose} onRemove={onRemove} />,
     );
 
     expect(screen.getByRole("dialog", { name: "study" })).toBeInTheDocument();
@@ -85,6 +81,8 @@ describe("WordFavoriteDetails", () => {
     expect(screen.getByText("用于描述获取知识。")).toBeInTheDocument();
     expect(screen.getByText("n.")).toBeInTheDocument();
     expect(screen.getByText("书房")).toBeInTheDocument();
+    expect(screen.getByText("The study is quiet.")).toBeInTheDocument();
+    expect(screen.getByText("书房很安静。")).toBeInTheDocument();
     expect(screen.getByText("I study English.")).toBeInTheDocument();
     expect(screen.getByText("我学习英语。")).toBeInTheDocument();
     expect(screen.getByText("She studies every day.")).toBeInTheDocument();
@@ -95,13 +93,24 @@ describe("WordFavoriteDetails", () => {
     expect(
       screen.getByRole("button", { name: "朗读例句 I study English." }),
     ).toHaveAttribute("data-audio-id", "example-two");
-    expect(screen.queryByRole("button", { name: /朗读例句 The study/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /朗读例句 The study/ }),
+    ).not.toBeInTheDocument();
 
     const senseHeadings = screen.getAllByRole("heading", { level: 3 });
-    expect(senseHeadings[0]).toHaveTextContent("v.");
-    expect(senseHeadings[1]).toHaveTextContent("n.");
+    expect(senseHeadings[0]).toHaveTextContent("n.");
+    expect(senseHeadings[1]).toHaveTextContent("v.");
     expect(screen.getByText("学习")).toBeInTheDocument();
     expect(screen.getByText("书房")).toBeInTheDocument();
+
+    const examples = screen.getAllByRole("listitem");
+    expect(examples).toHaveLength(3);
+    expect(examples[0]).toHaveTextContent("The study is quiet.");
+    expect(examples[0]).toHaveTextContent("书房很安静。");
+    expect(examples[1]).toHaveTextContent("I study English.");
+    expect(examples[1]).toHaveTextContent("我学习英语。");
+    expect(examples[2]).toHaveTextContent("She studies every day.");
+    expect(examples[2]).toHaveTextContent("她每天学习。");
 
     await user.click(screen.getByRole("button", { name: "关闭收藏详情" }));
     await user.click(screen.getByRole("button", { name: "取消收藏" }));

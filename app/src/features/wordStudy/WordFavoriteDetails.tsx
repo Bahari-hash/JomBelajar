@@ -13,8 +13,6 @@ export default function WordFavoriteDetails({
   onClose,
   onRemove,
 }: WordFavoriteDetailsProps) {
-  const senses = [...word.senses].sort((left, right) => left.sortOrder - right.sortOrder);
-
   return (
     <div
       className="modal modal-open"
@@ -45,31 +43,31 @@ export default function WordFavoriteDetails({
         ) : null}
 
         <div className="mt-5 space-y-6">
-          {senses.map((sense) => (
+          {word.senses.map((sense) => (
             <section key={`${sense.sortOrder}-${sense.partOfSpeech}`}>
               <h3 className="font-semibold">{sense.partOfSpeech}</h3>
               <p className="mt-1">{sense.definition}</p>
               {sense.usageNote ? (
-                <p className="mt-1 text-sm text-base-content/70">{sense.usageNote}</p>
+                <p className="mt-1 text-sm text-base-content/70">
+                  {sense.usageNote}
+                </p>
               ) : null}
               {sense.examples.length > 0 ? (
                 <ul className="mt-3 space-y-3">
-                  {[...sense.examples]
-                    .sort((left, right) => left.sortOrder - right.sortOrder)
-                    .map((example) => (
-                      <li key={`${example.sortOrder}-${example.sentence}`}>
-                        <p>{example.sentence}</p>
-                        <p className="text-sm text-base-content/70">
-                          {example.translation}
-                        </p>
-                        {example.audioResourceId ? (
-                          <AudioPlaybackButton
-                            audioResourceId={example.audioResourceId}
-                            label={`朗读例句 ${example.sentence}`}
-                          />
-                        ) : null}
-                      </li>
-                    ))}
+                  {sense.examples.map((example) => (
+                    <li key={`${example.sortOrder}-${example.sentence}`}>
+                      <p>{example.sentence}</p>
+                      <p className="text-sm text-base-content/70">
+                        {example.translation}
+                      </p>
+                      {example.audioResourceId ? (
+                        <AudioPlaybackButton
+                          audioResourceId={example.audioResourceId}
+                          label={`朗读例句 ${example.sentence}`}
+                        />
+                      ) : null}
+                    </li>
+                  ))}
                 </ul>
               ) : null}
             </section>

@@ -133,9 +133,10 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
                 transaction,
                 cancellationToken);
         var now = timeProvider.GetUtcNow();
+        var correctAnswer = current.Word!.Headword;
         var correct = WordStudySchedule.IsCorrectSpelling(
             request.Answer,
-            current.Word!.Headword);
+            correctAnswer);
         current.SpellingAttemptCount++;
         if (!correct)
         {
@@ -205,7 +206,9 @@ public sealed class WordStudySessionEngine(IApplicationDbContext db, TimeProvide
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new WordStudyCommandResponse(
-            correct ? WordSpellingResult.Correct : WordSpellingResult.Incorrect,
+            new WordSpellingOutcomeResponse(
+                correct ? WordSpellingResult.Correct : WordSpellingResult.Incorrect,
+                correctAnswer),
             await new WordStudySessionProjector(db)
                 .ProjectAsync(userId, session, cancellationToken));
     }

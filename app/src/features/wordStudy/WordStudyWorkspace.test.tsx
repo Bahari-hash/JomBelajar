@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import WordStudyWorkspace from "./WordStudyWorkspace";
-import type { WordStudySessionState } from "./wordStudyTypes";
+import type {
+  WordStudyCommandResponse,
+  WordStudySessionState,
+} from "./wordStudyTypes";
 
 const ITEM_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
@@ -63,6 +66,7 @@ describe("WordStudyWorkspace", () => {
           submitting={false}
           onMemorization={vi.fn()}
           onSpelling={vi.fn()}
+          onSpellingAdvance={vi.fn()}
           onToggleFavorite={vi.fn()}
           onContinue={continueStudy}
         />
@@ -82,6 +86,7 @@ describe("WordStudyWorkspace", () => {
         submitting={false}
         onMemorization={vi.fn()}
         onSpelling={vi.fn()}
+        onSpellingAdvance={vi.fn()}
         onToggleFavorite={vi.fn().mockRejectedValue(new Error("failed"))}
       />,
     );
@@ -104,6 +109,7 @@ describe("WordStudyWorkspace", () => {
         submitting={false}
         onMemorization={vi.fn()}
         onSpelling={vi.fn()}
+        onSpellingAdvance={vi.fn()}
         onToggleFavorite={vi.fn()}
         onExclude={exclude}
       />,
@@ -145,7 +151,10 @@ describe("WordStudyWorkspace", () => {
         },
       },
     };
-    const spell = vi.fn().mockResolvedValue("Incorrect");
+    const spell = vi.fn().mockResolvedValue({
+      spellingOutcome: { result: "Incorrect", correctAnswer: "école" },
+      session: { ...session, status: "Completed", currentItem: null },
+    } satisfies WordStudyCommandResponse);
     render(
       <WordStudyWorkspace
         mode="review"
@@ -153,15 +162,23 @@ describe("WordStudyWorkspace", () => {
         submitting={false}
         onMemorization={vi.fn()}
         onSpelling={spell}
+        onSpellingAdvance={vi.fn()}
         onToggleFavorite={vi.fn()}
       />,
     );
 
     expect(screen.queryByText("école")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "不再复习此词" }),
+    ).not.toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: "拼写单词" }), "ecole");
     await user.click(screen.getByRole("button", { name: "提交拼写" }));
     expect(
-      await screen.findByText("拼写不正确，稍后再试一次"),
+      await screen.findByText("拼写错误"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("正确答案：école")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "查看结果" }),
     ).toBeInTheDocument();
   });
 
@@ -184,14 +201,18 @@ describe("WordStudyWorkspace", () => {
       mode: "learning" as const,
       submitting: false,
       onMemorization: vi.fn(),
-      onSpelling: vi.fn().mockResolvedValue("Incorrect"),
+      onSpelling: vi.fn().mockResolvedValue({
+        spellingOutcome: { result: "Incorrect", correctAnswer: "école" },
+        session: { ...first, status: "Completed", currentItem: null },
+      } satisfies WordStudyCommandResponse),
       onToggleFavorite: vi.fn(),
+      onSpellingAdvance: vi.fn(),
     };
     const view = render(<WordStudyWorkspace {...props} session={first} />);
     await user.type(screen.getByRole("textbox", { name: "拼写单词" }), "wrong");
     await user.click(screen.getByRole("button", { name: "提交拼写" }));
     expect(
-      await screen.findByText("拼写不正确，稍后再试一次"),
+      await screen.findByText("拼写错误"),
     ).toBeInTheDocument();
 
     view.rerender(
@@ -211,7 +232,7 @@ describe("WordStudyWorkspace", () => {
 
     expect(screen.getByRole("textbox", { name: "拼写单词" })).toHaveValue("");
     expect(
-      screen.queryByText("拼写不正确，稍后再试一次"),
+      screen.queryByText("拼写错误"),
     ).not.toBeInTheDocument();
   });
 });

@@ -10,7 +10,7 @@ import {
   useSubmitLearningSpellingMutation,
 } from "@/features/wordStudy/wordStudyApi";
 import type {
-  WordSpellingResult,
+  WordStudyCommandResponse,
   WordStudyCurrentItem,
   WordStudySessionState,
   WordMemorizationResult,
@@ -146,7 +146,7 @@ export default function WordLearningPage() {
           throw requestError;
         }
       }}
-      onSpelling={async (item, answer): Promise<WordSpellingResult | null> => {
+      onSpelling={async (item, answer): Promise<WordStudyCommandResponse | null> => {
         try {
           const response = await spell({
             sessionId: session.id,
@@ -154,13 +154,13 @@ export default function WordLearningPage() {
             answer,
             itemConcurrencyStamp: item.itemConcurrencyStamp,
           }).unwrap();
-          setSession(response.session);
-          return response.spellingResult;
+          return response;
         } catch (requestError) {
           setSession(await reloadSession(session.id).unwrap());
           throw requestError;
         }
       }}
+      onSpellingAdvance={setSession}
       onToggleFavorite={updateFavorite}
       canContinue={overview.data?.hasMoreWords ?? false}
       showTodayReview

@@ -9,6 +9,11 @@ export type WordStudyPhase = "Memorization" | "Spelling";
 export type WordStudySessionType = "Learning" | "Review";
 export type WordSpellingResult = "Correct" | "Incorrect";
 
+export interface WordSpellingOutcome {
+  result: WordSpellingResult;
+  correctAnswer: string;
+}
+
 export interface WordSpellingSense {
   partOfSpeech: string;
   definition: string;
@@ -61,7 +66,7 @@ export interface WordStudySessionState {
 }
 
 export interface WordStudyCommandResponse {
-  spellingResult: WordSpellingResult | null;
+  spellingOutcome: WordSpellingOutcome | null;
   session: WordStudySessionState;
 }
 

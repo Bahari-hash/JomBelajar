@@ -152,7 +152,10 @@ public sealed class WordStudySessionEngineTests
                 ItemConcurrencyStamp = memorized.Session.CurrentItem.ItemConcurrencyStamp
             },
             TestContext.Current.CancellationToken);
-        incorrect.SpellingResult.Should().Be(WordSpellingResult.Incorrect);
+        incorrect.SpellingOutcome!.Result.Should().Be(WordSpellingResult.Incorrect);
+        incorrect.SpellingOutcome.Should().Be(new WordSpellingOutcomeResponse(
+            WordSpellingResult.Incorrect,
+            "école"));
         incorrect.Session.Status.Should().Be(WordStudySessionStatus.Active);
 
         var correct = await service.SubmitLearningSpellingAsync(
@@ -166,7 +169,10 @@ public sealed class WordStudySessionEngineTests
             },
             TestContext.Current.CancellationToken);
 
-        correct.SpellingResult.Should().Be(WordSpellingResult.Correct);
+        correct.SpellingOutcome!.Result.Should().Be(WordSpellingResult.Correct);
+        correct.SpellingOutcome.Should().Be(new WordSpellingOutcomeResponse(
+            WordSpellingResult.Correct,
+            "école"));
         correct.Session.Status.Should().Be(WordStudySessionStatus.Completed);
         var progress = await db.UserWordProgress.SingleAsync(
             value => value.UserId == user.Id && value.WordId == word.Id,
@@ -428,7 +434,7 @@ public sealed class WordStudySessionEngineTests
             },
             TestContext.Current.CancellationToken);
 
-        result.SpellingResult.Should().BeNull();
+        result.SpellingOutcome.Should().BeNull();
         result.Session.CurrentItem!.WordId.Should().Be(visible.Id);
         (await db.WordStudySessionItems.SingleAsync(
             value => value.Id == hiddenItem.Id,

@@ -58,8 +58,12 @@ public sealed record WordStudyCompletedItemResponse(
     bool HadSpellingFailure);
 
 public sealed record WordStudyCommandResponse(
-    WordSpellingResult? SpellingResult,
+    WordSpellingOutcomeResponse? SpellingOutcome,
     WordStudySessionStateResponse Session);
+
+public sealed record WordSpellingOutcomeResponse(
+    WordSpellingResult Result,
+    string CorrectAnswer);
 
 public sealed record SubmitWordMemorizationRequest(
     WordMemorizationResult? Result,

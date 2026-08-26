@@ -6,7 +6,7 @@ import WordStudyCompletion from "./WordStudyCompletion";
 import WordReviewExcludeDialog from "./WordReviewExcludeDialog";
 import type {
   WordMemorizationResult,
-  WordSpellingResult,
+  WordStudyCommandResponse,
   WordStudyCurrentItem,
   WordStudySessionState,
 } from "./wordStudyTypes";
@@ -22,7 +22,8 @@ interface Props {
   onSpelling: (
     item: WordStudyCurrentItem,
     answer: string,
-  ) => Promise<WordSpellingResult | null>;
+  ) => Promise<WordStudyCommandResponse | null>;
+  onSpellingAdvance?: (session: WordStudySessionState) => void;
   onToggleFavorite: (item: WordStudyCurrentItem) => Promise<void>;
   onExclude?: (item: WordStudyCurrentItem) => Promise<void>;
   onContinue?: () => Promise<void>;
@@ -172,20 +173,8 @@ export default function WordStudyWorkspace(props: Props) {
                 item={item}
                 submitting={props.submitting}
                 onSubmit={submitSpelling}
+                onAdvance={props.onSpellingAdvance ?? (() => undefined)}
               />
-              {props.mode === "review" && props.onExclude ? (
-                <button
-                  className="btn btn-ghost mt-6 text-error"
-                  disabled={props.submitting}
-                  type="button"
-                  onClick={() => {
-                    setExcludeError(null);
-                    setExcludeItem(item);
-                  }}
-                >
-                  不再复习此词
-                </button>
-              ) : null}
             </>
           )}
         </section>

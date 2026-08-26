@@ -31,10 +31,13 @@ export default function WordFavoritesPanel({
   const [setFavorite] = useSetFavoriteMutation();
   const [removalErrors, setRemovalErrors] = useState<RemovalErrors>({});
   const [removingWordIds, setRemovingWordIds] = useState<string[]>([]);
+  const [focusRecoveryPending, setFocusRecoveryPending] = useState(false);
   const openersRef = useRef(new Map<string, HTMLButtonElement>());
   const openerWordIdRef = useRef<string | null>(null);
   const focusModalCloseAfterRemovalRef = useRef(false);
   const pendingRemovalsRef = useRef(new Set<string>());
+  const awaitingRemovalConfirmationRef = useRef(new Set<string>());
+  const rowFocusRecoveryRef = useRef(new Set<string>());
   const modalRef = useRef<HTMLDivElement | null>(null);
   const modalBoxRef = useRef<HTMLDivElement | null>(null);
   const modalCloseRef = useRef<HTMLButtonElement | null>(null);
@@ -44,6 +47,29 @@ export default function WordFavoritesPanel({
       setPage(Math.max(1, query.data.totalPages));
     }
   }, [page, query.data]);
+
+  useEffect(() => {
+    if (!awaitingRemovalConfirmationRef.current.size) return;
+    const confirmedWordIds = query.isError
+      ? [...awaitingRemovalConfirmationRef.current]
+      : query.data
+        ? [...awaitingRemovalConfirmationRef.current].filter(
+            (wordId) => !query.data.items.some((word) => word.wordId === wordId),
+          )
+        : [];
+    if (!confirmedWordIds.length) return;
+    confirmedWordIds.forEach((wordId) => {
+      awaitingRemovalConfirmationRef.current.delete(wordId);
+      pendingRemovalsRef.current.delete(wordId);
+    });
+    if (confirmedWordIds.some((wordId) => rowFocusRecoveryRef.current.has(wordId))) {
+      confirmedWordIds.forEach((wordId) => rowFocusRecoveryRef.current.delete(wordId));
+      setFocusRecoveryPending(true);
+    }
+    setRemovingWordIds((current) =>
+      current.filter((wordId) => !confirmedWordIds.includes(wordId)),
+    );
+  }, [query.data, query.isError]);
 
   useEffect(() => {
     if (selectedWord) return;
@@ -57,6 +83,18 @@ export default function WordFavoritesPanel({
       focusModalCloseAfterRemovalRef.current = false;
     }
   }, [selectedWord]);
+
+  useEffect(() => {
+    if (!focusRecoveryPending) return;
+    if (modal) {
+      modalCloseRef.current?.focus();
+    } else {
+      [...openersRef.current.values()]
+        .find((opener) => opener.isConnected)
+        ?.focus();
+    }
+    setFocusRecoveryPending(false);
+  }, [focusRecoveryPending, modal]);
 
   useEffect(() => {
     if (!modal) return;
@@ -97,6 +135,8 @@ export default function WordFavoritesPanel({
     });
     try {
       await setFavorite({ wordId, favorite: false }).unwrap();
+      awaitingRemovalConfirmationRef.current.add(wordId);
+      if (source === "row") rowFocusRecoveryRef.current.add(wordId);
       setSelectedWord((current) => {
         if (current?.wordId !== wordId) return current;
         openerWordIdRef.current = null;
@@ -105,9 +145,13 @@ export default function WordFavoritesPanel({
       });
     } catch {
       setRemovalErrors((current) => ({ ...current, [wordId]: { source, wordId } }));
-    } finally {
       pendingRemovalsRef.current.delete(wordId);
       setRemovingWordIds((current) => current.filter((id) => id !== wordId));
+    } finally {
+      if (!awaitingRemovalConfirmationRef.current.has(wordId)) {
+        pendingRemovalsRef.current.delete(wordId);
+        setRemovingWordIds((current) => current.filter((id) => id !== wordId));
+      }
     }
   };
 

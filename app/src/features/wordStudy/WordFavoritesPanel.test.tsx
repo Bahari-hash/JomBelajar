@@ -391,6 +391,106 @@ describe("WordFavoritesPanel", () => {
     expect(screen.getByRole("region", { name: "study" })).toBeInTheDocument();
   });
 
+  it("keeps a removed row guarded until its invalidation refetch confirms removal", async () => {
+    const removal = deferred<{
+      data: null;
+      status: number;
+      statusText: string;
+      headers: AxiosHeaders;
+      config: InternalAxiosRequestConfig;
+    }>();
+    const refresh = deferred<{
+      data: ReturnType<typeof favoriteResponse>["data"];
+      status: number;
+      statusText: string;
+      headers: AxiosHeaders;
+      config: InternalAxiosRequestConfig;
+    }>();
+    let deleteCount = 0;
+    let favoritesReadCount = 0;
+    httpClient.defaults.adapter = ((config) => {
+      if (config.method === "delete") {
+        deleteCount += 1;
+        return removal.promise;
+      }
+      favoritesReadCount += 1;
+      if (favoritesReadCount === 1) {
+        return Promise.resolve({ ...favoriteResponse(), config });
+      }
+      return refresh.promise;
+    }) as AxiosAdapter;
+    const user = userEvent.setup();
+    render(
+      <Provider store={createAppStore()}>
+        <WordFavoritesPanel />
+      </Provider>,
+    );
+
+    const remove = await screen.findByRole("button", { name: "取消收藏 study" });
+    await user.click(remove);
+    await act(async () => {
+      removal.resolve({
+        data: null,
+        status: 204,
+        statusText: "No Content",
+        headers: new AxiosHeaders(),
+        config: {} as InternalAxiosRequestConfig,
+      });
+      await removal.promise;
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(favoritesReadCount).toBe(2));
+    expect(remove).toBeDisabled();
+    await user.click(remove);
+    expect(deleteCount).toBe(1);
+
+    await act(async () => {
+      refresh.resolve({ ...favoriteResponse([]), config: {} as InternalAxiosRequestConfig });
+      await refresh.promise;
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "取消收藏 study" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("moves focus to a surviving row opener when a focused remove control disappears", async () => {
+    const secondWord = { ...favoriteWord, wordId: "word-2", headword: "learn" };
+    let isFavorite = true;
+    httpClient.defaults.adapter = (async (config) => {
+      if (config.method === "delete") {
+        isFavorite = false;
+        return {
+          data: null,
+          status: 204,
+          statusText: "No Content",
+          headers: new AxiosHeaders(),
+          config,
+        };
+      }
+      return {
+        ...favoriteResponse(isFavorite ? [favoriteWord, secondWord] : [secondWord]),
+        config,
+      };
+    }) as AxiosAdapter;
+    const user = userEvent.setup();
+    render(
+      <Provider store={createAppStore()}>
+        <WordFavoritesPanel />
+      </Provider>,
+    );
+
+    const remove = await screen.findByRole("button", { name: "取消收藏 study" });
+    remove.focus();
+    await user.click(remove);
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "取消收藏 study" })).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "查看 learn" })).toHaveFocus();
+  });
+
   it("does not let a completed detail removal close a newer selection", async () => {
     const removal = deferred<{
       data: null;

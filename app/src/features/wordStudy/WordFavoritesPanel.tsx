@@ -10,6 +10,15 @@ type WordFavoritesPanelProps = {
   onClose?: () => void;
 };
 
+type RemovalSource = "detail" | "row";
+
+type RemovalError = {
+  source: RemovalSource;
+  wordId: string;
+};
+
+const removalErrorMessage = "收藏状态更新失败，请重试。";
+
 export default function WordFavoritesPanel({
   modal = false,
   onClose,
@@ -18,9 +27,13 @@ export default function WordFavoritesPanel({
   const [selectedWord, setSelectedWord] = useState<WordFavorite | null>(null);
   const query = useGetFavoritesQuery({ page, pageSize: 20 });
   const [setFavorite] = useSetFavoriteMutation();
-  const [error, setError] = useState<string | null>(null);
+  const [removalError, setRemovalError] = useState<RemovalError | null>(null);
+  const [removingWordIds, setRemovingWordIds] = useState<string[]>([]);
   const openersRef = useRef(new Map<string, HTMLButtonElement>());
   const openerWordIdRef = useRef<string | null>(null);
+  const pendingRemovalsRef = useRef(new Set<string>());
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const modalCloseRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (query.data && page > query.data.totalPages) {
@@ -34,44 +47,94 @@ export default function WordFavoritesPanel({
     openerWordIdRef.current = null;
   }, [selectedWord]);
 
+  useEffect(() => {
+    if (!modal) return;
+    const opener = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    modalCloseRef.current?.focus();
+    return () => opener?.focus();
+  }, [modal]);
+
   const closeDetails = () => {
-    setError(null);
+    setRemovalError((current) =>
+      current?.source === "detail" && current.wordId === selectedWord?.wordId
+        ? null
+        : current,
+    );
     setSelectedWord(null);
   };
 
   const openDetails = (word: WordFavorite) => {
     openerWordIdRef.current = word.wordId;
-    setError(null);
+    setRemovalError(null);
     setSelectedWord(word);
   };
 
-  const remove = async (wordId: string) => {
-    setError(null);
+  const remove = async (wordId: string, source: RemovalSource) => {
+    if (pendingRemovalsRef.current.has(wordId)) return;
+    pendingRemovalsRef.current.add(wordId);
+    setRemovingWordIds((current) => [...current, wordId]);
+    setRemovalError((current) =>
+      current?.wordId === wordId ? null : current,
+    );
     try {
       await setFavorite({ wordId, favorite: false }).unwrap();
-      if (selectedWord?.wordId === wordId) {
+      setSelectedWord((current) => {
+        if (current?.wordId !== wordId) return current;
         openerWordIdRef.current = null;
-        setSelectedWord(null);
-      }
+        return null;
+      });
     } catch {
-      setError("收藏状态更新失败，请重试。");
+      setRemovalError({ source, wordId });
+    } finally {
+      pendingRemovalsRef.current.delete(wordId);
+      setRemovingWordIds((current) => current.filter((id) => id !== wordId));
+    }
+  };
+
+  const isRemoving = (wordId: string) => removingWordIds.includes(wordId);
+  const visibleRemovalError = selectedWord
+    ? removalError?.source === "detail" && removalError.wordId === selectedWord.wordId
+      ? removalErrorMessage
+      : null
+    : removalError?.source === "row"
+      ? removalErrorMessage
+      : null;
+
+  const handleModalKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (selectedWord) closeDetails();
+      else onClose?.();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusableElements = Array.from(
+      modalRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
+    );
+    const first = focusableElements.at(0);
+    const last = focusableElements.at(-1);
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
   };
 
   const content = (
     <section
       className={modal ? undefined : "border-t border-base-300 py-8"}
-      onKeyDown={(event) => {
-        if (selectedWord && event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          closeDetails();
-        }
-      }}
     >
-      {query.isError || error ? (
+      {query.isError || visibleRemovalError ? (
         <p className="alert alert-error mt-4 text-sm" role="alert">
-          {error ?? "收藏本暂时无法加载。"}
+          {visibleRemovalError ?? "收藏本暂时无法加载。"}
         </p>
       ) : null}
       {query.isError ? (
@@ -87,7 +150,8 @@ export default function WordFavoritesPanel({
         <WordFavoriteDetails
           word={selectedWord}
           onClose={closeDetails}
-          onRemove={() => void remove(selectedWord.wordId)}
+          onRemove={() => void remove(selectedWord.wordId, "detail")}
+          removing={isRemoving(selectedWord.wordId)}
         />
       ) : (
         <>
@@ -132,7 +196,8 @@ export default function WordFavoritesPanel({
                   <button
                     className="btn btn-ghost btn-sm"
                     aria-label={`取消收藏 ${word.headword}`}
-                    onClick={() => void remove(word.wordId)}
+                    disabled={isRemoving(word.wordId)}
+                    onClick={() => void remove(word.wordId, "row")}
                     type="button"
                   >
                     取消收藏
@@ -181,15 +246,18 @@ export default function WordFavoritesPanel({
 
   return (
     <div
+      ref={modalRef}
       className="modal modal-open"
       role="dialog"
       aria-modal="true"
       aria-labelledby={
         selectedWord ? "favorite-word-details-title" : "favorites-panel-title"
       }
+      onKeyDown={handleModalKeyDown}
     >
       <div className="modal-box relative w-11/12 max-w-3xl">
         <button
+          ref={modalCloseRef}
           className="btn btn-ghost btn-sm btn-circle absolute right-2 top-2"
           aria-label="关闭收藏本"
           type="button"

@@ -72,6 +72,10 @@ describe("WordFavoriteDetails", () => {
     );
 
     expect(screen.getByRole("region", { name: "study" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "study" })).toHaveClass(
+      "min-w-0",
+      "wrap-break-word",
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "朗读 study" })).toHaveAttribute(
       "data-audio-id",
@@ -82,6 +86,9 @@ describe("WordFavoriteDetails", () => {
     expect(screen.getByText("用于描述获取知识。")).toBeInTheDocument();
     expect(screen.getByText("n.")).toBeInTheDocument();
     expect(screen.getByText("书房")).toBeInTheDocument();
+    expect(screen.getByText("用于描述获取知识。")).toHaveClass(
+      "wrap-break-word",
+    );
     expect(screen.getByText("The study is quiet.")).toBeInTheDocument();
     expect(screen.getByText("书房很安静。")).toBeInTheDocument();
     expect(screen.getByText("I study English.")).toBeInTheDocument();

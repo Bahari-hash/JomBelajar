@@ -1,5 +1,6 @@
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
 import { AxiosHeaders } from "axios";
+import { useState } from "react";
 import { Provider } from "react-redux";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -65,6 +66,28 @@ function favoriteResponse(items = [favoriteWord]) {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, reject, resolve };
+}
+
+function ModalHarness() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        打开收藏本
+      </button>
+      {open ? <WordFavoritesPanel modal onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
 describe("WordFavoritesPanel", () => {
   it("renders as a closable dialog in modal mode", async () => {
     const onClose = vi.fn();
@@ -96,6 +119,52 @@ describe("WordFavoritesPanel", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole("button", { name: "关闭收藏本弹窗" }));
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("handles Escape at the modal boundary and traps Tab within the dialog", async () => {
+    const onClose = vi.fn();
+    httpClient.defaults.adapter = (async (config) => ({
+      ...favoriteResponse(),
+      config,
+    })) as AxiosAdapter;
+    const user = userEvent.setup();
+    render(
+      <Provider store={createAppStore()}>
+        <WordFavoritesPanel modal onClose={onClose} />
+      </Provider>,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "收藏本" });
+    const close = screen.getByRole("button", { name: "关闭收藏本" });
+    expect(close).toHaveFocus();
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    await user.keyboard("{Tab}");
+    expect(close).toHaveFocus();
+
+    close.focus();
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores focus to the modal opener after list-mode Escape", async () => {
+    httpClient.defaults.adapter = (async (config) => ({
+      ...favoriteResponse(),
+      config,
+    })) as AxiosAdapter;
+    const user = userEvent.setup();
+    render(
+      <Provider store={createAppStore()}>
+        <ModalHarness />
+      </Provider>,
+    );
+
+    const opener = screen.getByRole("button", { name: "打开收藏本" });
+    await user.click(opener);
+    await screen.findByRole("dialog", { name: "收藏本" });
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(opener).toHaveFocus());
   });
 
   it("renders a page and keeps the row after a failed removal", async () => {
@@ -280,6 +349,96 @@ describe("WordFavoritesPanel", () => {
       "收藏状态更新失败，请重试。",
     );
     expect(screen.getByRole("region", { name: "study" })).toBeInTheDocument();
+  });
+
+  it("does not let a completed detail removal close a newer selection", async () => {
+    const removal = deferred<{
+      data: null;
+      status: number;
+      statusText: string;
+      headers: AxiosHeaders;
+      config: InternalAxiosRequestConfig;
+    }>();
+    const secondWord = { ...favoriteWord, wordId: "word-2", headword: "learn" };
+    httpClient.defaults.adapter = ((config) => {
+      if (config.method === "delete") return removal.promise;
+      return Promise.resolve({
+        ...favoriteResponse([favoriteWord, secondWord]),
+        config,
+      });
+    }) as AxiosAdapter;
+    const user = userEvent.setup();
+    render(
+      <Provider store={createAppStore()}>
+        <WordFavoritesPanel />
+      </Provider>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "查看 study" }));
+    await user.click(screen.getByRole("button", { name: "取消收藏" }));
+    await user.click(screen.getByRole("button", { name: "返回收藏本" }));
+    await user.click(screen.getByRole("button", { name: "查看 learn" }));
+
+    removal.resolve({
+      data: null,
+      status: 204,
+      statusText: "No Content",
+      headers: new AxiosHeaders(),
+      config: {} as InternalAxiosRequestConfig,
+    });
+
+    expect(await screen.findByRole("region", { name: "learn" })).toBeInTheDocument();
+  });
+
+  it("does not show a row removal failure in a newer detail view", async () => {
+    const removal = deferred<never>();
+    const secondWord = { ...favoriteWord, wordId: "word-2", headword: "learn" };
+    httpClient.defaults.adapter = ((config) => {
+      if (config.method === "delete") return removal.promise;
+      return Promise.resolve({
+        ...favoriteResponse([favoriteWord, secondWord]),
+        config,
+      });
+    }) as AxiosAdapter;
+    const user = userEvent.setup();
+    render(
+      <Provider store={createAppStore()}>
+        <WordFavoritesPanel />
+      </Provider>,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "取消收藏 study" }),
+    );
+    await user.click(screen.getByRole("button", { name: "查看 learn" }));
+    removal.reject(new Error("failed"));
+
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByRole("region", { name: "learn" })).toBeInTheDocument();
+  });
+
+  it("disables a pending detail removal and sends one delete request", async () => {
+    const removal = deferred<never>();
+    const requests: InternalAxiosRequestConfig[] = [];
+    httpClient.defaults.adapter = ((config) => {
+      requests.push(config);
+      if (config.method === "delete") return removal.promise;
+      return Promise.resolve({ ...favoriteResponse(), config });
+    }) as AxiosAdapter;
+    const user = userEvent.setup();
+    render(
+      <Provider store={createAppStore()}>
+        <WordFavoritesPanel />
+      </Provider>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "查看 study" }));
+    const remove = screen.getByRole("button", { name: "取消收藏" });
+    await user.click(remove);
+    expect(remove).toBeDisabled();
+    await user.click(remove);
+
+    expect(requests.filter((request) => request.method === "delete")).toHaveLength(1);
   });
 
   it("clamps the page after removing the last item", async () => {

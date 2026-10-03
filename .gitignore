@@ -140,3 +140,6 @@ local/**/*.sql
 local/**/*account*.json
 *.dump
 *.bak
+
+# Generate development TLS keys locally; never commit them
+dev/certs/private.key

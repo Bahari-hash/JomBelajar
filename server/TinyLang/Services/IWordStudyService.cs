@@ -8,6 +8,11 @@ namespace TinyLang.Services;
 /// </summary>
 public interface IWordStudyService
 {
+    Task<WordStudySessionStateResponse> FinishSummaryAsync(Guid userId, Guid sessionId,
+        WordStudySessionType type, bool skipSpelling, CancellationToken cancellationToken = default);
+    Task<WordStudySessionStateResponse> ContinueWaitingSessionAsync(
+        Guid userId, Guid sessionId, WordStudySessionType type, bool addNewWords,
+        CancellationToken cancellationToken = default);
     Task<WordLearningOverviewResponse> GetLearningOverviewAsync(
         Guid userId, CancellationToken cancellationToken = default);
     Task<WordStudySessionStateResponse> StartLearningSessionAsync(

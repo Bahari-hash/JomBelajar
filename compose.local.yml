@@ -1,0 +1,46 @@
+services:
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    environment:
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:8088
+    ports:
+      - "127.0.0.1:9000:9000"
+    networks:
+      internal:
+        aliases:
+          - files.localhost
+      npm-network: {}
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+  api:
+    environment:
+      ObjectStorageSettings__ServiceUrl: http://files.localhost:9000
+      ObjectStorageSettings__PublicBaseUrl: http://files.localhost:9000/${MINIO_BUCKET}
+    depends_on:
+      mailpit:
+        condition: service_started
+  mailpit:
+    image: axllent/mailpit:v1.30.7
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "127.0.0.1:8025:8025"
+    networks:
+      - internal
+    restart: unless-stopped
+  gateway:
+    build:
+      context: ./local
+    ports:
+      - "127.0.0.1:8088:80"
+    depends_on:
+      - app
+      - admin
+    networks:
+      - internal
+    restart: unless-stopped
+networks:
+  npm-network:
+    external: false
+    name: tinylang-local-edge

@@ -22,12 +22,16 @@ import { getPartOfSpeechLabel } from "@/constants/wordOptions.js";
 import { formatDateTime } from "@/lib/dateTime.js";
 
 /** Compact administrator table for immediately available word content. */
-export function WordTable({ words, onDelete }) {
+export function WordTable({ words, onDelete, selected = {}, onSelect, onSelectPage, selectionDisabled = false }) {
   return (
     <div className="max-w-full min-w-0 overflow-x-auto rounded-lg border">
       <Table className="min-w-240 table-fixed">
         <TableHeader>
           <TableRow>
+            {onSelect ? <TableHead className="w-12"><input type="checkbox" aria-label="全选本页单词" disabled={selectionDisabled}
+              checked={words.length > 0 && words.every(w => selected[w.id])}
+              ref={node => { if (node) node.indeterminate = words.some(w => selected[w.id]) && !words.every(w => selected[w.id]); }}
+              onChange={e => onSelectPage(e.target.checked)} /></TableHead> : null}
             <TableHead className="w-44 pl-4">词头</TableHead>
             <TableHead className="w-52">词性与释义</TableHead>
             <TableHead className="w-36">内容数量</TableHead>
@@ -40,6 +44,8 @@ export function WordTable({ words, onDelete }) {
         <TableBody>
           {words.map((word) => (
             <TableRow key={word.id}>
+              {onSelect ? <TableCell><input type="checkbox" aria-label={`选择单词 ${word.headword}`} disabled={selectionDisabled}
+                checked={Boolean(selected[word.id])} onChange={e => onSelect(word, e.target.checked)} /></TableCell> : null}
               <TableCell className="pl-4">
                 <Link
                   className="block truncate font-medium hover:underline"

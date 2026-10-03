@@ -5,13 +5,15 @@ import { useGetSettingsQuery, useUpdateSettingsMutation } from "./wordStudyApi";
 export default function WordStudySettingsPanel() {
   const query = useGetSettingsQuery();
   const [update, state] = useUpdateSettingsMutation();
+  const [retention, setRetention] = useState(90);
   const [study, setStudy] = useState(20);
   const [review, setReview] = useState(50);
   const [message, setMessage] = useState<string | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const [errors, setErrors] = useState<{ study?: string; review?: string }>({});
+  const [errors, setErrors] = useState<{ study?: string; review?: string; retention?: string }>({});
   useEffect(() => {
     if (query.data) {
+      setRetention(Math.round((query.data.desiredRetention ?? 0.9) * 100));
       setStudy(query.data.dailyWordStudyCount);
       setReview(query.data.dailyWordReviewCount);
     }
@@ -42,6 +44,7 @@ export default function WordStudySettingsPanel() {
         onSubmit={(event) => {
           event.preventDefault();
           const nextErrors = {
+            ...(!Number.isFinite(retention) || retention < 70 || retention > 97 ? { retention: "目标保持率必须在 70% 到 97% 之间。" } : {}),
             ...(study < 1 || study > 100
               ? { study: "每组新词数量必须在 1 到 100 之间。" }
               : {}),
@@ -54,11 +57,12 @@ export default function WordStudySettingsPanel() {
           setMessage(null);
           if (Object.keys(nextErrors).length > 0) return;
           void update({
+            desiredRetention: retention / 100,
             dailyWordStudyCount: study,
             dailyWordReviewCount: review,
           })
             .unwrap()
-            .then(() => setMessage("设置已保存，新数量从下一组开始生效。"))
+            .then(() => setMessage("设置已保存。每组数量从下一组生效；目标保持率从下一次评分生效。"))
             .catch(() => setRequestError("设置保存失败，请重试。"));
         }}
       >
@@ -97,6 +101,14 @@ export default function WordStudySettingsPanel() {
           {errors.review ? (
             <span className="label-text-alt text-error">{errors.review}</span>
           ) : null}
+        </label>
+        <label className="form-control sm:col-span-2">
+          <span className="label-text mb-2">目标记忆保持率（%）</span>
+          <input type="number" min={70} max={97} step={1} value={retention}
+            aria-invalid={Boolean(errors.retention)} className="input input-bordered mt-2 ml-3 w-24"
+            onChange={event => setRetention(Number(event.target.value))} />
+          <p className="mt-2 text-sm text-base-content/60">建议 90%。提高保持率通常意味着更频繁的复习；不会立即重排已有日期。</p>
+          {errors.retention ? <span className="text-error">{errors.retention}</span> : null}
         </label>
         <div className="sm:col-span-2">
           <button

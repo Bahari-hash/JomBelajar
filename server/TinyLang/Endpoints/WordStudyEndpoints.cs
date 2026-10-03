@@ -16,6 +16,12 @@ public static class WordStudyEndpoints
     {
         var learning = endpoints.MapGroup("/word-study/learning")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
+        learning.MapPost("/sessions/{sessionId:guid}/more", async (Guid sessionId, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.ContinueWaitingSessionAsync(EndpointIdentity.GetUserId(principal), sessionId, WordStudySessionType.Learning, true, ct)));
+        learning.MapPost("/sessions/{sessionId:guid}/spelling", async (Guid sessionId, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.ContinueWaitingSessionAsync(EndpointIdentity.GetUserId(principal), sessionId, WordStudySessionType.Learning, false, ct)));
+        learning.MapPost("/sessions/{sessionId:guid}/summary", async (Guid sessionId, WordStudySummaryChoice request, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.FinishSummaryAsync(EndpointIdentity.GetUserId(principal), sessionId, WordStudySessionType.Learning, request.SkipSpelling, ct)));
         learning.MapGet("/overview", GetLearningOverviewAsync);
         learning.MapPost("/sessions", StartLearningAsync);
         learning.MapGet("/sessions/{sessionId:guid}", GetLearningSessionAsync);
@@ -25,6 +31,10 @@ public static class WordStudyEndpoints
 
         var review = endpoints.MapGroup("/word-study/review")
             .RequireAuthorization(AuthorizationPolicies.RequireUser);
+        review.MapPost("/sessions/{sessionId:guid}/spelling", async (Guid sessionId, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.ContinueWaitingSessionAsync(EndpointIdentity.GetUserId(principal), sessionId, WordStudySessionType.Review, false, ct)));
+        review.MapPost("/sessions/{sessionId:guid}/summary", async (Guid sessionId, WordStudySummaryChoice request, ClaimsPrincipal principal, IWordStudyService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.FinishSummaryAsync(EndpointIdentity.GetUserId(principal), sessionId, WordStudySessionType.Review, request.SkipSpelling, ct)));
         review.MapGet("/overview", GetReviewOverviewAsync);
         review.MapPost("/sessions", StartReviewAsync);
         review.MapGet("/sessions/{sessionId:guid}", GetReviewSessionAsync);

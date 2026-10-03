@@ -29,6 +29,18 @@ export const wordStudyApi = createApi({
     "CheckInCalendar",
   ],
   endpoints: (builder) => ({
+    finishSummary: builder.mutation<WordStudySessionState, { mode: "learning" | "review"; sessionId: string; skipSpelling: boolean }>({
+      query: ({ mode, sessionId, skipSpelling }) => ({ url: `/word-study/${mode}/sessions/${sessionId}/summary`, method: "POST", data: { skipSpelling } }),
+      invalidatesTags: ["LearningOverview", "ReviewOverview", "WordStudySession", "TodayReview", "CheckInCalendar"],
+    }),
+    continueWaiting: builder.mutation<WordStudySessionState, {
+      mode: "learning" | "review"; sessionId: string; action: "more" | "spelling";
+    }>({
+      query: ({ mode, sessionId, action }) => ({
+        url: `/word-study/${mode}/sessions/${sessionId}/${action}`, method: "POST",
+      }),
+      invalidatesTags: ["LearningOverview", "ReviewOverview", "WordStudySession"],
+    }),
     getLearningOverview: builder.query<WordLearningOverview, void>({
       query: () => ({ url: "/word-study/learning/overview" }),
       providesTags: ["LearningOverview"],
@@ -74,7 +86,7 @@ export const wordStudyApi = createApi({
       query: ({ sessionId, itemId, ...data }) => ({
         url: `/word-study/learning/sessions/${sessionId}/items/${itemId}/spelling`,
         method: "POST",
-        data,
+        data: { ...data, skip: !data.answer.trim() },
       }),
       invalidatesTags: [
         "LearningOverview",
@@ -140,7 +152,7 @@ export const wordStudyApi = createApi({
       query: ({ sessionId, itemId, ...data }) => ({
         url: `/word-study/review/sessions/${sessionId}/items/${itemId}/spelling`,
         method: "POST",
-        data,
+        data: { ...data, skip: !data.answer.trim() },
       }),
       invalidatesTags: ["ReviewOverview", "WordStudySession", "TodayReview"],
     }),
@@ -194,7 +206,7 @@ export const wordStudyApi = createApi({
     }),
     updateSettings: builder.mutation<
       WordStudySettings,
-      { dailyWordStudyCount: number; dailyWordReviewCount: number }
+      { dailyWordStudyCount: number; dailyWordReviewCount: number; desiredRetention?: number }
     >({
       query: (data) => ({
         url: "/users/me/word-study-settings",
@@ -211,6 +223,8 @@ export const wordStudyApi = createApi({
 });
 
 export const {
+  useFinishSummaryMutation,
+  useContinueWaitingMutation,
   useGetLearningOverviewQuery,
   useStartLearningMutation,
   useGetLearningSessionQuery,

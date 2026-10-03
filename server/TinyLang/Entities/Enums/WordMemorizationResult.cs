@@ -6,5 +6,9 @@ namespace TinyLang.Entities.Enums;
 public enum WordMemorizationResult
 {
     Remembered,
-    Forgotten
+    Forgotten,
+    Again,
+    Hard,
+    Good,
+    Easy
 }

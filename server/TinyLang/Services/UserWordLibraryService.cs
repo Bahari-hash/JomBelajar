@@ -123,7 +123,7 @@ public sealed class UserWordLibraryService(
         progress.IsReviewExcluded = false;
         progress.ReviewExcludedAt = null;
         progress.ReviewStage = schedule.Stage;
-        progress.NextReviewAt = schedule.NextReviewAt;
+        progress.NextReviewAt = progress.FsrsState is null ? schedule.NextReviewAt : timeProvider.GetUtcNow();
         progress.ConcurrencyStamp = Guid.NewGuid();
         try
         {

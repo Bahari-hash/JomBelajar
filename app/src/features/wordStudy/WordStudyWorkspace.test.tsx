@@ -73,7 +73,7 @@ describe("WordStudyWorkspace", () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole("button", { name: "再学一组" }));
+    await user.click(screen.getByRole("button", { name: "继续学习" }));
     expect(continueStudy).toHaveBeenCalledOnce();
   });
 

@@ -16,13 +16,15 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.jsx";
 import { Button } from "@/components/ui/button.jsx";
 import { Skeleton } from "@/components/ui/skeleton.jsx";
+import { WordBulkDeleteDialog } from "@/features/words/WordBulkDeleteDialog.jsx";
 import { WordDeleteDialog } from "@/features/words/WordDeleteDialog.jsx";
 import { WordFilters } from "@/features/words/WordFilters.jsx";
 import { WordTable } from "@/features/words/WordTable.jsx";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
 import { readWordFilters, writeWordFilters } from "@/lib/wordFilters.js";
 import { getErrorMessage } from "@/services/problemDetails.js";
-import { useGetAdminWordsQuery } from "@/services/wordsApi.js";
+import { BulkResourceActions } from "@/features/shared/BulkResourceActions.jsx";
+import { useLazyGetAdminWordsQuery, useDeleteWordMutation, useGetAdminWordsQuery } from "@/services/wordsApi.js";
 
 function Words() {
   useAdminPage("单词管理");
@@ -31,6 +33,11 @@ function Words() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = readWordFilters(searchParams);
   const canonicalSearch = writeWordFilters(filters).toString();
+  const [loadAllPage] = useLazyGetAdminWordsQuery();
+  const [deleteAllItem] = useDeleteWordMutation();
+  const [selected, setSelected] = useState({});
+  const [bulkWords, setBulkWords] = useState(null);
+  const [bulkErrors, setBulkErrors] = useState([]);
   const [pendingWord, setPendingWord] = useState(null);
   const [notice, setNotice] = useState(() => location.state?.notice ?? null);
   const { data, error, isLoading, isFetching, refetch } =
@@ -90,6 +97,11 @@ function Words() {
           <AlertDescription>{notice}</AlertDescription>
         </Alert>
       ) : null}
+      <BulkResourceActions label="单词" allOnly
+        loadPage={page => loadAllPage({ page, pageSize: 100 }, false).unwrap()}
+        remove={word => deleteAllItem({ wordId: word.id, concurrencyStamp: word.concurrencyStamp }).unwrap()}
+        onClear={() => setSelected({})} onDone={() => { void refetch(); }}
+        description="单词的释义、例句及相关学习记录也会删除；音频库文件不会一并删除。" />
       <WordFilters
         filters={filters}
         onApply={(next) =>
@@ -154,7 +166,19 @@ function Words() {
             <span>共 {data.totalCount} 个单词</span>
             {isFetching ? <span>正在更新列表</span> : null}
           </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm">已选 {Object.keys(selected).length} 个（可跨页勾选）</span>
+            <Button variant="outline" disabled={!Object.keys(selected).length || bulkWords !== null} onClick={() => setSelected({})}>清空选择</Button>
+            <Button variant="destructive" disabled={!Object.keys(selected).length || bulkWords !== null} onClick={() => setBulkWords(Object.values(selected))}>批量删除</Button>
+          </div>
+          {bulkErrors.length ? <Alert variant="destructive"><AlertTitle>以下单词未删除，请核对后重新勾选重试</AlertTitle><AlertDescription>
+            <ul>{bulkErrors.map(({ word, message }) => <li key={word.id}>{word.headword}：{message}</li>)}</ul>
+          </AlertDescription></Alert> : null}
           <WordTable
+            selected={selected}
+            selectionDisabled={bulkWords !== null}
+            onSelect={(word, checked) => setSelected(previous => { const next = { ...previous }; if (checked) next[word.id] = word; else delete next[word.id]; return next; })}
+            onSelectPage={checked => setSelected(previous => { const next = { ...previous }; for (const word of data.items) { if (checked) next[word.id] = word; else delete next[word.id]; } return next; })}
             words={data.items}
             onDelete={(word) => {
               setNotice(null);
@@ -199,6 +223,8 @@ function Words() {
           </nav>
         </>
       ) : null}
+      {bulkWords ? <WordBulkDeleteDialog words={bulkWords} onClose={() => setBulkWords(null)}
+        onDone={(removed, failed) => { setSelected({}); setBulkErrors(failed); setNotice(`已删除 ${removed} 个单词，${failed.length} 个未删除。`); void refetch(); }} /> : null}
       {pendingWord ? (
         <WordDeleteDialog
           word={pendingWord}

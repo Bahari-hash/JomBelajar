@@ -3,13 +3,15 @@ import type { WordStudyCurrentItem } from "@/features/wordStudy/wordStudyTypes";
 
 export default function WordMemorizationCard({
   item,
+  revealed = false,
 }: {
+  revealed?: boolean;
   item: Extract<WordStudyCurrentItem, { phase: "Memorization" }>;
 }) {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-3xl font-bold">{item.memorization.headword}</h2>
+      <div className="flex min-h-48 flex-col items-center justify-center gap-5 text-center">
+        <h2 className="max-w-full wrap-break-word text-4xl font-semibold sm:text-5xl">{item.memorization.headword}</h2>
         {item.memorization.audioResourceId ? (
           <AudioPlaybackButton
             audioResourceId={item.memorization.audioResourceId}
@@ -17,25 +19,25 @@ export default function WordMemorizationCard({
           />
         ) : null}
       </div>
-      <div className="space-y-5">
+      {revealed ? <div className="space-y-5" id="word-answer">
         {item.memorization.senses.map((sense) => (
-          <details
+          <section
             key={`${sense.sortOrder}-${sense.definition}`}
             className="min-w-0 border-t border-base-300 pt-4"
           >
-            <summary className="cursor-pointer wrap-break-word text-sm text-primary">
+            <h3 className="wrap-break-word text-sm text-primary">
               {sense.partOfSpeech} 释义
-            </summary>
+            </h3>
             <div className="mt-3">
               <p className="text-lg">{sense.definition}</p>
               {sense.usageNote ? (
                 <p className="mt-1 text-base-content/60">{sense.usageNote}</p>
               ) : null}
               {sense.examples.length > 0 ? (
-                <details className="mt-3">
-                  <summary className="cursor-pointer">
+                <section className="mt-3">
+                  <h4 className="font-medium">
                     例句（{sense.examples.length}）
-                  </summary>
+                  </h4>
                   <div className="mt-2 space-y-2">
                     {sense.examples.map((example) => (
                       <div
@@ -58,12 +60,12 @@ export default function WordMemorizationCard({
                       </div>
                     ))}
                   </div>
-                </details>
+                </section>
               ) : null}
             </div>
-          </details>
+          </section>
         ))}
-      </div>
+      </div> : <p className="text-center text-base-content/60">先回忆它的含义，再显示答案。</p>}
     </div>
   );
 }

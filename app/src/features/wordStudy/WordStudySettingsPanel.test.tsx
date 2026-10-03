@@ -87,7 +87,7 @@ describe("WordStudySettingsPanel", () => {
     await waitFor(() => {
       const put = requests.find((request) => request.method === "put");
       expect(put?.data).toBe(
-        JSON.stringify({ dailyWordStudyCount: 30, dailyWordReviewCount: 80 }),
+        JSON.stringify({ desiredRetention: 0.9, dailyWordStudyCount: 30, dailyWordReviewCount: 80 }),
       );
     });
   });

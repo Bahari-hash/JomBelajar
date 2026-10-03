@@ -24,6 +24,7 @@ public sealed class WordStudySessionItem : BaseEntity
     public WordStudySessionItemStatus Status { get; set; } =
         WordStudySessionItemStatus.Pending;
     public long MemorizationQueueOrder { get; set; }
+    public DateTimeOffset? MemorizationAvailableAt { get; set; }
     public int MemorizationAttemptCount { get; set; }
     public bool HadMemorizationFailure { get; set; }
     public DateTimeOffset? MemorizationPassedAt { get; set; }

@@ -63,6 +63,7 @@ function ActionButton({
 
 /** Compact audio library table with status-aware administrator commands. */
 export function AudioTable({
+  selected = {}, onSelect, onSelectPage,
   audioResources,
   pendingAction,
   onDetails,
@@ -77,6 +78,10 @@ export function AudioTable({
       <Table className="min-w-216 table-fixed">
         <TableHeader>
           <TableRow>
+            {onSelect ? <TableHead className="w-12"><input type="checkbox" aria-label="全选本页音频"
+              checked={audioResources.length > 0 && audioResources.every(x => selected[x.id])}
+              ref={node => { if (node) node.indeterminate = audioResources.some(x => selected[x.id]) && !audioResources.every(x => selected[x.id]); }}
+              onChange={e => onSelectPage(e.target.checked)} /></TableHead> : null}
             <TableHead className="w-[31%] pl-4">名称</TableHead>
             <TableHead className="w-28">状态</TableHead>
             <TableHead className="w-24">时长</TableHead>
@@ -90,6 +95,7 @@ export function AudioTable({
             const pending = pendingAction?.audioResourceId === audio.id;
             return (
               <TableRow key={audio.id}>
+                {onSelect ? <TableCell><input type="checkbox" aria-label={`选择音频 ${audio.name}`} checked={Boolean(selected[audio.id])} onChange={e => onSelect(audio, e.target.checked)} /></TableCell> : null}
                 <TableCell
                   className="truncate pl-4 font-medium"
                   title={audio.name}

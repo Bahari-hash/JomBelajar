@@ -27,7 +27,8 @@ public sealed class SubmitWordSpellingRequestValidator
         RuleFor(value => value.Answer)
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithErrKey(ErrorCodes.WordStudySpellingRequired)
-            .Must(value => value.Trim().Length <= 255)
+            .When(value => !value.Skip, ApplyConditionTo.CurrentValidator)
+            .Must(value => value is not null && value.Trim().Length <= 255)
             .WithErrKey(ErrorCodes.WordStudySpellingLengthLimit);
         RuleFor(value => value.ItemConcurrencyStamp)
             .NotEqual(Guid.Empty)

@@ -27,7 +27,7 @@ public sealed class WordStudyEndpointTests
             .Where(endpoint => endpoint.RoutePattern.RawText?.Contains("word-study") == true)
             .ToArray();
 
-        routes.Should().HaveCount(15);
+        routes.Should().HaveCount(20);
         routes.Should().OnlyContain(route => route.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
             .Any(value => value.Policy == AuthorizationPolicies.RequireUser));

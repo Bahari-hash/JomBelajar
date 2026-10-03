@@ -92,7 +92,7 @@ describe("wordStudyApi", () => {
       JSON.stringify({ result: "Remembered", itemConcurrencyStamp: "stamp-1" }),
     );
     expect(spellingRequest?.data).toBe(
-      JSON.stringify({ answer: "école", itemConcurrencyStamp: "stamp-2" }),
+      JSON.stringify({ answer: "école", itemConcurrencyStamp: "stamp-2", skip: false }),
     );
     expect(
       requests.every(

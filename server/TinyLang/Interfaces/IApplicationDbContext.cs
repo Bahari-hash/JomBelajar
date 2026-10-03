@@ -28,6 +28,7 @@ public interface IApplicationDbContext
     DbSet<Word> Words { get; }
     DbSet<WordSense> WordSenses { get; }
     DbSet<ExampleSentence> ExampleSentences { get; }
+    DbSet<WordReviewLog> WordReviewLogs { get; }
     DbSet<UserWordProgress> UserWordProgress { get; }
     DbSet<UserWordFavorite> UserWordFavorites { get; }
     DbSet<WordStudySession> WordStudySessions { get; }

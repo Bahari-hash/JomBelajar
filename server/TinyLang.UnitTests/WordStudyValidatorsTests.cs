@@ -46,6 +46,14 @@ public sealed class WordStudyValidatorsTests
     }
 
     [Fact]
+    public async Task ExplicitSkipAllowsEmptyAnswerButStillRequiresStamp()
+    {
+        var validator = new SubmitWordSpellingRequestValidator();
+        (await validator.ValidateAsync(new SubmitWordSpellingRequest { Answer = "", Skip = true, ItemConcurrencyStamp = Guid.NewGuid() }, TestContext.Current.CancellationToken)).IsValid.Should().BeTrue();
+        (await validator.ValidateAsync(new SubmitWordSpellingRequest { Answer = "", Skip = true, ItemConcurrencyStamp = Guid.Empty }, TestContext.Current.CancellationToken)).IsValid.Should().BeFalse();
+    }
+
+    [Fact]
     public void SpellingPromptShouldNotExposeAnswerContent()
     {
         var properties = typeof(WordSpellingPromptResponse)

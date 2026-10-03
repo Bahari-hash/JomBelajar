@@ -124,6 +124,12 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: "words/study",
+            lazy: async () => ({
+              Component: (await import("@/pages/WordStudyPage")).default,
+            }),
+          },
+          {
             path: "words/learning",
             lazy: async () => ({
               Component: (await import("@/pages/WordLearningPage")).default,

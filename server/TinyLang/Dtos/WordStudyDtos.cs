@@ -25,7 +25,10 @@ public sealed record WordStudySessionStateResponse(
     int SkippedCount,
     DateTimeOffset StartedAt,
     DateTimeOffset? CompletedAt,
-    WordStudyCurrentItemResponse? CurrentItem);
+    WordStudyCurrentItemResponse? CurrentItem,
+    DateTimeOffset? NextAvailableAt = null,
+    int NewCount = 0, int LearningCount = 0, int ReviewCount = 0,
+    WordStudyGroupSummary? Summary = null);
 
 public sealed record WordStudyCurrentItemResponse(
     WordStudyPhase Phase,
@@ -39,7 +42,8 @@ public sealed record WordStudyCurrentItemResponse(
 public sealed record WordMemorizationContentResponse(
     string Headword,
     IReadOnlyList<WordSenseResponse> Senses,
-    Guid? AudioResourceId);
+    Guid? AudioResourceId,
+    IReadOnlyList<WordRatingPreviewResponse>? RatingPreviews = null);
 
 public sealed record WordSpellingSenseResponse(
     PartOfSpeech PartOfSpeech,
@@ -72,6 +76,7 @@ public sealed record SubmitWordMemorizationRequest(
 public sealed record SubmitWordSpellingRequest
 {
     public required string Answer { get; init; }
+    public bool Skip { get; init; }
     public Guid ItemConcurrencyStamp { get; init; }
 }
 
@@ -116,3 +121,8 @@ public sealed record WordStudyCheckInCalendarResponse(
     int CurrentStreak,
     int LongestStreak,
     int TotalCheckInDays);
+
+public sealed record WordRatingPreviewResponse(WordMemorizationResult Rating, DateTimeOffset DueAt, long IntervalSeconds);
+
+public sealed record WordStudySummaryChoice(bool SkipSpelling);
+public sealed record WordStudyGroupSummary(int WordCount, int RatingCount, int AgainCount, int HardCount, int GoodCount, int EasyCount);

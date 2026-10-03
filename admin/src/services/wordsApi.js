@@ -143,6 +143,7 @@ export const wordsApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useLazyGetAdminWordsQuery,
   useCreateWordMutation,
   useDeleteWordMutation,
   useGetAdminWordQuery,

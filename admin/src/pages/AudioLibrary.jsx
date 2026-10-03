@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select.jsx";
 import { Skeleton } from "@/components/ui/skeleton.jsx";
 import { AudioBatchUploadControl } from "@/features/audio/AudioBatchUploadControl.jsx";
+import { BulkResourceActions } from "@/features/shared/BulkResourceActions.jsx";
 import { AudioTable } from "@/features/audio/AudioTable.jsx";
 import { AudioUploadControl } from "@/features/audio/AudioUploadControl.jsx";
 import { useAdminPage } from "@/hooks/useAdminPage.js";
@@ -46,6 +47,7 @@ import {
   AUDIO_STATUS_LABELS,
 } from "@/services/audioContracts.js";
 import {
+  useLazyGetAdminAudioResourcesQuery,
   useDeleteAudioResourceMutation,
   useGetAdminAudioResourcesQuery,
   useGetAudioPlaybackMutation,
@@ -170,6 +172,8 @@ function Detail({ label, value }) {
 
 function AudioLibrary() {
   useAdminPage("音频资源");
+  const [selected, setSelected] = useState({});
+  const [loadAllPage] = useLazyGetAdminAudioResourcesQuery();
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => readFilters(searchParams), [searchParams]);
   const canonical = writeFilters(filters).toString();
@@ -349,6 +353,10 @@ function AudioLibrary() {
         </Alert>
       ) : null}
 
+      <BulkResourceActions label="音频" selected={Object.values(selected)} onClear={() => setSelected({})}
+        loadPage={page => loadAllPage({ page, pageSize: 100 }, false).unwrap()}
+        remove={audio => deleteAudio(audio.id).unwrap()} onDone={() => { void refetch(); }}
+        description="删除音频资源及文件；正在被单词、文章或试题引用的音频会保留并列出原因，请先解除关联。" />
       <AudioBatchUploadControl
         onStarted={() => refetch()}
         onTerminal={() => refetch()}
@@ -479,6 +487,9 @@ function AudioLibrary() {
             {isFetching ? <span>正在更新列表</span> : null}
           </div>
           <AudioTable
+            selected={selected}
+            onSelect={(audio, checked) => setSelected(old => { const next = { ...old }; if (checked) next[audio.id] = audio; else delete next[audio.id]; return next; })}
+            onSelectPage={checked => setSelected(old => { const next = { ...old }; for (const audio of data.items) { if (checked) next[audio.id] = audio; else delete next[audio.id]; } return next; })}
             audioResources={data.items}
             pendingAction={pendingAction}
             onDetails={showDetails}

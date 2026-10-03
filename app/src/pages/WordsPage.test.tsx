@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 describe("WordsPage", () => {
-  it("shows independent learning and review entry points", async () => {
+  it("shows one study entry with both learning and review counts", async () => {
     httpClient.defaults.adapter = (async (config) => ({
       data: config.url?.includes("/learning/")
         ? {
@@ -45,13 +45,10 @@ describe("WordsPage", () => {
 
     expect(await screen.findByText("今日已学习 15 个")).toBeInTheDocument();
     expect(screen.getByText("待复习 34 个")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "继续新词学习" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "继续学习" })).toHaveAttribute(
       "href",
-      "/words/learning",
+      "/words/study",
     );
-    expect(screen.getByRole("link", { name: "开始旧词复习" })).toHaveAttribute(
-      "href",
-      "/words/review",
-    );
+    expect(screen.queryByRole("link", { name: "开始旧词复习" })).not.toBeInTheDocument();
   });
 });

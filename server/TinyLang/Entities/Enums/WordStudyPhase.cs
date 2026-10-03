@@ -6,5 +6,6 @@ namespace TinyLang.Entities.Enums;
 public enum WordStudyPhase
 {
     Memorization,
-    Spelling
+    Spelling,
+    Summary
 }

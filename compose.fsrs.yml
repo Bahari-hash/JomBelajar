@@ -1,0 +1,45 @@
+services:
+  api:
+    image: tinylang-fsrs-api
+    build:
+      context: ./local/fsrs
+      dockerfile: Api.Dockerfile
+    environment:
+      ObjectStorageSettings__ServiceUrl: http://files.localhost:19000
+      ObjectStorageSettings__PublicBaseUrl: http://files.localhost:19000/${MINIO_BUCKET}
+  migrate:
+    image: tinylang-fsrs-sdk-snapshot
+    build: !reset null
+    entrypoint: ["dotnet", "ef", "database", "update", "--project", "TinyLang/TinyLang.csproj"]
+  app:
+    image: tinylang-fsrs-app
+    build:
+      context: ./app
+      dockerfile: Dockerfile.preview
+  admin:
+    image: tinylang-fsrs-admin
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.preview
+  minio:
+    command: server /data --address ":19000" --console-address ":9001"
+    ports: !override
+      - "127.0.0.1:19000:19000"
+    environment:
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:18088
+  minio-init:
+    entrypoint: >-
+      /bin/sh -c 'until mc alias set local http://minio:19000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do sleep 2; done;
+      mc mb --ignore-existing local/"$$MINIO_BUCKET";
+      mc anonymous set download local/"$$MINIO_BUCKET"'
+  mailpit:
+    ports: !override
+      - "127.0.0.1:18025:8025"
+  gateway:
+    image: tinylang-local-gateway
+    build: !reset null
+    ports: !override
+      - "127.0.0.1:18088:80"
+networks:
+  npm-network:
+    name: tinylang-fsrs-edge

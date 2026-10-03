@@ -29,6 +29,8 @@ public sealed class UserWordProgressConfiguration
                 "(\"IsReviewExcluded\" AND \"ReviewExcludedAt\" IS NOT NULL " +
                 "AND \"NextReviewAt\" IS NULL)");
         });
+        builder.Property(x => x.FsrsState).HasMaxLength(20);
+        builder.Property(x => x.SchedulerVersion).HasMaxLength(100);
         builder.HasKey(value => value.Id);
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
         builder.HasIndex(value => new { value.UserId, value.WordId }).IsUnique();

@@ -5,5 +5,6 @@ namespace TinyLang.Entities.Enums;
 /// </summary>
 public enum WordStudySkipReason
 {
-    ContentUnavailable
+    ContentUnavailable,
+    SpellingSkipped
 }

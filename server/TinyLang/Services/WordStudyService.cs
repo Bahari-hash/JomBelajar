@@ -34,6 +34,76 @@ public sealed class WordStudyService : IWordStudyService
         _timeProvider = timeProvider;
     }
 
+    public Task<WordStudySessionStateResponse> FinishSummaryAsync(Guid userId, Guid sessionId,
+        WordStudySessionType type, bool skipSpelling, CancellationToken cancellationToken = default)
+        => new WordStudySessionEngine(_db, _timeProvider).FinishSummaryAsync(userId, sessionId, type, skipSpelling, cancellationToken);
+
+    /// <summary>Allows a waiting group to add new words or finish its separate spelling practice.</summary>
+    public async Task<WordStudySessionStateResponse> ContinueWaitingSessionAsync(
+        Guid userId, Guid sessionId, WordStudySessionType type, bool addNewWords,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        await _db.AcquireWordStudySessionLockAsync(userId, WordStudySessionType.Learning, cancellationToken);
+        var session = (type == WordStudySessionType.Learning
+            ? await LoadLearningSessionAsync(userId, sessionId, cancellationToken)
+            : await LoadReviewSessionAsync(userId, sessionId, cancellationToken))
+            ?? throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);
+        if (session.Status != WordStudySessionStatus.Active || session.Phase != WordStudyPhase.Memorization)
+            throw ConflictException.Create(ErrorCodes.WordStudyPhaseConflict);
+        var engine = new WordStudySessionEngine(_db, _timeProvider);
+        await engine.NormalizeCurrentItemAsync(session, cancellationToken);
+        var now = _timeProvider.GetUtcNow();
+        // A card becoming due between the click and this transaction wins over either action.
+        if (session.Status == WordStudySessionStatus.Active && session.Phase == WordStudyPhase.Memorization &&
+            !session.Items.Any(x => x.Status == WordStudySessionItemStatus.Pending &&
+                x.MemorizationPassedAt == null && (x.MemorizationAvailableAt == null || x.MemorizationAvailableAt <= now)))
+        {
+            if (addNewWords)
+            {
+                if (type != WordStudySessionType.Learning || session.ActualCount >= 100)
+                    throw ConflictException.Create(ErrorCodes.WordStudyNoEligibleWords);
+                var count = await _db.Users.Where(x => x.Id == userId).Select(x => x.DailyWordStudyCount)
+                    .SingleAsync(cancellationToken);
+                var ids = await WordVisibilityPolicy.Apply(_db.Words.AsNoTracking())
+                    .Where(w => !_db.UserWordProgress.Any(p => p.UserId == userId && p.WordId == w.Id) &&
+                        !_db.WordStudySessionItems.Any(i => i.WordId == w.Id && i.Session!.UserId == userId &&
+                            i.Session.Status == WordStudySessionStatus.Active))
+                    .OrderBy(w => w.StudyOrder).Take(Math.Min(count, 100 - session.ActualCount))
+                    .Select(w => w.Id).ToListAsync(cancellationToken);
+                if (ids.Count == 0) throw ConflictException.Create(ErrorCodes.WordStudyNoEligibleWords);
+                var position = session.Items.Max(x => x.Position) + 1;
+                var memoryOrder = session.Items.Max(x => x.MemorizationQueueOrder) + 1;
+                var spellingOrder = session.Items.Max(x => x.SpellingQueueOrder) + 1;
+                session.Items = session.Items.ToList();
+                foreach (var id in ids)
+                {
+                    var item = new WordStudySessionItem { SessionId = session.Id, WordId = id,
+                        Position = position++, MemorizationQueueOrder = memoryOrder++, SpellingQueueOrder = spellingOrder++ };
+                    session.Items.Add(item);
+                    _db.WordStudySessionItems.Add(item);
+                }
+                session.ActualCount += ids.Count;
+                session.RequestedCount = Math.Max(session.RequestedCount, session.ActualCount);
+            }
+            else
+            {
+                // This ends this group's recall round, not the persistent FSRS learning state.
+                // Completing spelling releases scheduled cards to the review queue at their original due times.
+                if (session.Items.Any(x => x.Status == WordStudySessionItemStatus.Pending && x.MemorizationAttemptCount == 0))
+                    throw ConflictException.Create(ErrorCodes.WordStudyQueueConflict);
+                session.Phase = WordStudyPhase.Spelling;
+            }
+            session.ConcurrencyStamp = Guid.NewGuid();
+        }
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        var loaded = type == WordStudySessionType.Learning
+            ? await LoadLearningSessionAsync(userId, sessionId, cancellationToken)
+            : await LoadReviewSessionAsync(userId, sessionId, cancellationToken);
+        return await ProjectStateAsync(userId, loaded!, cancellationToken);
+    }
+
     public async Task<WordLearningOverviewResponse> GetLearningOverviewAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
@@ -140,6 +210,7 @@ public sealed class WordStudyService : IWordStudyService
         CancellationToken cancellationToken = default)
     {
         await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        await _db.AcquireWordStudySessionLockAsync(userId, WordStudySessionType.Learning, cancellationToken);
         var session = await LoadLearningSessionAsync(userId, sessionId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);
         var engine = new WordStudySessionEngine(_db, _timeProvider);
@@ -256,7 +327,9 @@ public sealed class WordStudyService : IWordStudyService
             join word in WordVisibilityPolicy.Apply(_db.Words.AsNoTracking())
                 on progress.WordId equals word.Id
             where progress.UserId == userId && !progress.IsReviewExcluded &&
-                progress.NextReviewAt != null
+                progress.NextReviewAt != null && !_db.WordStudySessionItems.Any(item =>
+                    item.WordId == progress.WordId && item.Session!.UserId == userId &&
+                    item.Session.Status == WordStudySessionStatus.Active)
             select progress.NextReviewAt;
         var due = await eligible.CountAsync(
             nextReviewAt => nextReviewAt <= now,
@@ -281,7 +354,7 @@ public sealed class WordStudyService : IWordStudyService
             {
                 await _db.AcquireWordStudySessionLockAsync(
                     userId,
-                    WordStudySessionType.Review,
+                    WordStudySessionType.Learning,
                     cancellationToken);
                 var existing = await LoadReviewSessionAsync(userId, null, cancellationToken);
                 if (existing is not null)
@@ -300,7 +373,9 @@ public sealed class WordStudyService : IWordStudyService
                     join word in WordVisibilityPolicy.Apply(_db.Words.AsNoTracking())
                         on progress.WordId equals word.Id
                     where progress.UserId == userId && !progress.IsReviewExcluded &&
-                        progress.NextReviewAt != null && progress.NextReviewAt <= now
+                        progress.NextReviewAt != null && progress.NextReviewAt <= now &&
+                        !_db.WordStudySessionItems.Any(item => item.WordId == progress.WordId &&
+                            item.Session!.UserId == userId && item.Session.Status == WordStudySessionStatus.Active)
                     orderby progress.NextReviewAt, word.StudyOrder
                     select word.Id)
                     .Take(count)
@@ -350,6 +425,7 @@ public sealed class WordStudyService : IWordStudyService
         Guid userId, Guid sessionId, CancellationToken cancellationToken = default)
     {
         await using var transaction = await _db.BeginTransactionAsync(cancellationToken);
+        await _db.AcquireWordStudySessionLockAsync(userId, WordStudySessionType.Learning, cancellationToken);
         var session = await LoadReviewSessionAsync(userId, sessionId, cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.WordStudySessionNotFound);
         await new WordStudySessionEngine(_db, _timeProvider)
@@ -579,7 +655,7 @@ public sealed class WordStudyService : IWordStudyService
         Guid userId,
         WordStudySession session,
         CancellationToken cancellationToken)
-        => await new WordStudySessionProjector(_db)
+        => await new WordStudySessionProjector(_db, _timeProvider)
             .ProjectAsync(userId, session, cancellationToken);
 
 }

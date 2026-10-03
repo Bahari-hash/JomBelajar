@@ -122,3 +122,21 @@ $RECYCLE.BIN/
 
 # Added by cargo
 /target
+
+# Private local previews
+.env.local
+.env.fsrs
+local/account.json
+local/fsrs/publish/
+local/fsrs/account.json
+local/fsrs/audit-account.json
+
+local/fsrs/summary-account.json
+
+# Machine-specific preview checks and private test fixtures
+local/**/*.cjs
+local/**/*.py
+local/**/*.sql
+local/**/*account*.json
+*.dump
+*.bak

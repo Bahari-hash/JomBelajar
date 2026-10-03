@@ -1,11 +1,12 @@
-export type WordMemorizationResult = "Remembered" | "Forgotten";
+export type WordMemorizationResult = "Again" | "Hard" | "Good" | "Easy" | "Remembered" | "Forgotten";
 
 export interface WordStudySettings {
+  desiredRetention?: number;
   dailyWordStudyCount: number;
   dailyWordReviewCount: number;
 }
 
-export type WordStudyPhase = "Memorization" | "Spelling";
+export type WordStudyPhase = "Memorization" | "Spelling" | "Summary";
 export type WordStudySessionType = "Learning" | "Review";
 export type WordSpellingResult = "Correct" | "Incorrect";
 
@@ -19,7 +20,14 @@ export interface WordSpellingSense {
   definition: string;
 }
 
+export interface WordRatingPreview {
+  rating: WordMemorizationResult;
+  dueAt: string;
+  intervalSeconds: number;
+}
+
 export interface WordMemorizationContent {
+  ratingPreviews?: WordRatingPreview[];
   headword: string;
   senses: WordSense[];
   audioResourceId: string | null;
@@ -50,6 +58,11 @@ export type WordStudyCurrentItem =
     };
 
 export interface WordStudySessionState {
+  summary?: { wordCount: number; ratingCount: number; againCount: number; hardCount: number; goodCount: number; easyCount: number } | null;
+  nextAvailableAt?: string | null;
+  newCount?: number;
+  learningCount?: number;
+  reviewCount?: number;
   id: string;
   sessionType: WordStudySessionType;
   phase: WordStudyPhase;

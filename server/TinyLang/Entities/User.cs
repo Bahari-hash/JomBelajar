@@ -18,6 +18,8 @@ public sealed class User : BaseAuditableEntity
     public int DailyWordStudyCount { get; set; } = 20;
     public int DailyWordReviewCount { get; set; } = 50;
 
+    public double DesiredRetention { get; set; } = 0.9;
+
     public bool IsBanned { get; set; }
     public DateTimeOffset? BannedAt { get; set; }
     public string? BannedReason { get; set; }

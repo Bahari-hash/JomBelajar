@@ -25,6 +25,7 @@ export default function WordStudyCompletion({
         完成 {session.completedCount} 个，排除 {session.excludedCount} 个，跳过{" "}
         {session.skippedCount} 个
       </p>
+      {session.phase === "Summary" ? <p className="mt-2 text-base-content/60">本组已跳过拼写，复习安排保持不变。</p> : null}
       {error ? (
         <p
           className="alert alert-error mx-auto mt-5 max-w-md text-sm"

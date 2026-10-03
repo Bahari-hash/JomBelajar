@@ -21,6 +21,31 @@ const item = (
 });
 
 describe("WordSpellingCard", () => {
+  it("exits the whole exercise without submitting an answer or showing keyboard instructions", async () => {
+    const user = userEvent.setup(); const exit = vi.fn().mockResolvedValue(undefined); const submit = vi.fn();
+    render(<WordSpellingCard item={item("one")} submitting={false} onSubmit={submit} onExit={exit} />);
+    expect(screen.queryByText(/空格提交/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "退出本次拼写" }));
+    expect(exit).toHaveBeenCalledTimes(1); expect(submit).not.toHaveBeenCalled();
+  });
+  it("uses space to skip empty input, then advance, and submit typed spelling", async () => {
+    const user = userEvent.setup(); const advance = vi.fn();
+    const submit = vi.fn().mockResolvedValue({ spellingOutcome: { result: "Incorrect", correctAnswer: "buku" },
+      session: { status: "Active", currentItem: item("two") } });
+    render(<WordSpellingCard item={item("one")} submitting={false} onSubmit={submit} onAdvance={advance} />);
+    await user.keyboard(" "); expect(submit).toHaveBeenCalledWith("");
+    expect(await screen.findByText("已跳过，稍后再练")).toBeVisible();
+    await user.keyboard(" "); expect(advance).toHaveBeenCalledTimes(1);
+    await user.type(screen.getByRole("textbox"), "buku"); await user.keyboard(" ");
+    expect(submit).toHaveBeenLastCalledWith("buku");
+  });
+  it("preserves literal spaces with Shift+Space and does not repeat pending submissions", async () => {
+    const user = userEvent.setup(); const submit = vi.fn().mockImplementation(() => new Promise(() => {}));
+    render(<WordSpellingCard item={item("one")} submitting={false} onSubmit={submit} />);
+    await user.keyboard("rumah{Shift>} {/Shift}besar");
+    expect(screen.getByRole("textbox")).toHaveValue("rumah besar");
+    await user.keyboard("  "); expect(submit).toHaveBeenCalledTimes(1);
+  });
   it("waits for next-word confirmation and resets even when the queue repeats the item", async () => {
     const user = userEvent.setup();
     const repeatedSession: WordStudySessionState = {

@@ -20,6 +20,11 @@ public sealed class S3ObjectStorageService(
 {
     private readonly ObjectStorageSettings _settings = options.Value;
 
+    // Preserve the configured transport for local HTTP storage and production HTTPS storage.
+    private Protocol PresignProtocol =>
+        Uri.TryCreate(_settings.ServiceUrl ?? _settings.PublicBaseUrl, UriKind.Absolute, out var endpoint)
+        && endpoint.Scheme == Uri.UriSchemeHttp ? Protocol.HTTP : Protocol.HTTPS;
+
     /// <inheritdoc />
     public async Task<string> PresignPutObjectAsync(
         string objectName,
@@ -32,6 +37,7 @@ public sealed class S3ObjectStorageService(
         {
             BucketName = _settings.Bucket,
             Key = objectName,
+            Protocol = PresignProtocol,
             Verb = HttpVerb.PUT,
             ContentType = contentType,
             Expires = DateTime.UtcNow.AddSeconds(_settings.PresignedUrlExpirySeconds)
@@ -51,6 +57,7 @@ public sealed class S3ObjectStorageService(
         {
             BucketName = _settings.Bucket,
             Key = objectName,
+            Protocol = PresignProtocol,
             Verb = HttpVerb.GET,
             Expires = expiresAt.UtcDateTime
         });
@@ -119,6 +126,7 @@ public sealed class S3ObjectStorageService(
         {
             BucketName = _settings.Bucket,
             Key = objectName,
+            Protocol = PresignProtocol,
             Verb = HttpVerb.PUT,
             UploadId = providerUploadId,
             PartNumber = partNumber,

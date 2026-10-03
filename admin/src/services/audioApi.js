@@ -215,6 +215,7 @@ export const audioApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useLazyGetAdminAudioResourcesQuery,
   useAbortAudioMultipartMutation,
   useCompleteAudioMultipartMutation,
   useConfirmAudioUploadMutation,

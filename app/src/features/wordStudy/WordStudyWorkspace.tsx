@@ -1,6 +1,7 @@
 import { Heart, HeartOff } from "lucide-react";
 import { useState } from "react";
-import WordMemorizationCard from "./WordMemorizationCard";
+import WordStudySummary from "./WordStudySummary";
+import WordRatingCard from "./WordRatingCard";
 import WordSpellingCard from "./WordSpellingCard";
 import WordStudyCompletion from "./WordStudyCompletion";
 import WordReviewExcludeDialog from "./WordReviewExcludeDialog";
@@ -29,6 +30,9 @@ interface Props {
   onContinue?: () => Promise<void>;
   canContinue?: boolean;
   showTodayReview?: boolean;
+  onSummaryChoice?: (skipSpelling: boolean) => Promise<void>;
+  onReload?: () => Promise<void>;
+  onWaitingAction?: (action: "more" | "spelling") => Promise<void>;
 }
 
 export default function WordStudyWorkspace(props: Props) {
@@ -39,16 +43,21 @@ export default function WordStudyWorkspace(props: Props) {
   );
   const [excludeSubmitting, setExcludeSubmitting] = useState(false);
   const [excludeError, setExcludeError] = useState<string | null>(null);
-  if (props.session.status === "Completed" || !props.session.currentItem)
+  if (props.session.status === "Completed")
     return (
       <WordStudyCompletion
         session={props.session}
-        continueLabel={props.mode === "learning" ? "再学一组" : "再复习一组"}
+        continueLabel="继续学习"
         canContinue={props.canContinue ?? true}
         onContinue={props.onContinue}
         showTodayReview={props.showTodayReview}
       />
     );
+  if (props.session.phase === "Summary") return <WordStudySummary session={props.session} onChoose={props.onSummaryChoice} />;
+  if (!props.session.currentItem) return <div className="py-16 text-center" role="status">
+    <p>暂时没有可显示的卡片，请刷新学习进度。</p>
+    <button className="btn btn-primary mt-4" onClick={() => void props.onReload?.()}>刷新进度</button>
+  </div>;
   const item = props.session.currentItem;
   const validTotal =
     props.session.actualCount -
@@ -85,6 +94,7 @@ export default function WordStudyWorkspace(props: Props) {
       await props.onMemorization(item, result);
     } catch {
       setCommandError("学习进度保存失败，已重新同步当前状态。");
+      throw new Error("rating failed");
     }
   };
   const submitSpelling = async (answer: string) => {
@@ -132,40 +142,25 @@ export default function WordStudyWorkspace(props: Props) {
             )}
           </button>
         </div>
+        {item.phase === "Memorization" && props.session.newCount !== undefined ? (
+          <div className="flex justify-center gap-5 text-sm" aria-label="本组待学卡片">
+            <span className="text-info">新词 {props.session.newCount}</span>
+            <span className="text-warning">学习中 {props.session.learningCount}</span>
+            <span className="text-success">复习 {props.session.reviewCount}</span>
+          </div>
+        ) : null}
         <section className="min-h-[28rem]">
           {item.phase === "Memorization" ? (
             <>
-              <WordMemorizationCard item={item} />
-              <div className="mt-8 flex flex-wrap justify-between gap-3">
-                <button
-                  className="btn btn-outline"
-                  disabled={props.submitting}
-                  onClick={() => void submitMemorization("Forgotten")}
-                >
-                  没记住
-                </button>
-                <div className="flex gap-3">
-                  {props.mode === "review" && props.onExclude ? (
-                    <button
-                      className="btn btn-ghost text-error"
-                      disabled={props.submitting}
-                      onClick={() => {
-                        setExcludeError(null);
-                        setExcludeItem(item);
-                      }}
-                    >
-                      不再复习此词
-                    </button>
-                  ) : null}
-                  <button
-                    className="btn btn-primary"
-                    disabled={props.submitting}
-                    onClick={() => void submitMemorization("Remembered")}
-                  >
-                    记住了
-                  </button>
-                </div>
-              </div>
+              <WordRatingCard key={`${item.itemId}-${item.itemConcurrencyStamp}`}
+                item={item} submitting={props.submitting || excludeItem !== null}
+                onRate={submitMemorization} />
+              {props.mode === "review" && props.onExclude ? (
+                <div className="mt-6 text-center"><button className="btn btn-ghost btn-sm text-base-content/60"
+                  disabled={props.submitting} onClick={() => { setExcludeError(null); setExcludeItem(item); }}>
+                  不再复习此词
+                </button></div>
+              ) : null}
             </>
           ) : (
             <>
@@ -173,6 +168,7 @@ export default function WordStudyWorkspace(props: Props) {
                 item={item}
                 submitting={props.submitting}
                 onSubmit={submitSpelling}
+                onExit={props.onSummaryChoice ? () => props.onSummaryChoice!(true) : undefined}
                 onAdvance={props.onSpellingAdvance ?? (() => undefined)}
               />
             </>

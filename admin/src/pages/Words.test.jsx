@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { tokenVault } from "@/services/tokenVault.js";
-import { axiosResponse, mockHttpClient } from "@/test/http.js";
+import { axiosHttpError, axiosResponse, mockHttpClient } from "@/test/http.js";
 import { renderAppAt } from "@/test/renderApp.jsx";
 
 const WORD_ID = "11111111-1111-4111-8111-111111111111";
@@ -35,6 +35,29 @@ function wordPage(items = [wordListItem()]) {
 }
 
 describe("Words", () => {
+  it("selects a page, confirms only selected words and reports partial deletion failures", async () => {
+    tokenVault.install("access", "refresh");
+    const second = wordListItem({ id: "22222222-2222-4222-8222-222222222222", headword: "buku" });
+    let items = [wordListItem(), second]; const deleted = [];
+    mockHttpClient(config => {
+      if (config.method?.toUpperCase() === "DELETE") {
+        deleted.push(config.url);
+        if (config.url.includes(second.id)) return Promise.reject(axiosHttpError({ detail: "词条已修改" }, 409));
+        items = [second]; return Promise.resolve(axiosResponse(null, 204));
+      }
+      return Promise.resolve(axiosResponse(wordPage(items)));
+    });
+    const user = userEvent.setup(); renderAppAt("/words");
+    await user.click(await screen.findByRole("checkbox", { name: "全选本页单词" }));
+    await user.click(screen.getByRole("button", { name: "批量删除", exact: true }));
+    expect(deleted).toHaveLength(0);
+    const dialog = screen.getByRole("alertdialog");
+    expect(within(dialog).getByText("buku")).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "确认批量删除" }));
+    await screen.findByText("已删除 1 个单词，1 个未删除。");
+    expect(deleted).toHaveLength(2);
+    expect(screen.getByText("以下单词未删除，请核对后重新勾选重试")).toBeVisible();
+  });
   it("renders the new list contract and only exposes edit and delete actions", async () => {
     tokenVault.install("access", "refresh");
     mockHttpClient(() => Promise.resolve(axiosResponse(wordPage())));

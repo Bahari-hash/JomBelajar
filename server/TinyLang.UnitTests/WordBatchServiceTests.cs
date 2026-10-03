@@ -458,12 +458,13 @@ public sealed class WordBatchServiceTests
         await using var db = CreateDbContext();
         var transaction = new Mock<IApplicationDbTransaction>();
         var saved = false;
+        var insertionOrder = new System.Collections.Generic.List<string>();
         transaction.Setup(value => value.CommitAsync(It.IsAny<CancellationToken>()))
             .Callback(() => saved.Should().BeTrue())
             .Returns(Task.CompletedTask);
         var context = WrapWritableContext(db, transaction);
         context.Setup(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .Callback(() => saved = true)
+            .Callback(() => { saved = true; insertionOrder.AddRange(db.ChangeTracker.Entries<Word>().Where(e => e.State == EntityState.Added).Select(e => e.Entity.Headword)); })
             .Returns((CancellationToken token) => db.SaveChangesAsync(token));
         var request = new BatchWordRequest
         {
@@ -493,6 +494,8 @@ public sealed class WordBatchServiceTests
 
         result.Imported.Should().NotBeNull();
         result.Validation.Should().BeNull();
+        insertionOrder.Should().Equal("hello", "world");
+        context.Verify(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Exactly(2));
         result.Imported!.CreatedCount.Should().Be(2);
         result.Imported.Items.Select(value => value.RowNumber).Should().Equal(1, 2);
         (await db.Words.CountAsync(TestContext.Current.CancellationToken)).Should().Be(2);

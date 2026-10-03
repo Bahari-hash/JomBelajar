@@ -65,8 +65,13 @@ public sealed class WordBatchService : IWordBatchService
                     row.RowNumber,
                     Word: WordAggregateBuilder.Create(row.Request)))
                 .ToArray();
-            _db.Words.AddRange(words.Select(value => value.Word));
-            await _db.SaveChangesAsync(cancellationToken);
+            // Database sequences follow INSERT execution order, which EF may reorder
+            // within a batch. Persist each aggregate in JSON order in this transaction.
+            foreach (var value in words.OrderBy(value => value.RowNumber))
+            {
+                _db.Words.Add(value.Word);
+                await _db.SaveChangesAsync(cancellationToken);
+            }
             await transaction.CommitAsync(cancellationToken);
 
             _logger.LogInformation(

@@ -17,6 +17,7 @@ public sealed record UpdateProfileRequest
 /// </summary>
 public sealed record UpdateWordStudySettingsRequest
 {
+    public double DesiredRetention { get; init; } = 0.9;
     public int DailyWordStudyCount { get; init; }
     public int DailyWordReviewCount { get; init; } = WordStudyConstraints.DefaultReviewCount;
 }
@@ -26,7 +27,8 @@ public sealed record UpdateWordStudySettingsRequest
 /// </summary>
 public sealed record WordStudySettingsResponse(
     int DailyWordStudyCount,
-    int DailyWordReviewCount = WordStudyConstraints.DefaultReviewCount);
+    int DailyWordReviewCount = WordStudyConstraints.DefaultReviewCount,
+    double DesiredRetention = 0.9);
 
 /// <summary>
 /// 描述管理员修改用户角色的请求。

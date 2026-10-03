@@ -22,6 +22,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
                 "\"DailyWordReviewCount\" BETWEEN 1 AND 200");
         });
 
+        builder.Property(x => x.DesiredRetention).HasDefaultValue(0.9);
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Email)

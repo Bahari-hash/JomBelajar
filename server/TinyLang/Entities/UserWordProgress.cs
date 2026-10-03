@@ -23,6 +23,14 @@ public sealed class UserWordProgress : BaseAuditableEntity
     public DateTimeOffset FirstStudiedAt { get; set; }
     public DateTimeOffset LastStudiedAt { get; set; }
     public DateTimeOffset? LastReviewedAt { get; set; }
+    // Null state identifies legacy progress: preserve its due date until first FSRS rating.
+    public string? FsrsState { get; set; }
+    public double? Stability { get; set; }
+    public double? Difficulty { get; set; }
+    public int? LearningStep { get; set; }
+    public DateTimeOffset? LastRatedAt { get; set; }
+    public string? SchedulerVersion { get; set; }
+    public bool ImportedFromLegacy { get; set; }
     public int ReviewStage { get; set; }
     public DateTimeOffset? NextReviewAt { get; set; }
     public int ReviewCount { get; set; }

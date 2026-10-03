@@ -38,6 +38,7 @@ public sealed class UpdateWordStudySettingsRequestValidator
     /// </summary>
     public UpdateWordStudySettingsRequestValidator()
     {
+        RuleFor(x => x.DesiredRetention).InclusiveBetween(0.7, 0.97);
         RuleFor(x => x.DailyWordStudyCount)
             .InclusiveBetween(WordStudyConstraints.MinWordCount, WordStudyConstraints.MaxWordCount)
             .WithErrKey(ErrorCodes.WordStudyWordCountInvalid);

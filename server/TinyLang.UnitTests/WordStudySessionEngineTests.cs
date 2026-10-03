@@ -15,7 +15,7 @@ namespace TinyLang.UnitTests;
 public sealed class WordStudySessionEngineTests
 {
     [Fact]
-    public async Task SuccessfulReviewShouldAdvanceSchedule()
+    public async Task FsrsReviewShouldScheduleBeforeSpelling()
     {
         await using var db = CreateDbContext();
         var user = new User { Email = "review@example.test", PasswordHash = "hash" };
@@ -38,9 +38,10 @@ public sealed class WordStudySessionEngineTests
             session.Id,
             session.CurrentItem!.ItemId,
             new SubmitWordMemorizationRequest(
-                WordMemorizationResult.Remembered,
+                WordMemorizationResult.Easy,
                 session.CurrentItem.ItemConcurrencyStamp),
             TestContext.Current.CancellationToken);
+        memorized = memorized with { Session = await service.FinishSummaryAsync(user.Id, session.Id, WordStudySessionType.Review, false, TestContext.Current.CancellationToken) };
         var completed = await service.SubmitReviewSpellingAsync(
             user.Id,
             session.Id,
@@ -56,9 +57,10 @@ public sealed class WordStudySessionEngineTests
         var progress = await db.UserWordProgress.SingleAsync(
             value => value.UserId == user.Id && value.WordId == word.Id,
             TestContext.Current.CancellationToken);
-        progress.ReviewStage.Should().Be(1);
+        progress.FsrsState.Should().Be("Review");
+        progress.ImportedFromLegacy.Should().BeTrue();
         progress.SuccessfulReviewCount.Should().Be(1);
-        progress.NextReviewAt.Should().Be(DateTimeOffset.Parse("2026-08-20T03:00:00Z"));
+        progress.NextReviewAt.Should().Be(DateTimeOffset.Parse("2026-09-03T03:00:00Z"));
         (await db.WordStudyActivities.CountAsync(value =>
             value.UserId == user.Id && value.ActivityType == WordStudyActivityType.Review,
             TestContext.Current.CancellationToken)).Should().Be(1);
@@ -67,7 +69,7 @@ public sealed class WordStudySessionEngineTests
     }
 
     [Fact]
-    public async Task ReviewFailureShouldResetScheduleAfterEventualSuccess()
+    public async Task ReviewFailureShouldRequeueWithoutWaiting()
     {
         await using var db = CreateDbContext();
         var user = new User { Email = "failed-review@example.test", PasswordHash = "hash" };
@@ -83,7 +85,8 @@ public sealed class WordStudySessionEngineTests
             NextReviewAt = DateTimeOffset.Parse("2026-08-18T03:00:00Z")
         });
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var service = CreateService(db);
+        var clock = new TestTimeProvider(DateTimeOffset.Parse("2026-08-18T03:00:00Z"));
+        var service = new WordStudyService(db, Mock.Of<IDatabaseExceptionClassifier>(), clock);
         var session = await service.StartReviewSessionAsync(
             user.Id,
             TestContext.Current.CancellationToken);
@@ -95,14 +98,19 @@ public sealed class WordStudySessionEngineTests
                 WordMemorizationResult.Forgotten,
                 session.CurrentItem.ItemConcurrencyStamp),
             TestContext.Current.CancellationToken);
+        forgotten.Session.CurrentItem.Should().NotBeNull();
+        forgotten.Session.NextAvailableAt.Should().BeNull();
+        clock.Advance(TimeSpan.FromMinutes(1));
+        var resumed = await service.GetReviewSessionAsync(user.Id, session.Id, TestContext.Current.CancellationToken);
         var remembered = await service.SubmitReviewMemorizationAsync(
             user.Id,
             session.Id,
-            forgotten.Session.CurrentItem!.ItemId,
+            resumed.CurrentItem!.ItemId,
             new SubmitWordMemorizationRequest(
-                WordMemorizationResult.Remembered,
-                forgotten.Session.CurrentItem.ItemConcurrencyStamp),
+                WordMemorizationResult.Easy,
+                resumed.CurrentItem.ItemConcurrencyStamp),
             TestContext.Current.CancellationToken);
+        remembered = remembered with { Session = await service.FinishSummaryAsync(user.Id, session.Id, WordStudySessionType.Review, false, TestContext.Current.CancellationToken) };
         await service.SubmitReviewSpellingAsync(
             user.Id,
             session.Id,
@@ -117,10 +125,12 @@ public sealed class WordStudySessionEngineTests
         var progress = await db.UserWordProgress.SingleAsync(
             value => value.UserId == user.Id && value.WordId == word.Id,
             TestContext.Current.CancellationToken);
-        progress.ReviewStage.Should().Be(0);
+        progress.ReviewStage.Should().Be(4); // legacy stage is retained; FSRS owns scheduling
+        progress.FsrsState.Should().Be("Review");
         progress.FailedReviewCount.Should().Be(1);
-        progress.SuccessfulReviewCount.Should().Be(0);
-        progress.NextReviewAt.Should().Be(DateTimeOffset.Parse("2026-08-19T03:00:00Z"));
+        progress.SuccessfulReviewCount.Should().Be(1);
+        db.WordReviewLogs.Count().Should().Be(2);
+        progress.NextReviewAt.Should().BeAfter(clock.GetUtcNow());
     }
 
     [Fact]
@@ -138,9 +148,10 @@ public sealed class WordStudySessionEngineTests
             session.Id,
             session.CurrentItem!.ItemId,
             new SubmitWordMemorizationRequest(
-                WordMemorizationResult.Remembered,
+                WordMemorizationResult.Easy,
                 session.CurrentItem.ItemConcurrencyStamp),
             TestContext.Current.CancellationToken);
+        memorized = memorized with { Session = await service.FinishSummaryAsync(user.Id, session.Id, WordStudySessionType.Learning, false, TestContext.Current.CancellationToken) };
 
         var incorrect = await service.SubmitLearningSpellingAsync(
             user.Id,
@@ -178,7 +189,8 @@ public sealed class WordStudySessionEngineTests
             value => value.UserId == user.Id && value.WordId == word.Id,
             TestContext.Current.CancellationToken);
         progress.ReviewStage.Should().Be(0);
-        progress.NextReviewAt.Should().Be(DateTimeOffset.Parse("2026-08-19T03:00:00Z"));
+        progress.FsrsState.Should().Be("Review");
+        progress.NextReviewAt.Should().Be(DateTimeOffset.Parse("2026-09-03T03:00:00Z"));
         (await db.WordStudyActivities.CountAsync(value =>
             value.UserId == user.Id && value.ActivityType == WordStudyActivityType.Learning,
             TestContext.Current.CancellationToken)).Should().Be(1);
@@ -220,7 +232,7 @@ public sealed class WordStudySessionEngineTests
     }
 
     [Fact]
-    public async Task RememberingAllItemsShouldSwitchToSpelling()
+    public async Task RememberingAllItemsShouldShowSummaryBeforeSpelling()
     {
         await using var db = CreateDbContext();
         var user = new User { Email = "phase@example.test", PasswordHash = "hash" };
@@ -242,13 +254,15 @@ public sealed class WordStudySessionEngineTests
                 item.Id,
                 WordStudySessionType.Learning,
                 new SubmitWordMemorizationRequest(
-                    WordMemorizationResult.Remembered,
+                    WordMemorizationResult.Easy,
                     item.ConcurrencyStamp),
                 TestContext.Current.CancellationToken);
 
-        result.Session.Phase.Should().Be(WordStudyPhase.Spelling);
-        result.Session.CurrentItem!.Spelling.Should().NotBeNull();
-        result.Session.CurrentItem.Memorization.Should().BeNull();
+        result.Session.Phase.Should().Be(WordStudyPhase.Summary);
+        result.Session.CurrentItem.Should().BeNull();
+        var spelling = await service.FinishSummaryAsync(user.Id, session.Id, WordStudySessionType.Learning, false, TestContext.Current.CancellationToken);
+        spelling.CurrentItem!.Spelling.Should().NotBeNull();
+        spelling.CurrentItem.Memorization.Should().BeNull();
     }
 
     [Fact]
@@ -275,7 +289,7 @@ public sealed class WordStudySessionEngineTests
             session.Id,
             session.CurrentItem!.ItemId,
             new SubmitWordMemorizationRequest(
-                WordMemorizationResult.Remembered,
+                WordMemorizationResult.Easy,
                 session.CurrentItem.ItemConcurrencyStamp),
             TestContext.Current.CancellationToken);
 
@@ -307,7 +321,7 @@ public sealed class WordStudySessionEngineTests
                 items[1].Id,
                 WordStudySessionType.Learning,
                 new SubmitWordMemorizationRequest(
-                    WordMemorizationResult.Remembered,
+                    WordMemorizationResult.Easy,
                     items[1].ConcurrencyStamp),
                 TestContext.Current.CancellationToken);
 
@@ -356,7 +370,7 @@ public sealed class WordStudySessionEngineTests
             session.Id,
             item.Id,
             new SubmitWordMemorizationRequest(
-                WordMemorizationResult.Remembered,
+                WordMemorizationResult.Easy,
                 item.ConcurrencyStamp),
             TestContext.Current.CancellationToken);
 
@@ -393,7 +407,7 @@ public sealed class WordStudySessionEngineTests
             session.Id,
             hiddenItem.Id,
             new SubmitWordMemorizationRequest(
-                WordMemorizationResult.Remembered,
+                WordMemorizationResult.Easy,
                 hiddenItem.ConcurrencyStamp),
             TestContext.Current.CancellationToken);
 
@@ -525,7 +539,7 @@ public sealed class WordStudySessionEngineTests
     }
 
     [Fact]
-    public async Task ExcludingCurrentSpellingItemShouldCompleteWithoutReviewCount()
+    public async Task ExcludingCurrentSpellingItemShouldPreserveRatingHistory()
     {
         await using var db = CreateDbContext();
         var user = new User { Email = "exclude@example.test", PasswordHash = "hash" };
@@ -549,9 +563,10 @@ public sealed class WordStudySessionEngineTests
             session.Id,
             session.CurrentItem!.ItemId,
             new SubmitWordMemorizationRequest(
-                WordMemorizationResult.Remembered,
+                WordMemorizationResult.Easy,
                 session.CurrentItem.ItemConcurrencyStamp),
             TestContext.Current.CancellationToken);
+        spelling = spelling with { Session = await service.FinishSummaryAsync(user.Id, session.Id, WordStudySessionType.Review, false, TestContext.Current.CancellationToken) };
 
         var result = await service.ExcludeFromReviewAsync(
             user.Id,
@@ -567,7 +582,8 @@ public sealed class WordStudySessionEngineTests
             value => value.UserId == user.Id && value.WordId == word.Id,
             TestContext.Current.CancellationToken);
         progress.IsReviewExcluded.Should().BeTrue();
-        progress.ReviewCount.Should().Be(0);
+        progress.ReviewCount.Should().Be(1);
+        db.WordReviewLogs.Count().Should().Be(1);
         progress.NextReviewAt.Should().BeNull();
     }
 

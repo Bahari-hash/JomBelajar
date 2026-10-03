@@ -829,7 +829,6 @@ namespace TinyLang.Database.Migrations
 
                     b.HasKey("Id");
 
-
                     b.HasIndex("QuestionId", "SortOrder")
                         .IsUnique();
 
@@ -1078,6 +1077,11 @@ namespace TinyLang.Database.Migrations
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<double>("DesiredRetention")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(0.90000000000000002);
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1205,20 +1209,36 @@ namespace TinyLang.Database.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<double?>("Difficulty")
+                        .HasColumnType("double precision");
+
                     b.Property<int>("FailedReviewCount")
                         .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("FirstStudiedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("FsrsState")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("ImportedFromLegacy")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsReviewExcluded")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("LastRatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("LastReviewedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("LastStudiedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("LearningStep")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("NextReviewAt")
                         .HasColumnType("timestamp with time zone");
@@ -1231,6 +1251,13 @@ namespace TinyLang.Database.Migrations
 
                     b.Property<int>("ReviewStage")
                         .HasColumnType("integer");
+
+                    b.Property<string>("SchedulerVersion")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double?>("Stability")
+                        .HasColumnType("double precision");
 
                     b.Property<int>("SuccessfulReviewCount")
                         .HasColumnType("integer");
@@ -1592,6 +1619,64 @@ namespace TinyLang.Database.Migrations
                     b.ToTable("words", (string)null);
                 });
 
+            modelBuilder.Entity("TinyLang.Entities.WordReviewLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AfterStateJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BeforeStateJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<double>("DesiredRetention")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTimeOffset>("DueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("ImportedFromLegacy")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("RatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Rating")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("SchedulerVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("SessionItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SubmissionStamp")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WordId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionItemId", "SubmissionStamp")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "WordId", "RatedAt");
+
+                    b.ToTable("word_review_logs", (string)null);
+                });
+
             modelBuilder.Entity("TinyLang.Entities.WordSense", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1782,6 +1867,9 @@ namespace TinyLang.Database.Migrations
 
                     b.Property<int>("MemorizationAttemptCount")
                         .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("MemorizationAvailableAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("MemorizationPassedAt")
                         .HasColumnType("timestamp with time zone");
@@ -2305,6 +2393,21 @@ namespace TinyLang.Database.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("AudioResource");
+                });
+
+            modelBuilder.Entity("TinyLang.Entities.WordReviewLog", b =>
+                {
+                    b.HasOne("TinyLang.Entities.WordStudySessionItem", null)
+                        .WithMany()
+                        .HasForeignKey("SessionItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TinyLang.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("TinyLang.Entities.WordSense", b =>

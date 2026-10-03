@@ -162,7 +162,7 @@ public sealed class UserService(
             .Where(user => user.Id == userId && !user.IsDeleted && !user.IsBanned)
             .Select(user => new WordStudySettingsResponse(
                 user.DailyWordStudyCount,
-                user.DailyWordReviewCount))
+                user.DailyWordReviewCount, user.DesiredRetention))
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw NotFoundException.Create(ErrorCodes.UserNotFound);
 
@@ -189,12 +189,15 @@ public sealed class UserService(
             throw NotFoundException.Create(ErrorCodes.UserNotFound);
         }
 
+        if (!double.IsFinite(request.DesiredRetention) || request.DesiredRetention is < 0.7 or > 0.97)
+            throw new ArgumentOutOfRangeException(nameof(request.DesiredRetention));
+        user.DesiredRetention = request.DesiredRetention;
         user.DailyWordStudyCount = request.DailyWordStudyCount;
         user.DailyWordReviewCount = request.DailyWordReviewCount;
         await db.SaveChangesAsync(cancellationToken);
         return new WordStudySettingsResponse(
             user.DailyWordStudyCount,
-            user.DailyWordReviewCount);
+            user.DailyWordReviewCount, user.DesiredRetention);
     }
 
     /// <inheritdoc />

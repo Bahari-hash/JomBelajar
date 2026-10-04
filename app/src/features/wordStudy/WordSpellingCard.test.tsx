@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import WordSpellingCard from "./WordSpellingCard";
 import type {
@@ -21,6 +22,32 @@ const item = (
 });
 
 describe("WordSpellingCard", () => {
+  it("advances by mouse without submitting the next word's empty answer", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue({
+      spellingOutcome: { result: "Correct", correctAnswer: "buku" },
+      session: { status: "Active", currentItem: item("two") },
+    });
+    function Exercise() {
+      const [current, setCurrent] = useState(item("one"));
+      return <WordSpellingCard item={current} submitting={false} onSubmit={onSubmit}
+        onAdvance={(session) => setCurrent(session.currentItem as typeof current)} />;
+    }
+    render(<Exercise />);
+    await user.type(screen.getByRole("textbox"), "buku");
+    await user.click(screen.getByRole("button", { name: "提交拼写" }));
+    await screen.findByText("拼写正确");
+    await user.click(screen.getByRole("button", { name: "下一词" }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("textbox")).toBeEnabled();
+    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect(screen.getByRole("textbox")).toHaveFocus();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    await user.type(screen.getByRole("textbox"), "rumah");
+    await user.click(screen.getByRole("button", { name: "提交拼写" }));
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+    expect(onSubmit).toHaveBeenLastCalledWith("rumah");
+  });
   it("exits the whole exercise without submitting an answer or showing keyboard instructions", async () => {
     const user = userEvent.setup(); const exit = vi.fn().mockResolvedValue(undefined); const submit = vi.fn();
     render(<WordSpellingCard item={item("one")} submitting={false} onSubmit={submit} onExit={exit} />);

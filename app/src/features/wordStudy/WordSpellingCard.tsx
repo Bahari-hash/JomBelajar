@@ -113,6 +113,7 @@ export default function WordSpellingCard({
       <div className="mt-4 flex flex-wrap items-center gap-3">
       {!submitted ? (
         <button
+          key="submit-spelling"
           className="btn btn-primary"
           disabled={submitting || pending}
           type="submit"
@@ -121,10 +122,15 @@ export default function WordSpellingCard({
         </button>
       ) : (
         <button
+          key="advance-spelling"
           className="btn btn-primary"
           disabled={submitting}
           type="button"
-          onClick={advance}
+          onClick={(event) => {
+            // Advancing replaces this control; never submit the next empty answer.
+            event.preventDefault();
+            advance();
+          }}
         >
           {submitted.session.status === "Active" &&
           submitted.session.currentItem

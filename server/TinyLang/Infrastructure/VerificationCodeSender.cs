@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using TinyLang.Enums;
+using TinyLang.Exceptions;
 using TinyLang.Interfaces;
 using TinyLang.Models;
 using TinyLang.Settings;
@@ -30,6 +31,15 @@ public sealed class VerificationCodeSender(
     public async Task SendCodeAsync(
         string email, VerificationCodePurpose purpose, CancellationToken cancellationToken = default)
     {
+        if (!await codeStore.TryAcquireSendCooldownAsync(
+                email,
+                TimeSpan.FromSeconds(_settings.SendCooldownSeconds),
+                cancellationToken))
+        {
+            throw TooManyRequestsException.Create(
+                ErrorCodes.VerificationCodeSendTooFrequent);
+        }
+
         var code = codeGenerator.GenerateNumeric(_settings.CodeLength);
         var codeHash = secretHasher.Hash(code);
         await codeStore.SaveAsync(email, purpose, codeHash, cancellationToken);

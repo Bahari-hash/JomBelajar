@@ -17,4 +17,7 @@ public sealed record VerificationCodeSettings
 
     [Range(1, 20)]
     public int MaxFailedAttempts { get; init; } = 5;
+
+    [Range(1, 86400)]
+    public int SendCooldownSeconds { get; init; } = 60;
 }

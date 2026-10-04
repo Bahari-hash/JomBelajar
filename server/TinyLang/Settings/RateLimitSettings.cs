@@ -3,17 +3,11 @@ using System.ComponentModel.DataAnnotations;
 namespace TinyLang.Settings;
 
 /// <summary>
-/// 描述验证码、上传、音视频播放/进度和全局请求的限流参数。
+/// 描述上传、音视频播放/进度和全局请求的限流参数。
 /// </summary>
 public sealed record RateLimitSettings
 {
     public const string SectionName = "RateLimitSettings";
-
-    [Range(1, int.MaxValue)]
-    public int StrictCodePermitLimit { get; init; }
-
-    [Range(1, int.MaxValue)]
-    public int StrictCodeWindowSeconds { get; init; }
 
     [Range(1, int.MaxValue)]
     public int UploadPresignTokenLimit { get; init; }

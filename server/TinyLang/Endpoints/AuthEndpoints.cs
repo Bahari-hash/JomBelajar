@@ -27,26 +27,20 @@ public static class AuthEndpoints
     {
         var group = endpoints.MapGroup("/auth");
 
-        group.MapPost("/register-token", SendRegisterTokenAsync)
-            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
+        group.MapPost("/register-token", SendRegisterTokenAsync);
 
         group.MapPost("/change-email-token", SendChangeEmailTokenAsync)
-            .RequireAuthorization(AuthorizationPolicies.RequireUser)
-            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
         group.MapPost("/reset-password-token", SendResetPasswordTokenAsync)
-            .RequireAuthorization(AuthorizationPolicies.RequireUser)
-            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
-        group.MapPost("/forgot-password-token", SendForgotPasswordTokenAsync)
-            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
+        group.MapPost("/forgot-password-token", SendForgotPasswordTokenAsync);
 
-        group.MapPut("/forgot-password", ResetForgottenPasswordAsync)
-            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
+        group.MapPut("/forgot-password", ResetForgottenPasswordAsync);
 
         group.MapPost("/delete-account-token", SendDeleteAccountTokenAsync)
-            .RequireAuthorization(AuthorizationPolicies.RequireUser)
-            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
 
         group.MapPost("/register", RegisterAsync);
 

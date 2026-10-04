@@ -50,6 +50,9 @@ public enum ErrorCodes
     [Description("验证码错误或者已经失效.")]
     VerificationCodeInvalid,
 
+    [Description("验证码发送过于频繁，请稍后再试.")]
+    VerificationCodeSendTooFrequent,
+
     [Description("邮箱已经被占用.")]
     EmailAlreadyExists,
 

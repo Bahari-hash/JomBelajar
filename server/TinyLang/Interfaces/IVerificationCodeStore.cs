@@ -8,6 +8,14 @@ namespace TinyLang.Interfaces;
 public interface IVerificationCodeStore
 {
     /// <summary>
+    /// Attempts to reserve the send cooldown for an email address.
+    /// </summary>
+    Task<bool> TryAcquireSendCooldownAsync(
+        string email,
+        TimeSpan window,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 保存指定邮箱和用途的验证码，并应用配置的有效期。
     /// </summary>
     /// <param name="email">验证码所属邮箱。</param>

@@ -206,7 +206,7 @@ public static class DependencyInjection
 
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
                 ForwardedHeaders.XForwardedProto;
-            options.ForwardLimit = 1;
+            options.ForwardLimit = 2;
             options.KnownIPNetworks.Clear();
             options.KnownProxies.Clear();
             foreach (var proxy in knownProxies)

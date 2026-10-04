@@ -16,6 +16,7 @@ const errorMessages: Record<string, string> = {
   VerificationCodeLengthLimit: "验证码必须为 6 位。",
   VerificationCodeFormatInvalid: "验证码必须是 6 位数字。",
   VerificationCodeInvalid: "验证码错误或已失效，请重新获取。",
+  VerificationCodeSendTooFrequent: "验证码发送过于频繁，请稍后再试。",
   InvalidCredentials: "邮箱或密码错误。",
   RefreshTokenInvalid: "登录状态已失效，请重新登录。",
   TokenInvalid: "登录状态已失效，请重新登录。",

@@ -11,12 +11,12 @@ using TinyLang.Settings;
 namespace TinyLang.Infrastructure;
 
 /// <summary>
-/// 提供 endpoint policy 和全局 fallback limiter 的注册与分区规则。
+/// 提供上传、音视频 endpoint policy 和全局 fallback limiter 的注册与分区规则。
 /// </summary>
 public static class RateLimitingDependencyInjection
 {
     /// <summary>
-    /// 注册验证码、上传、音视频播放/进度和全局并发限流策略。
+    /// 注册上传、音视频播放/进度和全局并发限流策略。
     /// </summary>
     /// <param name="services">应用服务集合。</param>
     /// <param name="configuration">限流配置源。</param>
@@ -37,7 +37,7 @@ public static class RateLimitingDependencyInjection
             {
                 var retryAfterSeconds = GetRetryAfterSeconds(
                     context.Lease,
-                    settings.StrictCodeWindowSeconds);
+                    fallbackSeconds: 60);
                 var response = context.HttpContext.Response;
                 response.StatusCode = StatusCodes.Status429TooManyRequests;
                 response.ContentType = "application/json";
@@ -51,17 +51,6 @@ public static class RateLimitingDependencyInjection
                     },
                     cancellationToken);
             };
-
-            options.AddPolicy(RateLimitPolicies.StrictCodeLimit, context =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    GetStrictCodePartitionKey(context),
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = settings.StrictCodePermitLimit,
-                        Window = TimeSpan.FromSeconds(settings.StrictCodeWindowSeconds),
-                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                        QueueLimit = 0
-                    }));
 
             options.AddPolicy(RateLimitPolicies.UploadPresignLimit, context =>
                 RateLimitPartition.GetTokenBucketLimiter(
@@ -143,21 +132,6 @@ public static class RateLimitingDependencyInjection
         });
 
         return services;
-    }
-
-    /// <summary>
-    /// 按认证端点隔离，并优先按用户标识、否则按远端 IP 构建验证码限流分区键。
-    /// </summary>
-    /// <param name="context">当前 HTTP 上下文。</param>
-    /// <returns>验证码限流分区键。</returns>
-    private static string GetStrictCodePartitionKey(HttpContext context)
-    {
-        var callerKey = TryGetUserId(context, out var userId)
-            ? $"user:{userId:N}"
-            : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
-        var endpointKey = (context.GetEndpoint() as RouteEndpoint)?
-            .RoutePattern.RawText?.ToLowerInvariant() ?? "unknown";
-        return $"{callerKey}|endpoint:{endpointKey}";
     }
 
     /// <summary>

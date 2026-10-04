@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Options;
 using Moq;
 using TinyLang.Enums;
+using TinyLang.Exceptions;
 using TinyLang.Infrastructure;
 using TinyLang.Interfaces;
 using TinyLang.Settings;
@@ -11,6 +12,62 @@ namespace TinyLang.UnitTests;
 
 public sealed class VerificationCodeSenderTests
 {
+    [Fact]
+    public async Task DifferentEmailsShouldHaveIndependentSendCooldowns()
+    {
+        var store = new Mock<IVerificationCodeStore>();
+        store.Setup(x => x.TryAcquireSendCooldownAsync(
+                It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var emailSender = new Mock<IEmailSender>();
+        var sender = new VerificationCodeSender(
+            new VerificationCodeGenerator(),
+            store.Object,
+            Options.Create(new VerificationCodeSettings { CodeLength = 6, ExpMinutes = 10 }),
+            new SecretHasher(),
+            MockTemplateRenderer.Instance,
+            emailSender.Object);
+
+        await sender.SendCodeAsync(
+            "first@example.com", VerificationCodePurpose.Register, TestContext.Current.CancellationToken);
+        await sender.SendCodeAsync(
+            "second@example.com", VerificationCodePurpose.ResetPassword, TestContext.Current.CancellationToken);
+
+        store.Verify(x => x.TryAcquireSendCooldownAsync(
+            "first@example.com", It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
+        store.Verify(x => x.TryAcquireSendCooldownAsync(
+            "second@example.com", It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
+        emailSender.Verify(x => x.EnqueueEmailAsync(
+            It.IsAny<TinyLang.Models.EmailMessage>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task RepeatedEmailShouldBeRejectedBeforeGeneratingAndSendingAnotherCode()
+    {
+        var store = new Mock<IVerificationCodeStore>();
+        store.Setup(x => x.TryAcquireSendCooldownAsync(
+                "user@example.com", It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var emailSender = new Mock<IEmailSender>();
+        var sender = new VerificationCodeSender(
+            new VerificationCodeGenerator(),
+            store.Object,
+            Options.Create(new VerificationCodeSettings { CodeLength = 6, ExpMinutes = 10 }),
+            new SecretHasher(),
+            MockTemplateRenderer.Instance,
+            emailSender.Object);
+
+        var action = () => sender.SendCodeAsync(
+            "user@example.com", VerificationCodePurpose.Register, TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<TooManyRequestsException>();
+        emailSender.Verify(x => x.EnqueueEmailAsync(
+            It.IsAny<TinyLang.Models.EmailMessage>(), It.IsAny<CancellationToken>()), Times.Never);
+        store.Verify(x => x.SaveAsync(
+            It.IsAny<string>(), It.IsAny<VerificationCodePurpose>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [Fact]
     public async Task ConcurrentCorrectVerificationsShouldConsumeCodeOnlyOnce()
     {
@@ -134,6 +191,10 @@ public sealed class VerificationCodeSenderTests
         private readonly object _sync = new();
         private string? _value = value;
 
+        public Task<bool> TryAcquireSendCooldownAsync(string email, TimeSpan window,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(true);
+
         public Task SaveAsync(string email, VerificationCodePurpose purpose, string code,
             CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
@@ -189,7 +250,7 @@ public sealed class VerificationCodeSenderTests
         public Task<string> RenderTemplateAsync<TM>(string templateName, TM model,
             CancellationToken cancellationToken = default)
             where TM : IEquatable<TM>, TinyLang.Templates.ITemplateRenderModel
-            => throw new NotSupportedException();
+            => Task.FromResult("verification email");
     }
 
     private sealed class MockEmailSender : IEmailSender

@@ -46,6 +46,26 @@ public sealed class VerificationCodeStore(
     private static string BuildFailureKey(string email, VerificationCodePurpose purpose)
         => CacheKeys.BuildRedisKey($"verification_code_failures:v2:{email.Trim()}:{purpose}");
 
+    private static string BuildSendCooldownKey(string email)
+        => CacheKeys.BuildRedisKey(
+            $"verification_code_send_cooldown:v1:{email.Trim().ToLowerInvariant()}");
+
+    /// <inheritdoc />
+    public async Task<bool> TryAcquireSendCooldownAsync(
+        string email,
+        TimeSpan window,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var database = redisConnection.GetDatabase();
+        return await database.StringSetAsync(
+                BuildSendCooldownKey(email),
+                "1",
+                window,
+                When.NotExists)
+            .WaitAsync(cancellationToken);
+    }
+
     /// <inheritdoc />
     public async Task<bool> TryConsumeAsync(
         string email,

@@ -27,8 +27,7 @@ public static class SecurityEndpoints
 
         group.MapPut("/me/reset-password", ResetPasswordAsync);
         group.MapPut("/me/change-email", ChangeEmailAsync);
-        group.MapDelete("/me/delete-account", DeleteAccountAsync)
-            .RequireRateLimiting(RateLimitPolicies.StrictCodeLimit);
+        group.MapDelete("/me/delete-account", DeleteAccountAsync);
 
         return endpoints;
     }

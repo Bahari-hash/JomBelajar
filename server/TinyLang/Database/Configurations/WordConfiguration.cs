@@ -25,7 +25,8 @@ public sealed class WordConfiguration : IEntityTypeConfiguration<Word>
         builder.Property(value => value.ConcurrencyStamp).IsConcurrencyToken();
 
         builder.HasIndex(value => value.NormalizedHeadword)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
         builder.HasIndex(value => value.StudyOrder).IsUnique();
         builder.HasIndex(value => value.AudioResourceId);
         builder.HasIndex(value => new

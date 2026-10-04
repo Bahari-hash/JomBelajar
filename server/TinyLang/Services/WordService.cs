@@ -287,6 +287,7 @@ public sealed class WordService : IWordService
         CancellationToken cancellationToken)
     {
         if (await _db.Words.AsNoTracking().AnyAsync(value =>
+            !value.IsDeleted &&
             value.NormalizedHeadword == normalizedHeadword &&
             (!excludedWordId.HasValue || value.Id != excludedWordId.Value),
             cancellationToken))

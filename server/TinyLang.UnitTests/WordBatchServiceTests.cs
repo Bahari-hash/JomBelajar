@@ -20,6 +20,44 @@ namespace TinyLang.UnitTests;
 /// </summary>
 public sealed class WordBatchServiceTests
 {
+    [Fact]
+    public async Task ImportShouldCreateNewWordAndPreserveDeletedWord()
+    {
+        await using var db = CreateDbContext();
+        var deleted = new Word { Headword = "buku", NormalizedHeadword = "BUKU", IsDeleted = true };
+        db.Words.Add(deleted);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var transaction = new Mock<IApplicationDbTransaction>();
+        transaction.Setup(value => value.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var context = WrapWritableContext(db, transaction);
+        context.Setup(value => value.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns((CancellationToken token) => db.SaveChangesAsync(token));
+        var result = await CreateService(context.Object).ImportAsync(Guid.NewGuid(),
+            new BatchWordRequest { Words = [CreateRow("buku")] }, TestContext.Current.CancellationToken);
+        result.Validation.Should().BeNull();
+        result.Imported!.CreatedCount.Should().Be(1);
+        var active = await db.Words.SingleAsync(value => !value.IsDeleted, TestContext.Current.CancellationToken);
+        active.Id.Should().NotBe(deleted.Id);
+        active.NormalizedHeadword.Should().Be("BUKU");
+        (await db.Words.SingleAsync(value => value.Id == deleted.Id, TestContext.Current.CancellationToken))
+            .IsDeleted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ValidateShouldAllowDeletedHeadwordButRejectActiveDuplicate()
+    {
+        await using var db = CreateDbContext();
+        db.Words.Add(new Word { Headword = "buku", NormalizedHeadword = "BUKU", IsDeleted = true });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var request = new BatchWordRequest { Words = [CreateRow(" buku ")] };
+        (await CreateService(db).ValidateAsync(request, TestContext.Current.CancellationToken))
+            .IsValid.Should().BeTrue();
+        db.Words.Add(new Word { Headword = "buku", NormalizedHeadword = "BUKU" });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        (await CreateService(db).ValidateAsync(request, TestContext.Current.CancellationToken))
+            .Errors.Should().Contain(error => error.ErrorCode == ErrorCodes.WordDuplicate);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

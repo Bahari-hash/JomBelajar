@@ -519,6 +519,13 @@ public sealed class WordServiceTests
             TestContext.Current.CancellationToken)).IsDeleted.Should().BeTrue();
         (await db.WordSenses.AnyAsync(value => value.WordId == created.Id,
             TestContext.Current.CancellationToken)).Should().BeTrue();
+
+        var replacement = await service.CreateAsync(
+            Guid.NewGuid(), CreateRequest(includeExample: true),
+            TestContext.Current.CancellationToken);
+        replacement.Id.Should().NotBe(created.Id);
+        (await db.Words.CountAsync(value => !value.IsDeleted,
+            TestContext.Current.CancellationToken)).Should().Be(1);
     }
 
     private static WordService CreateService(ApplicationDbContext db)

@@ -679,7 +679,7 @@ public sealed class WordBatchService : IWordBatchService
         }
 
         var existing = await _db.Words.AsNoTracking()
-            .Where(value => normalizedHeadwords.Contains(value.NormalizedHeadword))
+            .Where(value => !value.IsDeleted && normalizedHeadwords.Contains(value.NormalizedHeadword))
             .Select(value => value.NormalizedHeadword)
             .ToHashSetAsync(cancellationToken);
         for (var index = 0; index < identities.Count; index++)

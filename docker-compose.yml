@@ -54,6 +54,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_API_CORS_ALLOW_ORIGIN: https://www.bahasa.cn
+    ports:
+      - "9001:9001"
     volumes:
       - minio-data:/data
     networks:

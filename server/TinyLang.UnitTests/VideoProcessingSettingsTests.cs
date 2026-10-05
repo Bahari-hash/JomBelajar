@@ -28,6 +28,25 @@ public sealed class VideoProcessingSettingsTests
     }
 
     /// <summary>
+    /// 验证旧的源视频分辨率配置不会再触发固定产品上限校验。
+    /// </summary>
+    [Fact]
+    public void LegacySourceResolutionValuesShouldNotFailValidation()
+    {
+        using var provider = CreateProvider(new Dictionary<string, string?>
+        {
+            [$"{VideoProcessingSettings.SectionName}:MaxSourceWidth"] = "3840",
+            [$"{VideoProcessingSettings.SectionName}:MaxSourceHeight"] = "2160"
+        });
+
+        var action = () => provider
+            .GetRequiredService<IOptions<VideoProcessingSettings>>()
+            .Value;
+
+        action.Should().NotThrow();
+    }
+
+    /// <summary>
     /// 验证租约至少覆盖三个 heartbeat 窗口的边界配置。
     /// </summary>
     [Fact]

@@ -9,7 +9,7 @@ using TinyLang.Settings;
 namespace TinyLang.Infrastructure;
 
 /// <summary>
-/// 通过 ffprobe JSON 探测真实媒体流并校验显示尺寸、音视频流和时长。
+/// 通过 ffprobe JSON 探测真实媒体流并校验显示尺寸有效性、音视频流和时长。
 /// </summary>
 public sealed class FfprobeMediaProbe : IMediaProbe
 {
@@ -25,7 +25,7 @@ public sealed class FfprobeMediaProbe : IMediaProbe
     private readonly VideoProcessingSettings _settings;
 
     /// <summary>
-    /// 使用受控进程执行器和源视频限制创建媒体探测器。
+    /// 使用受控进程执行器创建媒体探测器。
     /// </summary>
     public FfprobeMediaProbe(
         IMediaProcessRunner processRunner,
@@ -134,14 +134,6 @@ public sealed class FfprobeMediaProbe : IMediaProbe
                 VideoProcessingFailureCode.DisplayDimensionsInvalid,
                 isTransient: false);
         }
-        if (displayWidth > _settings.MaxSourceWidth ||
-            displayHeight > _settings.MaxSourceHeight)
-        {
-            throw new VideoProcessingException(
-                VideoProcessingFailureCode.SourceResolutionExceeded,
-                isTransient: false);
-        }
-
         return new MediaProbeResult(
             duration.Value,
             displayWidth,

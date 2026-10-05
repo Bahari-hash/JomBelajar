@@ -15,12 +15,6 @@ public sealed record VideoProcessingSettings
     [Required]
     public string FfmpegPath { get; init; } = "ffmpeg";
 
-    [Range(1, 8192)]
-    public int MaxSourceWidth { get; init; } = 1920;
-
-    [Range(1, 8192)]
-    public int MaxSourceHeight { get; init; } = 1080;
-
     [Range(5, 600)]
     public int ProbeTimeoutSeconds { get; init; } = 60;
 

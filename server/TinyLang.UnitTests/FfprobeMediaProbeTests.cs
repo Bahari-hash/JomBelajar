@@ -117,7 +117,7 @@ public sealed class FfprobeMediaProbeTests
     }
 
     [Fact]
-    public async Task RotatedDisplayAbove1920By1080ShouldBeRejected()
+    public async Task RotatedDisplayAboveFormerLimitShouldBeAccepted()
     {
         var runner = CreateRunner("""
             {
@@ -133,13 +133,12 @@ public sealed class FfprobeMediaProbeTests
             runner.Object,
             Options.Create(new VideoProcessingSettings()));
 
-        var action = () => probe.ProbeAsync(
+        var result = await probe.ProbeAsync(
             "source.media",
             TestContext.Current.CancellationToken);
 
-        var exception = await action.Should().ThrowAsync<VideoProcessingException>();
-        exception.Which.FailureCode.Should().Be(
-            VideoProcessingFailureCode.SourceResolutionExceeded);
+        result.DisplayWidth.Should().Be(1921);
+        result.DisplayHeight.Should().Be(1081);
     }
 
     [Fact]
@@ -195,7 +194,7 @@ public sealed class FfprobeMediaProbeTests
     }
 
     [Fact]
-    public async Task FractionalDisplayWidthAboveLimitShouldRoundUpAndBeRejected()
+    public async Task FractionalDisplayWidthAboveFormerLimitShouldRoundUpAndBeAccepted()
     {
         var runner = CreateRunner("""
             {
@@ -211,13 +210,12 @@ public sealed class FfprobeMediaProbeTests
             runner.Object,
             Options.Create(new VideoProcessingSettings()));
 
-        var action = () => probe.ProbeAsync(
+        var result = await probe.ProbeAsync(
             "source.media",
             TestContext.Current.CancellationToken);
 
-        var exception = await action.Should().ThrowAsync<VideoProcessingException>();
-        exception.Which.FailureCode.Should().Be(
-            VideoProcessingFailureCode.SourceResolutionExceeded);
+        result.DisplayWidth.Should().Be(1922);
+        result.DisplayHeight.Should().Be(1080);
     }
 
     [Fact]

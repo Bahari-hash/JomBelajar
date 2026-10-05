@@ -10,7 +10,6 @@ public enum VideoProcessingFailureCode
     AudioStreamMissing,
     DurationInvalid,
     DisplayDimensionsInvalid,
-    SourceResolutionExceeded,
     ProcessStartFailed,
     ProcessTimedOut,
     TranscodeFailed,

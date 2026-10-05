@@ -86,10 +86,6 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(VideoProcessingSettings.SectionName))
             .ValidateDataAnnotations()
             .Validate(
-                settings => settings.MaxSourceWidth == 1920 &&
-                    settings.MaxSourceHeight == 1080,
-                "Video source dimensions must use the product limit 1920x1080.")
-            .Validate(
                 settings => settings.VideoBitrate480Kbps < settings.VideoBitrate720Kbps &&
                     settings.VideoBitrate720Kbps < settings.VideoBitrate1080Kbps,
                 "Video rendition bitrates must increase from 480p through 1080p.")
